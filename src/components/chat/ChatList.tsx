@@ -433,12 +433,36 @@ export function ChatList() {
     return map;
   }, [sortedConversations]);
 
+  const remoteConversations = searchResults?.conversations ?? [];
+  const remoteContacts = searchResults?.contacts ?? [];
+
+  const remoteContactPhoneById = React.useMemo(() => {
+    const map = new Map<string, string | null>();
+    remoteContacts.forEach((c) => map.set(c.id, c.phone || null));
+    return map;
+  }, [remoteContacts]);
+
+  const remoteConvMetaByContact = React.useMemo(() => {
+    const map = new Map<string, { codAgent?: string; queueId?: string; assignedTo?: string | null }>();
+    remoteConversations.forEach((conv) => {
+      if (!map.has(conv.contact_id)) {
+        map.set(conv.contact_id, {
+          codAgent: conv.cod_agent || undefined,
+          queueId: conv.queue_id || undefined,
+          assignedTo: conv.assigned_to || null,
+        });
+      }
+    });
+    return map;
+  }, [remoteConversations]);
+
   // Batch-load queue → agent links for all visible queues
   const queueIds = React.useMemo(() => {
     const set = new Set<string>();
     convMetaByContact.forEach((m) => { if (m.queueId) set.add(m.queueId); });
+    remoteConvMetaByContact.forEach((m) => { if (m.queueId) set.add(m.queueId); });
     return Array.from(set);
-  }, [convMetaByContact]);
+  }, [convMetaByContact, remoteConvMetaByContact]);
   const { data: queueAgentMap } = useQueueAgentLinks(queueIds);
 
   // For every contact whose conversation runs through a Julia-enabled queue,
@@ -460,8 +484,20 @@ export function ChatList() {
       seen.add(key);
       pairs.push({ whatsappNumber: phone, codAgent: link.codAgent, key });
     });
+    remoteContacts.forEach((c) => {
+      const meta = remoteConvMetaByContact.get(c.id);
+      if (!meta?.queueId || !c.phone) return;
+      const link = queueAgentMap?.get(meta.queueId);
+      if (!link?.hasAgent || !link.codAgent) return;
+      const phone = c.phone.replace(/\D/g, '');
+      if (!phone) return;
+      const key = `${phone}:${link.codAgent}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      pairs.push({ whatsappNumber: phone, codAgent: link.codAgent, key });
+    });
     return pairs;
-  }, [contacts, convMetaByContact, queueAgentMap]);
+  }, [contacts, convMetaByContact, queueAgentMap, remoteContacts, remoteConvMetaByContact]);
 
   const { data: sessionActiveMap } = useAgentSessionStatusesBatch(
     sessionPairs.map(({ whatsappNumber, codAgent }) => ({ whatsappNumber, codAgent }))
@@ -470,8 +506,11 @@ export function ChatList() {
   const contactPhoneById = React.useMemo(() => {
     const map = new Map<string, string | null>();
     contacts.forEach((c) => map.set(c.id, c.phone || null));
+    remoteContacts.forEach((c) => {
+      if (!map.has(c.id)) map.set(c.id, c.phone || null);
+    });
     return map;
-  }, [contacts]);
+  }, [contacts, remoteContacts]);
 
   // Resolve session.active for a (contactId, queueLink) pair. Returns:
   //  - true: Julia ativa
