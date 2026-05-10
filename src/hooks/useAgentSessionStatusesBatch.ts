@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
+import { getBrPhoneVariants } from '@/lib/phoneVariants';
 
 export interface SessionPair {
   whatsappNumber: string;
@@ -34,8 +35,16 @@ export function useAgentSessionStatusesBatch(pairs: SessionPair[]) {
       if (cleaned.length === 0) return map;
       const rows = await externalDb.getSessionStatusesBatch(cleaned);
       (rows || []).forEach((r: any) => {
-        const key = `${String(r.whatsapp_number).replace(/\D/g, '')}:${String(r.cod_agent)}`;
-        map.set(key, !!r.active);
+        const phone = String(r.whatsapp_number || '').replace(/\D/g, '');
+        const codAgent = String(r.cod_agent || '');
+        if (!phone || !codAgent) return;
+        // Index under all BR variants (with/without 9th digit) so consumers
+        // looking up the chat-canonical phone (13 dig) hit DB rows stored as
+        // legacy 12-digit numbers and vice-versa.
+        const variants = getBrPhoneVariants(phone);
+        for (const v of variants) {
+          map.set(`${v}:${codAgent}`, !!r.active);
+        }
       });
       return map;
     },

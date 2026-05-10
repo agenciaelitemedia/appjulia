@@ -29,6 +29,7 @@ import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatS
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
+import { normalizeBrPhone } from '@/lib/phoneNormalize';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
@@ -383,8 +384,10 @@ export function ChatList() {
   const getSessionActive = React.useCallback(
     (phone: string | null | undefined, codAgent: string | null | undefined): boolean | undefined => {
       if (!phone || !codAgent) return undefined;
-      const key = `${phone.replace(/\D/g, '')}:${codAgent}`;
-      return sessionActiveMap?.get(key);
+      // Normalize to canonical BR form (13 digits with 9th digit) to match the
+      // map keys, which are indexed under all phone variants by the hook.
+      const normalized = normalizeBrPhone(phone) || phone.replace(/\D/g, '');
+      return sessionActiveMap?.get(`${normalized}:${codAgent}`);
     },
     [sessionActiveMap]
   );
