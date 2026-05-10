@@ -157,6 +157,35 @@ export function ChatList() {
   const trimmedSearch = (searchQuery || '').trim();
   const isSearching = trimmedSearch.length >= 2;
 
+  // Mode filter applied server-side when Julia/Humano is selected. We
+  // pre-fetch the universe of phones for that mode (from agent_sessions)
+  // and use it as a `phone IN (...)` filter on the contacts query so the
+  // totalizers and pagination cover the whole base, not just the
+  // already-loaded page.
+  const phoneFilterMode: 'julia' | 'human' | null =
+    modeFilter === 'julia' || modeFilter === 'human' ? modeFilter : null;
+
+  const { data: agentsForMode } = useMyAgents();
+  const clientCodAgentsForMode = React.useMemo(() => {
+    const set = new Set<string>();
+    [
+      ...(agentsForMode?.myAgents || []),
+      ...(agentsForMode?.monitoredAgents || []),
+    ].forEach((a: any) => {
+      if (a?.cod_agent) set.add(String(a.cod_agent));
+    });
+    return [...set];
+  }, [agentsForMode]);
+
+  const { data: modePhonesData, isFetching: isModePhonesFetching } =
+    useSessionPhonesByMode(phoneFilterMode ?? 'all', clientCodAgentsForMode);
+  const modePhones = modePhonesData?.phones ?? null;
+  const modePhonesReady = phoneFilterMode === null || modePhones !== null;
+
+  // Either a free-text search or a mode pre-filter triggers the remote
+  // query path. Both scenarios bypass the in-memory paginated list.
+  const isRemoteQuery = isSearching || phoneFilterMode !== null;
+
   // Key used to scope pagination per tab/status combo
   const searchPageKey = `${activeTab}|${conversationStatusFilter}`;
   const searchPage = searchPages[searchPageKey] ?? 1;
@@ -167,33 +196,53 @@ export function ChatList() {
     }));
   }, [searchPageKey]);
 
-  // Reset all per-tab pagination whenever the search term changes
+  // Reset all per-tab pagination whenever the search term or mode filter changes
   useEffect(() => {
     setSearchPages({});
-  }, [trimmedSearch]);
+  }, [trimmedSearch, phoneFilterMode]);
 
   const { data: searchResults, isFetching: isSearchFetching } = useQuery({
-    queryKey: ['chat-list-search', clientId, trimmedSearch, searchPageKey, searchPage],
-    enabled: isSearching && !!clientId,
+    queryKey: [
+      'chat-list-search',
+      clientId,
+      trimmedSearch,
+      phoneFilterMode,
+      modePhones?.length ?? 0,
+      searchPageKey,
+      searchPage,
+    ],
+    enabled: isRemoteQuery && !!clientId && modePhonesReady,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
     queryFn: async () => {
       const term = trimmedSearch.replace(/[%,]/g, ' ').trim();
-      if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
+      // Empty universe when mode filter has no matching phones
+      if (phoneFilterMode && (!modePhones || modePhones.length === 0)) {
+        return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
+      }
+      if (!term && !phoneFilterMode) {
+        return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
+      }
       const digits = term.replace(/\D/g, '');
-      const orParts: string[] = [`name.ilike.%${term}%`];
-      if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
       const upper = searchPage * SEARCH_PAGE_SIZE - 1;
-      const { data: matched, error, count } = await supabase
+      let q = supabase
         .from('chat_contacts')
         .select(
           'id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at',
           { count: 'exact' }
         )
         .eq('client_id', clientId)
-        .or(orParts.join(','))
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .range(0, upper);
+      if (term) {
+        const orParts: string[] = [`name.ilike.%${term}%`];
+        if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
+        q = q.or(orParts.join(','));
+      }
+      if (phoneFilterMode && modePhones && modePhones.length > 0) {
+        q = q.in('phone', modePhones);
+      }
+      const { data: matched, error, count } = await q;
       if (error) throw error;
       const matchedContacts = (matched || []) as unknown as typeof contacts;
       const ids = matchedContacts.map((c) => c.id);
