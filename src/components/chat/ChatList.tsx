@@ -1487,13 +1487,13 @@ export function ChatList() {
       <div ref={listRef} className="flex-1 overflow-y-auto">
         {/* Silent-refetch banner — shown when reloading but the list is
             already populated, so the user doesn't lose the current view. */}
-        {(isLoading || (isSearching && isSearchFetching && (searchResults?.contacts?.length ?? 0) > 0)) && contacts.length > 0 && (
+        {(isLoading || (isRemoteQuery && (isSearchFetching || isModePhonesFetching) && (searchResults?.contacts?.length ?? 0) > 0)) && contacts.length > 0 && (
           <div className="flex items-center justify-center gap-2 py-1.5 text-[10px] text-muted-foreground bg-muted/30 border-b">
             <Loader2 className="h-3 w-3 animate-spin" />
-            {isSearching ? 'Buscando…' : 'Atualizando…'}
+            {isSearching ? 'Buscando…' : phoneFilterMode ? 'Filtrando…' : 'Atualizando…'}
           </div>
         )}
-        {(isLoading && contacts.length === 0) || (isSearching && isSearchFetching && !searchResults) ? (
+        {(isLoading && contacts.length === 0) || (isRemoteQuery && (isSearchFetching || isModePhonesFetching) && !searchResults) ? (
           <div className="py-1">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
@@ -1569,15 +1569,15 @@ export function ChatList() {
         )}
 
         {/* Infinite scroll loader / sentinel */}
-        {!isSearching && isLoadingMoreContacts && contacts.length > 0 && (
+        {!isRemoteQuery && isLoadingMoreContacts && contacts.length > 0 && (
           <div className="flex justify-center py-3">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         )}
-        {!isSearching && displayContacts.length > 0 && (
+        {!isRemoteQuery && displayContacts.length > 0 && (
           <div ref={bottomSentinelRef} className="h-1" />
         )}
-        {!isSearching && hasMoreContacts && !isLoadingMoreContacts && displayContacts.length > 0 && (
+        {!isRemoteQuery && hasMoreContacts && !isLoadingMoreContacts && displayContacts.length > 0 && (
           <div className="flex justify-center py-3">
             <button
               type="button"
@@ -1588,21 +1588,21 @@ export function ChatList() {
             </button>
           </div>
         )}
-        {!isSearching && !isLoading && !hasMoreContacts && displayContacts.length > 0 && (
+        {!isRemoteQuery && !isLoading && !hasMoreContacts && displayContacts.length > 0 && (
           <div className="text-center text-[10px] text-muted-foreground py-3">
             Fim da lista ({activeTabTotal} de {activeTabTotal})
           </div>
         )}
 
-        {/* Search-mode pagination footer */}
-        {isSearching && searchLoaded > 0 && (
+        {/* Remote-query pagination footer (search or mode filter) */}
+        {isRemoteQuery && searchLoaded > 0 && (
           <>
-            {isSearchFetching && (
+            {(isSearchFetching || isModePhonesFetching) && (
               <div className="flex justify-center py-3">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
             )}
-            {!isSearchFetching && hasMoreSearch && (
+            {!isSearchFetching && !isModePhonesFetching && hasMoreSearch && (
               <div className="flex justify-center py-3">
                 <button
                   type="button"
@@ -1613,7 +1613,7 @@ export function ChatList() {
                 </button>
               </div>
             )}
-            {!isSearchFetching && !hasMoreSearch && (
+            {!isSearchFetching && !isModePhonesFetching && !hasMoreSearch && (
               <div className="text-center text-[10px] text-muted-foreground py-3">
                 Fim da lista ({activeTabTotal} de {activeTabTotal})
               </div>
