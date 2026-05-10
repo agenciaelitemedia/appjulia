@@ -935,7 +935,7 @@ export function ChatList() {
                     <ToggleGroupItem
                       value="all"
                       aria-label="Todos os modos"
-                      className="h-8 w-8 p-0 rounded-md border border-border bg-background text-muted-foreground hover:bg-muted transition-all data-[state=on]:bg-foreground data-[state=on]:text-background data-[state=on]:border-foreground data-[state=on]:ring-2 data-[state=on]:ring-foreground/40 data-[state=on]:scale-105 data-[state=on]:shadow-sm"
+                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:bg-foreground/10 data-[state=on]:text-foreground data-[state=on]:border-foreground/30"
                     >
                       <ListFilter className="h-3.5 w-3.5" />
                     </ToggleGroupItem>
@@ -947,7 +947,7 @@ export function ChatList() {
                     <ToggleGroupItem
                       value="julia"
                       aria-label="Julia IA ativa"
-                      className="h-8 w-8 p-0 rounded-md border border-border bg-background text-muted-foreground hover:bg-muted transition-all data-[state=on]:bg-green-500 data-[state=on]:text-white data-[state=on]:border-green-600 data-[state=on]:ring-2 data-[state=on]:ring-green-500/40 data-[state=on]:scale-105 data-[state=on]:shadow-sm"
+                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:bg-green-500/15 data-[state=on]:text-green-600 dark:data-[state=on]:text-green-400 data-[state=on]:border-green-500/40"
                     >
                       <Bot className="h-3.5 w-3.5" />
                     </ToggleGroupItem>
@@ -959,7 +959,7 @@ export function ChatList() {
                     <ToggleGroupItem
                       value="human"
                       aria-label="Atendimento humano"
-                      className="h-8 w-8 p-0 rounded-md border border-border bg-background text-muted-foreground hover:bg-muted transition-all data-[state=on]:bg-amber-500 data-[state=on]:text-white data-[state=on]:border-amber-600 data-[state=on]:ring-2 data-[state=on]:ring-amber-500/40 data-[state=on]:scale-105 data-[state=on]:shadow-sm"
+                      className="h-8 w-8 p-0 rounded-md border bg-transparent text-muted-foreground border-border hover:bg-muted transition-colors data-[state=on]:bg-amber-500/15 data-[state=on]:text-amber-600 dark:data-[state=on]:text-amber-400 data-[state=on]:border-amber-500/40"
                     >
                       <User className="h-3.5 w-3.5" />
                     </ToggleGroupItem>
@@ -967,9 +967,6 @@ export function ChatList() {
                   <TooltipContent>Atendimento humano (Julia inativa)</TooltipContent>
                 </Tooltip>
               </ToggleGroup>
-              <span className="text-[11px] font-semibold text-foreground/80 px-1 shrink-0">
-                {modeFilter === 'all' ? 'Todos' : modeFilter === 'julia' ? 'Julia IA' : 'Humano'}
-              </span>
 
               <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
                 <Tooltip>
