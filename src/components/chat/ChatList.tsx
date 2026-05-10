@@ -753,9 +753,9 @@ export function ChatList() {
     return Array.from(byId.values()).sort((a, b) => {
       const aTs = Date.parse(a.last_message_at || a.updated_at || '') || 0;
       const bTs = Date.parse(b.last_message_at || b.updated_at || '') || 0;
-      return bTs - aTs;
+      return sortOrder === 'oldest' ? aTs - bTs : bTs - aTs;
     });
-  }, [visibleContacts, fetchedMissing]);
+  }, [visibleContacts, fetchedMissing, sortOrder]);
 
   // Virtual scroll — only renders items in the visible viewport.
   // estimateSize ≈ base item height (3 info rows + tags). measureElement
