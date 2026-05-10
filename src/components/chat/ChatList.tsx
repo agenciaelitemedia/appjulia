@@ -1077,7 +1077,8 @@ export function ChatList() {
             key={tab.value}
             onClick={() => setConversationStatusFilter(tab.value)}
             className={cn(
-              'flex-1 py-2 text-xs font-semibold border-b-2 transition-colors flex items-center justify-center gap-1.5',
+              'py-2 text-xs font-semibold border-b-2 transition-colors flex items-center justify-center gap-1.5',
+              tab.iconOnly ? 'shrink-0 px-3' : 'flex-1',
               conversationStatusFilter === tab.value
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
