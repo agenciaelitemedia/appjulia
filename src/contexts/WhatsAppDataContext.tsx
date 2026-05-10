@@ -617,6 +617,47 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         query = query.eq('status', convQueryGroup);
       }
 
+      // Server-side assignee filter — same semantics used by the chat list.
+      const assignedTo = assignedToFilterRef.current;
+      if (assignedTo === 'unassigned') {
+        query = query.or('assigned_to.is.null,assigned_to.eq.');
+      } else if (assignedTo === 'mine') {
+        const me = String(user?.id || '');
+        const meName = user?.name || '';
+        if (me || meName) {
+          const parts: string[] = [];
+          if (me) parts.push(`assigned_to.eq.${me}`);
+          if (meName) parts.push(`assigned_to.eq.${meName}`);
+          query = query.or(parts.join(','));
+        }
+      } else if (assignedTo && assignedTo !== 'all') {
+        query = query.eq('assigned_to', assignedTo);
+      }
+
+      // Phone allowlist applied via contact join: resolve allowlist's
+      // contact ids first, then filter conversations by contact_id.
+      const allowlist = phoneAllowlistRef.current;
+      let allowedContactIds: string[] | null = null;
+      if (allowlist !== null) {
+        if (allowlist.length === 0) {
+          if (!append) setConversations([]);
+          setHasMoreConversations(false);
+          return;
+        }
+        const { data: matched } = await supabase
+          .from('chat_contacts')
+          .select('id')
+          .eq('client_id', clientId)
+          .in('phone', allowlist);
+        allowedContactIds = (matched || []).map((r: any) => String(r.id));
+        if (allowedContactIds.length === 0) {
+          if (!append) setConversations([]);
+          setHasMoreConversations(false);
+          return;
+        }
+        query = query.in('contact_id', allowedContactIds);
+      }
+
       const { data, error } = await query;
       if (error) throw error;
 
