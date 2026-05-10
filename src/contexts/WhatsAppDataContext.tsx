@@ -2280,19 +2280,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               setConversations(prev => prev.filter(c => c.id !== updConv.id));
               return;
             }
-            // Status scope check vs the currently loaded group (active / resolved / closed).
-            // This is what makes a "resolved → open" reopen show up immediately in the
-            // "Em aberto" tab, and a "open → resolved" disappear from it without reload.
-            const group = convQueryGroupRef.current;
-            const matchesGroup =
-              group === 'active'
-                ? (updConv.status === 'pending' || updConv.status === 'open')
-                : updConv.status === group;
-            if (!matchesGroup) {
-              setConversations(prev => prev.filter(c => c.id !== updConv.id));
-              return;
-            }
-            // Upsert: replace if present, otherwise insert at the top (sorted by updated_at desc).
+            // We keep ALL groups (active / resolved / closed) in memory at
+            // once, so realtime updates only need to upsert — never drop.
+            // The chat list filters by status itself for the active tab.
             setConversations(prev => {
               const idx = prev.findIndex(c => c.id === updConv.id);
               if (idx >= 0) {
@@ -2334,15 +2324,25 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     const prev = bootstrapKeyRef.current;
     bootstrapKeyRef.current = key;
     setHasMoreContacts(true);
-    setHasMoreConversations(false);
-    // Fire all 4 bootstrap requests in parallel — contacts, conversations, tags,
-    // and conversation-tag map. This cuts the sequential waterfall by ~60%.
+    // Bump epoch — kills any in-flight auto-load loop from the previous scope.
+    convLoadEpochRef.current += 1;
+    // Reset per-group metadata + start the eager loop for the active tab.
+    setConvGroupMeta({
+      active: initialConvGroupMeta(),
+      resolved: initialConvGroupMeta(),
+      closed: initialConvGroupMeta(),
+    });
+    hasLoadedConversationsOnceRef.current = false;
+    setHasLoadedConversationsOnce(false);
+    setConversations([]);
     Promise.all([
       loadContacts({ reset: true }),
-      loadConversations(),
       loadTags(),
       refreshConversationTags(),
     ]).catch(() => { /* individual errors are already logged inside each fn */ });
+    // Eager: load ALL pages of pending+open in 500-row chunks until done.
+    runConvAutoLoad('active', Number.POSITIVE_INFINITY)
+      .catch(err => console.error('[WhatsAppDataContext] active auto-load failed', err));
     // Only clear selection / message cache on a REAL scope change.
     // The very first effect run (prev === null) is the initial mount —
     // keep any pending selection (e.g. from sessionStorage deep-link).
@@ -2354,21 +2354,23 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQueueId, clientId, activeQueueIds, periodFilter, sortOrder, queuesLoading]);
 
-  // Reload conversations when ONLY the query group (status tab) changes —
-  // without triggering the full bootstrap effect above.
-  const prevConvQueryGroupRef = useRef<string | null>(null);
+  // When the user activates the resolved / closed (or both) tab for the
+  // first time in this scope, kick off a capped auto-load (10 × 500 = 5_000
+  // rows max). Subsequent visits to the same tab are instant — no DB hit.
   useEffect(() => {
     if (!clientId || queuesLoading) return;
-    // Skip the very first run — the bootstrap effect above already called loadConversations.
-    if (prevConvQueryGroupRef.current === null) {
-      prevConvQueryGroupRef.current = convQueryGroup;
-      return;
+    const groupsToLoad: ConvLoadGroup[] = convQueryGroup === 'resolved' ? ['resolved']
+      : convQueryGroup === 'closed' ? ['closed']
+      : convQueryGroup === 'resolved_closed' ? ['resolved', 'closed']
+      : [];
+    for (const g of groupsToLoad) {
+      const meta = convGroupMetaRef.current[g];
+      if (meta && !meta.autoLoadDone && !meta.isAutoLoading) {
+        runConvAutoLoad(g, CONV_AUTOLOAD_MAX_PAGES_RESOLVED_CLOSED)
+          .catch(err => console.error('[WhatsAppDataContext]', g, 'auto-load failed', err));
+      }
     }
-    if (prevConvQueryGroupRef.current !== convQueryGroup) {
-      prevConvQueryGroupRef.current = convQueryGroup;
-      loadConversations();
-    }
-  }, [clientId, convQueryGroup, loadConversations, queuesLoading]);
+  }, [clientId, convQueryGroup, queuesLoading, runConvAutoLoad]);
 
   // ============================================
   // Visibility refetch — resilience for suspended tabs
