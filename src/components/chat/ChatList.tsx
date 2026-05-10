@@ -99,6 +99,8 @@ export function ChatList() {
     setPeriodFilter,
     sortOrder,
     setSortOrder,
+    setAssignedToFilter,
+    setPhoneAllowlist,
   } = useWhatsAppData();
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
