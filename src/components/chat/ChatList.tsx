@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Search, MessageCircle, Users, Layers, Bot, User, UserCheck, UserX, ListFilter, CheckCheck, UserCircle, ChevronsUpDown, CalendarDays, Settings, BarChart3, ArrowDownUp, ArrowDown, ArrowUp } from 'lucide-react';
+import { Search, MessageCircle, Users, Layers, Bot, User, UserCheck, UserX, ListFilter, CheckCheck, UserCircle, ChevronsUpDown, CalendarDays, Settings, BarChart3, ArrowDownUp, ArrowDown, ArrowUp, X, Check } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { TagsManagerDialog } from './TagsManagerDialog';
@@ -117,10 +118,26 @@ export function ChatList() {
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [stageIds, setStageIds] = useState<number[]>([]);
   const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
+  const [queuePopoverOpen, setQueuePopoverOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState(searchQuery);
   const [showTagsManager, setShowTagsManager] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
+
+  // Sync local draft when external search query is reset elsewhere
+  useEffect(() => {
+    setSearchDraft(searchQuery);
+  }, [searchQuery]);
+
+  const submitSearch = React.useCallback(() => {
+    setSearchQuery(searchDraft.trim());
+  }, [searchDraft, setSearchQuery]);
+
+  const clearSearch = React.useCallback(() => {
+    setSearchDraft('');
+    setSearchQuery('');
+  }, [setSearchQuery]);
 
   // Infinite scroll refs — sentinel at the bottom of the list triggers
   // loadMoreContacts when it enters the viewport.
@@ -772,13 +789,40 @@ export function ChatList() {
         <div className="px-4 pb-2">
           <div className="relative flex items-center gap-1">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar atendimento"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 bg-muted/40 border-0"
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitSearch();
+                  }
+                }}
+                className="pl-3 pr-16 h-9 bg-muted/40 border-0"
               />
+              {(searchDraft || searchQuery) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-8 top-1/2 -translate-y-1/2 h-7 w-7"
+                  onClick={clearSearch}
+                  title="Limpar busca"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={submitSearch}
+                title="Buscar"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
             </div>
             <Popover>
               <PopoverTrigger asChild>
@@ -863,44 +907,73 @@ export function ChatList() {
         {/* Linha: Filas + Atendentes lado a lado */}
         <div className="px-4 pb-2 grid grid-cols-2 gap-2">
           {activeQueues.length > 0 ? (
-            <Select
-              value={selectedQueue?.id || '__all__'}
-              onValueChange={(val) => {
-                if (val === '__all__') { setSelectedQueue(null); return; }
-                const queue = activeQueues.find(q => q.id === val);
-                if (queue) {
-                  setSelectedQueue({
-                    id: queue.id,
-                    name: queue.name,
-                    channel_type: queue.channel_type,
-                    hub: queue.hub,
-                    evo_url: queue.evo_url,
-                    evo_apikey: queue.evo_apikey,
-                    evo_instance: queue.evo_instance,
-                  });
-                }
-              }}
-            >
-              <SelectTrigger className="w-full h-8 text-xs">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="Todas as filas" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">
-                  <div className="flex items-center gap-2"><span>Todas as filas</span></div>
-                </SelectItem>
-                {activeQueues.map((queue) => (
-                  <SelectItem key={queue.id} value={queue.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{queue.name}</span>
-                      {channelBadge(queue.channel_type)}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={queuePopoverOpen} onOpenChange={setQueuePopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full h-8 justify-between text-xs font-normal px-2.5"
+                >
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate">
+                      {selectedQueue?.name || 'Todas as filas'}
+                    </span>
+                  </span>
+                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[280px] p-0 z-[60]" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar fila…" className="h-9" />
+                  <CommandList className="max-h-[280px]">
+                    <CommandEmpty>Nenhuma fila encontrada.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="__all__ todas as filas"
+                        onSelect={() => {
+                          setSelectedQueue(null);
+                          setQueuePopoverOpen(false);
+                        }}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Check className={cn('h-4 w-4', !selectedQueue ? 'opacity-100' : 'opacity-0')} />
+                        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="flex-1 truncate">Todas as filas</span>
+                      </CommandItem>
+                      {[...activeQueues]
+                        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+                        .map((queue) => {
+                          const isSel = selectedQueue?.id === queue.id;
+                          return (
+                            <CommandItem
+                              key={queue.id}
+                              value={`${queue.name} ${queue.channel_type}`}
+                              onSelect={() => {
+                                setSelectedQueue({
+                                  id: queue.id,
+                                  name: queue.name,
+                                  channel_type: queue.channel_type,
+                                  hub: queue.hub,
+                                  evo_url: queue.evo_url,
+                                  evo_apikey: queue.evo_apikey,
+                                  evo_instance: queue.evo_instance,
+                                });
+                                setQueuePopoverOpen(false);
+                              }}
+                              className="cursor-pointer gap-2"
+                            >
+                              <Check className={cn('h-4 w-4', isSel ? 'opacity-100' : 'opacity-0')} />
+                              <span className="flex-1 truncate">{queue.name}</span>
+                              {channelBadge(queue.channel_type)}
+                            </CommandItem>
+                          );
+                        })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           ) : <div />}
           <TeamMemberSelect
             members={teamMembers}
