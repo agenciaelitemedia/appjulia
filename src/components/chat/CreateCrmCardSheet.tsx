@@ -308,7 +308,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                O card sempre será criado na primeira etapa do quadro.
+                Você pode escolher em qual etapa o card será criado.
               </p>
 
               {loadingBoards ? (
@@ -320,7 +320,6 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
                   {boards.map((b) => {
                     const isExpanded = expandedBoard === b.id;
                     const pipelines = pipelinesByBoard[b.id] || [];
-                    const firstStage = pipelines[0];
                     return (
                       <div key={b.id} className="border rounded-lg overflow-hidden bg-card">
                         <button
@@ -350,15 +349,38 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
                           <div className="border-t bg-muted/20 p-3">
                             {pipelines.length === 0 ? (
                               <div className="text-xs text-muted-foreground">Carregando etapas...</div>
-                            ) : firstStage ? (
-                              <div className="flex items-center gap-2 text-xs">
-                                <span className="text-muted-foreground">Entrará em:</span>
-                                <span
-                                  className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: firstStage.color }}
-                                />
-                                <span className="font-medium">{firstStage.name}</span>
-                                <Check className="h-3.5 w-3.5 text-primary ml-auto" />
+                            ) : pipelines.length > 0 ? (
+                              <div className="space-y-1">
+                                <div className="text-[11px] text-muted-foreground mb-1.5">Escolha a etapa:</div>
+                                {pipelines.map((p) => {
+                                  const isSelected = selectedPipeline === p.id;
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedBoard(b.id);
+                                        setSelectedPipeline(p.id);
+                                      }}
+                                      className={cn(
+                                        'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md border transition-colors text-left',
+                                        isSelected
+                                          ? 'border-primary bg-primary/10'
+                                          : 'border-transparent hover:bg-muted/60'
+                                      )}
+                                    >
+                                      <span
+                                        className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: p.color }}
+                                      />
+                                      <span className={cn('flex-1 truncate', isSelected && 'font-medium')}>
+                                        {p.name}
+                                      </span>
+                                      {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <div className="text-xs text-muted-foreground">
