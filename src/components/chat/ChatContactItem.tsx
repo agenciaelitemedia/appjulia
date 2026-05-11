@@ -378,11 +378,13 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   if (prev.index !== next.index) return false;
   if (prev.contact?.id !== next.contact?.id) return false;
   if (prev.contact?.name !== next.contact?.name) return false;
-  if (prev.contact?.avatar_url !== next.contact?.avatar_url) return false;
+  if (prev.contact?.avatar !== next.contact?.avatar) return false;
+  if (prev.contact?.unread_count !== next.contact?.unread_count) return false;
+  if (prev.contact?.last_message_at !== next.contact?.last_message_at) return false;
+  if (prev.contact?.last_message_text !== next.contact?.last_message_text) return false;
   if (prev.conversation?.id !== next.conversation?.id) return false;
   if (prev.conversation?.status !== next.conversation?.status) return false;
-  if (prev.conversation?.unread_count !== next.conversation?.unread_count) return false;
-  if (prev.conversation?.last_message_at !== next.conversation?.last_message_at) return false;
+  if (prev.conversation?.updated_at !== next.conversation?.updated_at) return false;
   if (prev.conversation?.priority !== next.conversation?.priority) return false;
   if (prev.conversation?.assigned_to !== next.conversation?.assigned_to) return false;
   // convTags: compare length + ids
@@ -395,7 +397,11 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   const lm1 = prev.lastMessageMeta; const lm2 = next.lastMessageMeta;
   if ((lm1 && !lm2) || (!lm1 && lm2)) return false;
   if (lm1 && lm2) {
-    if (lm1.text !== lm2.text || lm1.fromMe !== lm2.fromMe || lm1.created_at !== lm2.created_at) return false;
+    if (
+      lm1.last_message_at !== lm2.last_message_at ||
+      lm1.last_message_from_me !== lm2.last_message_from_me ||
+      lm1.last_customer_message_at !== lm2.last_customer_message_at
+    ) return false;
   }
   return true;
 });
