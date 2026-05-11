@@ -176,39 +176,55 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const scrollThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleScroll = useCallback(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    setShowScrollButton(!isNearBottom);
-    if (!isInitialLoad.current && el.scrollTop <= 120) {
-      handleLoadMore();
-    }
+    if (scrollThrottleRef.current) return;
+    scrollThrottleRef.current = setTimeout(() => {
+      scrollThrottleRef.current = null;
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+      setShowScrollButton(!isNearBottom);
+      if (!isInitialLoad.current && el.scrollTop <= 120) {
+        handleLoadMore();
+      }
+    }, 80);
   }, [handleLoadMore]);
 
-  // Merge messages and events into a unified timeline
-  const timeline = useMemo<TimelineItem[]>(() => {
-    const items: TimelineItem[] = [];
-    for (const msg of contactMessages) {
-      items.push({ kind: 'message', data: msg, ts: new Date(msg.timestamp).getTime() });
-    }
-    for (const evt of conversationHistory) {
-      items.push({ kind: 'event', data: evt, ts: new Date(evt.created_at).getTime() });
-    }
-    items.sort((a, b) => a.ts - b.ts);
-    return items;
-  }, [contactMessages, conversationHistory]);
-
-  // Group by date
+  // Merge messages and events into a unified timeline grouped by date.
+  // Both arrays are already ordered chronologically (loadMessages returns DESC→reversed,
+  // conversationHistory is ordered ASC), so we merge with a two-pointer O(n+m) pass
+  // instead of concat+sort O((n+m) log(n+m)) — avoids full re-sort on every new message.
   const groupedTimeline = useMemo(() => {
+    const msgItems: TimelineItem[] = contactMessages.map(msg => ({
+      kind: 'message' as const,
+      data: msg,
+      ts: new Date(msg.timestamp).getTime(),
+    }));
+    const evtItems: TimelineItem[] = conversationHistory.map(evt => ({
+      kind: 'event' as const,
+      data: evt,
+      ts: new Date(evt.created_at).getTime(),
+    }));
+
+    // Two-pointer merge (both arrays already sorted ASC)
+    const merged: TimelineItem[] = [];
+    let i = 0, j = 0;
+    while (i < msgItems.length && j < evtItems.length) {
+      if (msgItems[i].ts <= evtItems[j].ts) merged.push(msgItems[i++]);
+      else merged.push(evtItems[j++]);
+    }
+    while (i < msgItems.length) merged.push(msgItems[i++]);
+    while (j < evtItems.length) merged.push(evtItems[j++]);
+
     const groups: Record<string, TimelineItem[]> = {};
-    for (const item of timeline) {
+    for (const item of merged) {
       const dateKey = format(new Date(item.ts), 'yyyy-MM-dd');
       if (!groups[dateKey]) groups[dateKey] = [];
       groups[dateKey].push(item);
     }
     return groups;
-  }, [timeline]);
+  }, [contactMessages, conversationHistory]);
 
   // Reactions
   const visibleMessageIds = useMemo(

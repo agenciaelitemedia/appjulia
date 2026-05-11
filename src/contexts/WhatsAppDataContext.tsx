@@ -41,6 +41,9 @@ const CONVERSATIONS_NEXT_PAGE_SIZE = 200;
 // Auto-bootstrap loads exactly the initial page; everything beyond is on
 // demand via `loadMoreConversations`. Kept as a guard against runaway loops.
 const CONV_AUTOLOAD_MAX_PAGES = 1;
+// Active group cap: 1000 (initial) + 20 × 200 = 5000 conversations max on bootstrap.
+// Prevents loading the entire history into memory on first open.
+const CONV_AUTOLOAD_ACTIVE_MAX_PAGES = 21;
 
 type ConvLoadGroup = 'active' | 'resolved' | 'closed';
 interface ConvGroupMeta {
@@ -2151,18 +2154,14 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               caption: newMessage.caption,
               file_name: newMessage.file_name,
             });
-            setContacts(prev => prev.map(c =>
-              c.id === newMessage.contact_id
-                ? {
-                    ...c,
-                    last_message_text: previewOut || c.last_message_text,
-                    last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
-                  }
-                : c
-            ));
             setContacts(prev => {
-              const target = prev.find(c => c.id === newMessage.contact_id);
-              return target ? repositionContact(prev, target) : prev;
+              const updated = prev.map(c =>
+                c.id === newMessage.contact_id
+                  ? { ...c, last_message_text: previewOut || c.last_message_text, last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at }
+                  : c
+              );
+              const target = updated.find(c => c.id === newMessage.contact_id);
+              return target ? repositionContact(updated, target) : updated;
             });
           }
 
@@ -2177,42 +2176,23 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               caption: newMessage.caption,
               file_name: newMessage.file_name,
             });
-            setContacts(prev => prev.map(c =>
-              c.id === newMessage.contact_id
-                ? {
-                    ...c,
-                    unread_count: (c.unread_count || 0) + 1,
-                    last_message_text: previewIn || c.last_message_text,
-                    last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at,
-                  }
-                : c
-            ));
             setContacts(prev => {
-              const target = prev.find(c => c.id === newMessage.contact_id);
-              return target ? repositionContact(prev, target) : prev;
+              const updated = prev.map(c =>
+                c.id === newMessage.contact_id
+                  ? { ...c, unread_count: (c.unread_count || 0) + 1, last_message_text: previewIn || c.last_message_text, last_message_at: newMessage.timestamp || newMessage.created_at || c.last_message_at }
+                  : c
+              );
+              const target = updated.find(c => c.id === newMessage.contact_id);
+              return target ? repositionContact(updated, target) : updated;
             });
 
-            // Persist to DB (best-effort) so other clients/refresh see the badge
-            (async () => {
-              try {
-                const { data: current } = await supabase
-                  .from('chat_contacts')
-                  .select('unread_count')
-                  .eq('id', newMessage.contact_id)
-                  .single();
-                const next = (current?.unread_count || 0) + 1;
-                await supabase
-                  .from('chat_contacts')
-                  .update({
-                    unread_count: next,
-                    last_message_text: previewIn || null,
-                    last_message_at: newMessage.timestamp || newMessage.created_at || new Date().toISOString(),
-                  })
-                  .eq('id', newMessage.contact_id);
-              } catch (e) {
-                console.warn('failed to bump unread_count:', e);
-              }
-            })();
+            // Persist to DB using an atomic SQL increment — prevents race condition
+            // when multiple agents are online and both try to read-then-write the counter.
+            supabase.rpc('increment_contact_unread', {
+              p_contact_id: newMessage.contact_id,
+              p_preview: previewIn || null,
+              p_last_at: newMessage.timestamp || newMessage.created_at || new Date().toISOString(),
+            }).catch((e: unknown) => console.warn('failed to bump unread_count:', e));
           }
 
           // Hook automation + webhooks for inbound messages only
@@ -2364,8 +2344,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       loadTags(),
       refreshConversationTags(),
     ]).catch(() => { /* individual errors are already logged inside each fn */ });
-    // Eager: load ALL pages of pending+open in 500-row chunks until done.
-    runConvAutoLoad('active', Number.POSITIVE_INFINITY)
+    // Eager: load up to ~5 000 pending+open conversations on bootstrap.
+    // CONV_AUTOLOAD_ACTIVE_MAX_PAGES = 21 → 1 000 + 20 × 200 rows cap.
+    runConvAutoLoad('active', CONV_AUTOLOAD_ACTIVE_MAX_PAGES)
       .catch(err => console.error('[WhatsAppDataContext] active auto-load failed', err));
     // Only clear selection / message cache on a REAL scope change.
     // The very first effect run (prev === null) is the initial mount —

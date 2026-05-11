@@ -1,5 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,90 +13,100 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { ProtectedRoute } from "@/components/guards/ProtectedRoute";
 import { DebugBar } from "@/components/debug/DebugBar";
 import { useAppVersionCheck } from "@/hooks/useAppVersionCheck";
+
+// ── Static imports (critical path / tiny) ──────────────────────
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import CRMPage from "./pages/crm/CRMPage";
-import CRMStatisticsPage from "./pages/crm/statistics/CRMStatisticsPage";
-import CRMMonitoringPage from "./pages/crm/monitoring/CRMMonitoringPage";
-import CRMBuilderPage from "./pages/crm-builder/CRMBuilderPage";
-import BoardPage from "./pages/crm-builder/BoardPage";
-import AgentsList from "./pages/agents/AgentsList";
-import CreateAgentPage from "./pages/agents/CreateAgentPage";
-import AgentDetailsPage from "./pages/agents/AgentDetailsPage";
-import EditAgentPage from "./pages/agents/EditAgentPage";
-import DesempenhoPage from "./pages/estrategico/desempenho/DesempenhoPage";
-import ContratosPage from "./pages/estrategico/contratos/ContratosPage";
-import CampanhasPage from "./pages/estrategico/campanhas/CampanhasPage";
-import FollowupPage from "./pages/agente/followup/FollowupPage";
-import MyAgentsPage from "./pages/agente/meus-agentes/MyAgentsPage";
-import MyAgentEditPage from "./pages/agente/meus-agentes/MyAgentEditPage";
-import CriativosPage from "./pages/criativos/CriativosPage";
-import EquipePage from "./pages/equipe/EquipePage";
-import ProfileSettingsPage from "./pages/profile/ProfileSettingsPage";
-import PermissoesPage from "./pages/admin/permissoes/PermissoesPage";
-import MetaTestPage from "./pages/admin/meta-test/MetaTestPage";
-import ModulosPage from "./pages/admin/modulos/ModulosPage";
-import VideoQueuePage from "./pages/video/VideoQueuePage";
-import JoinCallPage from "./pages/video/JoinCallPage";
-import ChatPage from "./pages/chat/ChatPage";
-import ChatChannelsPage from "./pages/chat/ChatChannelsPage";
-import ChatMetricsPage from "./pages/chat/ChatMetricsPage";
-import ChatAutomationsPage from "./pages/chat/ChatAutomationsPage";
-import ChatWebhooksPage from "./pages/chat/ChatWebhooksPage";
-import ChatSlaConfigPage from "./pages/chat/ChatSlaConfigPage";
-import ChatSettingsPage from "./pages/chat/ChatSettingsPage";
-import ChatApiKeysPage from "./pages/chat/ChatApiKeysPage";
-import ChatKnowledgeBasePage from "./pages/chat/ChatKnowledgeBasePage";
-import ChatCsatPage from "./pages/chat/ChatCsatPage";
-import ChatBotsPage from "./pages/chat/ChatBotsPage";
-import ChatCampaignsPage from "./pages/chat/ChatCampaignsPage";
-import ChatBotBuilderPage from "./pages/chat/ChatBotBuilderPage";
-import ChatRoutingPage from "./pages/chat/ChatRoutingPage";
-import ChatInboxViewsPage from "./pages/chat/ChatInboxViewsPage";
-import ChatReportsPage from "./pages/chat/ChatReportsPage";
-import ChatAIAutoreplyPage from "./pages/chat/ChatAIAutoreplyPage";
-import ChatIntegrationsPage from "./pages/chat/ChatIntegrationsPage";
-import ChatTelephonyPage from "./pages/chat/ChatTelephonyPage";
-import ChatMarketingAdvancedPage from "./pages/chat/ChatMarketingAdvancedPage";
-import ChatComplianceCenterPage from "./pages/chat/ChatComplianceCenterPage";
-import AdvboxIntegrationPage from "./pages/advbox/IntegrationPage";
-import AdvboxNotificationRulesPage from "./pages/advbox/NotificationRulesPage";
-import AdvboxProcessesPage from "./pages/advbox/ProcessesPage";
-import AdvboxLogsPage from "./pages/advbox/LogsPage";
-import AdvboxQueriesPage from "./pages/advbox/QueriesPage";
-import MetaAdsTestPage from "./pages/admin/meta-ads/MetaAdsTestPage";
-import MonitoramentoPage from "./pages/admin/monitoramento/MonitoramentoPage";
-import OperacoesMonitorPage from "./pages/admin/operacoes/OperacoesMonitorPage";
-import WebhookMonitorPage from "./pages/admin/webhook-monitor/WebhookMonitorPage";
-import CopilotAdminPage from "./pages/admin/copiloto/CopilotAdminPage";
-import DataJudSearchPage from "./pages/datajud/DataJudSearchPage";
-import TelefoniaPage from "./pages/telefonia/TelefoniaPage";
-import TelefoniaAdminPage from "./pages/admin/telefonia/TelefoniaAdminPage";
-import RedirectPage from "./pages/RedirectPage";
 import NotFound from "./pages/NotFound";
-import PromptGeneratorPage from "./pages/admin/prompts/PromptGeneratorPage";
-import EmbedPage from "./pages/embed/EmbedPage";
-import EmbedManagerPage from "./pages/admin/embeds/EmbedManagerPage";
-import TvMasterPage from "./pages/tv/TvMasterPage";
-import ContratarTelefoniaPage from "./pages/telefonia/contratar/ContratarTelefoniaPage";
-import LegalCasesPage from "./pages/legal-cases/LegalCasesPage";
-import ContractNotificationsPage from "./pages/contract-notifications/ContractNotificationsPage";
+import RedirectPage from "./pages/RedirectPage";
 import ComprarPage from "./pages/comprar/ComprarPage";
 import ComprarSucessoPage from "./pages/comprar/ComprarSucessoPage";
-import PedidosPage from "./pages/admin/pedidos/PedidosPage";
-import PlanosPage from "./pages/admin/planos/PlanosPage";
-import ContratoTemplatePage from "./pages/admin/contrato/ContratoTemplatePage";
+import JoinCallPage from "./pages/video/JoinCallPage";
 
-import CRMComercialPage from "./pages/comercial/crm/CRMComercialPage";
-import SupportAssistantPage from "./pages/suporte-assistente/SupportAssistantPage";
-import QuickMessagesPage from "./pages/mensagens-rapidas/QuickMessagesPage";
-import FilasPage from "./pages/agente/filas/FilasPage";
-import ConfiguracoesPage from "./pages/configuracoes/ConfiguracoesPage";
-import HumanSupportPage from "./pages/atendimento-humano/HumanSupportPage";
-import PushNotificationsPage from "./pages/admin/push-notifications/PushNotificationsPage";
-import ContatosPage from "./pages/contatos/ContatosPage";
+// ── Lazy imports (code-split per route) ────────────────────────
+const CRMPage = lazy(() => import("./pages/crm/CRMPage"));
+const CRMStatisticsPage = lazy(() => import("./pages/crm/statistics/CRMStatisticsPage"));
+const CRMMonitoringPage = lazy(() => import("./pages/crm/monitoring/CRMMonitoringPage"));
+const CRMBuilderPage = lazy(() => import("./pages/crm-builder/CRMBuilderPage"));
+const BoardPage = lazy(() => import("./pages/crm-builder/BoardPage"));
+const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
+const CreateAgentPage = lazy(() => import("./pages/agents/CreateAgentPage"));
+const AgentDetailsPage = lazy(() => import("./pages/agents/AgentDetailsPage"));
+const EditAgentPage = lazy(() => import("./pages/agents/EditAgentPage"));
+const DesempenhoPage = lazy(() => import("./pages/estrategico/desempenho/DesempenhoPage"));
+const ContratosPage = lazy(() => import("./pages/estrategico/contratos/ContratosPage"));
+const CampanhasPage = lazy(() => import("./pages/estrategico/campanhas/CampanhasPage"));
+const FollowupPage = lazy(() => import("./pages/agente/followup/FollowupPage"));
+const MyAgentsPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentsPage"));
+const MyAgentEditPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentEditPage"));
+const CriativosPage = lazy(() => import("./pages/criativos/CriativosPage"));
+const EquipePage = lazy(() => import("./pages/equipe/EquipePage"));
+const ProfileSettingsPage = lazy(() => import("./pages/profile/ProfileSettingsPage"));
+const PermissoesPage = lazy(() => import("./pages/admin/permissoes/PermissoesPage"));
+const MetaTestPage = lazy(() => import("./pages/admin/meta-test/MetaTestPage"));
+const ModulosPage = lazy(() => import("./pages/admin/modulos/ModulosPage"));
+const VideoQueuePage = lazy(() => import("./pages/video/VideoQueuePage"));
+const ChatPage = lazy(() => import("./pages/chat/ChatPage"));
+const ChatChannelsPage = lazy(() => import("./pages/chat/ChatChannelsPage"));
+const ChatMetricsPage = lazy(() => import("./pages/chat/ChatMetricsPage"));
+const ChatAutomationsPage = lazy(() => import("./pages/chat/ChatAutomationsPage"));
+const ChatWebhooksPage = lazy(() => import("./pages/chat/ChatWebhooksPage"));
+const ChatSlaConfigPage = lazy(() => import("./pages/chat/ChatSlaConfigPage"));
+const ChatSettingsPage = lazy(() => import("./pages/chat/ChatSettingsPage"));
+const ChatApiKeysPage = lazy(() => import("./pages/chat/ChatApiKeysPage"));
+const ChatKnowledgeBasePage = lazy(() => import("./pages/chat/ChatKnowledgeBasePage"));
+const ChatCsatPage = lazy(() => import("./pages/chat/ChatCsatPage"));
+const ChatBotsPage = lazy(() => import("./pages/chat/ChatBotsPage"));
+const ChatCampaignsPage = lazy(() => import("./pages/chat/ChatCampaignsPage"));
+const ChatBotBuilderPage = lazy(() => import("./pages/chat/ChatBotBuilderPage"));
+const ChatRoutingPage = lazy(() => import("./pages/chat/ChatRoutingPage"));
+const ChatInboxViewsPage = lazy(() => import("./pages/chat/ChatInboxViewsPage"));
+const ChatReportsPage = lazy(() => import("./pages/chat/ChatReportsPage"));
+const ChatAIAutoreplyPage = lazy(() => import("./pages/chat/ChatAIAutoreplyPage"));
+const ChatIntegrationsPage = lazy(() => import("./pages/chat/ChatIntegrationsPage"));
+const ChatTelephonyPage = lazy(() => import("./pages/chat/ChatTelephonyPage"));
+const ChatMarketingAdvancedPage = lazy(() => import("./pages/chat/ChatMarketingAdvancedPage"));
+const ChatComplianceCenterPage = lazy(() => import("./pages/chat/ChatComplianceCenterPage"));
+const AdvboxIntegrationPage = lazy(() => import("./pages/advbox/IntegrationPage"));
+const AdvboxNotificationRulesPage = lazy(() => import("./pages/advbox/NotificationRulesPage"));
+const AdvboxProcessesPage = lazy(() => import("./pages/advbox/ProcessesPage"));
+const AdvboxLogsPage = lazy(() => import("./pages/advbox/LogsPage"));
+const AdvboxQueriesPage = lazy(() => import("./pages/advbox/QueriesPage"));
+const MetaAdsTestPage = lazy(() => import("./pages/admin/meta-ads/MetaAdsTestPage"));
+const MonitoramentoPage = lazy(() => import("./pages/admin/monitoramento/MonitoramentoPage"));
+const OperacoesMonitorPage = lazy(() => import("./pages/admin/operacoes/OperacoesMonitorPage"));
+const WebhookMonitorPage = lazy(() => import("./pages/admin/webhook-monitor/WebhookMonitorPage"));
+const CopilotAdminPage = lazy(() => import("./pages/admin/copiloto/CopilotAdminPage"));
+const DataJudSearchPage = lazy(() => import("./pages/datajud/DataJudSearchPage"));
+const TelefoniaPage = lazy(() => import("./pages/telefonia/TelefoniaPage"));
+const TelefoniaAdminPage = lazy(() => import("./pages/admin/telefonia/TelefoniaAdminPage"));
+const PromptGeneratorPage = lazy(() => import("./pages/admin/prompts/PromptGeneratorPage"));
+const EmbedPage = lazy(() => import("./pages/embed/EmbedPage"));
+const EmbedManagerPage = lazy(() => import("./pages/admin/embeds/EmbedManagerPage"));
+const TvMasterPage = lazy(() => import("./pages/tv/TvMasterPage"));
+const ContratarTelefoniaPage = lazy(() => import("./pages/telefonia/contratar/ContratarTelefoniaPage"));
+const LegalCasesPage = lazy(() => import("./pages/legal-cases/LegalCasesPage"));
+const ContractNotificationsPage = lazy(() => import("./pages/contract-notifications/ContractNotificationsPage"));
+const PedidosPage = lazy(() => import("./pages/admin/pedidos/PedidosPage"));
+const PlanosPage = lazy(() => import("./pages/admin/planos/PlanosPage"));
+const ContratoTemplatePage = lazy(() => import("./pages/admin/contrato/ContratoTemplatePage"));
+const CRMComercialPage = lazy(() => import("./pages/comercial/crm/CRMComercialPage"));
+const SupportAssistantPage = lazy(() => import("./pages/suporte-assistente/SupportAssistantPage"));
+const QuickMessagesPage = lazy(() => import("./pages/mensagens-rapidas/QuickMessagesPage"));
+const FilasPage = lazy(() => import("./pages/agente/filas/FilasPage"));
+const ConfiguracoesPage = lazy(() => import("./pages/configuracoes/ConfiguracoesPage"));
+const HumanSupportPage = lazy(() => import("./pages/atendimento-humano/HumanSupportPage"));
+const PushNotificationsPage = lazy(() => import("./pages/admin/push-notifications/PushNotificationsPage"));
+const ContatosPage = lazy(() => import("./pages/contatos/ContatosPage"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,         // 30s — evita refetch desnecessário ao trocar de aba
+      refetchOnWindowFocus: false, // elimina storm de queries ao focar a janela
+    },
+  },
+});
 
 const AppVersionWatcher = () => {
   useAppVersionCheck();
@@ -114,6 +124,7 @@ const App = () => (
           <AuthProvider>
             <UaZapiProvider>
               <ErrorBoundary>
+              <Suspense fallback={null}>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/redirect" element={<RedirectPage />} />
@@ -202,6 +213,7 @@ const App = () => (
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </Suspense>
               </ErrorBoundary>
               <DebugBar />
             </UaZapiProvider>

@@ -4,16 +4,23 @@ import { supabase } from '@/integrations/supabase/client';
 import type { ChatContact } from '@/types/chat';
 
 const CHUNK_SIZE = 200;
+// Hard cap: hydrate at most 1 000 contacts at a time to avoid 50+ parallel queries
+// when conversations reference large historical contact sets.
+const MAX_IDS = 1_000;
 
 /**
  * Loads `chat_contacts` rows by id in chunks of 200 (parallel queries).
  * Chunking keeps each `IN (...)` clause small and lets React Query cache
  * stable chunks independently — adding new ids only refetches the new chunk.
+ * Capped at MAX_IDS=1000 entries to prevent unbounded parallel queries.
  */
 export function useChatContactsByIds(ids: string[]) {
   // Stable chunk list — sort + dedupe + join into a memo key so identity only
   // changes when the actual id set changes (prevents useQueries thrashing).
-  const idsKey = useMemo(() => [...new Set(ids)].sort().join(','), [ids]);
+  const idsKey = useMemo(
+    () => [...new Set(ids)].sort().slice(0, MAX_IDS).join(','),
+    [ids],
+  );
 
   const chunks = useMemo(() => {
     const sorted = idsKey ? idsKey.split(',') : [];

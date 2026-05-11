@@ -19,7 +19,7 @@ import { PriorityBadge } from './PriorityBadge';
 import { ConversationSummaries } from './ConversationSummaries';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from './SlaBadge';
@@ -164,13 +164,43 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
     selectedConversation, tags, createTag, addTagToConversation, removeTagFromConversation,
     conversationHistory, loadConversationHistory,
   } = useWhatsAppData();
-  const [pastConversations, setPastConversations] = useState<ChatConversation[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [showAddTag, setShowAddTag] = useState(false);
-  const [conversationTags, setConversationTags] = useState<string[]>([]);
 
+  const queryClient = useQueryClient();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(contact.name);
+
+  // Past conversations — cached by React Query, avoids re-fetch on every re-render
+  const { data: pastConversations = [] } = useQuery<ChatConversation[]>({
+    queryKey: ['contact-past-convs', contact.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('chat_conversations')
+        .select('*')
+        .eq('contact_id', contact.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      return (data || []) as ChatConversation[];
+    },
+    staleTime: 60_000,
+  });
+
+  // Tags for the selected conversation — cached and invalidated when selection changes
+  const { data: conversationTagsData = [] } = useQuery<string[]>({
+    queryKey: ['conv-tags', selectedConversation?.id],
+    queryFn: async () => {
+      if (!selectedConversation) return [];
+      const { data } = await supabase
+        .from('chat_conversation_tags')
+        .select('tag_id')
+        .eq('conversation_id', selectedConversation.id);
+      return (data || []).map((t: any) => t.tag_id);
+    },
+    enabled: !!selectedConversation?.id,
+    staleTime: 30_000,
+  });
+  const conversationTags = conversationTagsData;
 
   const { configs: slaConfigs } = useChatSlaConfigs();
   const { getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(
@@ -239,30 +269,6 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
     .join('')
     .toUpperCase();
 
-  useEffect(() => {
-    async function loadPast() {
-      const { data } = await supabase
-        .from('chat_conversations')
-        .select('*')
-        .eq('contact_id', contact.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      setPastConversations((data || []) as ChatConversation[]);
-    }
-    loadPast();
-  }, [contact.id]);
-
-  useEffect(() => {
-    async function loadConvTags() {
-      if (!selectedConversation) return;
-      const { data } = await supabase
-        .from('chat_conversation_tags')
-        .select('tag_id')
-        .eq('conversation_id', selectedConversation.id);
-      setConversationTags((data || []).map((t: any) => t.tag_id));
-    }
-    loadConvTags();
-  }, [selectedConversation?.id]);
 
   useEffect(() => {
     if (selectedConversation) {
@@ -293,12 +299,14 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
     setIsEditingName(false);
   };
 
+  const convTagsKey = ['conv-tags', selectedConversation?.id];
+
   const handleAddTag = async () => {
     if (!newTagName.trim() || !selectedConversation) return;
     const tag = await createTag(newTagName.trim(), '#3b82f6');
     if (tag) {
       await addTagToConversation(selectedConversation.id, tag.id, tag.name);
-      setConversationTags(prev => [...prev, tag.id]);
+      queryClient.setQueryData<string[]>(convTagsKey, prev => [...(prev ?? []), tag.id]);
     }
     setNewTagName('');
     setShowAddTag(false);
@@ -309,10 +317,10 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
     const tagName = tags.find(t => t.id === tagId)?.name;
     if (conversationTags.includes(tagId)) {
       await removeTagFromConversation(selectedConversation.id, tagId, tagName);
-      setConversationTags(prev => prev.filter(id => id !== tagId));
+      queryClient.setQueryData<string[]>(convTagsKey, prev => (prev ?? []).filter(id => id !== tagId));
     } else {
       await addTagToConversation(selectedConversation.id, tagId, tagName);
-      setConversationTags(prev => [...prev, tagId]);
+      queryClient.setQueryData<string[]>(convTagsKey, prev => [...(prev ?? []), tagId]);
     }
   };
 

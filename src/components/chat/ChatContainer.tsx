@@ -6,10 +6,31 @@ import { ChatInput } from './ChatInput';
 import { ContactDetailPanel } from './ContactDetailPanel';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
-import { MessageCircle, Loader2, AlertCircle } from 'lucide-react';
+import { MessageCircle, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import type { ChatMessage } from '@/types/chat';
+
+const ChatListFallback = () => (
+  <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-muted-foreground">
+    <AlertCircle className="h-8 w-8 text-destructive" />
+    <p className="text-sm text-center">Erro ao carregar a lista de conversas.</p>
+    <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+      <RefreshCw className="h-4 w-4 mr-2" /> Recarregar
+    </Button>
+  </div>
+);
+
+const ChatMessagesFallback = () => (
+  <div className="flex flex-col items-center justify-center flex-1 gap-3 p-6 text-muted-foreground">
+    <AlertCircle className="h-8 w-8 text-destructive" />
+    <p className="text-sm text-center">Erro ao carregar as mensagens.</p>
+    <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+      <RefreshCw className="h-4 w-4 mr-2" /> Recarregar
+    </Button>
+  </div>
+);
 
 interface ChatContainerProps {
   className?: string;
@@ -35,7 +56,9 @@ export function ChatContainer({ className }: ChatContainerProps) {
         'w-full lg:w-[352px] xl:w-[400px] 2xl:w-[448px] lg:flex-shrink-0 flex-shrink-0 border-r min-w-0 overflow-hidden',
         (selectedContact || selectedContactId) && 'hidden lg:flex lg:flex-col'
       )}>
-        <ChatList />
+        <ErrorBoundary fallback={<ChatListFallback />}>
+          <ChatList />
+        </ErrorBoundary>
       </div>
 
       {/* Chat area */}
@@ -50,7 +73,9 @@ export function ChatContainer({ className }: ChatContainerProps) {
               onClose={() => selectContact(null)}
               onShowDetails={() => setShowDetailPanel(!showDetailPanel)}
             />
-            <ChatMessages contactId={selectedContactId!} onReply={setReplyToMessage} />
+            <ErrorBoundary fallback={<ChatMessagesFallback />}>
+              <ChatMessages contactId={selectedContactId!} onReply={setReplyToMessage} />
+            </ErrorBoundary>
             <ChatInput
               contactId={selectedContactId!}
               replyToMessage={replyToMessage}
