@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
-import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
+// Lazy-load bcryptjs only when an auth action needs it. Importing at the top
+// inflates cold-start time and was causing intermittent BOOT_ERROR (503) on
+// the edge runtime.
+let _bcryptPromise: Promise<typeof import("https://esm.sh/bcryptjs@2.4.3")> | null = null;
+function getBcrypt() {
+  if (!_bcryptPromise) {
+    _bcryptPromise = import("https://esm.sh/bcryptjs@2.4.3").then((m) => m.default ?? m);
+  }
+  return _bcryptPromise;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -403,7 +412,7 @@ serve(async (req) => {
         const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
         
         // Verify password using bcrypt
-        const isValid = await bcrypt.compare(password, normalizedHash);
+        const isValid = await (await getBcrypt()).compare(password, normalizedHash);
         
         if (!isValid) {
           result = [];
@@ -437,14 +446,14 @@ serve(async (req) => {
         const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
         
         // Verify current password
-        const isValid = await bcrypt.compare(currentPassword, normalizedHash);
+        const isValid = await (await getBcrypt()).compare(currentPassword, normalizedHash);
         
         if (!isValid) {
           throw new Error('Senha atual incorreta');
         }
         
         // Hash new password
-        const newHash = await bcrypt.hash(newPassword, 10);
+        const newHash = await (await getBcrypt()).hash(newPassword, 10);
         
         // Update password in database
         await sql.unsafe(
