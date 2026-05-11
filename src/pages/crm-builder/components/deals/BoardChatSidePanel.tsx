@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MessageCircle, ExternalLink, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { WhatsAppDataProvider, useWhatsAppData, type SelectedQueue } from '@/contexts/WhatsAppDataContext';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatMessages } from '@/components/chat/ChatMessages';
@@ -70,6 +71,10 @@ export function BoardChatSidePanel({ open, onOpenChange, deal }: BoardChatSidePa
         side="right"
         className="w-[480px] sm:w-[560px] md:w-[640px] lg:w-[720px] sm:max-w-[720px] p-0 overflow-hidden flex flex-col"
       >
+        <VisuallyHidden>
+          <SheetTitle>Conversa do card</SheetTitle>
+          <SheetDescription>Mensagens vinculadas a este card do CRM</SheetDescription>
+        </VisuallyHidden>
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30 flex-shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <MessageCircle className="h-4 w-4 text-emerald-600 flex-shrink-0" />
