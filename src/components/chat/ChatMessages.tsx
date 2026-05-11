@@ -32,6 +32,8 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   const [hasMore, setHasMore] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [forwardMessage, setForwardMessage] = useState<ChatMessage | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -90,21 +92,54 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
       return;
     }
 
+    let cancelled = false;
     setIsLoading(true);
     setHasMore(true);
-    loadMessages(contactId, 50, 0)
-      .then(({ hasMore: more }) => {
+    setLoadError(null);
+
+    // Attempt initial load with up to 2 automatic retries (exponential-ish backoff).
+    const MAX_ATTEMPTS = 3;
+    const attempt = async (n: number): Promise<void> => {
+      try {
+        const { hasMore: more } = await loadMessages(contactId, 50, 0);
+        if (cancelled) return;
         setHasMore(more);
-        // Double RAF ensures we wait for actual browser paint before scrolling
+        setLoadError(null);
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             bottomRef.current?.scrollIntoView({ behavior: 'auto' });
             isInitialLoad.current = false;
           });
         });
-      })
-      .finally(() => setIsLoading(false));
-  }, [contactId, isReady, loadMessages]);
+      } catch (err) {
+        if (cancelled) return;
+        if (n < MAX_ATTEMPTS) {
+          const delay = 600 * n;
+          await new Promise((r) => setTimeout(r, delay));
+          if (cancelled) return;
+          return attempt(n + 1);
+        }
+        console.error('[ChatMessages] failed to load messages:', err);
+        setLoadError(
+          err instanceof Error ? err.message : 'Não foi possível carregar as mensagens.'
+        );
+      } finally {
+        if (!cancelled && n >= MAX_ATTEMPTS) setIsLoading(false);
+      }
+    };
+
+    attempt(1).finally(() => {
+      if (!cancelled) setIsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [contactId, isReady, loadMessages, retryAttempt]);
+
+  const handleManualRetry = useCallback(() => {
+    setRetryAttempt((n) => n + 1);
+  }, []);
 
   // Auto-scroll to bottom on new messages (if near bottom)
   useEffect(() => {
@@ -317,6 +352,16 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
           {isLoading && contactMessages.length === 0 && (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {/* Error state with retry */}
+          {!isLoading && loadError && contactMessages.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-3">
+              <p className="text-sm">{loadError}</p>
+              <Button size="sm" variant="outline" onClick={handleManualRetry} className="rounded-full">
+                Tentar novamente
+              </Button>
             </div>
           )}
 
