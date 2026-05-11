@@ -3,10 +3,13 @@ import { useQueries } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { ChatContact } from '@/types/chat';
 
-const CHUNK_SIZE = 200;
-// Hard cap: hydrate at most 1 000 contacts at a time to avoid 50+ parallel queries
-// when conversations reference large historical contact sets.
-const MAX_IDS = 1_000;
+const CHUNK_SIZE = 500;
+// Hard cap: hydrate up to 5 000 contacts at a time. With CHUNK_SIZE=500 this
+// caps parallel queries at 10. The previous cap (1 000) silently truncated
+// large contact sets — conversations beyond it never got a phone resolved,
+// so their CRM stage badge stayed as "Sem etapa" until the user clicked the
+// card and triggered a per-contact hydration that refetched the stage batch.
+const MAX_IDS = 5_000;
 
 /**
  * Loads `chat_contacts` rows by id in chunks of 200 (parallel queries).
