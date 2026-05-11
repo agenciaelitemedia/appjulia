@@ -492,7 +492,8 @@ export function ChatList() {
     }
     return out;
   }, [filteredContacts, sortedConversations, contactPhoneById, convMetaByContact, queueAgentMap]);
-  const { data: stageByPhone } = useCRMStageByPhone(allPhoneAgentPairs);
+  const { data: stageByPhone, isFetching: stageByPhoneFetching } =
+    useCRMStageByPhone(allPhoneAgentPairs);
   const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
