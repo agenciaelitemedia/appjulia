@@ -423,12 +423,27 @@ export function ChatList() {
     return map;
   }, [allAgents, getDefaultAlias]);
 
-  // Phone → stage map
-  const allPhones = React.useMemo(
-    () => filteredContacts.map((c) => c.phone).filter(Boolean) as string[],
-    [filteredContacts]
-  );
-  const { data: stageByPhone } = useCRMStageByPhone(allPhones);
+  // (phone, codAgent) → CRM Julia stage map.
+  // Buscar por par evita pegar etapa de outro agente quando o mesmo
+  // telefone tem cards em mais de uma operação Julia.
+  const allPhoneAgentPairs = React.useMemo(() => {
+    const seen = new Set<string>();
+    const out: { phone: string; codAgent: string }[] = [];
+    for (const c of filteredContacts) {
+      const phone = (c.phone || '').replace(/\D/g, '');
+      if (!phone) continue;
+      const meta = convMetaByContact.get(c.id);
+      const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+      const codAgent = queueLink?.hasAgent ? (queueLink.codAgent || '') : '';
+      if (!codAgent) continue;
+      const key = `${phone}|${codAgent}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ phone, codAgent });
+    }
+    return out;
+  }, [filteredContacts, convMetaByContact, queueAgentMap]);
+  const { data: stageByPhone } = useCRMStageByPhone(allPhoneAgentPairs);
   const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
@@ -1508,7 +1523,9 @@ export function ChatList() {
                 ? (aliasMap.get(agentCodAgent) || agentBusinessNameMap.get(agentCodAgent) || null)
                 : null;
               const normPhone = (contact.phone || '').replace(/\D/g, '');
-              const stageInfo = normPhone ? stageByPhone?.get(normPhone) : undefined;
+              const stageInfo = normPhone && agentCodAgent
+                ? stageByPhone?.get(`${normPhone}|${agentCodAgent}`)
+                : undefined;
               return (
                 <div
                   key={virtualItem.key}
