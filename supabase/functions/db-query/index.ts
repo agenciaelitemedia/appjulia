@@ -412,7 +412,7 @@ serve(async (req) => {
         const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
         
         // Verify password using bcrypt
-        const isValid = await bcrypt.compare(password, normalizedHash);
+        const isValid = await (await getBcrypt()).compare(password, normalizedHash);
         
         if (!isValid) {
           result = [];
@@ -446,14 +446,14 @@ serve(async (req) => {
         const normalizedHash = storedHash.replace(/^\$2y\$/, '$2a$');
         
         // Verify current password
-        const isValid = await bcrypt.compare(currentPassword, normalizedHash);
+        const isValid = await (await getBcrypt()).compare(currentPassword, normalizedHash);
         
         if (!isValid) {
           throw new Error('Senha atual incorreta');
         }
         
         // Hash new password
-        const newHash = await bcrypt.hash(newPassword, 10);
+        const newHash = await (await getBcrypt()).hash(newPassword, 10);
         
         // Update password in database
         await sql.unsafe(
