@@ -4,7 +4,8 @@ import { ChatHeader } from './ChatHeader';
 import { ChatMessages } from './ChatMessages';
 import { ChatInput } from './ChatInput';
 import { ContactDetailPanel } from './ContactDetailPanel';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { MessageCircle, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -114,6 +115,10 @@ export function ChatContainer({ className }: ChatContainerProps) {
       {selectedContact && (
         <Sheet open={showDetailPanel} onOpenChange={setShowDetailPanel}>
           <SheetContent side="right" className="w-[456px] sm:w-[504px] sm:max-w-[504px] p-0 overflow-y-auto">
+            <VisuallyHidden>
+              <SheetTitle>Detalhes do contato</SheetTitle>
+              <SheetDescription>Informações e ações do contato selecionado</SheetDescription>
+            </VisuallyHidden>
             <ContactDetailPanel
               contact={selectedContact}
               onClose={() => setShowDetailPanel(false)}
