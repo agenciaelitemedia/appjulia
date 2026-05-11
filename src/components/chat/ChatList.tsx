@@ -237,7 +237,8 @@ export function ChatList() {
   // Auto-load more conversations when the list sentinel is visible
   useEffect(() => {
     const sentinel = convSentinelRef.current;
-    if (!sentinel) return;
+    const root = listRef.current;
+    if (!sentinel || !root) return;
     if (isSearching) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -245,7 +246,7 @@ export function ChatList() {
           loadMoreConversations();
         }
       },
-      { threshold: 0.1 }
+      { root, threshold: 0, rootMargin: '400px' }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
