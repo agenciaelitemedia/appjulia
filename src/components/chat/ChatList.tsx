@@ -346,13 +346,41 @@ export function ChatList() {
   }, [convMetaByContact]);
   const { data: queueAgentMap, isLoading: queueAgentLoading } = useQueueAgentLinks(queueIds);
 
-  // Phone map keyed by contact_id — merged later with fetchedMissing so
-  // conversations whose contact is not yet paginated still resolve a phone.
+  // Pre-hydrate phones for every contact referenced by `conversations` that
+  // is not yet present in the local `contacts` cache. Without this, leads
+  // beyond the current pagination window would render in the list (via
+  // `useChatContactsByIds` later) but be excluded from the CRM-stage batch
+  // until the user clicked them — producing the "Sem etapa" flash that only
+  // resolved on click.
+  const conversationContactIdsMissingPhone = React.useMemo(() => {
+    const have = new Set<string>();
+    contacts.forEach((c) => have.add(c.id));
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const conv of sortedConversations) {
+      const cid = conv.contact_id;
+      if (have.has(cid) || seen.has(cid)) continue;
+      seen.add(cid);
+      out.push(cid);
+    }
+    return out;
+  }, [sortedConversations, contacts]);
+  const { data: hydratedConvContacts = [] } = useChatContactsByIds(
+    conversationContactIdsMissingPhone,
+  );
+
+  // Phone map keyed by contact_id — includes both the locally paginated
+  // contacts AND the conversation-driven hydration above, so every visible
+  // (or about-to-be-visible) lead has a phone available for stage / session
+  // batching from the very first render.
   const contactPhoneById = React.useMemo(() => {
     const map = new Map<string, string | null>();
     contacts.forEach((c) => map.set(c.id, c.phone || null));
+    hydratedConvContacts.forEach((c) => {
+      if (!map.has(c.id)) map.set(c.id, c.phone || null);
+    });
     return map;
-  }, [contacts]);
+  }, [contacts, hydratedConvContacts]);
 
   // Build (whatsapp, codAgent) pairs from CONVERSATIONS — not from contacts —
   // so every conversation in memory enters the session-status batch even
@@ -426,26 +454,44 @@ export function ChatList() {
   // (phone, codAgent) → CRM Julia stage map.
   // Buscar por par evita pegar etapa de outro agente quando o mesmo
   // telefone tem cards em mais de uma operação Julia.
+  //
+  // IMPORTANT: a base é a UNIÃO de `filteredContacts` (cache local) com
+  // todos os contatos referenciados por `sortedConversations` (incluindo
+  // os hidratados via `useChatContactsByIds` acima). Antes, a base era só
+  // `filteredContacts`, então leads fora da paginação local entravam na
+  // lista visível sem etapa e só recebiam o badge correto quando o clique
+  // hidratava o contato e disparava um novo batch.
   const allPhoneAgentPairs = React.useMemo(() => {
     const seen = new Set<string>();
     const out: { phone: string; codAgent: string }[] = [];
+    const pushPair = (phone: string, codAgent: string) => {
+      const key = `${phone}|${codAgent}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ phone, codAgent });
+    };
+    // 1) Base local — contatos já paginados/visíveis.
     for (const c of filteredContacts) {
       const phone = (c.phone || '').replace(/\D/g, '');
       if (!phone) continue;
       const meta = convMetaByContact.get(c.id);
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
       const codAgent = queueLink?.hasAgent ? (queueLink.codAgent || '') : '';
-      // Always include the phone — even without a known cod_agent — so the
-      // hook can populate the phone-only fallback and we still surface the
-      // CRM stage for Julia-linked contacts whose queue agent doesn't match
-      // the agent that owns the card in the external CRM.
-      const key = `${phone}|${codAgent}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({ phone, codAgent });
+      pushPair(phone, codAgent);
+    }
+    // 2) Cobertura completa — qualquer conversa em memória cujo contato
+    //    ainda não esteja paginado mas já tenha telefone resolvido pela
+    //    hidratação acima. Garante que o badge da etapa da Júlia já vem
+    //    pronto na primeira pintura, sem depender do clique no lead.
+    for (const conv of sortedConversations) {
+      const phone = (contactPhoneById.get(conv.contact_id) || '').replace(/\D/g, '');
+      if (!phone) continue;
+      const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+      const codAgent = queueLink?.hasAgent ? (queueLink.codAgent || '') : '';
+      pushPair(phone, codAgent);
     }
     return out;
-  }, [filteredContacts, convMetaByContact, queueAgentMap]);
+  }, [filteredContacts, sortedConversations, contactPhoneById, convMetaByContact, queueAgentMap]);
   const { data: stageByPhone } = useCRMStageByPhone(allPhoneAgentPairs);
   const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
 
