@@ -435,7 +435,10 @@ export function ChatList() {
       const meta = convMetaByContact.get(c.id);
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
       const codAgent = queueLink?.hasAgent ? (queueLink.codAgent || '') : '';
-      if (!codAgent) continue;
+      // Always include the phone — even without a known cod_agent — so the
+      // hook can populate the phone-only fallback and we still surface the
+      // CRM stage for Julia-linked contacts whose queue agent doesn't match
+      // the agent that owns the card in the external CRM.
       const key = `${phone}|${codAgent}`;
       if (seen.has(key)) continue;
       seen.add(key);
