@@ -554,8 +554,7 @@ export function ChatList() {
           const meta = convMetaByContact.get(c.id);
           const link = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
           const codAgent = link?.hasAgent ? link.codAgent : null;
-          if (!codAgent) return false;
-          const info = stageByPhone.get(`${norm}|${codAgent}`);
+          const info = (codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm);
           return info ? stageIds.includes(info.stageId) : false;
         });
       }
@@ -715,7 +714,9 @@ export function ChatList() {
         const norm = (contact?.phone || '').replace(/\D/g, '');
         const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
         const codAgent = link?.hasAgent ? link.codAgent : null;
-        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
+        const info = norm
+          ? ((codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm))
+          : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
@@ -829,7 +830,9 @@ export function ChatList() {
         const norm = (contact?.phone || '').replace(/\D/g, '');
         const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
         const codAgent = link?.hasAgent ? link.codAgent : null;
-        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
+        const info = norm
+          ? ((codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm))
+          : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
@@ -963,7 +966,9 @@ export function ChatList() {
         const norm = (contact?.phone || '').replace(/\D/g, '');
         const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
         const codAgent = link?.hasAgent ? link.codAgent : null;
-        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
+        const info = norm
+          ? ((codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm))
+          : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
