@@ -37,6 +37,8 @@ interface ChatContactItemProps {
   agentAlias?: string | null;
   stageName?: string | null;
   stageColor?: string | null;
+  /** Mapa de etapas ainda carregando — evita flash de "Sem etapa". */
+  stageLoading?: boolean;
   hasCrmCard?: boolean;
   /** Vínculo com card do CRM Builder (Quadro · Etapa). */
   crmBuilderLink?: CrmBuilderLink;
@@ -114,6 +116,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   agentAlias,
   stageName,
   stageColor,
+  stageLoading,
   hasCrmCard,
   crmBuilderLink,
   lastMessageMeta,
@@ -252,10 +255,14 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                   {agentCodAgent && (
                     <span
                       className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap max-w-[120px] truncate"
-                      style={{ backgroundColor: stageName ? (stageColor || '#64748b') : '#94a3b8' }}
-                      title={stageName || 'Sem etapa'}
+                      style={{
+                        backgroundColor: stageName
+                          ? (stageColor || '#64748b')
+                          : stageLoading ? '#cbd5e1' : '#94a3b8',
+                      }}
+                      title={stageName || (stageLoading ? 'Carregando etapa…' : 'Sem etapa')}
                     >
-                      {stageName || 'Sem etapa'}
+                      {stageName || (stageLoading ? '…' : 'Sem etapa')}
                     </span>
                   )}
                 </div>
