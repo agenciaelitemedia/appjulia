@@ -547,7 +547,12 @@ export function ChatList() {
       if (stageIds.length > 0 && stageByPhone) {
         result = result.filter((c) => {
           const norm = (c.phone || '').replace(/\D/g, '');
-          const info = stageByPhone.get(norm);
+          if (!norm) return false;
+          const meta = convMetaByContact.get(c.id);
+          const link = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+          const codAgent = link?.hasAgent ? link.codAgent : null;
+          if (!codAgent) return false;
+          const info = stageByPhone.get(`${norm}|${codAgent}`);
           return info ? stageIds.includes(info.stageId) : false;
         });
       }
@@ -556,7 +561,7 @@ export function ChatList() {
       }
       return result;
     },
-    [ownerFilter, teamMembers, convMetaByContact, user?.id, user?.name, periodFilter, stageIds, stageByPhone, modeFilter, getContactMode]
+    [ownerFilter, teamMembers, convMetaByContact, queueAgentMap, user?.id, user?.name, periodFilter, stageIds, stageByPhone, modeFilter, getContactMode]
   );
 
   // Count conversations by status — scoped to the active tab (Individual / Groups)
@@ -705,7 +710,9 @@ export function ChatList() {
       if (stageIds.length > 0 && stageByPhone) {
         const contact = contactById.get(conv.contact_id);
         const norm = (contact?.phone || '').replace(/\D/g, '');
-        const info = norm ? stageByPhone.get(norm) : undefined;
+        const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const codAgent = link?.hasAgent ? link.codAgent : null;
+        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
@@ -735,7 +742,7 @@ export function ChatList() {
     return { pendingConvCount: pending, openConvCount: open, closedConvCount: closed };
   }, [
     conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
-    user?.id, user?.name, stageIds, stageByPhone,
+    user?.id, user?.name, stageIds, stageByPhone, queueAgentMap,
     modeFilter, getConversationMode, matchesActiveTab, isVisibleByOpenScope,
   ]);
 
@@ -817,7 +824,9 @@ export function ChatList() {
       // Stage
       if (stageIds.length > 0 && stageByPhone) {
         const norm = (contact?.phone || '').replace(/\D/g, '');
-        const info = norm ? stageByPhone.get(norm) : undefined;
+        const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const codAgent = link?.hasAgent ? link.codAgent : null;
+        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
@@ -845,7 +854,7 @@ export function ChatList() {
   }, [
     conversationStatusFilter, sortedConversations, contacts, deferredSearch,
     periodFilter, ownerFilter, teamMembers, user?.id, user?.name,
-    stageIds, stageByPhone, modeFilter,
+    stageIds, stageByPhone, queueAgentMap, modeFilter,
     getConversationMode, matchesActiveTab, isVisibleByOpenScope,
     applyClientFilters, filteredContacts,
   ]);
@@ -949,7 +958,9 @@ export function ChatList() {
 
       if (stageIds.length > 0 && stageByPhone) {
         const norm = (contact?.phone || '').replace(/\D/g, '');
-        const info = norm ? stageByPhone.get(norm) : undefined;
+        const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const codAgent = link?.hasAgent ? link.codAgent : null;
+        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 

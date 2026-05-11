@@ -1,62 +1,36 @@
-## Diagnóstico
+## Objetivo
+Corrigir os casos em que conversas com vínculo da Julia ainda aparecem como “Sem etapa” no chat, mesmo quando existe etapa no CRM correspondente.
 
-A "Etapa Julia" no chat sai por `useCRMStageByPhone` em `src/hooks/useCRMStageByPhone.ts`, que faz:
+## O que foi identificado
+- Para o exemplo informado (`5584996154035`, fila `MKT São Paulo`), a fila está vinculada ao agente `202604004`.
+- A conversa usa esse vínculo da fila corretamente.
+- Porém, a consulta ao CRM externo não retornou card para esse telefone nesse agente.
+- Além disso, a `ChatList` ainda tem pontos usando a chave antiga por telefone simples (`stageByPhone.get(norm)`) em filtros internos, mesmo após a refatoração para `(telefone + codAgent)`.
 
-```sql
-SELECT DISTINCT ON (c.whatsapp_number)
-  c.whatsapp_number, c.stage_id, s.name, s.color
-FROM crm_atendimento_cards c
-LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
-WHERE c.whatsapp_number = ANY($1)
-ORDER BY c.whatsapp_number, c.updated_at DESC NULLS LAST
-```
+## Plano
+1. Ajustar toda a `ChatList` para usar consistentemente a chave composta `telefone|codAgent` em todos os filtros e totalizadores.
+2. Fortalecer a resolução de etapa no hook `useCRMStageByPhone` para cobrir variações de telefone mais robustas e manter coerência com os outros fluxos Julia do sistema.
+3. Validar o caso real informado e confirmar se ele falha por bug de frontend ou por ausência/inconsistência do card na base externa.
+4. Se o card realmente não existir para o agente da fila, preservar o fallback “Sem etapa” apenas nesse cenário real; se existir em outro formato, corrigir a normalização para capturá-lo.
 
-Problema: a query **ignora `cod_agent`**. Quando o mesmo telefone aparece em cards de **vários agentes diferentes** (situação comum: lead atendido por mais de uma operação Julia), o `DISTINCT ON` devolve apenas **o card mais recentemente atualizado**, que pode ser de **outro agente** — frequentemente um card antigo sem `stage_id` válido (ou um card cuja etapa não pertence ao agente vinculado à conversa).
+## Arquivos previstos
+- `src/components/chat/ChatList.tsx`
+- `src/hooks/useCRMStageByPhone.ts`
+- Possivelmente `src/lib/phoneVariants.ts` se a cobertura de variações precisar ser ampliada
 
-Resultado: o frontend recebe `stageInfo` para o telefone, mas vinculado ao agente errado. Como o `ChatContactItem` agora mostra "Sem etapa" sempre que `stageName` vier vazio, o badge cai em fallback mesmo com etapa correta no CRM da Julia daquele atendimento.
+## Detalhes técnicos
+- Substituir usos restantes de:
+  - `stageByPhone.get(norm)`
+- Por buscas com chave composta:
+  - ```${normPhone}|${agentCodAgent}```
+- Revisar estes pontos na lista:
+  - filtros de etapa
+  - totalizadores
+  - modo de busca
+  - lista visível pendente/aberta
+- Se necessário, ampliar `getBrPhoneVariants` para aceitar também formatos legados sem `55`, sem `9`, ou ambos, sem quebrar os fluxos já existentes.
 
-Outra consequência: mesmo quando a query retorna o card certo, se o card "vencedor" tiver `stage_id` nulo (lead novo de outro agente), o `LEFT JOIN` devolve `name = null` e sobrescreve o card bom do agente certo.
-
-## Correção proposta
-
-Tornar a busca **chaveada por (telefone, cod_agent)** em vez de só telefone.
-
-### 1. `src/hooks/useCRMStageByPhone.ts`
-- Trocar assinatura para `useCRMStageByPhoneAgent(pairs: Array<{ phone: string; codAgent: string | null }>)`.
-- Construir 2 arrays paralelos (phones expandidos + cod_agents correspondentes) e enviar ao DB.
-- Query nova:
-
-```sql
-SELECT DISTINCT ON (c.whatsapp_number, c.cod_agent)
-  c.whatsapp_number, c.cod_agent::text AS cod_agent,
-  c.stage_id, s.name AS stage_name, s.color AS stage_color
-FROM crm_atendimento_cards c
-LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
-WHERE (c.whatsapp_number, c.cod_agent::text) IN (
-  SELECT unnest($1::varchar[]), unnest($2::varchar[])
-)
-ORDER BY c.whatsapp_number, c.cod_agent, c.updated_at DESC NULLS LAST
-```
-
-- Mapa de retorno: `Map<string, PhoneStageInfo>` onde a chave é `${phoneVariant}|${codAgent}`.
-- Para cada linha, registrar todas as variantes BR de telefone com o mesmo `cod_agent`.
-
-### 2. `src/components/chat/ChatList.tsx`
-- Em vez de `allPhones`, montar `allPhoneAgentPairs` a partir das conversas: `{ phone: contact.phone, codAgent: queueAgentMap.get(conv.queue_id)?.codAgent }` (apenas quando `hasAgent`).
-- Lookup por `stageByPhone.get(`${normPhone}|${agentCodAgent}`)`.
-- Manter o fallback "Sem etapa" só quando realmente não existir card para aquele par.
-
-### 3. `src/components/chat/ContactDetailPanel.tsx`
-- Mesmo ajuste: passar `(phone, codAgent)` resolvido do contato/conversa selecionada para a nova hook (ou criar variante específica `useCRMStageForContact(phone, codAgent)`).
-
-## Validação
-
-- Após o ajuste, rodar uma checagem visual em conversas que estavam com "Sem etapa" mas têm card no CRM Julia do agente da fila — devem mostrar a etapa correta.
-- Verificar que conversas sem card permanecem com "Sem etapa".
-- Verificar que conversas em que o card pertence a outro agente (não o da fila) **não** mostram etapa daquele agente alheio.
-
-## Fora de escopo
-
-- Não alteramos schema, triggers ou RLS.
-- Não mexemos em UI de tags/CRM Builder.
-- Sem mudança em fila/queue routing.
+## Resultado esperado
+- Conversas Julia sempre mostrarão a etapa correta quando existir card para o agente da fila.
+- “Sem etapa” só aparecerá quando realmente não houver card correspondente no CRM externo para aquele agente.
+- Filtros e contadores por etapa deixarão de usar a chave antiga e ficarão coerentes com o badge exibido.
