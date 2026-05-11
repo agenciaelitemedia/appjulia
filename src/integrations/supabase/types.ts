@@ -5847,6 +5847,10 @@ export type Database = {
           window_label: string
         }[]
       }
+      increment_contact_unread: {
+        Args: { p_contact_id: string; p_last_at?: string; p_preview?: string }
+        Returns: undefined
+      }
       map_priority_chat_to_crm: { Args: { p: string }; Returns: string }
       map_priority_crm_to_chat: { Args: { p: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
