@@ -1523,7 +1523,9 @@ export function ChatList() {
                 ? (aliasMap.get(agentCodAgent) || agentBusinessNameMap.get(agentCodAgent) || null)
                 : null;
               const normPhone = (contact.phone || '').replace(/\D/g, '');
-              const stageInfo = normPhone ? stageByPhone?.get(normPhone) : undefined;
+              const stageInfo = normPhone && agentCodAgent
+                ? stageByPhone?.get(`${normPhone}|${agentCodAgent}`)
+                : undefined;
               return (
                 <div
                   key={virtualItem.key}
