@@ -362,4 +362,46 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       </div>
     </div>
   );
+}, (prev, next) => {
+  // Custom shallow comparison: avoids re-renders when parent rebuilds
+  // empty arrays / equal objects with new references on every scroll tick.
+  if (prev.isSelected !== next.isSelected) return false;
+  if (prev.onClick !== next.onClick) return false;
+  if (prev.queueName !== next.queueName) return false;
+  if (prev.assignedAgentName !== next.assignedAgentName) return false;
+  if (prev.agentCodAgent !== next.agentCodAgent) return false;
+  if (prev.agentAlias !== next.agentAlias) return false;
+  if (prev.stageName !== next.stageName) return false;
+  if (prev.stageColor !== next.stageColor) return false;
+  if (prev.hasCrmCard !== next.hasCrmCard) return false;
+  if (prev.crmBuilderLink !== next.crmBuilderLink) return false;
+  if (prev.index !== next.index) return false;
+  if (prev.contact?.id !== next.contact?.id) return false;
+  if (prev.contact?.name !== next.contact?.name) return false;
+  if (prev.contact?.avatar !== next.contact?.avatar) return false;
+  if (prev.contact?.unread_count !== next.contact?.unread_count) return false;
+  if (prev.contact?.last_message_at !== next.contact?.last_message_at) return false;
+  if (prev.contact?.last_message_text !== next.contact?.last_message_text) return false;
+  if (prev.conversation?.id !== next.conversation?.id) return false;
+  if (prev.conversation?.status !== next.conversation?.status) return false;
+  if (prev.conversation?.updated_at !== next.conversation?.updated_at) return false;
+  if (prev.conversation?.priority !== next.conversation?.priority) return false;
+  if (prev.conversation?.assigned_to !== next.conversation?.assigned_to) return false;
+  // convTags: compare length + ids
+  const a = prev.convTags || []; const b = next.convTags || [];
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]?.id !== b[i]?.id || a[i]?.name !== b[i]?.name) return false;
+  }
+  // lastMessageMeta
+  const lm1 = prev.lastMessageMeta; const lm2 = next.lastMessageMeta;
+  if ((lm1 && !lm2) || (!lm1 && lm2)) return false;
+  if (lm1 && lm2) {
+    if (
+      lm1.last_message_at !== lm2.last_message_at ||
+      lm1.last_message_from_me !== lm2.last_message_from_me ||
+      lm1.last_customer_message_at !== lm2.last_customer_message_at
+    ) return false;
+  }
+  return true;
 });

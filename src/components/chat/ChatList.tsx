@@ -1026,7 +1026,8 @@ export function ChatList() {
     count: displayContacts.length,
     getScrollElement: () => listRef.current,
     estimateSize: () => 102,
-    overscan: 8,
+    overscan: 12,
+    getItemKey: (index) => displayContacts[index]?.id ?? index,
     measureElement: (el) => el.getBoundingClientRect().height,
   });
 

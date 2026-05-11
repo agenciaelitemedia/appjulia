@@ -1,33 +1,24 @@
-## Diagnóstico
+## Situação atual
 
-O **403 da imagem do WhatsApp não trava nada** — é só um avatar de contato que o servidor da Meta bloqueou (link expirado/CDN). O `<img>` simplesmente não pinta.
+A virtualização da lista de conversas **já está implementada** em `src/components/chat/ChatList.tsx` usando `@tanstack/react-virtual`:
 
-O que **realmente travou** o carregamento foi um erro de runtime que eu introduzi na refatoração do `useChatContactsByIds`:
+- `useVirtualizer` configurado (linha 1025) com `estimateSize: 102`, `overscan: 8` e `measureElement` para altura dinâmica.
+- Container scroll (`listRef`) com `overflow-y-auto`; spacer com `getTotalSize()`; apenas itens visíveis renderizados via `getVirtualItems()` (linhas 1495–1544).
+- Resultado: com 1.000+ conversas em memória, apenas ~20 nós ficam no DOM por vez.
 
-```
-TypeError: Cannot read properties of undefined (reading 'next')
-  at useQueries → useChatContactsByIds → ChatList
-```
+Ou seja, o custo de render por scroll já está minimizado. Não há trabalho a fazer no requisito original.
 
-Causa: `useQueries({ queries: [] })` com array vazio dispara um bug do React Query nessa versão quando combinado com `useMemo` que retorna nova referência. Quando o usuário entra no /chat sem `missingContactIds`, o array de chunks é `[]` e o hook quebra.
+## Otimizações opcionais (se houver lentidão percebida)
 
-## Plano
+Posso aplicar uma ou mais destas afinações pontuais — todas pequenas, sem mudar arquitetura:
 
-### 1. Corrigir `useChatContactsByIds` (bloqueante)
+1. **Memoizar `ChatContactItem`** com `React.memo` + comparador raso. Hoje cada scroll re-renderiza props derivadas (queue, alias, stage, tags) mesmo quando nada mudou para aquele contato.
+2. **Pré-computar `displayConvsByContact`, `aliasMap`, `stageByPhone`** em `useMemo` estável (verificar se já estão; caso reconstruam por render, estabilizar dependências).
+3. **Aumentar `overscan` para 12** em telas altas para reduzir flicker ao rolar rápido (custo baixo).
+4. **`getItemKey: (i) => displayContacts[i].id`** no virtualizer, garantindo reuso de DOM por contato (hoje a key vem de `virtualItem.key` que é por índice).
 
-- Garantir que `useQueries` sempre receba pelo menos uma query "no-op" desabilitada (`enabled: false`) quando não há ids, em vez de `queries: []`.
-- Estabilizar a `queryKey` por chunk (já está) e memoizar o array de queries para não recriar a cada render.
-- Manter a API atual `{ data, isLoading, isFetching, error }` para não quebrar o `ChatList`.
+## Próximo passo
 
-### 2. Tornar avatar resiliente a 403
-
-- Em `ChatContactItem` (e onde o `<Avatar>` do contato é renderizado), usar `onError` no `<AvatarImage>` para limpar a `src` e cair no `AvatarFallback` (iniciais) em vez de continuar tentando.
-- Sem retry — se a Meta devolveu 403, o link está morto pra sempre.
-
-### Arquivos
-- `src/hooks/useChatContactsByIds.ts` — fix do crash.
-- `src/components/chat/ChatContactItem.tsx` — fallback gracioso no avatar.
-
-### Não muda
-- Lógica de paginação 1.000 + 200 (já implementada e correta).
-- Fluxo de classificação Julia/Humano.
+Confirme se quer:
+- (A) apenas a verificação acima (nada a fazer), ou
+- (B) aplicar as otimizações 1–4 (ou um subconjunto).
