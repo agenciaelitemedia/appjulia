@@ -1625,6 +1625,11 @@ export function ChatList() {
                     agentAlias={agentAlias}
                     stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
                     stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
+                    stageLoading={
+                      queueLink?.hasAgent &&
+                      !stageInfo &&
+                      (!stageByPhone || stageByPhoneFetching)
+                    }
                     hasCrmCard={conv?.id ? !!crmBuilderMap?.has(conv.id) : false}
                     crmBuilderLink={conv?.id ? crmBuilderMap?.get(conv.id) : undefined}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
