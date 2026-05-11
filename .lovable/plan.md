@@ -1,44 +1,27 @@
-## Objetivo
-Fazer a lista do chat mostrar a etapa correta da Júlia já no primeiro carregamento visual, sem depender do clique no lead e sem causar reordenação/"pulo" perceptível da lista.
+# Escolher etapa ao criar card no CRM (a partir do /chat)
 
-## O que vou alterar
-1. **Unificar a base de contatos usada para carregar etapas**
-   - Ajustar `ChatList.tsx` para montar o batch de `useCRMStageByPhone` com a mesma base usada para renderizar a lista final, incluindo os contatos vindos de `useChatContactsByIds`.
-   - Isso elimina o buraco atual em que um lead aparece na lista, mas não entra no carregamento de etapa por ainda não existir em `contacts/filteredContacts`.
+Hoje, no botão **CRM** do header da conversa, ao clicar em "Criar card" o usuário escolhe apenas o **quadro** e o card é criado automaticamente na **primeira etapa**. O ajuste é tornar a escolha da etapa explícita, mantendo a primeira como padrão sugerido.
 
-2. **Separar estado “ainda carregando etapa” de “sem etapa”**
-   - Enquanto o mapa de etapas da Júlia ainda estiver carregando para aquele item, evitar mostrar imediatamente o texto final "Sem etapa".
-   - A linha da Júlia vai manter comportamento estável na primeira pintura, evitando o falso negativo visual.
+## O que muda na tela
 
-3. **Preservar lookup correto por telefone + agente com fallback seguro**
-   - Manter a busca prioritária por chave composta (`telefone|codAgent`) e fallback por telefone quando necessário.
-   - Aplicar isso sem depender do clique no contato para que a etapa já venha resolvida na lista virtualizada.
+Arquivo único afetado: `src/components/chat/CreateCrmCardSheet.tsx`.
 
-4. **Validar o ponto do “pulo” da lista**
-   - Revisar o item virtualizado para garantir que a atualização da etapa não provoque mudança desnecessária de altura/re-medida ao selecionar o lead.
-   - Se preciso, estabilizar a renderização da faixa Júlia para reduzir reflow visual.
-
-## Arquivos alvo
-- `src/components/chat/ChatList.tsx`
-- `src/components/chat/ChatContactItem.tsx`
-- possivelmente `src/hooks/useCRMStageByPhone.ts` se eu precisar ajustar o estado de carregamento por item
-
-## Resultado esperado
-- Leads da Júlia já aparecem com a etapa correta ao entrar na lista.
-- Clicar no lead não será mais o gatilho para a etapa “corrigir”.
-- A lista não deve mais “andar” ou reorganizar visualmente por causa desse carregamento.
+1. **Passo 1 — Escolha do quadro** continua igual: lista de quadros expansíveis.
+2. **Quando um quadro é expandido**, em vez de mostrar apenas "Entrará em: <primeira etapa>", mostrar a **lista completa de etapas** do quadro como opções clicáveis (radio-like). A primeira etapa vem **pré-selecionada** por padrão.
+   - Cada item da etapa exibe a bolinha colorida + nome + ícone de check quando selecionada.
+   - Clicar em uma etapa diferente atualiza `selectedPipeline` sem fechar a expansão.
+3. Atualizar o texto auxiliar de "O card sempre será criado na primeira etapa do quadro" para algo como "Você pode escolher em qual etapa o card será criado".
+4. O resto do fluxo (passo 2 — detalhes, vínculos Julia, criar) permanece idêntico, pois o `handleCreate` já usa `selectedPipeline`.
 
 ## Detalhes técnicos
-- Hoje o problema nasce porque `displayContacts/finalVisibleContacts` pode incluir contatos de `missingContactIds -> useChatContactsByIds`, mas `allPhoneAgentPairs` é derivado apenas de `filteredContacts`.
-- Ao clicar, `selectContact()` hidrata esse contato dentro de `contacts`, e só então ele passa a participar do batch de etapa.
-- A correção será alinhar a fonte de dados do batch de etapas com a fonte real da renderização da lista, removendo a divergência entre “contato visível” e “contato elegível para lookup de etapa”.
 
-```text
-Hoje:
-lista visível = filteredContacts + fetchedMissing
-batch etapa = filteredContacts
+- Reaproveitar o estado existente `selectedPipeline` / `setSelectedPipeline`. Nenhuma mudança no schema, hooks ou queries.
+- Em `handleSelectBoard`, manter a lógica que carrega os pipelines via `loadPipelines(boardId)` e pré-seleciona o primeiro.
+- Substituir o bloco `firstStage ? (...)` (linhas ~353-367) por um `pipelines.map(...)` renderizando botões de etapa. Cada botão chama `setSelectedPipeline(p.id)` e aplica destaque visual quando `selectedPipeline === p.id`.
+- Manter o badge "Etapa selecionada" do header do passo 1.
+- Sem alterações em `ChatCrmButton`, `ChatLinkedDealSheet`, hooks ou backend.
 
-Depois:
-lista visível = base única
-batch etapa = mesma base única
-```
+## Fora de escopo
+
+- Não alterar a criação de cards a partir de outros lugares (CRM Builder, CRM da Julia).
+- Não mexer em vínculo com Julia, prioridade, valor ou descrição.
