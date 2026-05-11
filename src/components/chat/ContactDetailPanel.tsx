@@ -223,9 +223,13 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   );
   const { data: stageMap } = useCRMStageByPhone(stagePairs);
   const juliaStage = React.useMemo(() => {
-    if (!stageMap || !contact.phone || !stageCodAgent) return null;
+    if (!stageMap || !contact.phone) return null;
     const norm = contact.phone.replace(/\D/g, '');
-    return stageMap.get(`${norm}|${stageCodAgent}`) || null;
+    if (!norm) return null;
+    if (stageCodAgent) {
+      return stageMap.get(`${norm}|${stageCodAgent}`) || stageMap.get(norm) || null;
+    }
+    return stageMap.get(norm) || null;
   }, [stageMap, contact.phone, stageCodAgent]);
 
   const initials = contact.name
