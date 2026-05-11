@@ -238,13 +238,13 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center justify-between gap-1.5 min-w-0 w-full pt-1 mt-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-sm border border-emerald-100/70 dark:border-emerald-900/40 px-0 py-[2px] my-0">
-                  <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                  <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
                     <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-emerald-100 text-emerald-700 whitespace-nowrap flex-shrink-0">
                       <Bot className="h-2.5 w-2.5 flex-shrink-0" />
                       JULIA
                     </span>
                     {agentCodAgent && (
-                      <span className="text-[10px] text-muted-foreground font-mono truncate">
+                      <span className="text-[10px] text-muted-foreground font-mono truncate min-w-0">
                         #{agentCodAgent}{agentAlias ? ` · ${agentAlias}` : ''}
                       </span>
                     )}
@@ -275,13 +275,13 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center justify-between min-w-0 w-full pt-1 mt-0.5 bg-blue-50/40 dark:bg-blue-950/20 rounded-sm border border-blue-100/70 dark:border-blue-900/40 px-0 gap-0 py-[2px] my-0">
-                  <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                  <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
                     <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-blue-100 text-blue-700 whitespace-nowrap flex-shrink-0">
                       <Kanban className="h-2.5 w-2.5 flex-shrink-0" />
                       CRM
                     </span>
                     {crmBuilderLink.boardName && (
-                      <span className="text-[10px] text-muted-foreground font-mono truncate">
+                      <span className="text-[10px] text-muted-foreground font-mono truncate min-w-0">
                         {crmBuilderLink.boardName}
                       </span>
                     )}
