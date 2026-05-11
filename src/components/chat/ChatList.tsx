@@ -1452,9 +1452,6 @@ export function ChatList() {
         ))}
         </TooltipProvider>
       </div>
-      {/* Invisible sentinel — triggers loadMoreConversations to keep counts accurate */}
-      <div ref={convSentinelRef} className="h-0 w-full" />
-
       {/* Contact List */}
       <div ref={listRef} className="flex-1 overflow-y-auto">
         {/* Silent-refetch banner — shown when reloading but the list is
