@@ -1,36 +1,44 @@
 ## Objetivo
-Restaurar a exibição correta da etapa da Julia em todas as conversas vinculadas, eliminando os falsos casos de “Sem etapa”.
+Fazer a lista do chat mostrar a etapa correta da Júlia já no primeiro carregamento visual, sem depender do clique no lead e sem causar reordenação/"pulo" perceptível da lista.
 
-## O que foi diagnosticado
-- O chat agora busca a etapa por `telefone + cod_agent`.
-- Nas conversas do chat, o campo `chat_conversations.cod_agent` está vazio no caso analisado.
-- Sem esse `cod_agent` real, a lista faz fallback para o agente primário da fila (`queue_agent_links`).
-- No exemplo informado (`5584996154035`), a fila `MKT São Paulo` aponta para `202604004`, mas o CRM externo não possui card desse telefone nesse agente.
-- Isso indica uma regressão de origem do vínculo: a conversa continua “Julia”, mas a etapa está sendo buscada com o agente errado.
+## O que vou alterar
+1. **Unificar a base de contatos usada para carregar etapas**
+   - Ajustar `ChatList.tsx` para montar o batch de `useCRMStageByPhone` com a mesma base usada para renderizar a lista final, incluindo os contatos vindos de `useChatContactsByIds`.
+   - Isso elimina o buraco atual em que um lead aparece na lista, mas não entra no carregamento de etapa por ainda não existir em `contacts/filteredContacts`.
 
-## Plano
-1. Revisar a origem do `cod_agent` usado no chat para etapa Julia e parar de depender apenas do agente primário da fila quando a conversa não trouxer esse dado.
-2. Implementar uma resolução mais confiável do agente da conversa Julia, priorizando vínculo explícito da própria conversa/contato quando existir, e só usando a fila como último fallback.
-3. Ajustar `ChatList` e `ContactDetailPanel` para consumirem a mesma fonte consolidada de `cod_agent`, garantindo consistência entre lista, badge e painel lateral.
-4. Tornar o lookup de etapa resiliente a cards já existentes no CRM para o telefone, evitando regressão visual quando o chat estiver sem `cod_agent` persistido.
-5. Validar com o caso real informado e com outros contatos Julia para confirmar que “Sem etapa” só desaparece quando o vínculo do card é resolvido corretamente.
+2. **Separar estado “ainda carregando etapa” de “sem etapa”**
+   - Enquanto o mapa de etapas da Júlia ainda estiver carregando para aquele item, evitar mostrar imediatamente o texto final "Sem etapa".
+   - A linha da Júlia vai manter comportamento estável na primeira pintura, evitando o falso negativo visual.
 
-## Arquivos prováveis
+3. **Preservar lookup correto por telefone + agente com fallback seguro**
+   - Manter a busca prioritária por chave composta (`telefone|codAgent`) e fallback por telefone quando necessário.
+   - Aplicar isso sem depender do clique no contato para que a etapa já venha resolvida na lista virtualizada.
+
+4. **Validar o ponto do “pulo” da lista**
+   - Revisar o item virtualizado para garantir que a atualização da etapa não provoque mudança desnecessária de altura/re-medida ao selecionar o lead.
+   - Se preciso, estabilizar a renderização da faixa Júlia para reduzir reflow visual.
+
+## Arquivos alvo
 - `src/components/chat/ChatList.tsx`
-- `src/components/chat/ContactDetailPanel.tsx`
-- `src/hooks/useCRMStageByPhone.ts`
-- possivelmente um util/hook novo para resolver `cod_agent` efetivo da conversa Julia
-
-## Detalhes técnicos
-- Unificar a regra de resolução do agente Julia em um único ponto.
-- Ordem de prioridade prevista:
-  1. `chat_conversations.cod_agent`
-  2. vínculo persistido relacionado à conversa/contato, se existir
-  3. agente derivado da fila
-- Se a conversa estiver vinculada à Julia mas sem `cod_agent` local, a UI não deve assumir silenciosamente que o agente da fila é sempre o do card.
-- O caso `5584996154035` será usado como teste de regressão durante a implementação.
+- `src/components/chat/ChatContactItem.tsx`
+- possivelmente `src/hooks/useCRMStageByPhone.ts` se eu precisar ajustar o estado de carregamento por item
 
 ## Resultado esperado
-- Conversas vinculadas à Julia voltarão a mostrar a etapa correta como antes.
-- O badge da etapa ficará coerente entre lista e painel de detalhes.
-- O sistema deixará de exibir “Sem etapa” por erro de resolução de agente.
+- Leads da Júlia já aparecem com a etapa correta ao entrar na lista.
+- Clicar no lead não será mais o gatilho para a etapa “corrigir”.
+- A lista não deve mais “andar” ou reorganizar visualmente por causa desse carregamento.
+
+## Detalhes técnicos
+- Hoje o problema nasce porque `displayContacts/finalVisibleContacts` pode incluir contatos de `missingContactIds -> useChatContactsByIds`, mas `allPhoneAgentPairs` é derivado apenas de `filteredContacts`.
+- Ao clicar, `selectContact()` hidrata esse contato dentro de `contacts`, e só então ele passa a participar do batch de etapa.
+- A correção será alinhar a fonte de dados do batch de etapas com a fonte real da renderização da lista, removendo a divergência entre “contato visível” e “contato elegível para lookup de etapa”.
+
+```text
+Hoje:
+lista visível = filteredContacts + fetchedMissing
+batch etapa = filteredContacts
+
+Depois:
+lista visível = base única
+batch etapa = mesma base única
+```
