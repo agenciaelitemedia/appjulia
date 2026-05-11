@@ -25,7 +25,7 @@ type TimelineItem =
   | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
 
 export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
-  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts, isReady } = useWhatsAppData();
+  const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -86,8 +86,8 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   // Initial load
   useEffect(() => {
     isInitialLoad.current = true;
-    if (!contactId || !isReady) {
-      setIsLoading(!!contactId);
+    if (!contactId) {
+      setIsLoading(false);
       setHasMore(true);
       return;
     }
@@ -135,7 +135,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     return () => {
       cancelled = true;
     };
-  }, [contactId, isReady, loadMessages, retryAttempt]);
+  }, [contactId, loadMessages, retryAttempt]);
 
   const handleManualRetry = useCallback(() => {
     setRetryAttempt((n) => n + 1);
@@ -156,7 +156,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
   // are read from refs to avoid recreating this callback on every new message, which would
   // otherwise tear down and re-attach the IntersectionObserver constantly.
   const handleLoadMore = useCallback(async () => {
-    if (!isReady || isLoadingMoreRef.current || !hasMoreRef.current) return;
+    if (isLoadingMoreRef.current || !hasMoreRef.current) return;
     const el = scrollContainerRef.current;
     if (!el) return;
 
@@ -174,7 +174,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [contactId, isReady, loadMessages]);
+  }, [contactId, loadMessages]);
 
   // Cold-open fallback: if the first page still leaves the top sentinel visible,
   // ask for older messages immediately instead of waiting for a new intersection
@@ -327,7 +327,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
                 variant="outline"
                 size="sm"
                 onClick={handleLoadMore}
-                disabled={isLoadingMore || !isReady}
+                disabled={isLoadingMore}
                 className="rounded-full text-xs gap-2"
               >
                 {isLoadingMore ? (
