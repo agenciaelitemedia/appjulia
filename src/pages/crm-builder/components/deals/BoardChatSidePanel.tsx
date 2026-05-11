@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MessageCircle, ExternalLink, Lock } from 'lucide-react';
+import { MessageCircle, ExternalLink, Lock, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
@@ -14,7 +14,7 @@ import { useUserQueueAccess } from '@/hooks/useUserQueueAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import type { CRMDeal } from '../../types';
-import type { ChatMessage } from '@/types/chat';
+import type { ChatMessage, ChatContact } from '@/types/chat';
 
 interface BoardChatSidePanelProps {
   open: boolean;
@@ -153,9 +153,30 @@ function ScopedChat({
     selectedContactId,
     selectedQueue,
     setSelectedQueue,
-    selectedConversation,
+    contactHydrationError,
+    retryHydrateSelectedContact,
   } = useWhatsAppData();
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
+  const [showTimeoutFallback, setShowTimeoutFallback] = useState(false);
+
+  // Hydrate the contact directly from chat_contacts so the panel does not
+  // depend on the provider's `contacts` cache being populated. This avoids
+  // the spinner-forever case when the deal's contact falls outside the
+  // current page/filter of `loadContacts`.
+  const { data: dealContact, isLoading: isLoadingContact, error: contactError, refetch: refetchContact } = useQuery({
+    queryKey: ['side-panel-contact', contactId],
+    enabled: !!contactId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<ChatContact | null> => {
+      const { data, error } = await supabase
+        .from('chat_contacts')
+        .select('id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at')
+        .eq('id', contactId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as ChatContact | null) ?? null;
+    },
+  });
 
   // Hidrata a fila do deal no provider isolado para que loadConversations
   // carregue a chat_conversations correta e o ChatInput respeite os mesmos
@@ -173,10 +194,68 @@ function ScopedChat({
   }, [contactId, selectedContactId, selectContact]);
 
   const queueReady = !queue || selectedQueue?.id === queue.id;
-  // Não bloqueamos por selectedConversation: se a conversa não estiver na
-  // página atual de `conversations` (paginação/filtros), o painel ficaria
-  // carregando para sempre. Mensagens carregam por contactId direto.
-  if (!selectedContact || selectedContactId !== contactId || !queueReady) {
+  // Prefer the locally-fetched contact over the provider's cache so the panel
+  // can render even when bootstrap filters wipe `selectedContact`. Falls back
+  // to the cached one if the local fetch hasn't resolved yet.
+  const effectiveContact = dealContact ?? selectedContact;
+
+  // Defensive timeout: if after 4s we still don't have a usable contact and
+  // there's no explicit error, surface a diagnostic fallback instead of a
+  // never-ending skeleton.
+  useEffect(() => {
+    setShowTimeoutFallback(false);
+    const t = setTimeout(() => setShowTimeoutFallback(true), 4000);
+    return () => clearTimeout(t);
+  }, [contactId]);
+
+  // Error state — either local fetch failed or context hydration set an error.
+  const errorMessage =
+    (contactError instanceof Error ? contactError.message : null) ||
+    (dealContact === null && !isLoadingContact ? 'Contato não encontrado.' : null) ||
+    contactHydrationError;
+
+  if (errorMessage && !effectiveContact) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-muted-foreground gap-3">
+        <AlertTriangle className="h-10 w-10 opacity-40" />
+        <p className="text-sm font-medium">Não foi possível abrir a conversa</p>
+        <p className="text-xs max-w-xs">{errorMessage}</p>
+        <div className="flex gap-2 mt-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { refetchContact(); retryHydrateSelectedContact(); }}
+            className="rounded-full"
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!effectiveContact || selectedContactId !== contactId || !queueReady) {
+    if (showTimeoutFallback) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-muted-foreground gap-3">
+          <AlertTriangle className="h-10 w-10 opacity-40" />
+          <p className="text-sm font-medium">A conversa demorou para carregar</p>
+          <p className="text-xs max-w-xs">
+            {!queueReady ? 'Aguardando hidratação da fila…' : 'Aguardando dados do contato…'}
+          </p>
+          <div className="flex gap-2 mt-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { refetchContact(); retryHydrateSelectedContact(); setShowTimeoutFallback(false); }}
+              className="rounded-full"
+            >
+              Tentar novamente
+            </Button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="p-4 space-y-3">
         <Skeleton className="h-12 w-full" />
@@ -188,7 +267,7 @@ function ScopedChat({
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <ChatHeader
-        contact={selectedContact}
+        contact={effectiveContact}
         onClose={onClose}
         onShowDetails={() => {}}
       />

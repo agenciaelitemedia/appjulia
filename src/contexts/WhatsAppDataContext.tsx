@@ -258,6 +258,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  // Mutable mirror of `selectedContactId` so callbacks (e.g. loadContacts)
+  // can read the current selection without re-creating themselves on every
+  // change — important to avoid bootstrap effects re-running and racing.
+  const selectedContactIdRef = useRef<string | null>(null);
+  useEffect(() => { selectedContactIdRef.current = selectedContactId; }, [selectedContactId]);
 
   // LRU-aware wrapper around setMessages.
   // Tracks access order and evicts the oldest entries when the map exceeds
@@ -539,7 +544,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           return merged;
         });
       } else {
-        setContacts(page);
+        // Preserve the currently-selected contact across resets. The deal/CRM
+        // chat panels select a contact directly via id; if `loadContacts`
+        // happens to filter it out (different period, group or queue page),
+        // the panel would lose `selectedContact` and stay on a skeleton
+        // forever. Keep it pinned at the top of the list.
+        setContacts(prev => {
+          const selId = selectedContactIdRef.current;
+          if (!selId) return page;
+          const keep = prev.find(c => c.id === selId);
+          if (!keep) return page;
+          if (page.some(c => c.id === selId)) return page;
+          return [keep, ...page];
+        });
       }
     } catch (error) {
       console.error('Error loading contacts:', error);
