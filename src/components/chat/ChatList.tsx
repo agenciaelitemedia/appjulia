@@ -1537,8 +1537,15 @@ export function ChatList() {
                 ? (aliasMap.get(agentCodAgent) || agentBusinessNameMap.get(agentCodAgent) || null)
                 : null;
               const normPhone = (contact.phone || '').replace(/\D/g, '');
-              const stageInfo = normPhone && agentCodAgent
-                ? stageByPhone?.get(`${normPhone}|${agentCodAgent}`)
+              // Prefer exact (phone, agent) match; fall back to most recent
+              // card by phone when the queue's primary agent doesn't match
+              // the agent that owns the card in the CRM. This restores the
+              // previous behavior where every Julia-linked conversation
+              // with any card surfaced its stage.
+              const stageInfo = normPhone
+                ? (agentCodAgent
+                    ? stageByPhone?.get(`${normPhone}|${agentCodAgent}`) ?? stageByPhone?.get(normPhone)
+                    : stageByPhone?.get(normPhone))
                 : undefined;
               return (
                 <div
