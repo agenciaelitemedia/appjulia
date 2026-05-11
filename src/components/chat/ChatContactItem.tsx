@@ -249,12 +249,13 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                       </span>
                     )}
                   </div>
-                  {stageName && (
+                  {agentCodAgent && (
                     <span
-                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
-                      style={{ backgroundColor: stageColor || '#64748b' }}
+                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap max-w-[120px] truncate"
+                      style={{ backgroundColor: stageName ? (stageColor || '#64748b') : '#94a3b8' }}
+                      title={stageName || 'Sem etapa'}
                     >
-                      {stageName}
+                      {stageName || 'Sem etapa'}
                     </span>
                   )}
                 </div>
