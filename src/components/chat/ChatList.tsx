@@ -237,7 +237,8 @@ export function ChatList() {
   // Auto-load more conversations when the list sentinel is visible
   useEffect(() => {
     const sentinel = convSentinelRef.current;
-    if (!sentinel) return;
+    const root = listRef.current;
+    if (!sentinel || !root) return;
     if (isSearching) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -245,7 +246,7 @@ export function ChatList() {
           loadMoreConversations();
         }
       },
-      { threshold: 0.1 }
+      { root, threshold: 0, rootMargin: '400px' }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -1452,9 +1453,6 @@ export function ChatList() {
         ))}
         </TooltipProvider>
       </div>
-      {/* Invisible sentinel — triggers loadMoreConversations to keep counts accurate */}
-      <div ref={convSentinelRef} className="h-0 w-full" />
-
       {/* Contact List */}
       <div ref={listRef} className="flex-1 overflow-y-auto">
         {/* Silent-refetch banner — shown when reloading but the list is
@@ -1554,6 +1552,23 @@ export function ChatList() {
         )}
         {!isSearching && displayContacts.length > 0 && (
           <div ref={bottomSentinelRef} className="h-1" />
+        )}
+        {/* Conversation auto-load sentinel — placed inside the scroll
+            container so IntersectionObserver triggers on real scroll, not
+            on initial mount. */}
+        {!isSearching && hasMoreConversations && (
+          <div ref={convSentinelRef} className="h-1 w-full" />
+        )}
+        {!isSearching && hasMoreConversations && (
+          <div className="flex justify-center py-3">
+            <button
+              type="button"
+              onClick={() => loadMoreConversations()}
+              className="text-xs text-primary hover:underline"
+            >
+              Carregar mais conversas
+            </button>
+          </div>
         )}
         {!isSearching && hasMoreContacts && !isLoadingMoreContacts && displayContacts.length > 0 && (
           <div className="flex justify-center py-3">

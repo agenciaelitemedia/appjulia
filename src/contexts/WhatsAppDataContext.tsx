@@ -33,20 +33,19 @@ export type ChatPeriodFilter =
   | 'last3Months';
 
 const CONTACTS_PAGE_SIZE = 50;
-const CONVERSATIONS_PAGE_SIZE = 500;
-
-// Background auto-pagination caps:
-// - 'active' tab (pending+open) loads ALL pages eagerly.
-// - 'resolved' / 'closed' tabs load lazily on first activation, capped to
-//   10 pages (5_000 rows) to avoid hammering the DB on huge histories.
-const CONV_AUTOLOAD_MAX_PAGES_RESOLVED_CLOSED = 10;
-// Small breathing pause between pages so we don't saturate Postgres for
-// clients with very large conversation history.
-const CONV_AUTOLOAD_PAGE_DELAY_MS = 120;
+// Conversation pagination — bigger initial page for instant context, then
+// smaller chunks on demand (scroll/click). Avoids the previous "infinite
+// auto-loop" that flooded the DB and the browser DOM with thousands of rows.
+const CONVERSATIONS_INITIAL_PAGE_SIZE = 1000;
+const CONVERSATIONS_NEXT_PAGE_SIZE = 200;
+// Auto-bootstrap loads exactly the initial page; everything beyond is on
+// demand via `loadMoreConversations`. Kept as a guard against runaway loops.
+const CONV_AUTOLOAD_MAX_PAGES = 1;
 
 type ConvLoadGroup = 'active' | 'resolved' | 'closed';
 interface ConvGroupMeta {
   pages: number;
+  loaded: number;
   hasMore: boolean;
   autoLoadDone: boolean;
   isAutoLoading: boolean;
@@ -55,6 +54,7 @@ interface ConvGroupMeta {
 }
 const initialConvGroupMeta = (): ConvGroupMeta => ({
   pages: 0,
+  loaded: 0,
   hasMore: true,
   autoLoadDone: false,
   isAutoLoading: false,
@@ -575,6 +575,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const loadConversationsPage = useCallback(async (
     group: ConvLoadGroup,
     offset: number,
+    pageSize: number = CONVERSATIONS_NEXT_PAGE_SIZE,
   ): Promise<{ fetched: number; skipped?: boolean }> => {
     if (!clientId || queuesLoading) return { fetched: 0, skipped: true };
 
@@ -583,7 +584,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       .select(CONV_COLUMNS)
       .eq('client_id', clientId)
       .order('updated_at', { ascending: false })
-      .range(offset, offset + CONVERSATIONS_PAGE_SIZE - 1);
+      .range(offset, offset + pageSize - 1);
 
     if (currentQueueId) query = query.eq('queue_id', currentQueueId);
     else if (activeQueueIds.length > 0) query = query.in('queue_id', activeQueueIds);
@@ -632,14 +633,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     let pages = 0;
     let lastFetched = 0;
+    let loaded = 0;
     let aborted = false;
     try {
       while (pages < maxPages) {
         if (convLoadEpochRef.current !== myEpoch) { aborted = true; break; }
-        const offset = pages * CONVERSATIONS_PAGE_SIZE;
+        const offset = loaded;
+        // First page is the big initial chunk; never reached again because
+        // `maxPages` is 1 today, but the math stays correct if it changes.
+        const pageSize = pages === 0 ? CONVERSATIONS_INITIAL_PAGE_SIZE : CONVERSATIONS_NEXT_PAGE_SIZE;
         let res: { fetched: number; skipped?: boolean };
         try {
-          res = await loadConversationsPage(group, offset);
+          res = await loadConversationsPage(group, offset, pageSize);
         } catch (err) {
           console.error('[WhatsAppDataContext] auto-load page failed', { group, offset, err });
           if (convLoadEpochRef.current === myEpoch) {
@@ -657,19 +662,18 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         if (res.skipped) { aborted = true; break; }
         pages += 1;
         lastFetched = res.fetched;
-        const hasMore = res.fetched === CONVERSATIONS_PAGE_SIZE;
+        loaded += res.fetched;
+        const hasMore = res.fetched === pageSize;
         if (convLoadEpochRef.current !== myEpoch) { aborted = true; break; }
         setConvGroupMeta(prev => ({
           ...prev,
-          [group]: { ...prev[group], pages, hasMore },
+          [group]: { ...prev[group], pages, loaded, hasMore },
         }));
         if (group === 'active' && !hasLoadedConversationsOnceRef.current) {
           hasLoadedConversationsOnceRef.current = true;
           setHasLoadedConversationsOnce(true);
         }
         if (!hasMore) break;
-        // Breathe between pages — keeps Postgres relaxed for big histories.
-        await new Promise(r => setTimeout(r, CONV_AUTOLOAD_PAGE_DELAY_MS));
       }
     } finally {
       if (!aborted && convLoadEpochRef.current === myEpoch) {
@@ -678,7 +682,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           setHasLoadedConversationsOnce(true);
         }
         setConvGroupMeta(prev => {
-          const reachedCap = pages >= maxPages && lastFetched === CONVERSATIONS_PAGE_SIZE;
+          const initialPageFull = pages === 1 && lastFetched === CONVERSATIONS_INITIAL_PAGE_SIZE;
+          const reachedCap = pages >= maxPages && (initialPageFull || lastFetched === CONVERSATIONS_NEXT_PAGE_SIZE);
           return {
             ...prev,
             [group]: {
@@ -706,8 +711,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     const group: ConvLoadGroup = convQueryGroupRef.current === 'resolved' ? 'resolved'
       : convQueryGroupRef.current === 'closed' ? 'closed'
       : 'active';
-    const cap = group === 'active' ? Number.POSITIVE_INFINITY : CONV_AUTOLOAD_MAX_PAGES_RESOLVED_CLOSED;
-    await runConvAutoLoad(group, cap);
+    await runConvAutoLoad(group, CONV_AUTOLOAD_MAX_PAGES);
   }, [runConvAutoLoad]);
 
   // `loadMoreConversations` advances ONE more page for the current tab —
@@ -720,14 +724,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (!meta || meta.isAutoLoading || !meta.hasMore) return;
     setConvGroupMeta(prev => ({ ...prev, [group]: { ...prev[group], isAutoLoading: true } }));
     try {
-      const res = await loadConversationsPage(group, meta.pages * CONVERSATIONS_PAGE_SIZE);
+      const res = await loadConversationsPage(
+        group,
+        meta.loaded,
+        CONVERSATIONS_NEXT_PAGE_SIZE,
+      );
       if (res.skipped) return;
       setConvGroupMeta(prev => ({
         ...prev,
         [group]: {
           ...prev[group],
           pages: prev[group].pages + 1,
-          hasMore: res.fetched === CONVERSATIONS_PAGE_SIZE,
+          loaded: prev[group].loaded + res.fetched,
+          hasMore: res.fetched === CONVERSATIONS_NEXT_PAGE_SIZE,
         },
       }));
     } catch (err) {
@@ -2381,7 +2390,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     for (const g of groupsToLoad) {
       const meta = convGroupMetaRef.current[g];
       if (meta && !meta.autoLoadDone && !meta.isAutoLoading) {
-        runConvAutoLoad(g, CONV_AUTOLOAD_MAX_PAGES_RESOLVED_CLOSED)
+        runConvAutoLoad(g, CONV_AUTOLOAD_MAX_PAGES)
           .catch(err => console.error('[WhatsAppDataContext]', g, 'auto-load failed', err));
       }
     }
