@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
-import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
+// Lazy-load bcryptjs only when an auth action needs it. Importing at the top
+// inflates cold-start time and was causing intermittent BOOT_ERROR (503) on
+// the edge runtime.
+let _bcryptPromise: Promise<typeof import("https://esm.sh/bcryptjs@2.4.3")> | null = null;
+function getBcrypt() {
+  if (!_bcryptPromise) {
+    _bcryptPromise = import("https://esm.sh/bcryptjs@2.4.3").then((m) => m.default ?? m);
+  }
+  return _bcryptPromise;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
