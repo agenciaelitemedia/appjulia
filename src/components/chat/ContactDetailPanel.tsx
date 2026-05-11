@@ -212,13 +212,21 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
     },
   });
 
-  const phoneList = React.useMemo(() => (contact.phone ? [contact.phone] : []), [contact.phone]);
-  const { data: stageMap } = useCRMStageByPhone(phoneList);
+  const stageCodAgent = String(
+    (selectedConversation as { cod_agent?: string | number } | undefined)?.cod_agent ??
+    (contact as { cod_agent?: string | number }).cod_agent ??
+    ''
+  ).trim();
+  const stagePairs = React.useMemo(
+    () => (contact.phone && stageCodAgent ? [{ phone: contact.phone, codAgent: stageCodAgent }] : []),
+    [contact.phone, stageCodAgent]
+  );
+  const { data: stageMap } = useCRMStageByPhone(stagePairs);
   const juliaStage = React.useMemo(() => {
-    if (!stageMap || !contact.phone) return null;
+    if (!stageMap || !contact.phone || !stageCodAgent) return null;
     const norm = contact.phone.replace(/\D/g, '');
-    return stageMap.get(norm) || null;
-  }, [stageMap, contact.phone]);
+    return stageMap.get(`${norm}|${stageCodAgent}`) || null;
+  }, [stageMap, contact.phone, stageCodAgent]);
 
   const initials = contact.name
     .split(' ')
