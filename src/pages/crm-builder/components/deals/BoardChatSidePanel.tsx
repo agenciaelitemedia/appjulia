@@ -168,11 +168,10 @@ function ScopedChat({
   }, [contactId, selectedContactId, selectContact]);
 
   const queueReady = !queue || selectedQueue?.id === queue.id;
-  // Aguarda contato hidratado E (quando há fila) a conversa correspondente
-  // já estar carregada — assim o ChatInput vê selectedConversation correto.
-  const conversationReady = !queue || !!selectedConversation;
-
-  if (!selectedContact || selectedContactId !== contactId || !queueReady || !conversationReady) {
+  // Não bloqueamos por selectedConversation: se a conversa não estiver na
+  // página atual de `conversations` (paginação/filtros), o painel ficaria
+  // carregando para sempre. Mensagens carregam por contactId direto.
+  if (!selectedContact || selectedContactId !== contactId || !queueReady) {
     return (
       <div className="p-4 space-y-3">
         <Skeleton className="h-12 w-full" />
