@@ -2192,7 +2192,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               p_contact_id: newMessage.contact_id,
               p_preview: previewIn || null,
               p_last_at: newMessage.timestamp || newMessage.created_at || new Date().toISOString(),
-            }).catch((e: unknown) => console.warn('failed to bump unread_count:', e));
+            }).then(
+              () => undefined,
+              (e: unknown) => console.warn('failed to bump unread_count:', e),
+            );
           }
 
           // Hook automation + webhooks for inbound messages only
