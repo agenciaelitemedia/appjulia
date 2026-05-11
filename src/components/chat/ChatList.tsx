@@ -958,7 +958,9 @@ export function ChatList() {
 
       if (stageIds.length > 0 && stageByPhone) {
         const norm = (contact?.phone || '').replace(/\D/g, '');
-        const info = norm ? stageByPhone.get(norm) : undefined;
+        const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const codAgent = link?.hasAgent ? link.codAgent : null;
+        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
