@@ -1,3 +1,4 @@
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import { getBrPhoneVariants } from '@/lib/phoneVariants';
@@ -99,6 +100,3 @@ export function useCRMStageByPhone(pairs: PhoneAgentPair[]) {
     refetchInterval: 60_000,
   });
 }
-
-// Keep a default React import for the useMemo above.
-import React from 'react';
