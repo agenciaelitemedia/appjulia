@@ -2390,7 +2390,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     for (const g of groupsToLoad) {
       const meta = convGroupMetaRef.current[g];
       if (meta && !meta.autoLoadDone && !meta.isAutoLoading) {
-        runConvAutoLoad(g, CONV_AUTOLOAD_MAX_PAGES_RESOLVED_CLOSED)
+        runConvAutoLoad(g, CONV_AUTOLOAD_MAX_PAGES)
           .catch(err => console.error('[WhatsAppDataContext]', g, 'auto-load failed', err));
       }
     }
