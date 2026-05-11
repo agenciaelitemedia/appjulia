@@ -26,8 +26,8 @@ export interface PhoneAgentPair {
  * Lookup key in returned map: `${phoneVariant}|${codAgent}`.
  */
 export function useCRMStageByPhone(pairs: PhoneAgentPair[]) {
-  // Build expanded (phone-variant, cod_agent) tuple list, deduped + sorted
-  // for a stable React Query cache key.
+  // Expanded (phone-variant, cod_agent) tuple list — used for the primary
+  // lookup that matches the conversation's specific Julia agent.
   const tuples = React.useMemo(() => {
     const set = new Set<string>();
     for (const p of pairs) {
@@ -41,43 +41,61 @@ export function useCRMStageByPhone(pairs: PhoneAgentPair[]) {
     return Array.from(set).sort();
   }, [pairs]);
 
+  // All phone variants (without agent) — used for the fallback lookup so
+  // that, when the queue's primary agent does NOT match the agent where
+  // the card actually lives, we still surface the most recent stage for
+  // that phone instead of showing "Sem etapa". This mirrors the previous
+  // (working) behavior the user expects: every Julia-linked conversation
+  // that has any card in the CRM must show its stage.
+  const phoneVariants = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const p of pairs) {
+      const phone = (p.phone || '').replace(/\D/g, '');
+      if (!phone) continue;
+      for (const v of getBrPhoneVariants(phone)) set.add(v);
+    }
+    return Array.from(set).sort();
+  }, [pairs]);
+
   return useQuery({
-    queryKey: ['crm-stage-by-phone-agent', tuples],
+    queryKey: ['crm-stage-by-phone-agent', tuples, phoneVariants],
     queryFn: async () => {
       const map = new Map<string, PhoneStageInfo>();
-      if (tuples.length === 0) return map;
+      if (phoneVariants.length === 0) return map;
 
-      const phonesArr: string[] = [];
-      const agentsArr: string[] = [];
-      for (const t of tuples) {
-        const idx = t.indexOf('|');
-        phonesArr.push(t.slice(0, idx));
-        agentsArr.push(t.slice(idx + 1));
-      }
-
+      // Single query: fetch the most recent card for each phone variant,
+      // regardless of agent. We then index the result two ways:
+      //   - `${phone}|${codAgent}` for exact (phone, agent) lookups
+      //   - `${phone}` as a phone-only fallback (most recent card)
+      // Consumers should prefer the composite key and fall back to the
+      // phone-only key when no specific match exists.
       const rows = await externalDb.raw<{
         whatsapp_number: string;
         cod_agent: string;
         stage_id: number;
         stage_name: string | null;
         stage_color: string | null;
+        updated_at: string | null;
       }>({
         query: `
-          SELECT DISTINCT ON (c.whatsapp_number, c.cod_agent)
+          SELECT
             c.whatsapp_number,
             c.cod_agent::text AS cod_agent,
             c.stage_id,
             s.name  AS stage_name,
-            s.color AS stage_color
+            s.color AS stage_color,
+            c.updated_at
           FROM crm_atendimento_cards c
           LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
-          WHERE (c.whatsapp_number, c.cod_agent::text) IN (
-            SELECT * FROM unnest($1::varchar[], $2::varchar[])
-          )
-          ORDER BY c.whatsapp_number, c.cod_agent, c.updated_at DESC NULLS LAST
+          WHERE c.whatsapp_number = ANY($1::varchar[])
+          ORDER BY c.whatsapp_number, c.updated_at DESC NULLS LAST
         `,
-        params: [phonesArr, agentsArr],
+        params: [phoneVariants],
       });
+
+      // Track which (phone-variant) already has a phone-only fallback so
+      // we keep the most recent card (rows are already DESC by updated_at).
+      const phoneOnlySeen = new Set<string>();
 
       rows.forEach((r) => {
         const stored = String(r.whatsapp_number);
@@ -87,15 +105,27 @@ export function useCRMStageByPhone(pairs: PhoneAgentPair[]) {
           stageName: r.stage_name ?? undefined,
           stageColor: r.stage_color ?? undefined,
         };
-        // Map every BR variant of this number to the same (phone, agent) key.
-        for (const v of getBrPhoneVariants(stored)) {
+        const variants = getBrPhoneVariants(stored);
+        // Composite (phone, agent) keys — exact match path
+        for (const v of variants) {
           map.set(`${v}|${codAgent}`, info);
         }
         map.set(`${stored}|${codAgent}`, info);
+        // Phone-only fallback — most recent card wins (first row per phone)
+        for (const v of variants) {
+          if (!phoneOnlySeen.has(v)) {
+            phoneOnlySeen.add(v);
+            map.set(v, info);
+          }
+        }
+        if (!phoneOnlySeen.has(stored)) {
+          phoneOnlySeen.add(stored);
+          map.set(stored, info);
+        }
       });
       return map;
     },
-    enabled: tuples.length > 0,
+    enabled: phoneVariants.length > 0,
     staleTime: 60_000,
     refetchInterval: 60_000,
   });
