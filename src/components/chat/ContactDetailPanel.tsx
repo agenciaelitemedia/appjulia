@@ -218,7 +218,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
     ''
   ).trim();
   const stagePairs = React.useMemo(
-    () => (contact.phone && stageCodAgent ? [{ phone: contact.phone, codAgent: stageCodAgent }] : []),
+    () => (contact.phone ? [{ phone: contact.phone, codAgent: stageCodAgent || '' }] : []),
     [contact.phone, stageCodAgent]
   );
   const { data: stageMap } = useCRMStageByPhone(stagePairs);
