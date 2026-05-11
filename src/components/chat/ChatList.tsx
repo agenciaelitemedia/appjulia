@@ -435,7 +435,10 @@ export function ChatList() {
       const meta = convMetaByContact.get(c.id);
       const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
       const codAgent = queueLink?.hasAgent ? (queueLink.codAgent || '') : '';
-      if (!codAgent) continue;
+      // Always include the phone — even without a known cod_agent — so the
+      // hook can populate the phone-only fallback and we still surface the
+      // CRM stage for Julia-linked contacts whose queue agent doesn't match
+      // the agent that owns the card in the external CRM.
       const key = `${phone}|${codAgent}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -551,8 +554,7 @@ export function ChatList() {
           const meta = convMetaByContact.get(c.id);
           const link = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
           const codAgent = link?.hasAgent ? link.codAgent : null;
-          if (!codAgent) return false;
-          const info = stageByPhone.get(`${norm}|${codAgent}`);
+          const info = (codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm);
           return info ? stageIds.includes(info.stageId) : false;
         });
       }
@@ -712,7 +714,9 @@ export function ChatList() {
         const norm = (contact?.phone || '').replace(/\D/g, '');
         const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
         const codAgent = link?.hasAgent ? link.codAgent : null;
-        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
+        const info = norm
+          ? ((codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm))
+          : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
@@ -826,7 +830,9 @@ export function ChatList() {
         const norm = (contact?.phone || '').replace(/\D/g, '');
         const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
         const codAgent = link?.hasAgent ? link.codAgent : null;
-        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
+        const info = norm
+          ? ((codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm))
+          : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
@@ -960,7 +966,9 @@ export function ChatList() {
         const norm = (contact?.phone || '').replace(/\D/g, '');
         const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
         const codAgent = link?.hasAgent ? link.codAgent : null;
-        const info = norm && codAgent ? stageByPhone.get(`${norm}|${codAgent}`) : undefined;
+        const info = norm
+          ? ((codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm))
+          : undefined;
         if (!info || !stageIds.includes(info.stageId)) continue;
       }
 
@@ -1534,8 +1542,15 @@ export function ChatList() {
                 ? (aliasMap.get(agentCodAgent) || agentBusinessNameMap.get(agentCodAgent) || null)
                 : null;
               const normPhone = (contact.phone || '').replace(/\D/g, '');
-              const stageInfo = normPhone && agentCodAgent
-                ? stageByPhone?.get(`${normPhone}|${agentCodAgent}`)
+              // Prefer exact (phone, agent) match; fall back to most recent
+              // card by phone when the queue's primary agent doesn't match
+              // the agent that owns the card in the CRM. This restores the
+              // previous behavior where every Julia-linked conversation
+              // with any card surfaced its stage.
+              const stageInfo = normPhone
+                ? (agentCodAgent
+                    ? stageByPhone?.get(`${normPhone}|${agentCodAgent}`) ?? stageByPhone?.get(normPhone)
+                    : stageByPhone?.get(normPhone))
                 : undefined;
               return (
                 <div
