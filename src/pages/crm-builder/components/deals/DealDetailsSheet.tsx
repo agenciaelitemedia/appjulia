@@ -672,18 +672,21 @@ export function DealDetailsSheet({
                 )}
               </div>
 
-              {/* 2. Destaque (antiga Descrição) — logo após Contato */}
+              {/* Vínculo com a Jul.IA — logo após o Contato */}
+              <DealJuliaPanel deal={deal} />
+
+              {/* 2. Observações (antiga Descrição/Destaque) */}
               <Separator />
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-medium">Destaque</h4>
+                  <h4 className="text-sm font-medium">Observações</h4>
                   {!editingDescription && deal.description && onUpdate && (
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-muted-foreground hover:text-foreground"
                       onClick={startEditDescription}
-                      title="Editar destaque"
+                      title="Editar observações"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -694,7 +697,7 @@ export function DealDetailsSheet({
                     <Textarea
                       value={descriptionDraft}
                       onChange={(e) => setDescriptionDraft(e.target.value)}
-                      placeholder="Destaque do card"
+                      placeholder="Observações do card"
                       autoFocus
                       className="min-h-[100px]"
                       onKeyDown={(e) => {
@@ -716,10 +719,10 @@ export function DealDetailsSheet({
                   </p>
                 ) : onUpdate ? (
                   <Button variant="outline" size="sm" onClick={startEditDescription} className="gap-1.5">
-                    <Plus className="h-3.5 w-3.5" /> Adicionar destaque
+                    <Plus className="h-3.5 w-3.5" /> Adicionar observações
                   </Button>
                 ) : (
-                  <p className="text-sm text-muted-foreground italic">Sem destaque</p>
+                  <p className="text-sm text-muted-foreground italic">Sem observações</p>
                 )}
               </div>
 
@@ -927,9 +930,8 @@ export function DealDetailsSheet({
                 </div>
               )}
 
-              {/* Vínculos: Chat e Jul.IA (antes do valor) */}
+              {/* Vínculos: Chat (antes do valor) */}
               <DealLinksSection deal={deal} />
-              <DealJuliaPanel deal={deal} />
 
               {/* Valor (editável) */}
               <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
