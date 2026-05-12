@@ -683,22 +683,7 @@ export function ContratosTable({
                       </TooltipProvider>
 
                       {/* WhatsApp */}
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 rounded-full text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
-                              disabled={!contrato.whatsapp}
-                              onClick={() => handleOpenMessages(contrato)}
-                            >
-                              <MessageCircle className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Ver conversa</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <ContratoChatTrigger contrato={contrato} onFallback={handleOpenMessages} />
 
                       {/* Enviar para CRM */}
                       <TooltipProvider>
