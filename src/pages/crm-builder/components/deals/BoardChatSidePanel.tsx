@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import type { CRMDeal } from '../../types';
 import type { ChatMessage, ChatContact } from '@/types/chat';
+import type { ChatConversation } from '@/types/conversation';
 
 interface BoardChatSidePanelProps {
   open: boolean;
@@ -85,7 +86,18 @@ export function BoardChatSidePanel({ open, onOpenChange, deal }: BoardChatSidePa
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => navigate('/chat')}
+              onClick={() => {
+                if (conv?.contactId) {
+                  sessionStorage.setItem('chat_pending_contact_id', conv.contactId);
+                }
+                if (conv?.queueId) {
+                  sessionStorage.setItem('chat_pending_queue_id', conv.queueId);
+                }
+                if (conv?.conversationId) {
+                  sessionStorage.setItem('chat_pending_conversation_id', conv.conversationId);
+                }
+                navigate('/chat');
+              }}
               title="Abrir no Chat"
             >
               <ExternalLink className="h-4 w-4" />
@@ -125,7 +137,12 @@ export function BoardChatSidePanel({ open, onOpenChange, deal }: BoardChatSidePa
         {!isLoading && conv && hasQueueAccess && (
           <div className="flex-1 min-h-0 flex flex-col">
             <WhatsAppDataProvider>
-              <ScopedChat contactId={conv.contactId} queue={queueRow ?? null} onClose={onClose} />
+              <ScopedChat
+                contactId={conv.contactId}
+                conversationId={conv.conversationId}
+                queue={queueRow ?? null}
+                onClose={onClose}
+              />
             </WhatsAppDataProvider>
           </div>
         )}
@@ -140,10 +157,12 @@ export function BoardChatSidePanel({ open, onOpenChange, deal }: BoardChatSidePa
  */
 function ScopedChat({
   contactId,
+  conversationId,
   queue,
   onClose,
 }: {
   contactId: string;
+  conversationId: string;
   queue: SelectedQueue | null;
   onClose: () => void;
 }) {
@@ -155,6 +174,7 @@ function ScopedChat({
     setSelectedQueue,
     contactHydrationError,
     retryHydrateSelectedContact,
+    upsertConversation,
   } = useWhatsAppData();
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
   const [showTimeoutFallback, setShowTimeoutFallback] = useState(false);
@@ -177,6 +197,29 @@ function ScopedChat({
       return (data as ChatContact | null) ?? null;
     },
   });
+
+  // Hydrate the deal's conversation directly so ChatHeader (which depends on
+  // `selectedConversation` derived from the provider's `conversations` array)
+  // always has the row available, even when the bootstrap page does not
+  // include it.
+  const { data: dealConversation } = useQuery({
+    queryKey: ['side-panel-conversation', conversationId],
+    enabled: !!conversationId,
+    staleTime: 30_000,
+    queryFn: async (): Promise<ChatConversation | null> => {
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .select('*')
+        .eq('id', conversationId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as ChatConversation | null) ?? null;
+    },
+  });
+
+  useEffect(() => {
+    if (dealConversation) upsertConversation(dealConversation);
+  }, [dealConversation, upsertConversation]);
 
   // Hidrata a fila do deal no provider isolado para que loadConversations
   // carregue a chat_conversations correta e o ChatInput respeite os mesmos
