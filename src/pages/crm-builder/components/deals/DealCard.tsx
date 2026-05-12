@@ -523,11 +523,15 @@ export function DealCard({
         <div className="pt-1 border-t border-border/50 space-y-0.5 text-[10px] text-muted-foreground">
           <div className="flex items-center justify-between gap-2">
             <span className="font-medium">Criado:</span>
-            <span>{formatDate(deal.created_at)}</span>
+            <span className="truncate text-right">
+              {deal.created_by ? `${deal.created_by} · ` : ''}{formatDate(deal.created_at)}
+            </span>
           </div>
           <div className="flex items-center justify-between gap-2">
             <span className="font-medium">Atualizado:</span>
-            <span>{formatDate(deal.updated_at)}</span>
+            <span className="truncate text-right">
+              {(deal.updated_by || deal.created_by) ? `${deal.updated_by || deal.created_by} · ` : ''}{formatDate(deal.updated_at)}
+            </span>
           </div>
           <div className="flex items-center justify-between gap-2 pt-0.5">
             <div className="flex items-center gap-1">
