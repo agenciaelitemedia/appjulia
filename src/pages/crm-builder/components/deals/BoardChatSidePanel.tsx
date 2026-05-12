@@ -13,6 +13,7 @@ import { useDealConversation } from '../../hooks/useDealConversation';
 import { useUserQueueAccess } from '@/hooks/useUserQueueAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { setPendingSelection } from '@/lib/chat/pendingSelection';
 import type { CRMDeal } from '../../types';
 import type { ChatMessage, ChatContact } from '@/types/chat';
 import type { ChatConversation } from '@/types/conversation';
@@ -88,13 +89,11 @@ export function BoardChatSidePanel({ open, onOpenChange, deal }: BoardChatSidePa
               className="h-7 w-7"
               onClick={() => {
                 if (conv?.contactId) {
-                  sessionStorage.setItem('chat_pending_contact_id', conv.contactId);
-                }
-                if (conv?.queueId) {
-                  sessionStorage.setItem('chat_pending_queue_id', conv.queueId);
-                }
-                if (conv?.conversationId) {
-                  sessionStorage.setItem('chat_pending_conversation_id', conv.conversationId);
+                  setPendingSelection({
+                    contactId: conv.contactId,
+                    queueId: conv.queueId,
+                    conversationId: conv.conversationId,
+                  });
                 }
                 navigate('/chat');
               }}
