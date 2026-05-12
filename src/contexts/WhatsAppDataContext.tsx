@@ -1914,6 +1914,23 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (selectedContactId) selectContact(selectedContactId);
   }, [selectContact, selectedContactId]);
 
+  /**
+   * Insere ou atualiza uma conversa no array `conversations` sem depender
+   * do bootstrap/paginação. Usado por consumidores externos (ex: painel
+   * lateral do CRM) que precisam garantir que `selectedConversation`
+   * derive corretamente para um contato específico.
+   */
+  const upsertConversation = useCallback((conv: ChatConversation) => {
+    if (!conv?.id) return;
+    setConversations(prev => {
+      const idx = prev.findIndex(c => c.id === conv.id);
+      if (idx === -1) return [conv, ...prev];
+      const next = prev.slice();
+      next[idx] = { ...prev[idx], ...conv };
+      return next;
+    });
+  }, []);
+
   // ============================================
   // Sync Contacts (pull from UaZapi API via proxy)
   // ============================================
@@ -2537,6 +2554,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     isHydratingContact,
     contactHydrationError,
     retryHydrateSelectedContact,
+    upsertConversation,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
     loadContacts, loadMessages, sendMessage, sendMedia, downloadMedia, markAsRead, syncContacts, selectContact,
@@ -2550,6 +2568,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     hasMoreConversations, isLoadingMoreConversations, loadMoreConversations,
     periodFilter, sortOrder, clientId, queuesLoading, hasLoadedConversationsOnce,
     isHydratingContact, contactHydrationError, retryHydrateSelectedContact,
+    upsertConversation,
   ]);
 
   return (
