@@ -428,6 +428,16 @@ function truncateText(text: string | undefined, maxLength: number): string {
         variant="sheet"
       />
 
+      {/* Painel de chat reusável (quando o agente tem fila vinculada) */}
+      <ChatSidePanel
+        open={chatPanelOpen}
+        onOpenChange={setChatPanelOpen}
+        target={chatTarget}
+        isLoading={chatTargetLoading}
+        title="Conversa do lead"
+        emptyDescription="Nenhuma conversa encontrada na fila vinculada para este telefone."
+      />
+
       {/* Contract Info Dialog */}
       <ContractInfoDialog
         open={contractOpen}
