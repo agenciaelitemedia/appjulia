@@ -1,81 +1,86 @@
-## Objetivo
+# Reaproveitar o painel de chat do CRM Builder na Jul.IA (CRM e Contratos)
 
-Tornar o deep-link via `sessionStorage` (`chat_pending_contact_id`, `chat_pending_queue_id`, `chat_pending_conversation_id`) resiliente a:
-- Cliques repetidos em "Abrir no Chat" em cards diferentes antes do `/chat` consumir os valores.
-- Voltar para o CRM e reabrir o painel — restos antigos não podem reaparecer.
-- Valores corrompidos / não-UUID / fila inexistente / sem permissão.
-- Race entre o `useEffect` de fila e o de contato (hoje o contato pode ser aplicado antes da fila estar pronta).
+## O que muda
 
-## Mudanças
+Hoje o chat lateral do CRM Builder vive em `BoardChatSidePanel` e está acoplado ao tipo `CRMDeal` + ao hook `useDealConversation` (que depende do link `custom_fields.links.chat.conversation_id`). Vamos quebrar esse painel em um **componente reusável genérico** e usar esse mesmo componente em dois novos pontos:
 
-### 1. Helper centralizado `src/lib/chat/pendingSelection.ts` (novo)
+1. **CRM da Jul.IA** (`CRMLeadCard.tsx`): o botão verde de WhatsApp, quando o `cod_agent` do card está vinculado a uma fila (via `queue_agent_links`), passa a abrir o painel reusável em vez do `WhatsAppMessagesDialog` (que conversa direto com a UaZapi).
+2. **Contratos da Jul.IA** (`ContratosTable.tsx`): mesma regra — botão verde de WhatsApp abre o painel reusável quando o agente do contrato tem fila vinculada.
 
-Encapsula leitura/escrita/limpeza com validação:
+Quando o agente **não** tem fila vinculada (modo `direct`, conexão UaZapi do próprio agente), o comportamento atual é mantido (abre o `WhatsAppMessagesDialog` antigo). Sem regressão para clientes legados.
 
-- `PENDING_KEYS = ['chat_pending_contact_id', 'chat_pending_queue_id', 'chat_pending_conversation_id', 'chat_pending_ts'] as const`
-- `setPendingSelection({ contactId, queueId?, conversationId? })`:
-  - Valida UUID (`/^[0-9a-f-]{36}$/i`); descarta campos inválidos.
-  - Sempre **limpa todas as chaves antes** de escrever (evita mistura entre cards).
-  - Grava `chat_pending_ts = Date.now()`.
-- `readPendingSelection()`:
-  - Retorna `null` se não houver `contact_id` válido.
-  - Retorna `null` e limpa tudo se `ts` for ausente ou mais antigo que **60s** (TTL).
-  - Filtra UUIDs inválidos por campo.
-- `clearPendingSelection()`: remove todas as `PENDING_KEYS` de uma vez.
-- `clearPendingSelectionFor(contactId)`: limpa só se `contact_id` armazenado bater (uso defensivo após consumir).
+## Como vai funcionar
 
-### 2. `BoardChatSidePanel.tsx` — escrita
+### 1. Extrair o componente reusável
 
-No clique de "Abrir no Chat":
-- Substituir os três `sessionStorage.setItem` por uma única chamada `setPendingSelection({ contactId, queueId, conversationId })`.
-- Só navegar se `conv?.contactId` existir; caso contrário, `navigate('/chat')` sem pending.
+Novo arquivo `src/components/chat/ChatSidePanel.tsx` contendo a UI hoje dentro de `BoardChatSidePanel` + `ScopedChat`, mas com props **agnósticas de domínio**:
 
-Ao desmontar o `ScopedChat` ou fechar o Sheet **sem** ter clicado em "Abrir no Chat", garantir que o helper **não** seja chamado (escrita só acontece no botão). Nada a fazer aqui além de remover writes diretos.
-
-### 3. `ChatPage.tsx` — consumo unificado
-
-Substituir os dois `useEffect` atuais (fila e contato separados) por **um único efeito sequencial**:
-
-```text
-on mount / isReady change:
-  pending = readPendingSelection()
-  if !pending: return
-  if pending.queueId && selectedQueue?.id !== pending.queueId:
-     fetch queue row
-     if not found OR is_deleted OR sem acesso (useUserQueueAccess):
-        clearPendingSelection(); toast warn; return
-     setSelectedQueue(...)
-     return  // espera próximo tick com queue aplicada
-  if !isReady || contacts not loaded yet: return
-  selectContact(pending.contactId)
-  clearPendingSelection()
+```ts
+interface ChatSidePanelProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Identificadores resolvidos da conversa-alvo */
+  target: {
+    contactId: string | null;
+    queueId: string | null;
+    conversationId: string | null;
+  } | null;
+  /** Estados externos para mostrar skeleton/erro sem precisar refazer fetch */
+  isLoading?: boolean;
+  /** Texto opcional para o cabeçalho ("Conversa do card" / "Conversa do lead") */
+  title?: string;
+}
 ```
 
-Detalhes:
-- Buscar `queue_access` via hook já existente (`useUserQueueAccess`) e validar antes de aplicar.
-- Se `queue` retornar `is_deleted = true` ou `null`, limpar pending e exibir `toast` informativo ("Conversa indisponível").
-- Adicionar listener `window.addEventListener('beforeunload', clearPendingSelection)` no `ChatPageContent` (cleanup ao sair).
-- Adicionar `useEffect` de cleanup no unmount do `ChatPageContent` que **não** limpa (para permitir consumo após navegação), mas o TTL de 60s cobre o caso de pending órfão.
+Internamente o componente continua:
+- Validando acesso à fila (`useUserQueueAccess`).
+- Buscando a `queues` row para hidratar `SelectedQueue`.
+- Montando `WhatsAppDataProvider` isolado + `ScopedChat` (mantendo header/mensagens/input + tratamento de erro/timeout/skeleton).
+- Botão "Abrir no Chat" no header usa `setPendingSelection` + `navigate('/chat')`.
 
-### 4. Edge cases cobertos
+`BoardChatSidePanel` vira um **wrapper fininho** que usa `useDealConversation(deal)` para montar o `target` e delega tudo para `<ChatSidePanel ... />`. Zero regressão no Builder.
 
-| Cenário | Comportamento |
-|---|---|
-| Usuário clica em "Abrir no Chat" no card A, depois B antes de `/chat` montar | Escrita do B sobrescreve A integralmente (clear + set). |
-| Usuário fecha o Sheet sem clicar | Nada é gravado. |
-| Pending antigo de sessão anterior | TTL 60s descarta ao ler. |
-| `queueId` aponta para fila excluída / sem acesso | Limpa, toast, não seleciona contato. |
-| `contactId` inválido (UUID malformado) | Descartado na leitura, retorna `null`. |
-| `/chat` recebe pending mas `contacts` ainda não carregou | Efeito espera (`return`) e roda de novo quando `contacts.length` mudar. |
-| Usuário navega `/chat` → CRM → `/chat` rapidamente | Como pending foi limpo após consumo, segunda visita ignora. |
+### 2. Resolver o `target` na Jul.IA
 
-### 5. Fora de escopo
+Novo hook `src/hooks/useAgentChatTarget.ts`:
 
-- Não mexer em `WhatsAppDataContext` nem na hidratação de `selectedConversation`/`selectedContact` (já corrigidos).
-- Sem mudanças de schema, RLS ou Edge Functions.
+```ts
+useAgentChatTarget(codAgent: string | null, whatsapp: string | null)
+  → { isLinked: boolean; target: ChatSidePanelTarget | null; isLoading: boolean }
+```
 
-## Arquivos
+Passos da query (`useQuery`, `staleTime 30s`):
+1. Reusa a lógica do `useAgentQueueLink` para descobrir a fila ativa do `cod_agent`. Se `source !== 'queue'` → `{ isLinked: false }`.
+2. Normaliza o telefone (somente dígitos) com utilitários de `src/lib/phoneNormalize.ts`.
+3. Acha `chat_contacts.id` por `phone` no mesmo `client_id` da fila.
+4. Se achar contato, busca a `chat_conversations` mais recente onde `queue_id = X` e `contact_id = Y` (ignora `is_deleted=true`).
+5. Retorna `{ isLinked: true, target: { contactId, queueId, conversationId? } }`. Se não achar contato/conversa, devolve `target=null` para que a UI faça fallback ao dialog antigo.
 
-- **novo:** `src/lib/chat/pendingSelection.ts`
-- **editar:** `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx` (somente bloco do botão "Abrir no Chat")
-- **editar:** `src/pages/chat/ChatPage.tsx` (substitui os dois `useEffect` de pending)
+### 3. Pontos de uso
+
+**`src/pages/crm/components/CRMLeadCard.tsx`**
+- Adiciona `const { isLinked, target } = useAgentChatTarget(card.cod_agent, card.whatsapp_number);`
+- `handleWhatsApp` decide:
+  - `isLinked && target` → `setSidePanelOpen(true)`
+  - caso contrário → `setMessagesOpen(true)` (comportamento atual)
+- Renderiza `<ChatSidePanel open={sidePanelOpen} onOpenChange={setSidePanelOpen} target={target} title="Conversa do lead" />` ao lado do `WhatsAppMessagesDialog` existente.
+
+**`src/pages/estrategico/contratos/components/ContratosTable.tsx`**
+- Cria componente interno `ContratoChatTrigger` (uma linha por row) responsável por chamar `useAgentChatTarget` e renderizar o botão + painel — evita poluir a tabela e garante que cada linha tenha seu próprio estado.
+- Mantém `WhatsAppMessagesDialog` existente como fallback.
+
+**Não mexer** em `DesempenhoTable.tsx`, `CampanhasLeadsTab.tsx`, `CRMLeadDetailsDialog.tsx`, schema, RLS ou Edge Functions (pedido cobre apenas CRM Júlia + Contratos).
+
+## Critérios de aceite
+
+- Builder continua funcionando exatamente como hoje (mesmo painel, mesmo "Abrir no Chat").
+- Card do CRM Júlia com agente vinculado a fila: clicar no botão verde abre o painel lateral idêntico ao do Builder, com a conversa carregada.
+- Linha de Contratos com agente vinculado a fila: idem.
+- Card/contrato com agente **sem** fila vinculada: continua abrindo o `WhatsAppMessagesDialog` antigo.
+- Telefone não encontrado em nenhuma conversa da fila: fallback para o dialog antigo (evita painel vazio).
+
+## Fora de escopo
+
+- Mudanças no `WhatsAppMessagesDialog`.
+- Mudanças no `/chat` ou no `pendingSelection`.
+- Backend (Edge Functions, RLS, schema).
