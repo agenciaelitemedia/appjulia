@@ -8,6 +8,7 @@ import {
   Trophy,
   XCircle,
   User,
+  Archive,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,6 +31,7 @@ const ACTION_CONFIG: Record<DealHistoryAction, {
   note_added: { icon: Plus,   label: 'Anotação',              color: 'text-purple-600',  bgColor: 'bg-purple-100' },
   won:     { icon: Trophy,     label: 'Marcado como ganho',    color: 'text-primary',     bgColor: 'bg-primary/10' },
   lost:    { icon: XCircle,    label: 'Marcado como perdido',  color: 'text-destructive', bgColor: 'bg-destructive/10' },
+  archived:{ icon: Archive,    label: 'Card arquivado',        color: 'text-muted-foreground', bgColor: 'bg-muted' },
 };
 
 const FIELD_LABELS: Record<string, string> = {

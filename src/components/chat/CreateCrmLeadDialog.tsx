@@ -105,7 +105,7 @@ export function CreateCrmLeadDialog({ open, onOpenChange, contact, codAgent, con
     }
     setSaving(true);
     try {
-      const { error } = await supabase.from('crm_deals').insert({
+      const { data: newDeal, error } = await supabase.from('crm_deals').insert({
         board_id: selectedBoard,
         pipeline_id: selectedPipeline,
         client_id: clientId,
@@ -116,8 +116,23 @@ export function CreateCrmLeadDialog({ open, onOpenChange, contact, codAgent, con
         contact_phone: contact.phone,
         value: value ? Number(value.replace(',', '.')) : 0,
         custom_fields: { source: 'chat', conversation_id: conversationId ?? null },
-      });
+        created_by: user?.name || null,
+        updated_by: user?.name || null,
+      }).select('id').single();
       if (error) throw error;
+
+      try {
+        await supabase.from('crm_deal_history').insert({
+          deal_id: newDeal.id,
+          action: 'created',
+          to_pipeline_id: selectedPipeline,
+          changed_by: user?.name || null,
+          notes: 'Card criado a partir do chat',
+          changes: { source: 'chat', conversation_id: conversationId ?? null },
+        } as any);
+      } catch (e) {
+        console.warn('crm_deal_history insert falhou', e);
+      }
       toast.success('Lead criado no CRM');
       onOpenChange(false);
     } catch (err) {

@@ -4,7 +4,7 @@
 
 export type DealPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type DealStatus = 'open' | 'won' | 'lost' | 'archived';
-export type DealHistoryAction = 'created' | 'moved' | 'updated' | 'note_added' | 'won' | 'lost';
+export type DealHistoryAction = 'created' | 'moved' | 'updated' | 'note_added' | 'won' | 'lost' | 'archived';
 
 // Board - Quadro/Painel do CRM
 export interface CRMBoard {
@@ -21,6 +21,7 @@ export interface CRMBoard {
   created_at: string;
   updated_at: string;
   created_by?: string;
+  updated_by?: string;
 }
 
 export interface CRMBoardFormData {
@@ -80,6 +81,7 @@ export interface CRMDeal {
   created_at: string;
   updated_at: string;
   created_by?: string;
+  updated_by?: string;
 }
 
 export interface CRMDealFormData {

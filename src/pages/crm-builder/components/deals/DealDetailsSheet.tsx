@@ -1000,10 +1000,10 @@ export function DealDetailsSheet({
               <Separator />
               <div className="text-xs text-muted-foreground space-y-1">
                 <div>
-                  Criado em: {format(new Date(deal.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  Criado{deal.created_by ? ` por ${deal.created_by}` : ''} em: {format(new Date(deal.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                 </div>
                 <div>
-                  Atualizado em: {format(new Date(deal.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  Atualizado{(deal.updated_by || deal.created_by) ? ` por ${deal.updated_by || deal.created_by}` : ''} em: {format(new Date(deal.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                 </div>
               </div>
             </TabsContent>
