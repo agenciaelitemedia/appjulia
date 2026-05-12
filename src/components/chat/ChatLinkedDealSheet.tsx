@@ -115,11 +115,38 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
 
   const handleUpdate = async (data: Partial<CRMDealFormData>): Promise<boolean> => {
     try {
+      const changedBy = user?.name || null;
       const { error } = await supabase
         .from('crm_deals')
-        .update({ ...(data as Record<string, unknown>), updated_at: new Date().toISOString() })
+        .update({
+          ...(data as Record<string, unknown>),
+          updated_at: new Date().toISOString(),
+          updated_by: changedBy,
+        })
         .eq('id', deal.id);
       if (error) throw error;
+
+      // Histórico (best-effort) — registra autor da edição feita pelo chat
+      try {
+        const diff: Record<string, unknown> = {};
+        Object.entries(data).forEach(([k, v]) => {
+          if (v === undefined) return;
+          const prevVal = (dealForSheet as unknown as Record<string, unknown>)[k];
+          if (JSON.stringify(prevVal) !== JSON.stringify(v)) diff[k] = v;
+        });
+        if (Object.keys(diff).length > 0) {
+          await (supabase as unknown as { from: (t: string) => { insert: (v: unknown) => Promise<unknown> } })
+            .from('crm_deal_history')
+            .insert({
+              deal_id: deal.id,
+              action: 'updated',
+              changes: { ...diff, source: 'chat' },
+              changed_by: changedBy,
+            });
+        }
+      } catch (historyErr) {
+        console.warn('[ChatLinkedDealSheet] history insert failed', historyErr);
+      }
 
       toast.success('Card atualizado');
       // Atualiza o sheet do chat e os badges CRM (header e lista de conversas)
@@ -139,12 +166,14 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
   const handleMoveToStage = async (stageId: string): Promise<boolean> => {
     if (stageId === deal.pipeline_id) return true;
     try {
+      const changedBy = user?.name || null;
       const { error } = await supabase
         .from('crm_deals')
         .update({
           pipeline_id: stageId,
           stage_entered_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          updated_by: changedBy,
         })
         .eq('id', deal.id);
       if (error) throw error;
@@ -159,6 +188,7 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
             from_pipeline_id: deal.pipeline_id,
             to_pipeline_id: stageId,
             changes: { source: 'chat' },
+            changed_by: changedBy,
           });
       } catch (historyErr) {
         console.warn('[ChatLinkedDealSheet] history insert failed', historyErr);
