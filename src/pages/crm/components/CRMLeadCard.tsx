@@ -13,6 +13,8 @@ import { ContractInfoDialog } from './ContractInfoDialog';
 import { SessionStatusDialog } from './SessionStatusDialog';
 import { VideoCallDialog } from '@/pages/video/components/VideoCallDialog';
 import { PhoneCallDialog } from './PhoneCallDialog';
+import { ChatSidePanel } from '@/components/chat/ChatSidePanel';
+import { useAgentChatTarget } from '@/hooks/useAgentChatTarget';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,6 +43,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
   const { user } = useAuth();
   const { getAlias } = useAgentAliases();
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
   const [videoCallOpen, setVideoCallOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
@@ -48,6 +51,13 @@ function truncateText(text: string | undefined, maxLength: number): string {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(card.contact_name || '');
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Quando o agente do card está vinculado a uma fila, usamos o painel
+  // reusável (mesmo do CRM Builder) em vez do dialog UaZapi direto.
+  const { isLinked: agentHasQueue, target: chatTarget, isLoading: chatTargetLoading } = useAgentChatTarget(
+    card.cod_agent,
+    card.whatsapp_number,
+  );
   const updateCardName = useUpdateCardName();
   const { isActive: isAgentActive, isLoading: isAgentLoading, invalidate: refreshAgentStatus } = useAgentSessionStatus(
     card.whatsapp_number,
@@ -76,7 +86,11 @@ function truncateText(text: string | undefined, maxLength: number): string {
 
   const handleWhatsApp = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setMessagesOpen(true);
+    if (agentHasQueue) {
+      setChatPanelOpen(true);
+    } else {
+      setMessagesOpen(true);
+    }
   };
 
   const handleContract = (e: React.MouseEvent) => {
