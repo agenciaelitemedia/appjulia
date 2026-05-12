@@ -232,6 +232,7 @@ interface ExtendedContextValue extends ChatContextValue {
   contactHydrationError: string | null;
   // Manually retry hydration for the currently selected contact.
   retryHydrateSelectedContact: () => void;
+  upsertConversation: (conv: ChatConversation) => void;
 }
 
 const WhatsAppDataContext = createContext<ExtendedContextValue | undefined>(undefined);
