@@ -1,86 +1,94 @@
-# Reaproveitar o painel de chat do CRM Builder na Jul.IA (CRM e Contratos)
+## Objetivo
 
-## O que muda
+Mostrar nos cards do CRM Builder **quem criou** e **quem atualizou** (além das datas que já existem), registrar essa autoria também no **histórico do card**, e cobrir eventos hoje sem registro de atividade — incluindo a criação do card a partir do **chat** (que hoje não gera histórico nem grava o autor).
 
-Hoje o chat lateral do CRM Builder vive em `BoardChatSidePanel` e está acoplado ao tipo `CRMDeal` + ao hook `useDealConversation` (que depende do link `custom_fields.links.chat.conversation_id`). Vamos quebrar esse painel em um **componente reusável genérico** e usar esse mesmo componente em dois novos pontos:
+---
 
-1. **CRM da Jul.IA** (`CRMLeadCard.tsx`): o botão verde de WhatsApp, quando o `cod_agent` do card está vinculado a uma fila (via `queue_agent_links`), passa a abrir o painel reusável em vez do `WhatsAppMessagesDialog` (que conversa direto com a UaZapi).
-2. **Contratos da Jul.IA** (`ContratosTable.tsx`): mesma regra — botão verde de WhatsApp abre o painel reusável quando o agente do contrato tem fila vinculada.
+## 1. Banco de dados (uma migration)
 
-Quando o agente **não** tem fila vinculada (modo `direct`, conexão UaZapi do próprio agente), o comportamento atual é mantido (abre o `WhatsAppMessagesDialog` antigo). Sem regressão para clientes legados.
+`crm_deals`:
+- Adicionar coluna `updated_by text` (a `created_by` já existe).
+- Backfill: preencher `created_by` (quando NULL) usando o primeiro evento `created` em `crm_deal_history` daquele deal; preencher `updated_by` com o `changed_by` do evento mais recente.
 
-## Como vai funcionar
+`crm_deal_history`:
+- Ampliar o `action_check` para incluir `'archived'` (arquivamento hoje não tem histórico).
+- Os demais eventos (`created`, `moved`, `updated`, `won`, `lost`, `note_added`) continuam usados.
 
-### 1. Extrair o componente reusável
+Nenhuma alteração de RLS — políticas atuais cobrem.
 
-Novo arquivo `src/components/chat/ChatSidePanel.tsx` contendo a UI hoje dentro de `BoardChatSidePanel` + `ScopedChat`, mas com props **agnósticas de domínio**:
+---
 
-```ts
-interface ChatSidePanelProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  /** Identificadores resolvidos da conversa-alvo */
-  target: {
-    contactId: string | null;
-    queueId: string | null;
-    conversationId: string | null;
-  } | null;
-  /** Estados externos para mostrar skeleton/erro sem precisar refazer fetch */
-  isLoading?: boolean;
-  /** Texto opcional para o cabeçalho ("Conversa do card" / "Conversa do lead") */
-  title?: string;
-}
-```
+## 2. Front-end — `useCRMDeals.ts` (núcleo das gravações)
 
-Internamente o componente continua:
-- Validando acesso à fila (`useUserQueueAccess`).
-- Buscando a `queues` row para hidratar `SelectedQueue`.
-- Montando `WhatsAppDataProvider` isolado + `ScopedChat` (mantendo header/mensagens/input + tratamento de erro/timeout/skeleton).
-- Botão "Abrir no Chat" no header usa `setPendingSelection` + `navigate('/chat')`.
+Em todas as escritas, propagar o nome do usuário logado (`userName`, já recebido pelo hook):
 
-`BoardChatSidePanel` vira um **wrapper fininho** que usa `useDealConversation(deal)` para montar o `target` e delega tudo para `<ChatSidePanel ... />`. Zero regressão no Builder.
+- **`createDeal`**: incluir `created_by: userName` no INSERT. Já grava history `created` com `changed_by` (ok).
+- **`updateDeal`**: incluir `updated_by: userName` no UPDATE. History `updated` já é gravado com `changes` — passar a serializar **somente os campos realmente alterados** (diff) para o timeline ficar legível.
+- **`moveDeal`**: ao gravar a linha do card movido, incluir `updated_by: userName`. History `moved` já é registrado.
+- **`setDealStatus(won|lost)`**: incluir `updated_by: userName`. History já é registrado.
+- **`archiveDeal`**: incluir `updated_by: userName` **e** passar a registrar history com `action: 'archived'` + `changed_by: userName` (hoje não grava nada).
 
-### 2. Resolver o `target` na Jul.IA
+---
 
-Novo hook `src/hooks/useAgentChatTarget.ts`:
+## 3. Criação de card a partir do chat
 
-```ts
-useAgentChatTarget(codAgent: string | null, whatsapp: string | null)
-  → { isLinked: boolean; target: ChatSidePanelTarget | null; isLoading: boolean }
-```
+Dois pontos de criação que hoje não preenchem autoria nem histórico:
 
-Passos da query (`useQuery`, `staleTime 30s`):
-1. Reusa a lógica do `useAgentQueueLink` para descobrir a fila ativa do `cod_agent`. Se `source !== 'queue'` → `{ isLinked: false }`.
-2. Normaliza o telefone (somente dígitos) com utilitários de `src/lib/phoneNormalize.ts`.
-3. Acha `chat_contacts.id` por `phone` no mesmo `client_id` da fila.
-4. Se achar contato, busca a `chat_conversations` mais recente onde `queue_id = X` e `contact_id = Y` (ignora `is_deleted=true`).
-5. Retorna `{ isLinked: true, target: { contactId, queueId, conversationId? } }`. Se não achar contato/conversa, devolve `target=null` para que a UI faça fallback ao dialog antigo.
+- `src/components/chat/CreateCrmCardSheet.tsx` (handleCreate, ~linha 220)
+- `src/components/chat/CreateCrmLeadDialog.tsx` (handleCreate, ~linha 108)
 
-### 3. Pontos de uso
+Em ambos:
+1. Obter `user?.name` do `AuthContext`.
+2. Adicionar `created_by: user?.name` no INSERT em `crm_deals`.
+3. Após o insert (com `.select().single()`), inserir em `crm_deal_history`:
+   - `action: 'created'`
+   - `to_pipeline_id: selectedPipeline`
+   - `changed_by: user?.name`
+   - `notes: 'Card criado a partir do chat'`
+   - `changes: { source: 'chat', conversation_id }`
 
-**`src/pages/crm/components/CRMLeadCard.tsx`**
-- Adiciona `const { isLinked, target } = useAgentChatTarget(card.cod_agent, card.whatsapp_number);`
-- `handleWhatsApp` decide:
-  - `isLinked && target` → `setSidePanelOpen(true)`
-  - caso contrário → `setMessagesOpen(true)` (comportamento atual)
-- Renderiza `<ChatSidePanel open={sidePanelOpen} onOpenChange={setSidePanelOpen} target={target} title="Conversa do lead" />` ao lado do `WhatsAppMessagesDialog` existente.
+Assim o card criado pelo chat aparece no timeline com a mesma estrutura visual dos demais.
 
-**`src/pages/estrategico/contratos/components/ContratosTable.tsx`**
-- Cria componente interno `ContratoChatTrigger` (uma linha por row) responsável por chamar `useAgentChatTarget` e renderizar o botão + painel — evita poluir a tabela e garante que cada linha tenha seu próprio estado.
-- Mantém `WhatsAppMessagesDialog` existente como fallback.
+---
 
-**Não mexer** em `DesempenhoTable.tsx`, `CampanhasLeadsTab.tsx`, `CRMLeadDetailsDialog.tsx`, schema, RLS ou Edge Functions (pedido cobre apenas CRM Júlia + Contratos).
+## 4. UI dos cards
 
-## Critérios de aceite
+`src/pages/crm-builder/components/deals/DealCard.tsx` (rodapé, linhas 522–539):
+- Linha "Criado": exibir `Criado por <nome> em <data>` (fallback "—" quando ausente).
+- Linha "Atualizado": exibir `Atualizado por <nome> em <data>` (fallback no `created_by` se `updated_by` for nulo).
 
-- Builder continua funcionando exatamente como hoje (mesmo painel, mesmo "Abrir no Chat").
-- Card do CRM Júlia com agente vinculado a fila: clicar no botão verde abre o painel lateral idêntico ao do Builder, com a conversa carregada.
-- Linha de Contratos com agente vinculado a fila: idem.
-- Card/contrato com agente **sem** fila vinculada: continua abrindo o `WhatsAppMessagesDialog` antigo.
-- Telefone não encontrado em nenhuma conversa da fila: fallback para o dialog antigo (evita painel vazio).
+`src/pages/crm-builder/components/deals/DealDetailsSheet.tsx` (linhas 1003–1006):
+- Mesma alteração nas linhas "Criado em" / "Atualizado em".
 
-## Fora de escopo
+---
 
-- Mudanças no `WhatsAppMessagesDialog`.
-- Mudanças no `/chat` ou no `pendingSelection`.
-- Backend (Edge Functions, RLS, schema).
+## 5. Timeline de atividade
+
+`src/pages/crm-builder/components/deals/DealActivityTimeline.tsx`:
+- Adicionar entrada em `ACTION_CONFIG` para `'archived'` (ícone `Archive`, cor neutra, label "Card arquivado").
+- A coluna `changes` já é renderizada via `describeChange`; cobrir o caso de `priority` (já existe) e garantir suporte a `due_date` quando vier `null` (limpeza).
+- Nenhuma mudança visual estrutural — apenas mais eventos passam a aparecer agora que estão sendo gravados.
+
+---
+
+## 6. Tipos TypeScript
+
+`src/pages/crm-builder/types.ts`:
+- `CRMDeal`: adicionar `updated_by?: string`.
+- `DealHistoryAction`: adicionar `'archived'`.
+
+---
+
+## Resumo dos eventos cobertos depois da mudança
+
+| Evento                    | Hoje   | Depois |
+|---------------------------|--------|--------|
+| Criação manual            | ✅     | ✅ + `created_by` no card |
+| Criação via chat          | ❌     | ✅ + `created_by` |
+| Edição (campos)           | ✅     | ✅ + `updated_by` + diff |
+| Mudança de prioridade     | ✅ (via update) | ✅ + `updated_by` |
+| Movimentação entre etapas | ✅     | ✅ + `updated_by` |
+| Movimentação entre boards | ✅     | ✅ (sem alterar) |
+| Marcar ganho/perdido      | ✅     | ✅ + `updated_by` |
+| Arquivar / excluir        | ❌     | ✅ (`archived`) + `updated_by` |
+| Notas                     | ✅     | ✅ (sem alterar) |

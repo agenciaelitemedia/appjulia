@@ -3229,6 +3229,7 @@ export type Database = {
           tags: string[] | null
           title: string
           updated_at: string
+          updated_by: string | null
           value: number | null
         }
         Insert: {
@@ -3255,6 +3256,7 @@ export type Database = {
           tags?: string[] | null
           title: string
           updated_at?: string
+          updated_by?: string | null
           value?: number | null
         }
         Update: {
@@ -3281,6 +3283,7 @@ export type Database = {
           tags?: string[] | null
           title?: string
           updated_at?: string
+          updated_by?: string | null
           value?: number | null
         }
         Relationships: [
