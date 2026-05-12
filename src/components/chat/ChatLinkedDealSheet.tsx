@@ -229,6 +229,7 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
           targetBoardId,
           targetBoard?.name,
           sourceBoard?.name,
+          user?.name,
         );
         if (result) {
           toast.success(`Card movido para "${targetBoard?.name}"`, {
