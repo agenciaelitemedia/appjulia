@@ -1,78 +1,53 @@
-## Resumo do diagnóstico
+## Contexto
 
-O painel `BoardChatSidePanel` monta um `WhatsAppDataProvider` **isolado por card**. Dentro dele, o `ScopedChat` só renderiza `ChatHeader/ChatMessages/ChatInput` quando:
+No painel lateral de conversa do card (CRM Builder → `BoardChatSidePanel`), dois problemas distintos acontecem:
 
-```ts
-selectedContact && selectedContactId === contactId && queueReady
-```
+1. **Header vazio em alguns cards** — O `ChatHeader` depende fortemente de `selectedConversation` vindo do `WhatsAppDataContext` (status, prioridade, fila, protocolo, atribuição, ações de resolver/transferir, badges SLA, CRM, etc.). Dentro do provider isolado do painel, o `selectedConversation` é um `useMemo` que filtra a lista `conversations` por `selectedContactId`. Se a conversa do deal não cair na primeira página de `loadConversations` (filtros, paginação, ordenação) ela nunca entra no array e o header fica sem dados — mesmo com o contato hidratado corretamente pelo nosso fix anterior.
 
-Em alguns cards essa condição nunca é atendida → spinner eterno. Não é "lentidão de mensagens" (esse caminho já foi corrigido); é o **contato selecionado nunca se materializar** no array `contacts` do provider.
+2. **Botão "Abrir no Chat" perde contexto** — Hoje o `ExternalLink` no cabeçalho do painel apenas chama `navigate('/chat')`. O usuário precisa selecionar manualmente a fila e o contato de novo. O `ChatPage` já tem suporte a deep-link de contato via `sessionStorage('chat_pending_contact_id')`, mas não trata fila.
 
-## Causas raiz identificadas (ordenadas por probabilidade)
+## Mudanças
 
-### 1. Corrida `selectContact` x bootstrap `loadContacts` (causa principal)
-Sequência observada em `WhatsAppDataContext.tsx`:
+### 1. Hidratar a conversa do deal direto no provider isolado
 
-1. `ScopedChat` chama `selectContact(contactId)` assim que monta.
-2. `selectContact` (linha 1824) faz `setSelectedContactId` e, se o contato não existe no cache `contacts`, busca em `chat_contacts` por id e injeta via `setContacts(prev => repositionContact(prev, contact))`.
-3. Em paralelo, o bootstrap do provider (linha ~2346: `loadContacts({ reset: true })`) roda assim que `selectedQueue` é hidratada pelo `setSelectedQueue(queue)` do `ScopedChat`.
-4. `loadContacts({ reset: true })` faz `setContacts([])` e repopula com a página filtrada pela fila atual + filtros de período/grupo.
-5. Se o contato do deal **não cai no filtro vigente** (ex.: período padrão "últimos 7 dias" e a conversa é mais antiga; ou o contato pertence a outra `channel_source`/grupo), o passo 4 **apaga** a injeção do passo 2.
-6. `selectedContact = contacts.find(c => c.id === selectedContactId)` retorna `null` → o `if (!selectedContact)` mantém o skeleton para sempre.
+Em `src/contexts/WhatsAppDataContext.tsx`:
 
-Cards que "carregam" são exatamente aqueles cujo contato **também** aparece na primeira página do `loadContacts` filtrado.
+- Expor um novo método `upsertConversation(conv: ChatConversation)` no contexto que faz `setConversations(prev => merge by id)`. Isso permite injetar a conversa específica do deal sem depender da paginação/filtro do bootstrap.
 
-### 2. `selectContact` falha silenciosamente quando o contato não retorna
-Em `selectContact` (linha 1858), se `chat_contacts` retorna `null` (RLS, `client_id` divergente, contato apagado), seta `contactHydrationError` mas o `ScopedChat` **não consome esse estado** — só mostra skeleton. Cards apontando para conversas órfãs ficam carregando sem erro visível.
+Em `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx` (`ScopedChat`):
 
-### 3. `selectedQueue` substituído por outro card aberto previamente
-O `useEffect` de hidratação da fila no `ScopedChat`:
-```ts
-if (queue && selectedQueue?.id !== queue.id) setSelectedQueue(queue);
-```
-roda dentro de um provider **por painel**, então normalmente está ok — mas se o React StrictMode (dev) montar/desmontar duas vezes, ou o usuário abrir o painel, fechar e reabrir rápido, há flush de fila → reset de bootstrap → corrida do item 1 amplificada.
+- Adicionar um `useQuery` paralelo (`['side-panel-conversation', conversationId]`) que faz `supabase.from('chat_conversations').select('*').eq('id', conversationId).maybeSingle()` usando o `conv.conversationId` já disponível via `useDealConversation`.
+- Quando a row chegar, chamar `upsertConversation(row)` para que o `selectedConversation` derivado pelo `useMemo` do contexto encontre a conversa pelo `contact_id`.
+- Passar `conversationId` como prop adicional para o `ScopedChat` (já temos via `conv.conversationId` no pai).
 
-### 4. Provider isolado dispara realtime/queries pesadas a cada abertura
-Cada `open` do Sheet = novo provider = novo bootstrap completo (queues, conversations paginadas, realtime channels). Em cards "pesados" (ex.: muitos canais/queries em curso), o `loadContacts` demora mais e a corrida do item 1 fica determinística.
+Resultado: o header recebe `selectedConversation` populado em todos os cards, independentemente do que veio na primeira página de conversas da fila.
 
-## Correções propostas
+### 2. Deep-link completo no botão "Abrir no Chat"
 
-### Fix A — Não deixar o bootstrap apagar o contato selecionado
-Em `loadContacts` (linha 474, `WhatsAppDataContext.tsx`), ao fazer `reset`, **preservar** a entrada cujo `id === selectedContactIdRef.current` se ela já estiver no array, mesclando-a no resultado paginado.
+Em `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx`:
 
-```ts
-setContacts(prev => {
-  const keep = prev.find(c => c.id === selectedContactIdRef.current);
-  const merged = keep && !page.some(c => c.id === keep.id) ? [keep, ...page] : page;
-  return merged;
-});
-```
+- Antes de `navigate('/chat')`, gravar em `sessionStorage`:
+  - `chat_pending_contact_id` = `conv.contactId` (já existente)
+  - `chat_pending_queue_id` = `conv.queueId`
+  - `chat_pending_conversation_id` = `conv.conversationId`
 
-Adicionar `selectedContactIdRef` (ref espelhando `selectedContactId`) para evitar refazer o callback.
+Em `src/pages/chat/ChatPage.tsx`:
 
-### Fix B — Hidratar contato do painel diretamente, sem depender do cache
-No `ScopedChat` (`BoardChatSidePanel.tsx`), buscar o `chat_contacts` via React Query (paralelo ao `useDealConversation`) e passar o objeto pronto para `ChatHeader`/`ChatMessages` — eliminando a dependência de `selectedContact` para sair do skeleton. Mantemos `selectContact` apenas para efeitos colaterais (markAsRead, abrir conversa).
+- Estender o `useEffect` de bootstrap para também ler `chat_pending_queue_id`. Antes de aplicar o `selectContact`, buscar a row da fila (`queues` por id) e chamar `setSelectedQueue(...)` se ainda não estiver selecionada. Só então aplicar o `selectContact(pending)` (após `loadContacts` da fila correta concluir — já controlado pelo `isReady && contacts.length > 0`).
+- Limpar todas as chaves após uso.
 
-Critério de render passa a ser: `dealContact && queueReady && selectedContactId === contactId`.
+### 3. Sem mudanças de schema, edge functions ou regras de negócio
 
-### Fix C — Exibir o erro de hidratação no painel
-Consumir `contactHydrationError` (e `retryHydrateSelectedContact`) do contexto dentro do `ScopedChat`. Se falhar a hidratação, mostrar mensagem + botão "Tentar novamente" em vez de skeleton infinito (espelhando o padrão já existente em `ChatMessages`).
+Apenas frontend e camada de presentation/data fetching client-side.
 
-### Fix D — Defensive: timeout de skeleton
-Se após N=4s o skeleton continuar sem `selectedContact`, mostrar fallback com botão "Abrir no Chat" + razão diagnóstica (queueReady? contato hidratado? erro?). Diagnóstico claro para o usuário em vez de loop visual.
+## Arquivos afetados
 
-## Detalhes técnicos
+- `src/contexts/WhatsAppDataContext.tsx` — novo `upsertConversation` exportado pelo contexto.
+- `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx` — fetch direto de `chat_conversations`, injeção via `upsertConversation`, gravação de chaves de deep-link no `sessionStorage` antes do `navigate('/chat')`.
+- `src/pages/chat/ChatPage.tsx` — leitura de `chat_pending_queue_id` no bootstrap e `setSelectedQueue` antes de selecionar o contato.
 
-- Arquivos a alterar:
-  - `src/contexts/WhatsAppDataContext.tsx` — Fix A (preservar `selectedContact` em `loadContacts`)
-  - `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx` — Fix B/C/D (hidratar contato local, consumir erro, timeout)
-- Sem mudanças de schema/banco. Sem mudanças nas Edge Functions.
-- Sem alterar `loadMessages`, que já tem retry desde a última iteração.
+## Validação
 
-## Como validar
-
-1. Abrir 5 cards consecutivos com idades de conversa variadas (recente, antiga >7 dias, de fila diferente da última usada).
-2. Conferir no DevTools (Network/Console) que:
-   - `chat_contacts?id=eq.X` retorna o contato em todos os casos.
-   - O painel sai do skeleton em ≤2s mesmo para conversa antiga.
-3. Forçar erro de RLS removendo acesso a uma fila e abrir card dela → deve mostrar mensagem de erro + botão (não skeleton).
+- Abrir um card cujo contato cai fora da primeira página da fila → header agora mostra fila, status, badges, ações.
+- Clicar no `ExternalLink` no cabeçalho do painel → `/chat` abre já com a fila correta selecionada e a conversa aberta com mensagens carregadas.
+- Cards que já funcionavam continuam funcionando (merge é idempotente).
