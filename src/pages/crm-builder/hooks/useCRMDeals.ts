@@ -98,6 +98,8 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
         assigned_to: data.assigned_to || null,
         position: maxPosition,
         custom_fields: JSON.parse(JSON.stringify((data as unknown as Record<string, unknown>).custom_fields || {})) as Json,
+        created_by: userName || null,
+        updated_by: userName || null,
       };
 
       const { data: newDeal, error: insertError } = await supabase
@@ -146,6 +148,7 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
         due_date: data.due_date,
         tags: data.tags,
         assigned_to: data.assigned_to,
+        updated_by: userName || null,
       };
 
       // Add custom fields if present
@@ -167,8 +170,17 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
           : d
       ));
 
-      // Record history
-      await recordHistory(dealId, 'updated', null, null, data);
+      // Record history with only the changed fields
+      const diff: Record<string, unknown> = {};
+      const prev = dealsRef.current.find(d => d.id === dealId);
+      Object.entries(data).forEach(([k, v]) => {
+        if (v === undefined) return;
+        const prevVal = prev ? (prev as unknown as Record<string, unknown>)[k] : undefined;
+        if (JSON.stringify(prevVal) !== JSON.stringify(v)) {
+          diff[k] = v;
+        }
+      });
+      await recordHistory(dealId, 'updated', null, null, Object.keys(diff).length ? diff : data);
 
       toast({
         title: 'Deal atualizado',
@@ -268,6 +280,7 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
               position: u.position,
               pipeline_id: u.pipeline_id,
               ...(u.stage_entered_at ? { stage_entered_at: u.stage_entered_at } : {}),
+              ...(u.id === dealId && !sameColumn ? { updated_by: userName || null } : {}),
             })
             .eq('id', u.id)
             .select('id')
@@ -305,7 +318,7 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
     try {
       const { error: updateError } = await supabase
         .from('crm_deals')
-        .update({ status })
+        .update({ status, updated_by: userName || null })
         .eq('id', dealId);
 
       if (updateError) throw updateError;
@@ -344,12 +357,15 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
     try {
       const { error: updateError } = await supabase
         .from('crm_deals')
-        .update({ status: 'archived' })
+        .update({ status: 'archived', updated_by: userName || null })
         .eq('id', dealId);
 
       if (updateError) throw updateError;
 
       setDeals(prev => prev.filter(d => d.id !== dealId));
+
+      // Record history
+      await recordHistory(dealId, 'archived', null, null);
 
       toast({
         title: 'Deal arquivado',
