@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
-  FileText, User, MapPin, Briefcase, MessageSquare, Download, Loader2, Scale
+  FileText, User, MapPin, Briefcase, MessageSquare, Download, Loader2, Scale, MessageCircle
 } from 'lucide-react';
 import { ContractInfo } from '../types';
 import { formatDbDateTime } from '@/lib/dateUtils';
@@ -168,9 +168,19 @@ export const ContractInfoContent: React.FC<ContractInfoContentProps> = ({ contra
             <div>
               <p className="text-xs text-muted-foreground">WhatsApp</p>
               {contractInfo.whatsapp ? (
-                <a href={`https://wa.me/${contractInfo.whatsapp?.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                  {contractInfo.whatsapp}
-                </a>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono">{contractInfo.whatsapp}</span>
+                  <a
+                    href={`https://wa.me/${contractInfo.whatsapp?.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Abrir no WhatsApp"
+                    aria-label="Abrir no WhatsApp"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#25D366] text-white hover:bg-[#1ebe57] transition-colors"
+                  >
+                    <MessageCircle className="h-4 w-4" fill="currentColor" stroke="none" />
+                  </a>
+                </div>
               ) : (
                 <p className="text-muted-foreground">-</p>
               )}
