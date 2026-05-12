@@ -44,6 +44,8 @@ import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
+import { ChatSidePanel } from '@/components/chat/ChatSidePanel';
+import { useAgentChatTarget } from '@/hooks/useAgentChatTarget';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
@@ -53,6 +55,55 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
 const ITEMS_PER_PAGE = 20;
+
+/**
+ * Trigger por linha que decide entre abrir o painel reusável `ChatSidePanel`
+ * (quando o agente do contrato está vinculado a uma fila) ou o
+ * WhatsAppMessagesDialog legado via `onFallback`.
+ */
+function ContratoChatTrigger({
+  contrato,
+  onFallback,
+}: {
+  contrato: JuliaContrato;
+  onFallback: (c: JuliaContrato) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { isLinked, target, isLoading } = useAgentChatTarget(contrato.cod_agent, contrato.whatsapp);
+
+  return (
+    <>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7 rounded-full text-green-500 border-green-500/30 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+              disabled={!contrato.whatsapp}
+              onClick={() => {
+                if (isLinked) setOpen(true);
+                else onFallback(contrato);
+              }}
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Ver conversa</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <ChatSidePanel
+        open={open}
+        onOpenChange={setOpen}
+        target={target}
+        isLoading={isLoading}
+        title="Conversa do contrato"
+        emptyDescription="Nenhuma conversa encontrada na fila vinculada para este telefone."
+      />
+    </>
+  );
+}
 
 type SortField = 'cod_agent' | 'signer_name' | 'whatsapp' | 'status_document' | 'data_contrato';
 type SortDirection = 'asc' | 'desc';
