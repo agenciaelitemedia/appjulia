@@ -217,7 +217,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
         };
       }
 
-      const { error } = await supabase.from('crm_deals').insert([{
+      const { data: newDeal, error } = await supabase.from('crm_deals').insert([{
         board_id: selectedBoard,
         pipeline_id: selectedPipeline,
         client_id: clientId,
@@ -229,8 +229,24 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
         priority,
         value: value ? Number(value.replace(',', '.')) : 0,
         custom_fields: { source: 'chat', links } as any,
-      }]);
+        created_by: user?.name || null,
+        updated_by: user?.name || null,
+      }]).select('id').single();
       if (error) throw error;
+
+      // Histórico do card criado a partir do chat
+      try {
+        await supabase.from('crm_deal_history').insert({
+          deal_id: newDeal.id,
+          action: 'created',
+          to_pipeline_id: selectedPipeline,
+          changed_by: user?.name || null,
+          notes: 'Card criado a partir do chat',
+          changes: { source: 'chat', conversation_id: conversationId ?? null },
+        } as any);
+      } catch (e) {
+        console.warn('crm_deal_history insert falhou', e);
+      }
 
       // Best-effort: registrar vínculo em chat_crm_links
       if (conversationId) {
