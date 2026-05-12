@@ -23,14 +23,16 @@ const ContractInfoDialog = React.forwardRef<HTMLDivElement, ContractInfoDialogPr
 
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent ref={ref} className="max-w-2xl max-h-[90vh]">
-          <DialogHeader>
+        <DialogContent ref={ref} className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Scale className="h-5 w-5" />
               Detalhes do Contrato
             </DialogTitle>
           </DialogHeader>
-          <ContractInfoContent contractInfo={contractInfo} isLoading={isLoading} contactName={contactName} />
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+            <ContractInfoContent contractInfo={contractInfo} isLoading={isLoading} contactName={contactName} />
+          </div>
         </DialogContent>
       </Dialog>
     );
