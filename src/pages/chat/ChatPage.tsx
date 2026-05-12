@@ -3,55 +3,75 @@ import { WhatsAppDataProvider, useWhatsAppData } from '@/contexts/WhatsAppDataCo
 import { ChatContainer } from '@/components/chat';
 import { ChatCommandPalette } from '@/components/chat/ChatCommandPalette';
 import { supabase } from '@/integrations/supabase/client';
+import { useUserQueueAccess } from '@/hooks/useUserQueueAccess';
+import { toast } from 'sonner';
+import {
+  readPendingSelection,
+  clearPendingSelection,
+} from '@/lib/chat/pendingSelection';
 
 function ChatPageContent() {
   const { selectContact, isReady, contacts, selectedQueue, setSelectedQueue } = useWhatsAppData();
+  const { data: queueAccess } = useUserQueueAccess();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  // Process pending queue deep-link as soon as bootstrap is ready. Hydrates
-  // the queue row from `queues` and applies it via setSelectedQueue so
-  // loadContacts/loadConversations target the correct queue before the
-  // contact selection runs below.
+  // Consumo sequencial e unificado dos itens `chat_pending_*` gravados pelo
+  // painel lateral do CRM. Primeiro hidrata a fila (se necessário) e só
+  // depois aplica o contato — evita race entre os dois efeitos.
   useEffect(() => {
     if (!isReady) return;
-    const pendingQueueId = sessionStorage.getItem('chat_pending_queue_id');
-    if (!pendingQueueId) return;
-    if (selectedQueue?.id === pendingQueueId) {
-      sessionStorage.removeItem('chat_pending_queue_id');
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from('queues')
-        .select('id, name, channel_type, hub, evo_url, evo_apikey, evo_instance')
-        .eq('id', pendingQueueId)
-        .maybeSingle();
-      if (cancelled || !data) return;
-      sessionStorage.removeItem('chat_pending_queue_id');
-      setSelectedQueue({
-        id: data.id,
-        name: (data as any).name ?? '',
-        channel_type: ((data as any).channel_type as string) ?? '',
-        hub: ((data as any).hub as string | null) ?? null,
-        evo_url: ((data as any).evo_url as string | null) ?? null,
-        evo_apikey: ((data as any).evo_apikey as string | null) ?? null,
-        evo_instance: ((data as any).evo_instance as string | null) ?? null,
-      });
-    })();
-    return () => { cancelled = true; };
-  }, [isReady, selectedQueue?.id, setSelectedQueue]);
+    const pending = readPendingSelection();
+    if (!pending) return;
 
-  // Process deep-link pending contact once bootstrap is ready and contacts are loaded
-  useEffect(() => {
-    if (!isReady || contacts.length === 0) return;
-    const pending = sessionStorage.getItem('chat_pending_contact_id');
-    if (pending) {
-      sessionStorage.removeItem('chat_pending_contact_id');
-      sessionStorage.removeItem('chat_pending_conversation_id');
-      selectContact(pending);
+    let cancelled = false;
+
+    // Etapa 1: aplicar fila se ainda não estiver selecionada
+    if (pending.queueId && selectedQueue?.id !== pending.queueId) {
+      // Valida acesso antes de buscar
+      const access = queueAccess;
+      if (access && access.queue_access === 'specific' && !access.queue_ids.includes(pending.queueId)) {
+        clearPendingSelection();
+        toast.warning('Você não tem acesso à fila desta conversa.');
+        return;
+      }
+      (async () => {
+        const { data } = await supabase
+          .from('queues')
+          .select('id, name, channel_type, hub, evo_url, evo_apikey, evo_instance, is_deleted')
+          .eq('id', pending.queueId!)
+          .maybeSingle();
+        if (cancelled) return;
+        if (!data || (data as any).is_deleted === true) {
+          clearPendingSelection();
+          toast.warning('Conversa indisponível: fila não encontrada.');
+          return;
+        }
+        setSelectedQueue({
+          id: data.id,
+          name: (data as any).name ?? '',
+          channel_type: ((data as any).channel_type as string) ?? '',
+          hub: ((data as any).hub as string | null) ?? null,
+          evo_url: ((data as any).evo_url as string | null) ?? null,
+          evo_apikey: ((data as any).evo_apikey as string | null) ?? null,
+          evo_instance: ((data as any).evo_instance as string | null) ?? null,
+        });
+        // Próximo tick: o efeito roda de novo já com a fila aplicada
+      })();
+      return () => { cancelled = true; };
     }
-  }, [isReady, contacts.length, selectContact]);
+
+    // Etapa 2: contato — exige contacts carregados
+    if (contacts.length === 0) return;
+    selectContact(pending.contactId);
+    clearPendingSelection();
+  }, [isReady, contacts.length, selectedQueue?.id, setSelectedQueue, selectContact, queueAccess]);
+
+  // Limpa pending órfão ao sair da aba/janela
+  useEffect(() => {
+    const handler = () => clearPendingSelection();
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   // Cmd+K / Ctrl+K para abrir Command Palette
   useEffect(() => {
