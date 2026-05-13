@@ -194,9 +194,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(withPhoto);
           // Await permissions so components never render with stale permission state
           await loadPermissions(effectiveUser.id);
+          localStorage.setItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY, String(Date.now()));
         } catch {
           localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
           localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
         }
       }
       setIsLoading(false);
