@@ -2209,7 +2209,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
             return {
               ...prev,
-              [enriched.contact_id]: [...existing, enriched],
+              [enriched.contact_id]: insertMessageSorted(existing, enriched),
             };
           }, enriched.contact_id);
 
