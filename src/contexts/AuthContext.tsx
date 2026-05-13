@@ -206,6 +206,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     restoreSession();
   }, [loadPermissions, hydrateClientPhoto]);
 
+  // Logout por inatividade (1h) — rastreia atividade e sincroniza entre abas
+  useEffect(() => {
+    if (!user) return;
+
+    let lastWrite = 0;
+    const markActivity = () => {
+      const now = Date.now();
+      if (now - lastWrite < ACTIVITY_WRITE_THROTTLE_MS) return;
+      lastWrite = now;
+      try {
+        localStorage.setItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY, String(now));
+      } catch { /* ignore */ }
+    };
+
+    const events: Array<keyof WindowEventMap> = [
+      'mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel',
+    ];
+    events.forEach((evt) =>
+      window.addEventListener(evt, markActivity, { passive: true } as AddEventListenerOptions),
+    );
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') markActivity();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    const checkInactivity = () => {
+      const stillLogged = !!localStorage.getItem(STORAGE_KEYS.AUTH_USER);
+      if (!stillLogged) {
+        setUser(null);
+        setPermissions(null);
+        return;
+      }
+      const raw = localStorage.getItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
+      const last = raw ? Number(raw) : 0;
+      if (!last || Date.now() - last > INACTIVITY_TIMEOUT_MS) {
+        setUser(null);
+        setPermissions(null);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.replace('/login');
+        }
+      }
+    };
+    const interval = window.setInterval(checkInactivity, INACTIVITY_CHECK_INTERVAL_MS);
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.AUTH_USER && e.newValue === null) {
+        setUser(null);
+        setPermissions(null);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, markActivity));
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('storage', onStorage);
+      window.clearInterval(interval);
+    };
+  }, [user]);
+
   const login = async (email: string, password: string) => {
     try {
       setIsLoading(true);
