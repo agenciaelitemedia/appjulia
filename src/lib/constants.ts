@@ -5,6 +5,8 @@ export const STORAGE_KEYS = {
   AUTH_USER: 'julia_user',
   /** Legacy permissions key (unused but kept for cleanup on logout) */
   AUTH_PERMISSIONS: 'julia_permissions',
+  /** Última atividade do usuário (timestamp ms) — usado para logout por inatividade */
+  AUTH_LAST_ACTIVITY: 'julia_last_activity',
   /** Selected period filter persisted across sessions */
   PERSISTED_PERIOD: 'lovable-quick-period',
   /** Agents list filter state */
