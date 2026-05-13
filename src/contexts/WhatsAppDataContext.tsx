@@ -83,6 +83,37 @@ function repositionContact(list: ChatContact[], updated: ChatContact): ChatConta
   return next;
 }
 
+// Compute a stable sort key for a ChatMessage. Primary: timestamp; tie-breaker:
+// created_at, then id. Returns a tuple-like number where the timestamp dominates.
+function messageSortTs(m: ChatMessage): number {
+  const t = m?.timestamp ? new Date(m.timestamp).getTime() : 0;
+  return Number.isFinite(t) ? t : 0;
+}
+
+function compareMessages(a: ChatMessage, b: ChatMessage): number {
+  const ta = messageSortTs(a);
+  const tb = messageSortTs(b);
+  if (ta !== tb) return ta - tb;
+  const ca = a?.created_at ? new Date(a.created_at).getTime() : 0;
+  const cb = b?.created_at ? new Date(b.created_at).getTime() : 0;
+  if (ca !== cb) return ca - cb;
+  const ia = a?.id || '';
+  const ib = b?.id || '';
+  return ia < ib ? -1 : ia > ib ? 1 : 0;
+}
+
+// Insert a single message into an already-ASC-sorted list, preserving order.
+// Walks from the end (common case: new message is the most recent) — O(1)
+// amortized in the happy path, O(n) worst case for out-of-order arrivals
+// (e.g. history backfill, delayed realtime events).
+function insertMessageSorted(list: ChatMessage[], msg: ChatMessage): ChatMessage[] {
+  const next = list.slice();
+  let i = next.length - 1;
+  while (i >= 0 && compareMessages(next[i], msg) > 0) i--;
+  next.splice(i + 1, 0, msg);
+  return next;
+}
+
 function getPeriodCutoffISO(p: ChatPeriodFilter): string | null {
   if (p === 'all') return null;
   const now = new Date();
@@ -1278,12 +1309,14 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             // arrived before the initial fetch finished.
             const seen = new Set(ordered.map(m => m.id));
             const realtimeOnly = existing.filter(m => !seen.has(m.id));
-            return { ...prev, [contactId]: [...ordered, ...realtimeOnly] };
+            const merged = [...ordered, ...realtimeOnly].sort(compareMessages);
+            return { ...prev, [contactId]: merged };
           }
           // Append older page above existing list, with dedupe.
           const existingIds = new Set(existing.map(m => m.id));
           const newOlder = ordered.filter(m => !existingIds.has(m.id));
-          return { ...prev, [contactId]: [...newOlder, ...existing] };
+          const merged = [...newOlder, ...existing].sort(compareMessages);
+          return { ...prev, [contactId]: merged };
         }, contactId);
 
         return { messages: chatMessages, hasMore: cachedMessages.length === limit };
@@ -2176,7 +2209,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
             return {
               ...prev,
-              [enriched.contact_id]: [...existing, enriched],
+              [enriched.contact_id]: insertMessageSorted(existing, enriched),
             };
           }, enriched.contact_id);
 
