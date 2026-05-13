@@ -164,6 +164,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const restoreSession = async () => {
       const storedUser = localStorage.getItem(STORAGE_KEYS.AUTH_USER);
       if (storedUser) {
+        // Sessão expira por inatividade (1h)
+        const lastActivityRaw = localStorage.getItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
+        const lastActivity = lastActivityRaw ? Number(lastActivityRaw) : 0;
+        const expired = !lastActivity || (Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS);
+        if (expired) {
+          localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
+          setIsLoading(false);
+          return;
+        }
         try {
           const parsedUser = JSON.parse(storedUser);
           // Hydrate inherited client_id for sub-users (no own client_id but linked via user_id)
