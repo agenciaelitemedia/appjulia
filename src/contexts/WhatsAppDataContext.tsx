@@ -1309,12 +1309,14 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             // arrived before the initial fetch finished.
             const seen = new Set(ordered.map(m => m.id));
             const realtimeOnly = existing.filter(m => !seen.has(m.id));
-            return { ...prev, [contactId]: [...ordered, ...realtimeOnly] };
+            const merged = [...ordered, ...realtimeOnly].sort(compareMessages);
+            return { ...prev, [contactId]: merged };
           }
           // Append older page above existing list, with dedupe.
           const existingIds = new Set(existing.map(m => m.id));
           const newOlder = ordered.filter(m => !existingIds.has(m.id));
-          return { ...prev, [contactId]: [...newOlder, ...existing] };
+          const merged = [...newOlder, ...existing].sort(compareMessages);
+          return { ...prev, [contactId]: merged };
         }, contactId);
 
         return { messages: chatMessages, hasMore: cachedMessages.length === limit };
