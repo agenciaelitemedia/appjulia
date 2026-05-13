@@ -1,9 +1,8 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 
 declare const __APP_VERSION__: string;
 
-const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const CHECK_INTERVAL_MS = 60 * 1000; // 1 minute
 
 export function useAppVersionCheck() {
   const notifiedRef = useRef(false);
@@ -27,14 +26,23 @@ export function useAppVersionCheck() {
         const data = await res.json();
         if (data?.version && data.version !== currentVersion) {
           notifiedRef.current = true;
-          toast("Nova versão disponível", {
-            description: "Atualize para receber as últimas melhorias.",
-            duration: Infinity,
-            action: {
-              label: "Atualizar",
-              onClick: () => window.location.reload(),
-            },
-          });
+          // Force update: clear caches and reload without prompting the user
+          try {
+            if ("serviceWorker" in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              await Promise.all(regs.map((r) => r.unregister()));
+            }
+            if (typeof caches !== "undefined") {
+              const keys = await caches.keys();
+              await Promise.all(keys.map((k) => caches.delete(k)));
+            }
+          } catch {
+            /* ignore */
+          }
+          // Hard reload bypassing bfcache
+          window.location.replace(
+            window.location.pathname + window.location.search + window.location.hash,
+          );
         }
       } catch {
         /* ignore network errors */
