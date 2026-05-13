@@ -4,6 +4,55 @@ import type { UserPermission, PermissionMap, ModuleCode, AppRole } from '@/types
 import { createPermissionMap } from '@/types/permissions';
 import { STORAGE_KEYS } from '@/lib/constants';
 
+declare const __APP_VERSION__: string;
+
+// 1h de inatividade → logout automático
+const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000;
+// Throttle para escrita de "última atividade" no localStorage
+const ACTIVITY_WRITE_THROTTLE_MS = 5_000;
+// Frequência da checagem de inatividade
+const INACTIVITY_CHECK_INTERVAL_MS = 30_000;
+
+const isPreviewHost = () => {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host.includes('lovableproject.com') || host.includes('id-preview--');
+};
+
+// Força reload na nova versão limpando SW e caches
+const forceReloadForNewVersion = async () => {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+    if (typeof caches !== 'undefined') {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch { /* ignore */ }
+  window.location.replace(
+    window.location.pathname + window.location.search + window.location.hash,
+  );
+};
+
+// Compara versão local com /version.json. Retorna true se houve reload.
+const checkVersionAndReloadIfNeeded = async (): Promise<boolean> => {
+  if (isPreviewHost()) return false;
+  const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '';
+  if (!currentVersion) return false;
+  try {
+    const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data?.version && data.version !== currentVersion) {
+      await forceReloadForNewVersion();
+      return true;
+    }
+  } catch { /* ignore network errors */ }
+  return false;
+};
+
 interface User {
   id: number;
   name: string;
@@ -115,6 +164,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const restoreSession = async () => {
       const storedUser = localStorage.getItem(STORAGE_KEYS.AUTH_USER);
       if (storedUser) {
+        // Sessão expira por inatividade (1h)
+        const lastActivityRaw = localStorage.getItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
+        const lastActivity = lastActivityRaw ? Number(lastActivityRaw) : 0;
+        const expired = !lastActivity || (Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS);
+        if (expired) {
+          localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
+          setIsLoading(false);
+          return;
+        }
         try {
           const parsedUser = JSON.parse(storedUser);
           // Hydrate inherited client_id for sub-users (no own client_id but linked via user_id)
@@ -134,15 +194,80 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(withPhoto);
           // Await permissions so components never render with stale permission state
           await loadPermissions(effectiveUser.id);
+          localStorage.setItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY, String(Date.now()));
         } catch {
           localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
           localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
+          localStorage.removeItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
         }
       }
       setIsLoading(false);
     };
     restoreSession();
   }, [loadPermissions, hydrateClientPhoto]);
+
+  // Logout por inatividade (1h) — rastreia atividade e sincroniza entre abas
+  useEffect(() => {
+    if (!user) return;
+
+    let lastWrite = 0;
+    const markActivity = () => {
+      const now = Date.now();
+      if (now - lastWrite < ACTIVITY_WRITE_THROTTLE_MS) return;
+      lastWrite = now;
+      try {
+        localStorage.setItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY, String(now));
+      } catch { /* ignore */ }
+    };
+
+    const events: Array<keyof WindowEventMap> = [
+      'mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'wheel',
+    ];
+    events.forEach((evt) =>
+      window.addEventListener(evt, markActivity, { passive: true } as AddEventListenerOptions),
+    );
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') markActivity();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    const checkInactivity = () => {
+      const stillLogged = !!localStorage.getItem(STORAGE_KEYS.AUTH_USER);
+      if (!stillLogged) {
+        setUser(null);
+        setPermissions(null);
+        return;
+      }
+      const raw = localStorage.getItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
+      const last = raw ? Number(raw) : 0;
+      if (!last || Date.now() - last > INACTIVITY_TIMEOUT_MS) {
+        setUser(null);
+        setPermissions(null);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
+        localStorage.removeItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.replace('/login');
+        }
+      }
+    };
+    const interval = window.setInterval(checkInactivity, INACTIVITY_CHECK_INTERVAL_MS);
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.AUTH_USER && e.newValue === null) {
+        setUser(null);
+        setPermissions(null);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, markActivity));
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('storage', onStorage);
+      window.clearInterval(interval);
+    };
+  }, [user]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -165,10 +290,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const withPhoto = await hydrateClientPhoto(authenticatedUser);
       setUser(withPhoto);
       localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(authenticatedUser));
+      localStorage.setItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY, String(Date.now()));
       
       // Load permissions after login
       await loadPermissions(authenticatedUser.id);
-      
+
+      // Checa nova versão a cada login — se houver, força reload
+      await checkVersionAndReloadIfNeeded();
+
       return { success: true };
     } catch (error: any) {
       console.error('Login error:', error);
@@ -183,6 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPermissions(null);
     localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
     localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
+    localStorage.removeItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
   };
 
   const hasPermission = useCallback((moduleCode: ModuleCode, action: 'view' | 'create' | 'edit' | 'delete' = 'view'): boolean => {
