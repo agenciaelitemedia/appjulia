@@ -227,10 +227,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const withPhoto = await hydrateClientPhoto(authenticatedUser);
       setUser(withPhoto);
       localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(authenticatedUser));
+      localStorage.setItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY, String(Date.now()));
       
       // Load permissions after login
       await loadPermissions(authenticatedUser.id);
-      
+
+      // Checa nova versão a cada login — se houver, força reload
+      await checkVersionAndReloadIfNeeded();
+
       return { success: true };
     } catch (error: any) {
       console.error('Login error:', error);
