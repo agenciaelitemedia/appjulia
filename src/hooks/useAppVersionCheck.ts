@@ -2,10 +2,12 @@ import { useEffect, useRef } from "react";
 
 declare const __APP_VERSION__: string;
 
-const CHECK_INTERVAL_MS = 60 * 1000; // 1 minute
+// Mínimo entre checagens consecutivas para evitar rajadas (ex.: focus + visibility juntos)
+const MIN_CHECK_INTERVAL_MS = 30 * 1000;
 
 export function useAppVersionCheck() {
   const notifiedRef = useRef(false);
+  const lastCheckRef = useRef(0);
   const currentVersion = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "";
 
   useEffect(() => {
@@ -20,6 +22,9 @@ export function useAppVersionCheck() {
 
     const check = async () => {
       if (notifiedRef.current || cancelled) return;
+      const now = Date.now();
+      if (now - lastCheckRef.current < MIN_CHECK_INTERVAL_MS) return;
+      lastCheckRef.current = now;
       try {
         const res = await fetch(`/version.json?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) return;
@@ -49,20 +54,30 @@ export function useAppVersionCheck() {
       }
     };
 
-    const interval = window.setInterval(check, CHECK_INTERVAL_MS);
+    // Estratégia event-driven (sem polling):
+    // - checa quando a aba volta a ficar visível
+    // - checa quando a janela ganha foco
+    // - checa quando a conexão volta
+    // - checa uma vez logo após o boot
     const onVisibility = () => {
       if (document.visibilityState === "visible") check();
     };
-    document.addEventListener("visibilitychange", onVisibility);
+    const onFocus = () => check();
+    const onOnline = () => check();
 
-    // initial check after a short delay
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onOnline);
+
+    // checagem inicial após o boot (permite que o app carregue antes)
     const t = window.setTimeout(check, 10_000);
 
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
       window.clearTimeout(t);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onOnline);
     };
   }, [currentVersion]);
 }
