@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { externalDb } from '@/lib/externalDb';
 import type { UserPermission, PermissionMap, ModuleCode, AppRole } from '@/types/permissions';
 import { createPermissionMap } from '@/types/permissions';
