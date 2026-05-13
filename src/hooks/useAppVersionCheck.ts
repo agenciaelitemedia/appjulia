@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 declare const __APP_VERSION__: string;
 
-// Mínimo entre checagens consecutivas para evitar rajadas (ex.: focus + visibility juntos)
-const MIN_CHECK_INTERVAL_MS = 30 * 1000;
+// Apenas para deduplicar rajadas síncronas (focus + visibilitychange disparados juntos).
+const DEDUP_WINDOW_MS = 2000;
+const VERSION_CHANNEL = "app-version";
 
 export function useAppVersionCheck() {
   const notifiedRef = useRef(false);
@@ -20,45 +22,71 @@ export function useAppVersionCheck() {
 
     let cancelled = false;
 
+    const forceReload = async () => {
+      if (notifiedRef.current) return;
+      notifiedRef.current = true;
+      try {
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+        }
+        if (typeof caches !== "undefined") {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+      } catch {
+        /* ignore */
+      }
+      window.location.replace(
+        window.location.pathname + window.location.search + window.location.hash,
+      );
+    };
+
     const check = async () => {
       if (notifiedRef.current || cancelled) return;
       const now = Date.now();
-      if (now - lastCheckRef.current < MIN_CHECK_INTERVAL_MS) return;
+      // Apenas dedup de eventos quase simultâneos (focus + visibility).
+      if (now - lastCheckRef.current < DEDUP_WINDOW_MS) return;
       lastCheckRef.current = now;
       try {
         const res = await fetch(`/version.json?t=${Date.now()}`, { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
         if (data?.version && data.version !== currentVersion) {
-          notifiedRef.current = true;
-          // Force update: clear caches and reload without prompting the user
+          // Avisa todas as outras abas/clientes via Realtime — sem polling em cada um.
           try {
-            if ("serviceWorker" in navigator) {
-              const regs = await navigator.serviceWorker.getRegistrations();
-              await Promise.all(regs.map((r) => r.unregister()));
-            }
-            if (typeof caches !== "undefined") {
-              const keys = await caches.keys();
-              await Promise.all(keys.map((k) => caches.delete(k)));
-            }
+            await channel.send({
+              type: "broadcast",
+              event: "new-version",
+              payload: { version: data.version },
+            });
           } catch {
             /* ignore */
           }
-          // Hard reload bypassing bfcache
-          window.location.replace(
-            window.location.pathname + window.location.search + window.location.hash,
-          );
+          await forceReload();
         }
       } catch {
         /* ignore network errors */
       }
     };
 
-    // Estratégia event-driven (sem polling):
-    // - checa quando a aba volta a ficar visível
-    // - checa quando a janela ganha foco
-    // - checa quando a conexão volta
-    // - checa uma vez logo após o boot
+    // 1) Push em tempo real: ao primeiro cliente que detectar nova versão,
+    //    todos os outros recebem broadcast via Supabase Realtime e recarregam
+    //    instantaneamente — sem polling, sem timer, sem throttle artificial.
+    const channel = supabase.channel(VERSION_CHANNEL, {
+      config: { broadcast: { self: false } },
+    });
+    channel.on("broadcast", { event: "new-version" }, (msg) => {
+      const v = (msg?.payload as { version?: string } | undefined)?.version;
+      if (v && v !== currentVersion) forceReload();
+    });
+    channel.subscribe();
+
+    // 2) Gatilhos event-driven para o primeiro detector (sem polling periódico):
+    //    - aba volta a ficar visível
+    //    - janela ganha foco
+    //    - conexão volta
+    //    - uma checagem inicial após o boot
     const onVisibility = () => {
       if (document.visibilityState === "visible") check();
     };
@@ -69,7 +97,6 @@ export function useAppVersionCheck() {
     window.addEventListener("focus", onFocus);
     window.addEventListener("online", onOnline);
 
-    // checagem inicial após o boot (permite que o app carregue antes)
     const t = window.setTimeout(check, 10_000);
 
     return () => {
@@ -78,6 +105,7 @@ export function useAppVersionCheck() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("online", onOnline);
+      supabase.removeChannel(channel);
     };
   }, [currentVersion]);
 }
