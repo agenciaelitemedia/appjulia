@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckSquare, Plus, Trash2, Loader2, ListChecks } from 'lucide-react';
+import { CheckSquare, Plus, Trash2, Loader2, ListChecks, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -16,6 +16,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { useCRMDealTasks } from '../../hooks/useCRMDealTasks';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTasks } from '@/hooks/useTasks';
+import { TaskCard } from '@/pages/tarefas/components/TaskCard';
+import { AddRankedTasksDialog } from '@/pages/tarefas/components/AddRankedTasksDialog';
+import type { TaskStatus } from '@/hooks/useTasks';
 
 interface DealTasksPanelProps {
   dealId: string;
@@ -31,6 +36,12 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
   const { checklists, isLoading, createChecklist, deleteChecklist, addItem, toggleItem, deleteItem, totalTasks, doneTasks } =
     useCRMDealTasks(dealId);
 
+  const { user, isAdmin } = useAuth();
+  const clientId = user?.client_id ? String(user.client_id) : undefined;
+  const userId = user?.id ? String(user.id) : undefined;
+  const { tasks: rankedTasks, updateStatus } = useTasks({ clientId, dealId });
+
+  const [showRankedDialog, setShowRankedDialog] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
   const [addingChecklist, setAddingChecklist] = useState(false);
   const [savingChecklist, setSavingChecklist] = useState(false);
@@ -207,6 +218,39 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
           );
         })}
 
+        {/* Seção de Tarefas Rankeadas */}
+        {rankedTasks.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
+              Tarefas Rankeadas
+            </div>
+            {rankedTasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                compact
+                isAdmin={isAdmin}
+                currentUserId={userId}
+                onUpdateStatus={async (id, s: TaskStatus) => {
+                  await updateStatus({ id, status: s, completedBy: userId });
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Botão adicionar tarefas rankeadas */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+          onClick={() => setShowRankedDialog(true)}
+        >
+          <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+          Adicionar Tarefas Rankeadas
+        </Button>
+
         {/* Adicionar checklist */}
         {addingChecklist ? (
           <div className="space-y-2 border rounded-lg p-3">
@@ -250,6 +294,16 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
           </div>
         )}
       </div>
+
+      {/* Dialog de tarefas rankeadas */}
+      {clientId && (
+        <AddRankedTasksDialog
+          open={showRankedDialog}
+          onOpenChange={setShowRankedDialog}
+          dealId={dealId}
+          clientId={clientId}
+        />
+      )}
 
       {/* Diálogo de confirmação de exclusão */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>

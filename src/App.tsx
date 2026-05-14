@@ -97,6 +97,7 @@ const ConfiguracoesPage = lazy(() => import("./pages/configuracoes/Configuracoes
 const HumanSupportPage = lazy(() => import("./pages/atendimento-humano/HumanSupportPage"));
 const PushNotificationsPage = lazy(() => import("./pages/admin/push-notifications/PushNotificationsPage"));
 const ContatosPage = lazy(() => import("./pages/contatos/ContatosPage"));
+const TasksPage = lazy(() => import("./pages/tarefas/TasksPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -180,6 +181,7 @@ const App = () => (
                   <Route path="/mensagens-rapidas" element={<ProtectedRoute module="quick_messages"><QuickMessagesPage /></ProtectedRoute>} />
                   <Route path="/atendimento-humano" element={<ProtectedRoute module="human_support"><HumanSupportPage /></ProtectedRoute>} />
                   <Route path="/contatos" element={<ProtectedRoute module="contacts"><ContatosPage /></ProtectedRoute>} />
+                  <Route path="/tarefas" element={<ProtectedRoute module="tasks"><TasksPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />
