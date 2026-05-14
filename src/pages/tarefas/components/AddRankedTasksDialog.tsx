@@ -124,15 +124,28 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
             </p>
           ) : (
             <>
-              {/* Busca */}
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar tarefa..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-8 pl-8 text-sm"
-                />
+              {/* Busca + Categoria */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar tarefa..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="h-8 pl-8 text-sm"
+                  />
+                </div>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="h-8 w-[140px] text-sm">
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas categorias</SelectItem>
+                    {allCategories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Select all / clear */}
@@ -173,17 +186,20 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
             </>
           )}
 
-          {/* Assignee & due date */}
+        </div>
+
+        {/* Footer fixo: Atribuir a + Data limite + Ações */}
+        <div className="border-t bg-muted/30 px-5 py-3 space-y-3">
           {activeTemplates.length > 0 && (
-            <div className="space-y-3 pt-2 border-t">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Atribuir a</Label>
-                <Select value={assignedTo} onValueChange={setAssignedTo}>
+                <Select value={assignedTo} onValueChange={setAssignedTo} disabled={!canSeeFullTeam && visibleTeam.length <= 1}>
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {team.map((m) => (
+                    {visibleTeam.map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -195,15 +211,14 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
               </div>
             </div>
           )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isCreating}>Cancelar</Button>
+            <Button onClick={handleConfirm} disabled={isCreating || selectedIds.size === 0} className="gap-2">
+              {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
+              Adicionar {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+            </Button>
+          </DialogFooter>
         </div>
-
-        <DialogFooter className="px-5 py-3 border-t">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isCreating}>Cancelar</Button>
-          <Button onClick={handleConfirm} disabled={isCreating || selectedIds.size === 0} className="gap-2">
-            {isCreating && <Loader2 className="h-4 w-4 animate-spin" />}
-            Adicionar {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
