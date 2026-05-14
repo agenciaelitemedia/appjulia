@@ -913,6 +913,16 @@ serve(async (req) => {
             `UPDATE agents SET user_id = $1 WHERE id = $2`,
             [userId, agentId]
           );
+          // Sync users.client_id with the agent's client_id (owner promotion)
+          await sql.unsafe(
+            `UPDATE users
+                SET client_id = a.client_id
+               FROM agents a
+              WHERE a.id = $1
+                AND users.id = $2
+                AND a.client_id IS NOT NULL`,
+            [agentId, userId]
+          );
         }
         
         result = rows;
@@ -2706,6 +2716,22 @@ serve(async (req) => {
           `UPDATE user_agents SET agent_id = $3::int WHERE user_id = $1 AND cod_agent::text = $2::text`,
           [userId, codAgent, agentId]
         );
+        // When promoting to owner, sync users.client_id with the agent's client_id
+        if (agentId !== null && agentId !== undefined) {
+          await sql.unsafe(
+            `UPDATE agents SET user_id = $1 WHERE id = $2`,
+            [userId, agentId]
+          );
+          await sql.unsafe(
+            `UPDATE users
+                SET client_id = a.client_id
+               FROM agents a
+              WHERE a.id = $1
+                AND users.id = $2
+                AND a.client_id IS NOT NULL`,
+            [agentId, userId]
+          );
+        }
         result = [{ success: true }];
         break;
       }
