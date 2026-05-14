@@ -93,8 +93,12 @@ interface DealDetailsSheetProps {
   onMoveToStage?: (stageId: string) => Promise<boolean | void> | boolean | void;
   /** Lista de quadros disponíveis para mover o card (exclui o atual). */
   boards?: CRMBoard[];
-  /** Callback ao mover o card para outro quadro. Deve criar cópia no destino e arquivar o original. */
-  onMoveToBoard?: (targetBoardId: string) => Promise<{ newDealId: string; newBoardId: string } | null | void>;
+  /** Callback ao mover o card para outro quadro. Deve criar cópia no destino e arquivar o original.
+   *  Recebe opcionalmente o `targetPipelineId` selecionado pelo usuário no quadro destino. */
+  onMoveToBoard?: (
+    targetBoardId: string,
+    targetPipelineId?: string,
+  ) => Promise<{ newDealId: string; newBoardId: string } | null | void>;
 }
 
 export function DealDetailsSheet({
@@ -138,6 +142,10 @@ export function DealDetailsSheet({
   const [savingPriority, setSavingPriority] = useState<CRMDealFormData['priority'] | null>(null);
   const [boardsExpanded, setBoardsExpanded] = useState(false);
   const [pendingTargetBoardId, setPendingTargetBoardId] = useState<string | null>(null);
+  const [selectedTargetBoardId, setSelectedTargetBoardId] = useState<string | null>(null);
+  const [pendingTargetStageId, setPendingTargetStageId] = useState<string | null>(null);
+  const [targetBoardStages, setTargetBoardStages] = useState<Array<{ id: string; name: string; color: string | null; position: number }>>([]);
+  const [loadingTargetStages, setLoadingTargetStages] = useState(false);
   const [movingToBoard, setMovingToBoard] = useState(false);
   const [boardActiveStageCount, setBoardActiveStageCount] = useState<Record<string, number>>({});
   const [loadingBoardStages, setLoadingBoardStages] = useState(false);
