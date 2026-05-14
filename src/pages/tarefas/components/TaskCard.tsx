@@ -9,6 +9,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Task, TaskStatus } from '@/hooks/useTasks';
@@ -38,8 +48,10 @@ interface TaskCardProps {
 
 export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserId, compact }: TaskCardProps) {
   const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const canAct = isAdmin || task.assigned_to === String(currentUserId ?? '');
+  const canDelete = task.status === 'pending';
 
   const handleStatus = async (s: TaskStatus) => {
     setLoading(true);
@@ -83,7 +95,7 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserI
                     <Play className="h-3.5 w-3.5 mr-2 text-blue-500" /> Iniciar
                   </DropdownMenuItem>
                 )}
-                {(task.status === 'pending' || task.status === 'in_progress') && (
+                {task.status === 'in_progress' && (
                   <DropdownMenuItem onClick={() => handleStatus('completed')}>
                     <CheckCircle className="h-3.5 w-3.5 mr-2 text-green-500" /> Concluir
                   </DropdownMenuItem>
@@ -91,8 +103,8 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserI
                 <DropdownMenuItem onClick={() => handleStatus('cancelled')} className="text-destructive">
                   <XCircle className="h-3.5 w-3.5 mr-2" /> Cancelar
                 </DropdownMenuItem>
-                {isAdmin && onDelete && (
-                  <DropdownMenuItem onClick={() => onDelete(task.id)} className="text-destructive">
+                {isAdmin && onDelete && canDelete && (
+                  <DropdownMenuItem onClick={() => setConfirmDelete(true)} className="text-destructive">
                     Excluir
                   </DropdownMenuItem>
                 )}
@@ -166,13 +178,39 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserI
               <Play className="h-3 w-3" /> Iniciar
             </Button>
           )}
-          <Button size="sm" className="h-7 text-xs gap-1.5 bg-green-600 hover:bg-green-700"
-            disabled={loading} onClick={() => handleStatus('completed')}>
+          <Button size="sm" className="h-7 text-xs gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50"
+            disabled={loading || task.status !== 'in_progress'}
+            title={task.status !== 'in_progress' ? 'Inicie a tarefa antes de concluir' : undefined}
+            onClick={() => handleStatus('completed')}>
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
             Concluir (+{task.points} pts)
           </Button>
         </div>
       )}
+
+      {/* Confirmação de exclusão */}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A tarefa <strong>"{task.title}"</strong> será excluída permanentemente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (onDelete) await onDelete(task.id);
+                setConfirmDelete(false);
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

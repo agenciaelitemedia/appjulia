@@ -40,6 +40,16 @@ export function TasksListTab() {
     return t.title.toLowerCase().includes(q) || (t.category ?? '').toLowerCase().includes(q);
   });
 
+  const STATUS_ORDER: Record<TaskStatus, number> = {
+    pending: 0,
+    in_progress: 1,
+    completed: 2,
+    cancelled: 3,
+  };
+  const sorted = [...filtered].sort(
+    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+  );
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -88,13 +98,13 @@ export function TasksListTab() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
           <p className="text-sm">Nenhuma tarefa encontrada.</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((task) => (
+          {sorted.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
