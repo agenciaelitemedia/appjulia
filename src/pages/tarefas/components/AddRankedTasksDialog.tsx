@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Star, Loader2 } from 'lucide-react';
+import { Star, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TaskTemplate } from '@/hooks/useTaskTemplates';
 
@@ -34,6 +34,7 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [assignedTo, setAssignedTo] = useState(String(user?.id ?? ''));
   const [dueDate, setDueDate] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const toggleTemplate = (id: string) => {
     setSelectedIds((prev) => {
@@ -44,7 +45,7 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
     });
   };
 
-  const selectAll = () => setSelectedIds(new Set(activeTemplates.map((t) => t.id)));
+  const selectAll = () => setSelectedIds(new Set(filteredTemplates.map((t) => t.id)));
   const clearAll = () => setSelectedIds(new Set());
 
   const handleConfirm = async () => {
@@ -69,14 +70,23 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
     }
   };
 
-  const byCategory = activeTemplates.reduce<Record<string, TaskTemplate[]>>((acc, t) => {
+  const filteredTemplates = activeTemplates.filter((t) => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return true;
+    return (
+      t.title.toLowerCase().includes(term) ||
+      (t.category ?? '').toLowerCase().includes(term)
+    );
+  });
+
+  const byCategory = filteredTemplates.reduce<Record<string, TaskTemplate[]>>((acc, t) => {
     const key = t.category ?? 'Sem categoria';
     if (!acc[key]) acc[key] = [];
     acc[key].push(t);
     return acc;
   }, {});
 
-  const totalPoints = activeTemplates
+  const totalPoints = filteredTemplates
     .filter((t) => selectedIds.has(t.id))
     .reduce((s, t) => s + t.points, 0);
 
@@ -101,6 +111,17 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
             </p>
           ) : (
             <>
+              {/* Busca */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar tarefa..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="h-8 pl-8 text-sm"
+                />
+              </div>
+
               {/* Select all / clear */}
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" className="h-7 text-xs" onClick={selectAll}>Selecionar todos</Button>
