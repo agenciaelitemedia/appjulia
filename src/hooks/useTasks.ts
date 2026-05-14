@@ -147,7 +147,16 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
         status: newStatus,
         updated_at: new Date().toISOString(),
       };
-      if (newStatus === 'completed') patch.completed_by = completedBy ?? null;
+      if (newStatus === 'completed') {
+        patch.completed_at = new Date().toISOString();
+        patch.completed_by = completedBy ?? null;
+      }
+      if (newStatus === 'in_progress') {
+        patch.started_at = new Date().toISOString();
+      }
+      if (newStatus === 'cancelled') {
+        patch.cancelled_at = new Date().toISOString();
+      }
       const { data, error } = await supabase.from('tasks').update(patch).eq('id', id).select().single();
       if (error) throw error;
       return data as Task;
