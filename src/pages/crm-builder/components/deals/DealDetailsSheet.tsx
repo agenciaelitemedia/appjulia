@@ -183,9 +183,6 @@ export function DealDetailsSheet({
   const targetBoard = pendingTargetBoardId
     ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
     : null;
-  const selectedTargetBoard = selectedTargetBoardId
-    ? otherBoards.find((b) => b.id === selectedTargetBoardId) || null
-    : null;
   const targetStage = pendingTargetStageId
     ? targetBoardStages.find((s) => s.id === pendingTargetStageId) || null
     : null;
