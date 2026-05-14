@@ -1200,13 +1200,20 @@ export function DealDetailsSheet({
 
         {/* Confirmação: mover para outro quadro */}
         <AlertDialog
-          open={!!pendingTargetBoardId}
-          onOpenChange={(o) => { if (!o && !movingToBoard) setPendingTargetBoardId(null); }}
+          open={!!pendingTargetBoardId && !!pendingTargetStageId}
+          onOpenChange={(o) => {
+            if (!o && !movingToBoard) {
+              setPendingTargetBoardId(null);
+              setPendingTargetStageId(null);
+            }
+          }}
         >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                Tem certeza que deseja mover o card do CRM "{currentBoard?.name ?? 'atual'}" para o CRM "{targetBoard?.name}"?
+                Mover o card do CRM "{currentBoard?.name ?? 'atual'}"
+                {currentStage ? ` / etapa "${currentStage.name}"` : ''}
+                {' '}para o CRM "{targetBoard?.name}" / etapa "{targetStage?.name}"?
               </AlertDialogTitle>
               <AlertDialogDescription>
                 O card será movido e sumirá do CRM atual.
