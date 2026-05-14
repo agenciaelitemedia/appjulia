@@ -24,21 +24,37 @@ export function useMoveDealToBoard() {
     targetBoardName?: string,
     sourceBoardName?: string,
     userName?: string,
+    targetPipelineId?: string,
   ): Promise<MoveDealToBoardResult | null> => {
     try {
-      // 1. Pega a primeira pipeline ativa do board destino
-      const { data: targetPipelines, error: pipelinesErr } = await supabase
-        .from('crm_pipelines')
-        .select('id, name, position')
-        .eq('board_id', targetBoardId)
-        .eq('is_active', true)
-        .order('position', { ascending: true })
-        .limit(1);
-
-      if (pipelinesErr) throw pipelinesErr;
-      const firstPipeline = targetPipelines?.[0];
-      if (!firstPipeline) {
-        throw new Error('O quadro de destino não possui etapas ativas.');
+      // 1. Resolve pipeline destino: a explicitamente escolhida pelo usuário,
+      //    ou (fallback) a primeira ativa do board.
+      let firstPipeline: { id: string; name: string; position: number } | null = null;
+      if (targetPipelineId) {
+        const { data: chosen, error: chosenErr } = await supabase
+          .from('crm_pipelines')
+          .select('id, name, position, board_id, is_active')
+          .eq('id', targetPipelineId)
+          .limit(1);
+        if (chosenErr) throw chosenErr;
+        const row = chosen?.[0];
+        if (!row || row.board_id !== targetBoardId || !row.is_active) {
+          throw new Error('A etapa escolhida não pertence ao quadro de destino ou está inativa.');
+        }
+        firstPipeline = { id: row.id, name: row.name, position: row.position };
+      } else {
+        const { data: targetPipelines, error: pipelinesErr } = await supabase
+          .from('crm_pipelines')
+          .select('id, name, position')
+          .eq('board_id', targetBoardId)
+          .eq('is_active', true)
+          .order('position', { ascending: true })
+          .limit(1);
+        if (pipelinesErr) throw pipelinesErr;
+        firstPipeline = targetPipelines?.[0] ?? null;
+        if (!firstPipeline) {
+          throw new Error('O quadro de destino não possui etapas ativas.');
+        }
       }
 
       // 2. Calcula próxima position no destino

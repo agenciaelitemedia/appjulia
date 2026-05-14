@@ -93,8 +93,12 @@ interface DealDetailsSheetProps {
   onMoveToStage?: (stageId: string) => Promise<boolean | void> | boolean | void;
   /** Lista de quadros disponíveis para mover o card (exclui o atual). */
   boards?: CRMBoard[];
-  /** Callback ao mover o card para outro quadro. Deve criar cópia no destino e arquivar o original. */
-  onMoveToBoard?: (targetBoardId: string) => Promise<{ newDealId: string; newBoardId: string } | null | void>;
+  /** Callback ao mover o card para outro quadro. Deve criar cópia no destino e arquivar o original.
+   *  Recebe opcionalmente o `targetPipelineId` selecionado pelo usuário no quadro destino. */
+  onMoveToBoard?: (
+    targetBoardId: string,
+    targetPipelineId?: string,
+  ) => Promise<{ newDealId: string; newBoardId: string } | null | void>;
 }
 
 export function DealDetailsSheet({
@@ -138,6 +142,10 @@ export function DealDetailsSheet({
   const [savingPriority, setSavingPriority] = useState<CRMDealFormData['priority'] | null>(null);
   const [boardsExpanded, setBoardsExpanded] = useState(false);
   const [pendingTargetBoardId, setPendingTargetBoardId] = useState<string | null>(null);
+  const [selectedTargetBoardId, setSelectedTargetBoardId] = useState<string | null>(null);
+  const [pendingTargetStageId, setPendingTargetStageId] = useState<string | null>(null);
+  const [targetBoardStages, setTargetBoardStages] = useState<Array<{ id: string; name: string; color: string | null; position: number }>>([]);
+  const [loadingTargetStages, setLoadingTargetStages] = useState(false);
   const [movingToBoard, setMovingToBoard] = useState(false);
   const [boardActiveStageCount, setBoardActiveStageCount] = useState<Record<string, number>>({});
   const [loadingBoardStages, setLoadingBoardStages] = useState(false);
@@ -175,6 +183,9 @@ export function DealDetailsSheet({
   const targetBoard = pendingTargetBoardId
     ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
     : null;
+  const targetStage = pendingTargetStageId
+    ? targetBoardStages.find((s) => s.id === pendingTargetStageId) || null
+    : null;
 
   // Pré-carrega contagem de etapas ativas por board para sinalizar/desabilitar
   // boards inválidos antes de tentar mover.
@@ -209,6 +220,39 @@ export function DealDetailsSheet({
     return () => { cancelled = true; };
   }, [boardsExpanded, showBoardsBlock, otherBoardIds]);
 
+  // Carrega etapas ativas do board selecionado para o usuário escolher destino
+  useEffect(() => {
+    if (!selectedTargetBoardId) {
+      setTargetBoardStages([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingTargetStages(true);
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('crm_pipelines')
+          .select('id, name, color, position')
+          .eq('board_id', selectedTargetBoardId)
+          .eq('is_active', true)
+          .order('position', { ascending: true });
+        if (error) throw error;
+        if (!cancelled) {
+          setTargetBoardStages((data || []) as Array<{ id: string; name: string; color: string | null; position: number }>);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[DealDetailsSheet] erro ao carregar etapas do quadro destino', err);
+          setTargetBoardStages([]);
+          toast.error('Não foi possível carregar as etapas do CRM selecionado.');
+        }
+      } finally {
+        if (!cancelled) setLoadingTargetStages(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedTargetBoardId]);
+
   // Early return APÓS todos os hooks para respeitar a Regra dos Hooks do React.
   if (!deal) return null;
 
@@ -225,25 +269,21 @@ export function DealDetailsSheet({
   };
 
   const confirmMoveToBoard = async () => {
-    if (!pendingTargetBoardId || !onMoveToBoard) return;
-    // Revalida no momento da confirmação para pegar mudanças recentes
-    const known = boardActiveStageCount[pendingTargetBoardId];
-    if (known === 0) {
-      toast.error('O CRM de destino não possui etapas ativas. Crie ao menos uma etapa antes de mover.');
-      setPendingTargetBoardId(null);
-      return;
-    }
+    if (!pendingTargetBoardId || !pendingTargetStageId || !onMoveToBoard) return;
     setMovingToBoard(true);
     try {
-      const result = await onMoveToBoard(pendingTargetBoardId);
-      // Só fecha o sheet se a operação foi bem-sucedida (helper retorna null em erro)
+      const result = await onMoveToBoard(pendingTargetBoardId, pendingTargetStageId);
       if (result) {
         setPendingTargetBoardId(null);
+        setPendingTargetStageId(null);
+        setSelectedTargetBoardId(null);
+        setTargetBoardStages([]);
         setBoardsExpanded(false);
         onOpenChange(false);
       } else {
-        // erro já notificado pelo helper; mantém o dialog aberto para retry/cancel
+        // erro notificado pelo helper; fecha apenas o dialog mantendo escolhas
         setPendingTargetBoardId(null);
+        setPendingTargetStageId(null);
       }
     } finally {
       setMovingToBoard(false);
@@ -409,46 +449,94 @@ export function DealDetailsSheet({
               {hasOtherBoards && boardsExpanded && (
                 <div className="space-y-1.5 mt-3">
                   <p className="text-xs text-muted-foreground px-1 mb-1">
-                    Escolha o CRM que deseja mover o card.
+                    Escolha o CRM e em seguida a etapa para mover o card.
                   </p>
                   {otherBoards.map((b) => {
                     const stageCount = boardActiveStageCount[b.id];
                     const noStages = stageCount === 0;
+                    const isSelected = selectedTargetBoardId === b.id;
                     const isDisabled = movingToBoard || noStages;
                     return (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => {
-                          if (noStages) {
-                            toast.error(`O CRM "${b.name}" não possui etapas ativas. Crie ao menos uma etapa antes de mover o card.`);
-                            return;
-                          }
-                          setPendingTargetBoardId(b.id);
-                        }}
-                        disabled={isDisabled}
-                        title={noStages ? 'Sem etapas ativas — não é possível mover para este CRM' : undefined}
-                        className={cn(
-                          'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
-                          noStages
-                            ? 'cursor-not-allowed opacity-60 border-dashed'
-                            : 'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
-                          movingToBoard && !noStages && 'opacity-60'
+                      <div key={b.id} className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (noStages) {
+                              toast.error(`O CRM "${b.name}" não possui etapas ativas. Crie ao menos uma etapa antes de mover o card.`);
+                              return;
+                            }
+                            setSelectedTargetBoardId(isSelected ? null : b.id);
+                          }}
+                          disabled={isDisabled}
+                          title={noStages ? 'Sem etapas ativas — não é possível mover para este CRM' : undefined}
+                          className={cn(
+                            'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
+                            noStages
+                              ? 'cursor-not-allowed opacity-60 border-dashed'
+                              : 'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
+                            isSelected && !noStages && 'bg-muted/40 border-foreground/20',
+                            movingToBoard && !noStages && 'opacity-60'
+                          )}
+                        >
+                          <span
+                            className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: b.color || '#6b7280' }}
+                          />
+                          <span className="text-sm flex-1 truncate">{b.name}</span>
+                          {loadingBoardStages && stageCount === undefined ? (
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground flex-shrink-0" />
+                          ) : noStages ? (
+                            <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex-shrink-0">
+                              sem etapas
+                            </span>
+                          ) : isSelected ? (
+                            <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          )}
+                        </button>
+
+                        {isSelected && (
+                          <div className="ml-5 pl-3 border-l border-border/60 space-y-1">
+                            <p className="text-[11px] text-muted-foreground px-1 pt-1">
+                              Clique na etapa de destino para confirmar a mudança:
+                            </p>
+                            {loadingTargetStages ? (
+                              <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Carregando etapas...
+                              </div>
+                            ) : targetBoardStages.length === 0 ? (
+                              <p className="px-3 py-2 text-xs text-muted-foreground">
+                                Nenhuma etapa ativa neste CRM.
+                              </p>
+                            ) : (
+                              targetBoardStages.map((s) => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  disabled={movingToBoard}
+                                  onClick={() => {
+                                    setPendingTargetBoardId(b.id);
+                                    setPendingTargetStageId(s.id);
+                                  }}
+                                  className={cn(
+                                    'w-full flex items-center gap-2 px-3 py-1.5 rounded-md border text-left transition-colors',
+                                    'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
+                                    movingToBoard && 'opacity-60 cursor-not-allowed'
+                                  )}
+                                >
+                                  <span
+                                    className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: s.color || '#6b7280' }}
+                                  />
+                                  <span className="text-sm flex-1 truncate">{s.name}</span>
+                                </button>
+                              ))
+                            )}
+                          </div>
                         )}
-                      >
-                        <span
-                          className="inline-block h-3 w-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: b.color || '#6b7280' }}
-                        />
-                        <span className="text-sm flex-1 truncate">{b.name}</span>
-                        {loadingBoardStages && stageCount === undefined ? (
-                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground flex-shrink-0" />
-                        ) : noStages ? (
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex-shrink-0">
-                            sem etapas
-                          </span>
-                        ) : null}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1109,13 +1197,20 @@ export function DealDetailsSheet({
 
         {/* Confirmação: mover para outro quadro */}
         <AlertDialog
-          open={!!pendingTargetBoardId}
-          onOpenChange={(o) => { if (!o && !movingToBoard) setPendingTargetBoardId(null); }}
+          open={!!pendingTargetBoardId && !!pendingTargetStageId}
+          onOpenChange={(o) => {
+            if (!o && !movingToBoard) {
+              setPendingTargetBoardId(null);
+              setPendingTargetStageId(null);
+            }
+          }}
         >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                Tem certeza que deseja mover o card do CRM "{currentBoard?.name ?? 'atual'}" para o CRM "{targetBoard?.name}"?
+                Mover o card do CRM "{currentBoard?.name ?? 'atual'}"
+                {currentStage ? ` / etapa "${currentStage.name}"` : ''}
+                {' '}para o CRM "{targetBoard?.name}" / etapa "{targetStage?.name}"?
               </AlertDialogTitle>
               <AlertDialogDescription>
                 O card será movido e sumirá do CRM atual.
