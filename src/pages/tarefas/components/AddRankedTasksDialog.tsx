@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Star, Loader2 } from 'lucide-react';
+import { Star, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TaskTemplate } from '@/hooks/useTaskTemplates';
 
