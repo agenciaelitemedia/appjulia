@@ -45,7 +45,7 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
     });
   };
 
-  const selectAll = () => setSelectedIds(new Set(activeTemplates.map((t) => t.id)));
+  const selectAll = () => setSelectedIds(new Set(filteredTemplates.map((t) => t.id)));
   const clearAll = () => setSelectedIds(new Set());
 
   const handleConfirm = async () => {
