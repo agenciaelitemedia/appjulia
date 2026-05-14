@@ -189,14 +189,15 @@ export function SelectPlanStep({ draft, onChange, onNext }: Props) {
                   />
                 );
               })()}
-              {draft.recording_enabled && (
+              {/* Adicionais ocultos no resumo */}
+              {false && draft.recording_enabled && (
                 <Row
                   label="Gravação de chamadas"
                   value={totals.recording > 0 ? fmt(totals.recording) : 'Grátis'}
                   muted={totals.recording === 0}
                 />
               )}
-              {draft.transcription_enabled && (
+              {false && draft.transcription_enabled && (
                 <Row
                   label="Transcrição & resumo"
                   value={totals.transcription > 0 ? fmt(totals.transcription) : 'Grátis'}
