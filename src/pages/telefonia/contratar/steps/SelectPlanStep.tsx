@@ -125,7 +125,8 @@ export function SelectPlanStep({ draft, onChange, onNext }: Props) {
                 </p>
               </div>
 
-              <div className="space-y-3 pt-2">
+              {/* Adicionais ocultos — gravação e transcrição inclusos por padrão */}
+              <div className="hidden">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <Checkbox
                     checked={draft.recording_enabled}
