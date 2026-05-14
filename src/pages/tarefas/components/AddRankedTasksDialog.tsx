@@ -79,12 +79,18 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
 
   const filteredTemplates = activeTemplates.filter((t) => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return true;
-    return (
-      t.title.toLowerCase().includes(term) ||
-      (t.category ?? '').toLowerCase().includes(term)
-    );
+    const matchesTerm = !term
+      ? true
+      : t.title.toLowerCase().includes(term) ||
+        (t.category ?? '').toLowerCase().includes(term);
+    const matchesCategory =
+      categoryFilter === 'all' || (t.category ?? 'Sem categoria') === categoryFilter;
+    return matchesTerm && matchesCategory;
   });
+
+  const allCategories = Array.from(
+    new Set(activeTemplates.map((t) => t.category ?? 'Sem categoria'))
+  ).sort((a, b) => a.localeCompare(b));
 
   const byCategory = filteredTemplates.reduce<Record<string, TaskTemplate[]>>((acc, t) => {
     const key = t.category ?? 'Sem categoria';
