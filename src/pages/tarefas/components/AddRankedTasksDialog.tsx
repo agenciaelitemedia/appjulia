@@ -34,6 +34,7 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [assignedTo, setAssignedTo] = useState(String(user?.id ?? ''));
   const [dueDate, setDueDate] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const toggleTemplate = (id: string) => {
     setSelectedIds((prev) => {
