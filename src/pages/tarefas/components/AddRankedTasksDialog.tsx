@@ -35,6 +35,13 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
   const [assignedTo, setAssignedTo] = useState(String(user?.id ?? ''));
   const [dueDate, setDueDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  const ALLOWED_FULL_LIST_ROLES = ['admin', 'colaborador', 'user'];
+  const canSeeFullTeam = !!user?.role && ALLOWED_FULL_LIST_ROLES.includes(user.role);
+  const visibleTeam = canSeeFullTeam
+    ? team
+    : team.filter((m) => String(m.id) === String(user?.id ?? ''));
 
   const toggleTemplate = (id: string) => {
     setSelectedIds((prev) => {
