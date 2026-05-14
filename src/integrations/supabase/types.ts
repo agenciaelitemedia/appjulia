@@ -5076,6 +5076,7 @@ export type Database = {
         Row: {
           assigned_name: string | null
           assigned_to: string | null
+          cancelled_at: string | null
           category: string | null
           client_id: string
           completed_at: string | null
@@ -5087,6 +5088,7 @@ export type Database = {
           due_date: string | null
           id: string
           points: number
+          started_at: string | null
           status: string
           template_id: string | null
           title: string
@@ -5095,6 +5097,7 @@ export type Database = {
         Insert: {
           assigned_name?: string | null
           assigned_to?: string | null
+          cancelled_at?: string | null
           category?: string | null
           client_id: string
           completed_at?: string | null
@@ -5106,6 +5109,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           points?: number
+          started_at?: string | null
           status?: string
           template_id?: string | null
           title: string
@@ -5114,6 +5118,7 @@ export type Database = {
         Update: {
           assigned_name?: string | null
           assigned_to?: string | null
+          cancelled_at?: string | null
           category?: string | null
           client_id?: string
           completed_at?: string | null
@@ -5125,6 +5130,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           points?: number
+          started_at?: string | null
           status?: string
           template_id?: string | null
           title?: string
