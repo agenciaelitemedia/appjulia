@@ -183,6 +183,12 @@ export function DealDetailsSheet({
   const targetBoard = pendingTargetBoardId
     ? otherBoards.find((b) => b.id === pendingTargetBoardId) || null
     : null;
+  const selectedTargetBoard = selectedTargetBoardId
+    ? otherBoards.find((b) => b.id === selectedTargetBoardId) || null
+    : null;
+  const targetStage = pendingTargetStageId
+    ? targetBoardStages.find((s) => s.id === pendingTargetStageId) || null
+    : null;
 
   // Pré-carrega contagem de etapas ativas por board para sinalizar/desabilitar
   // boards inválidos antes de tentar mover.
@@ -216,6 +222,39 @@ export function DealDetailsSheet({
     })();
     return () => { cancelled = true; };
   }, [boardsExpanded, showBoardsBlock, otherBoardIds]);
+
+  // Carrega etapas ativas do board selecionado para o usuário escolher destino
+  useEffect(() => {
+    if (!selectedTargetBoardId) {
+      setTargetBoardStages([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingTargetStages(true);
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('crm_pipelines')
+          .select('id, name, color, position')
+          .eq('board_id', selectedTargetBoardId)
+          .eq('is_active', true)
+          .order('position', { ascending: true });
+        if (error) throw error;
+        if (!cancelled) {
+          setTargetBoardStages((data || []) as Array<{ id: string; name: string; color: string | null; position: number }>);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[DealDetailsSheet] erro ao carregar etapas do quadro destino', err);
+          setTargetBoardStages([]);
+          toast.error('Não foi possível carregar as etapas do CRM selecionado.');
+        }
+      } finally {
+        if (!cancelled) setLoadingTargetStages(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedTargetBoardId]);
 
   // Early return APÓS todos os hooks para respeitar a Regra dos Hooks do React.
   if (!deal) return null;
