@@ -21,6 +21,7 @@ import { useTasks } from '@/hooks/useTasks';
 import { TaskCard } from '@/pages/tarefas/components/TaskCard';
 import { AddRankedTasksDialog } from '@/pages/tarefas/components/AddRankedTasksDialog';
 import type { TaskStatus } from '@/hooks/useTasks';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface DealTasksPanelProps {
   dealId: string;
@@ -95,9 +96,93 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
 
   return (
     <>
-      <div className="space-y-5">
-        {/* Resumo global */}
-        {totalTasks > 0 && (
+      <Tabs defaultValue="ranked" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="ranked" className="gap-1.5">
+            <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
+            Tarefas Rankeadas
+          </TabsTrigger>
+          <TabsTrigger value="checklist" className="gap-1.5">
+            <ListChecks className="h-3.5 w-3.5" />
+            Checklist
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Aba Tarefas Rankeadas */}
+        <TabsContent value="ranked" className="space-y-3 mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+            onClick={() => setShowRankedDialog(true)}
+          >
+            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+            Adicionar Tarefas Rankeadas
+          </Button>
+
+          {rankedTasks.length > 0 ? (
+            <div className="space-y-2">
+              {rankedTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  compact
+                  isAdmin={isAdmin}
+                  currentUserId={userId}
+                  onUpdateStatus={async (id, s: TaskStatus) => {
+                    await updateStatus({ id, status: s, completedBy: userId });
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <Star className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Nenhuma tarefa rankeada</p>
+              <p className="text-xs mt-1">Adicione tarefas pontuadas para esse card</p>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Aba Checklist (checklists + tarefas normais) */}
+        <TabsContent value="checklist" className="space-y-5 mt-4">
+          {/* Botão adicionar checklist no topo */}
+          {addingChecklist ? (
+            <div className="space-y-2 border rounded-lg p-3">
+              <Input
+                autoFocus
+                value={newChecklistTitle}
+                onChange={(e) => setNewChecklistTitle(e.target.value)}
+                placeholder="Nome do checklist..."
+                className="h-9"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateChecklist();
+                  if (e.key === 'Escape') { setAddingChecklist(false); setNewChecklistTitle(''); }
+                }}
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleCreateChecklist} disabled={savingChecklist || !newChecklistTitle.trim()}>
+                  {savingChecklist ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Criar'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setAddingChecklist(false); setNewChecklistTitle(''); }}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={() => setAddingChecklist(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar checklist
+            </Button>
+          )}
+
+          {/* Resumo global */}
+          {totalTasks > 0 && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <CheckSquare className="h-3.5 w-3.5" />
             <span>{doneTasks} de {totalTasks} {totalTasks === 1 ? 'tarefa concluída' : 'tarefas concluídas'}</span>
@@ -218,82 +303,15 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
           );
         })}
 
-        {/* Seção de Tarefas Rankeadas */}
-        {rankedTasks.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
-              Tarefas Rankeadas
+          {checklists.length === 0 && !addingChecklist && (
+            <div className="text-center py-6 text-muted-foreground">
+              <CheckSquare className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Nenhuma tarefa ainda</p>
+              <p className="text-xs mt-1">Crie um checklist para organizar as etapas deste card</p>
             </div>
-            {rankedTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                compact
-                isAdmin={isAdmin}
-                currentUserId={userId}
-                onUpdateStatus={async (id, s: TaskStatus) => {
-                  await updateStatus({ id, status: s, completedBy: userId });
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Botão adicionar tarefas rankeadas */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-          onClick={() => setShowRankedDialog(true)}
-        >
-          <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-          Adicionar Tarefas Rankeadas
-        </Button>
-
-        {/* Adicionar checklist */}
-        {addingChecklist ? (
-          <div className="space-y-2 border rounded-lg p-3">
-            <Input
-              autoFocus
-              value={newChecklistTitle}
-              onChange={(e) => setNewChecklistTitle(e.target.value)}
-              placeholder="Nome do checklist..."
-              className="h-9"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreateChecklist();
-                if (e.key === 'Escape') { setAddingChecklist(false); setNewChecklistTitle(''); }
-              }}
-            />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleCreateChecklist} disabled={savingChecklist || !newChecklistTitle.trim()}>
-                {savingChecklist ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Criar'}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => { setAddingChecklist(false); setNewChecklistTitle(''); }}>
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-2"
-            onClick={() => setAddingChecklist(true)}
-          >
-            <Plus className="h-4 w-4" />
-            Adicionar checklist
-          </Button>
-        )}
-
-        {checklists.length === 0 && !addingChecklist && (
-          <div className="text-center py-6 text-muted-foreground">
-            <CheckSquare className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm">Nenhuma tarefa ainda</p>
-            <p className="text-xs mt-1">Crie um checklist para organizar as etapas deste card</p>
-          </div>
-        )}
-      </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Dialog de tarefas rankeadas */}
       {clientId && (
