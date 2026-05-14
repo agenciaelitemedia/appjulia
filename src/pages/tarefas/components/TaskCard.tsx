@@ -133,6 +133,22 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserI
           </span>
         )}
 
+        {/* Criada em */}
+        {task.created_at && (
+          <span className="inline-flex items-center gap-1" title="Criada em">
+            <Clock className="h-3 w-3" />
+            Criada {format(new Date(task.created_at), "d MMM HH:mm", { locale: ptBR })}
+          </span>
+        )}
+
+        {/* Concluída em */}
+        {task.completed_at && (
+          <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400" title="Concluída em">
+            <CheckCircle className="h-3 w-3" />
+            Concluída {format(new Date(task.completed_at), "d MMM HH:mm", { locale: ptBR })}
+          </span>
+        )}
+
         {/* Link para deal */}
         {task.deal_id && !compact && (
           <span className="inline-flex items-center gap-1 text-primary">
