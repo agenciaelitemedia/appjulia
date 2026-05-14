@@ -70,14 +70,23 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
     }
   };
 
-  const byCategory = activeTemplates.reduce<Record<string, TaskTemplate[]>>((acc, t) => {
+  const filteredTemplates = activeTemplates.filter((t) => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return true;
+    return (
+      t.title.toLowerCase().includes(term) ||
+      (t.category ?? '').toLowerCase().includes(term)
+    );
+  });
+
+  const byCategory = filteredTemplates.reduce<Record<string, TaskTemplate[]>>((acc, t) => {
     const key = t.category ?? 'Sem categoria';
     if (!acc[key]) acc[key] = [];
     acc[key].push(t);
     return acc;
   }, {});
 
-  const totalPoints = activeTemplates
+  const totalPoints = filteredTemplates
     .filter((t) => selectedIds.has(t.id))
     .reduce((s, t) => s + t.points, 0);
 
