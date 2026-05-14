@@ -762,7 +762,7 @@ export default function BoardPage() {
           });
         }}
         boards={allBoards}
-        onMoveToBoard={async (targetBoardId) => {
+        onMoveToBoard={async (targetBoardId, targetPipelineId) => {
           if (!viewingDeal) return null;
           const targetBoard = allBoards.find((b) => b.id === targetBoardId);
           const result = await moveDealToBoard(
@@ -771,6 +771,7 @@ export default function BoardPage() {
             targetBoard?.name,
             board?.name,
             user?.name,
+            targetPipelineId,
           );
           if (result) {
             toast.success(`Card movido para "${targetBoard?.name}"`, {
