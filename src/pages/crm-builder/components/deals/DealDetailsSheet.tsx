@@ -452,46 +452,94 @@ export function DealDetailsSheet({
               {hasOtherBoards && boardsExpanded && (
                 <div className="space-y-1.5 mt-3">
                   <p className="text-xs text-muted-foreground px-1 mb-1">
-                    Escolha o CRM que deseja mover o card.
+                    Escolha o CRM e em seguida a etapa para mover o card.
                   </p>
                   {otherBoards.map((b) => {
                     const stageCount = boardActiveStageCount[b.id];
                     const noStages = stageCount === 0;
+                    const isSelected = selectedTargetBoardId === b.id;
                     const isDisabled = movingToBoard || noStages;
                     return (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => {
-                          if (noStages) {
-                            toast.error(`O CRM "${b.name}" não possui etapas ativas. Crie ao menos uma etapa antes de mover o card.`);
-                            return;
-                          }
-                          setPendingTargetBoardId(b.id);
-                        }}
-                        disabled={isDisabled}
-                        title={noStages ? 'Sem etapas ativas — não é possível mover para este CRM' : undefined}
-                        className={cn(
-                          'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
-                          noStages
-                            ? 'cursor-not-allowed opacity-60 border-dashed'
-                            : 'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
-                          movingToBoard && !noStages && 'opacity-60'
+                      <div key={b.id} className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (noStages) {
+                              toast.error(`O CRM "${b.name}" não possui etapas ativas. Crie ao menos uma etapa antes de mover o card.`);
+                              return;
+                            }
+                            setSelectedTargetBoardId(isSelected ? null : b.id);
+                          }}
+                          disabled={isDisabled}
+                          title={noStages ? 'Sem etapas ativas — não é possível mover para este CRM' : undefined}
+                          className={cn(
+                            'w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left transition-colors',
+                            noStages
+                              ? 'cursor-not-allowed opacity-60 border-dashed'
+                              : 'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
+                            isSelected && !noStages && 'bg-muted/40 border-foreground/20',
+                            movingToBoard && !noStages && 'opacity-60'
+                          )}
+                        >
+                          <span
+                            className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: b.color || '#6b7280' }}
+                          />
+                          <span className="text-sm flex-1 truncate">{b.name}</span>
+                          {loadingBoardStages && stageCount === undefined ? (
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground flex-shrink-0" />
+                          ) : noStages ? (
+                            <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex-shrink-0">
+                              sem etapas
+                            </span>
+                          ) : isSelected ? (
+                            <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          )}
+                        </button>
+
+                        {isSelected && (
+                          <div className="ml-5 pl-3 border-l border-border/60 space-y-1">
+                            <p className="text-[11px] text-muted-foreground px-1 pt-1">
+                              Clique na etapa de destino para confirmar a mudança:
+                            </p>
+                            {loadingTargetStages ? (
+                              <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Carregando etapas...
+                              </div>
+                            ) : targetBoardStages.length === 0 ? (
+                              <p className="px-3 py-2 text-xs text-muted-foreground">
+                                Nenhuma etapa ativa neste CRM.
+                              </p>
+                            ) : (
+                              targetBoardStages.map((s) => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  disabled={movingToBoard}
+                                  onClick={() => {
+                                    setPendingTargetBoardId(b.id);
+                                    setPendingTargetStageId(s.id);
+                                  }}
+                                  className={cn(
+                                    'w-full flex items-center gap-2 px-3 py-1.5 rounded-md border text-left transition-colors',
+                                    'cursor-pointer hover:bg-muted/50 hover:border-foreground/20',
+                                    movingToBoard && 'opacity-60 cursor-not-allowed'
+                                  )}
+                                >
+                                  <span
+                                    className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: s.color || '#6b7280' }}
+                                  />
+                                  <span className="text-sm flex-1 truncate">{s.name}</span>
+                                </button>
+                              ))
+                            )}
+                          </div>
                         )}
-                      >
-                        <span
-                          className="inline-block h-3 w-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: b.color || '#6b7280' }}
-                        />
-                        <span className="text-sm flex-1 truncate">{b.name}</span>
-                        {loadingBoardStages && stageCount === undefined ? (
-                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground flex-shrink-0" />
-                        ) : noStages ? (
-                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex-shrink-0">
-                            sem etapas
-                          </span>
-                        ) : null}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
