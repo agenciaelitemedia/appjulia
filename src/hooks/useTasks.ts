@@ -19,6 +19,8 @@ export interface Task {
   due_date: string | null;
   completed_at: string | null;
   completed_by: string | null;
+  started_at: string | null;
+  cancelled_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
