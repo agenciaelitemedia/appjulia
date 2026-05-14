@@ -233,25 +233,21 @@ export function DealDetailsSheet({
   };
 
   const confirmMoveToBoard = async () => {
-    if (!pendingTargetBoardId || !onMoveToBoard) return;
-    // Revalida no momento da confirmação para pegar mudanças recentes
-    const known = boardActiveStageCount[pendingTargetBoardId];
-    if (known === 0) {
-      toast.error('O CRM de destino não possui etapas ativas. Crie ao menos uma etapa antes de mover.');
-      setPendingTargetBoardId(null);
-      return;
-    }
+    if (!pendingTargetBoardId || !pendingTargetStageId || !onMoveToBoard) return;
     setMovingToBoard(true);
     try {
-      const result = await onMoveToBoard(pendingTargetBoardId);
-      // Só fecha o sheet se a operação foi bem-sucedida (helper retorna null em erro)
+      const result = await onMoveToBoard(pendingTargetBoardId, pendingTargetStageId);
       if (result) {
         setPendingTargetBoardId(null);
+        setPendingTargetStageId(null);
+        setSelectedTargetBoardId(null);
+        setTargetBoardStages([]);
         setBoardsExpanded(false);
         onOpenChange(false);
       } else {
-        // erro já notificado pelo helper; mantém o dialog aberto para retry/cancel
+        // erro notificado pelo helper; fecha apenas o dialog mantendo escolhas
         setPendingTargetBoardId(null);
+        setPendingTargetStageId(null);
       }
     } finally {
       setMovingToBoard(false);
