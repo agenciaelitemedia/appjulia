@@ -161,6 +161,22 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserI
           </span>
         )}
 
+        {/* Iniciada em */}
+        {task.started_at && (
+          <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400" title="Iniciada em">
+            <Play className="h-3 w-3" />
+            Iniciada {format(new Date(task.started_at), "d MMM HH:mm", { locale: ptBR })}
+          </span>
+        )}
+
+        {/* Cancelada em */}
+        {task.cancelled_at && (
+          <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400" title="Cancelada em">
+            <XCircle className="h-3 w-3" />
+            Cancelada {format(new Date(task.cancelled_at), "d MMM HH:mm", { locale: ptBR })}
+          </span>
+        )}
+
         {/* Link para deal */}
         {task.deal_id && !compact && (
           <span className="inline-flex items-center gap-1 text-primary">
