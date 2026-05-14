@@ -41,6 +41,17 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
   const clientId = user?.client_id ? String(user.client_id) : undefined;
   const userId = user?.id ? String(user.id) : undefined;
   const { tasks: rankedTasks, updateStatus } = useTasks({ clientId, dealId });
+  const { deleteTask } = useTasks({ clientId, dealId });
+
+  const STATUS_ORDER: Record<TaskStatus, number> = {
+    pending: 0,
+    in_progress: 1,
+    completed: 2,
+    cancelled: 3,
+  };
+  const sortedRankedTasks = [...rankedTasks].sort(
+    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+  );
 
   const [showRankedDialog, setShowRankedDialog] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
@@ -120,9 +131,9 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
             Adicionar Tarefas Rankeadas
           </Button>
 
-          {rankedTasks.length > 0 ? (
+          {sortedRankedTasks.length > 0 ? (
             <div className="space-y-2">
-              {rankedTasks.map((task) => (
+              {sortedRankedTasks.map((task) => (
                 <TaskCard
                   key={task.id}
                   task={task}
@@ -132,6 +143,7 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
                   onUpdateStatus={async (id, s: TaskStatus) => {
                     await updateStatus({ id, status: s, completedBy: userId });
                   }}
+                  onDelete={isAdmin ? async (id) => { await deleteTask(id); } : undefined}
                 />
               ))}
             </div>
