@@ -5026,6 +5026,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_required: boolean
           position: number
           status: string
           task_id: string
@@ -5042,6 +5043,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_required?: boolean
           position?: number
           status?: string
           task_id: string
@@ -5058,6 +5060,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_required?: boolean
           position?: number
           status?: string
           task_id?: string
@@ -5132,6 +5135,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_required: boolean
           position: number
           template_id: string
           title: string
@@ -5142,6 +5146,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_required?: boolean
           position?: number
           template_id: string
           title: string
@@ -5152,6 +5157,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_required?: boolean
           position?: number
           template_id?: string
           title?: string
