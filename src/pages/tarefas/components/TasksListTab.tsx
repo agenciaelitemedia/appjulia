@@ -43,8 +43,8 @@ export function TasksListTab() {
   });
 
   const STATUS_ORDER: Record<TaskStatus, number> = {
-    pending: 0,
-    in_progress: 1,
+    in_progress: 0,
+    pending: 1,
     completed: 2,
     cancelled: 3,
   };
