@@ -162,31 +162,21 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
       )}
 
       <div className="flex items-center flex-wrap gap-2 text-xs text-muted-foreground">
+        {/* Total de itens */}
+        {hasItemsLoaded && (
+          <span className="font-medium">{doneItems}/{totalItems}</span>
+        )}
+
         {/* Status */}
         <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium', STATUS_COLORS[task.status])}>
           {STATUS_LABELS[task.status]}
         </span>
 
-        {/* Responsável */}
-        {task.assigned_name && (
-          <span className="inline-flex items-center gap-1">
-            <User className="h-3 w-3" />
-            {task.assigned_name}
-          </span>
-        )}
-
-        {/* Categoria */}
-        {task.category && (
-          <span className="inline-flex items-center gap-1">
-            {task.category}
-          </span>
-        )}
-
-        {/* Data limite */}
-        {task.due_date && (
-          <span className="inline-flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            {format(new Date(task.due_date), "d MMM", { locale: ptBR })}
+        {/* Iniciada em */}
+        {task.started_at && (
+          <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400" title="Iniciada em">
+            <Play className="h-3 w-3" />
+            {format(new Date(task.started_at), "d MMM HH:mm", { locale: ptBR })}
           </span>
         )}
 
@@ -194,15 +184,7 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
         {task.completed_at && (
           <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400" title="Concluída em">
             <CheckCircle className="h-3 w-3" />
-            Concluída {format(new Date(task.completed_at), "d MMM HH:mm", { locale: ptBR })}
-          </span>
-        )}
-
-        {/* Iniciada em */}
-        {task.started_at && (
-          <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400" title="Iniciada em">
-            <Play className="h-3 w-3" />
-            Iniciada {format(new Date(task.started_at), "d MMM HH:mm", { locale: ptBR })}
+            {format(new Date(task.completed_at), "d MMM HH:mm", { locale: ptBR })}
           </span>
         )}
 
@@ -210,21 +192,7 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
         {task.cancelled_at && (
           <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400" title="Cancelada em">
             <XCircle className="h-3 w-3" />
-            Cancelada {format(new Date(task.cancelled_at), "d MMM HH:mm", { locale: ptBR })}
-          </span>
-        )}
-
-        {/* Link para deal */}
-        {task.deal_id && !compact && (
-          <span className="inline-flex items-center gap-1 text-primary">
-            <ExternalLink className="h-3 w-3" /> Card vinculado
-          </span>
-        )}
-
-        {/* Progresso de itens */}
-        {expanded && hasItemsLoaded && (
-          <span className="inline-flex items-center gap-1 text-xs">
-            {doneItems}/{totalItems} itens
+            {format(new Date(task.cancelled_at), "d MMM HH:mm", { locale: ptBR })}
           </span>
         )}
       </div>
