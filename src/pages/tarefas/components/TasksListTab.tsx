@@ -21,6 +21,8 @@ export function TasksListTab() {
   const { user, isAdmin } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : undefined;
   const userId = user?.id ? String(user.id) : undefined;
+  const role = user?.role ?? '';
+  const canManage = isAdmin || ['user', 'colaborador'].includes(role);
 
   const [viewAll, setViewAll] = useState(false);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
@@ -109,11 +111,12 @@ export function TasksListTab() {
               key={task.id}
               task={task}
               isAdmin={isAdmin}
+              canManage={canManage}
               currentUserId={userId}
               onUpdateStatus={async (id, s) => {
                 await updateStatus({ id, status: s, completedBy: userId });
               }}
-              onDelete={isAdmin ? async (id) => { await deleteTask(id); } : undefined}
+              onDelete={canManage ? async (id) => { await deleteTask(id); } : undefined}
             />
           ))}
         </div>
