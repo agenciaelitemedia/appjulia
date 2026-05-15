@@ -25,6 +25,7 @@ export interface Task {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  items_count?: number;
 }
 
 interface UseTasksOptions {
@@ -50,7 +51,10 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
     enabled: !!clientId,
     staleTime: 30_000,
     queryFn: async () => {
-      let q = supabase.from('tasks').select('*').eq('client_id', clientId!);
+      let q = supabase
+        .from('tasks')
+        .select('*, task_items(count)')
+        .eq('client_id', clientId!);
       if (dealId) q = q.eq('deal_id', dealId);
       if (assignedTo) q = q.eq('assigned_to', assignedTo);
       if (status) {
@@ -60,7 +64,12 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
       q = q.order('created_at', { ascending: false });
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as Task[];
+      return (data ?? []).map((row: any) => ({
+        ...row,
+        items_count: Array.isArray(row.task_items) && row.task_items[0]?.count != null
+          ? Number(row.task_items[0].count)
+          : 0,
+      })) as Task[];
     },
   });
 

@@ -49,9 +49,9 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
     completed: 2,
     cancelled: 3,
   };
-  const sortedRankedTasks = [...rankedTasks].sort(
-    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
-  );
+  const sortedRankedTasks = [...rankedTasks]
+    .filter((t) => (t.items_count ?? 0) > 0)
+    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
   const [showRankedDialog, setShowRankedDialog] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
@@ -150,8 +150,8 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
           ) : (
             <div className="text-center py-6 text-muted-foreground">
               <Star className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Nenhuma tarefa rankeada</p>
-              <p className="text-xs mt-1">Adicione tarefas pontuadas para esse card</p>
+              <p className="text-sm">Nenhuma tarefa rankeada com itens</p>
+              <p className="text-xs mt-1">Adicione tarefas pontuadas com itens cadastrados para esse card</p>
             </div>
           )}
         </TabsContent>
