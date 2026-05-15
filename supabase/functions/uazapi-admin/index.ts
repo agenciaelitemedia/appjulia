@@ -205,20 +205,56 @@ serve(async (req) => {
         }
 
         console.log('Deleting instance:', instanceName);
-        
-        // Delete instance from UaZapi using the correct endpoint
-        const deleteResponse = await fetch(`${UAZAPI_BASE_URL}/instance`, {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            'token': instanceToken || UAZAPI_ADMIN_TOKEN,
-          },
-        });
 
-        if (!deleteResponse.ok) {
-          const errorText = await deleteResponse.text();
-          console.error('UaZapi delete instance error:', errorText);
-          throw new Error(`Failed to delete instance: ${errorText}`);
+        // Helper que tenta deletar passando admintoken + token (alguns endpoints exigem ambos)
+        const tryDelete = async (tok: string | undefined) => {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'admintoken': UAZAPI_ADMIN_TOKEN,
+          };
+          if (tok) headers['token'] = tok;
+          const r = await fetch(`${UAZAPI_BASE_URL}/instance`, { method: 'DELETE', headers });
+          const txt = await r.text();
+          return { ok: r.ok, status: r.status, body: txt };
+        };
+
+        // 1ª tentativa com o token recebido (pode estar nulo/inválido)
+        let result = await tryDelete(instanceToken);
+
+        // Se 401 ou sem token, busca o token real via admin e tenta novamente
+        if (!result.ok && (result.status === 401 || !instanceToken)) {
+          console.warn('Delete falhou/sem token, buscando token via admin...', result.status, result.body);
+          try {
+            const listResp = await fetch(`${UAZAPI_BASE_URL}/instance/all`, {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json', 'admintoken': UAZAPI_ADMIN_TOKEN },
+            });
+            if (listResp.ok) {
+              const list = await listResp.json();
+              const arr = Array.isArray(list) ? list : (list?.instances ?? []);
+              const match = arr.find((i: any) =>
+                (i?.name === instanceName) || (i?.instance === instanceName) || (i?.instanceName === instanceName)
+              );
+              const realToken = match?.token;
+              if (realToken && realToken !== instanceToken) {
+                console.log('Token real encontrado via admin, retentando delete');
+                result = await tryDelete(realToken);
+              } else if (!match) {
+                // Instância não existe mais no servidor → tratar como sucesso para liberar a limpeza no DB
+                console.log('Instância não encontrada no UaZapi — considerando já excluída');
+                result = { ok: true, status: 200, body: 'not_found_treated_as_deleted' };
+              }
+            } else {
+              console.error('Falha ao listar instâncias admin:', listResp.status, await listResp.text());
+            }
+          } catch (e) {
+            console.error('Erro ao buscar token via admin:', e);
+          }
+        }
+
+        if (!result.ok) {
+          console.error('UaZapi delete instance error:', result.body);
+          throw new Error(`Failed to delete instance: ${result.body}`);
         }
 
         // Clear credentials from database if agentId provided
