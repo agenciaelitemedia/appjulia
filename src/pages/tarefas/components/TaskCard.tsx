@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Star, Clock, User, Play, CheckCircle, XCircle, Loader2, MoreHorizontal, ExternalLink, ChevronDown, ChevronUp, CalendarClock } from 'lucide-react';
+import { Star, Clock, User, Play, CheckCircle, XCircle, Loader2, MoreHorizontal, ExternalLink, ChevronDown, ChevronUp, CalendarClock, Kanban } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +70,22 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
     ? items.filter((i) => i.status === 'completed' || i.status === 'cancelled').length
     : ((task.items_done_count ?? 0) + (task.items_cancelled_count ?? 0));
   const hasItems = totalItems > 0;
+
+  // Link para o card do CRM, se vinculado
+  const { data: dealLink } = useQuery({
+    queryKey: ['task-deal-link', task.deal_id],
+    enabled: !!task.deal_id,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('crm_deals')
+        .select('id, board_id, title')
+        .eq('id', task.deal_id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; board_id: string; title: string } | null;
+    },
+  });
 
   // Badge de prazo
   const dueBadge = (() => {
@@ -236,6 +255,18 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
             <XCircle className="h-3 w-3" />
             {format(new Date(task.cancelled_at), "d MMM HH:mm", { locale: ptBR })}
           </span>
+        )}
+
+        {/* Link para o card do CRM */}
+        {dealLink?.board_id && (
+          <Link
+            to={`/crm-builder/${dealLink.board_id}?deal=${dealLink.id}`}
+            className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 transition-colors"
+            title={`Abrir card no CRM${dealLink.title ? `: ${dealLink.title}` : ''}`}
+          >
+            <Kanban className="h-3 w-3" />
+            <ExternalLink className="h-3 w-3" />
+          </Link>
         )}
       </div>
 
