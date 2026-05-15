@@ -23,8 +23,8 @@ function isUserActive(): boolean {
  * can show real online status even when the websocket suspends/reconnects.
  *
  * Online = aba visível **e** interação do usuário nos últimos 5 min.
- * Quando o usuário fica inativo, paramos de pingar e o servidor passa a marcar
- * como "ausente" e depois "offline" automaticamente (via view user_presence_status).
+ * Ausente = sem heartbeat entre 5 min e 30 min.
+ * Offline = sem heartbeat por mais de 30 min.
  */
 export function useHeartbeat() {
   const { user } = useAuth();
@@ -57,7 +57,7 @@ export function useHeartbeat() {
       }
     };
 
-    // Limpeza explícita ao fechar/navegar — evita "online fantasma" por até 60s.
+    // Limpeza explícita ao fechar/navegar — evita "online fantasma" por até 5 min.
     const clearViaBeacon = () => {
       try {
         const url = `${(import.meta as any).env?.VITE_SUPABASE_URL || ''}/rest/v1/rpc/clear_user_presence`;
