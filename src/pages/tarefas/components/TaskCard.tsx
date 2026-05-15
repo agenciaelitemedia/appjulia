@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Star, Clock, User, Play, CheckCircle, XCircle, Loader2, MoreHorizontal, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { Star, Clock, User, Play, CheckCircle, XCircle, Loader2, MoreHorizontal, ExternalLink, ChevronDown, ChevronUp, CalendarClock } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +67,35 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
     ? items.filter((i) => i.status === 'completed' || i.status === 'cancelled').length
     : ((task.items_done_count ?? 0) + (task.items_cancelled_count ?? 0));
   const hasItems = totalItems > 0;
+
+  // Badge de prazo
+  const dueBadge = (() => {
+    if (!task.due_date) return null;
+    if (task.status === 'completed' || task.status === 'cancelled') return null;
+    const due = new Date(task.due_date);
+    if (isNaN(due.getTime())) return null;
+    const today = new Date();
+    const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    let cls = 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-300';
+    let label = 'No prazo';
+    if (dueDay < todayDay) {
+      cls = 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300';
+      label = 'Atrasada';
+    } else if (dueDay === todayDay) {
+      cls = 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300';
+      label = 'Vence hoje';
+    }
+    return (
+      <span
+        className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium border', cls)}
+        title={label}
+      >
+        <CalendarClock className="h-3 w-3" />
+        {format(due, "d MMM", { locale: ptBR })}
+      </span>
+    );
+  })();
 
   const handleStatus = async (s: TaskStatus) => {
     setLoading(true);
@@ -177,6 +206,9 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
         <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium', STATUS_COLORS[task.status])}>
           {STATUS_LABELS[task.status]}
         </span>
+
+        {/* Prazo */}
+        {dueBadge}
 
         {/* Iniciada em */}
         {task.started_at && (
