@@ -22,13 +22,13 @@ export function useTeamLastActivity(userIds: number[]) {
     enabled: ids.length > 0,
     staleTime: 30_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('user_last_activity' as any)
+      const { data, error } = await (supabase as any)
+        .from('user_last_activity')
         .select('*')
         .in('user_id', ids);
       if (error) throw error;
       const map: Record<number, UserLastActivity> = {};
-      for (const row of (data ?? []) as UserLastActivity[]) {
+      for (const row of ((data ?? []) as unknown as UserLastActivity[])) {
         map[Number(row.user_id)] = row;
       }
       return map;
