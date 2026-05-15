@@ -3,13 +3,18 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
-export type PresenceMap = Record<number, string>; // user_id -> last_seen_at ISO
-
-const ONLINE_WINDOW_MS = 75_000;
+export interface PresenceEntry {
+  last_seen_at: string;
+  is_online: boolean;
+  is_away: boolean;
+  seconds_since_seen: number;
+}
+export type PresenceMap = Record<number, PresenceEntry>;
 
 /**
- * Reads the heartbeat-based last_seen_at for every user in the same client.
- * Combines DB realtime + a 30s tick so the "ativo há X" label keeps aging.
+ * Reads the server-computed presence status (online/away/offline) for every
+ * user in the same client. The server (`user_presence_status` view) decides
+ * status based on `now() - last_seen_at`, removing client clock-skew bugs.
  */
 export function useTeamHeartbeat() {
   const { user } = useAuth();
@@ -22,17 +27,24 @@ export function useTeamHeartbeat() {
     enabled: clientId != null,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('user_presence')
-        .select('user_id,last_seen_at')
+        .from('user_presence_status' as any)
+        .select('user_id,last_seen_at,is_online,is_away,seconds_since_seen')
         .eq('client_id', clientId as number);
       if (error) throw error;
       const map: PresenceMap = {};
       for (const row of data || []) {
-        map[Number((row as any).user_id)] = (row as any).last_seen_at;
+        const r = row as any;
+        map[Number(r.user_id)] = {
+          last_seen_at: r.last_seen_at,
+          is_online: !!r.is_online,
+          is_away: !!r.is_away,
+          seconds_since_seen: Number(r.seconds_since_seen) || 0,
+        };
       }
       return map;
     },
-    staleTime: 15_000,
+    staleTime: 10_000,
+    refetchInterval: 30_000, // re-pesquisa o status calculado pelo servidor
     refetchOnWindowFocus: true,
   });
 
@@ -51,18 +63,16 @@ export function useTeamHeartbeat() {
     return () => { void supabase.removeChannel(channel); };
   }, [clientId, qc]);
 
-  // Tick every 30s to refresh "ativo há X min" labels and re-evaluate online window
+  // Tick a cada 30s para envelhecer o rótulo "ativo há X" no UI.
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(t);
   }, []);
 
   const presence = query.data || {};
-  const isFresh = (uid: number) => {
-    const ts = presence[Number(uid)];
-    if (!ts) return false;
-    return Date.now() - new Date(ts).getTime() < ONLINE_WINDOW_MS;
-  };
+  const isOnline = (uid: number) => !!presence[Number(uid)]?.is_online;
+  const isAway   = (uid: number) => !!presence[Number(uid)]?.is_away;
+  const lastSeen = (uid: number) => presence[Number(uid)]?.last_seen_at ?? null;
 
-  return { presence, isFresh };
+  return { presence, isOnline, isAway, lastSeen };
 }
