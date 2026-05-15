@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -53,6 +53,7 @@ import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation'
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const codAgent = user?.cod_agent?.toString() || '';
   const clientId = user?.client_id ? String(user.client_id) : '';
@@ -121,6 +122,16 @@ export default function BoardPage() {
       setViewingDeal(fresh);
     }
   }, [deals, viewingDeal]);
+
+  // Deep-link: abrir card via ?deal=<id>
+  useEffect(() => {
+    const dealParam = searchParams.get('deal');
+    if (!dealParam || deals.length === 0) return;
+    if (viewingDeal?.id === dealParam) return;
+    const target = deals.find((d) => d.id === dealParam);
+    if (target) setViewingDeal(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, deals]);
 
   // DnD state
   const [activeDeal, setActiveDeal] = useState<CRMDeal | null>(null);
