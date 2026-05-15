@@ -3,6 +3,9 @@ import { useTeamMembers } from '../hooks/useEquipeData';
 import { useTeamPresence } from '@/hooks/useTeamPresence';
 import { useTeamLastActivity } from '@/hooks/useTeamLastActivity';
 import { useTeamDashboardMetrics } from '@/hooks/useTeamDashboardMetrics';
+import { useTeamWeeklyActivity } from '@/hooks/useTeamWeeklyActivity';
+import { TeamOnlineTimeChart } from './TeamOnlineTimeChart';
+import { TeamPresenceHeatmap } from './TeamPresenceHeatmap';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +57,7 @@ export function EquipeDashboardTab() {
   const { onlineIds } = useTeamPresence();
   const { data: activity = {} } = useTeamLastActivity(userIds);
   const { data: metrics = {} } = useTeamDashboardMetrics(memberRefs);
+  const { data: weekly, isLoading: weeklyLoading } = useTeamWeeklyActivity(userIds);
 
   const sorted = useMemo(() => {
     return [...allRows].sort((a, b) => {
@@ -80,9 +84,23 @@ export function EquipeDashboardTab() {
         {/* Totais agregados */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <SummaryCard icon={Users} label="Online" value={`${totals.online} / ${totals.total}`} accent="text-emerald-600" />
-          <SummaryCard icon={MessageSquare} label="Chats abertos" value={totals.chats} accent="text-blue-600" />
-          <SummaryCard icon={KanbanSquare} label="Cards CRM" value={totals.deals} accent="text-violet-600" />
+          <SummaryCard icon={MessageSquare} label="Chats Atribuídos" value={totals.chats} accent="text-blue-600" />
+          <SummaryCard icon={KanbanSquare} label="CRM Atribuídos" value={totals.deals} accent="text-violet-600" />
           <SummaryCard icon={ListChecks} label="Tarefas abertas" value={totals.tasks} accent="text-amber-600" />
+        </div>
+
+        {/* Gráficos semanais */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <TeamOnlineTimeChart
+            members={memberRefs}
+            onlineSecondsByUser={weekly?.onlineSecondsByUser ?? {}}
+            isLoading={weeklyLoading}
+          />
+          <TeamPresenceHeatmap
+            matrix={weekly?.heatmap ?? Array.from({ length: 7 }, () => Array(24).fill(0))}
+            users={weekly?.heatmapUsers ?? Array.from({ length: 7 }, () => Array(24).fill(0))}
+            isLoading={weeklyLoading}
+          />
         </div>
 
         {/* Tabela */}
