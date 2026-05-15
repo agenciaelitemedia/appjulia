@@ -26,6 +26,8 @@ export interface Task {
   created_at: string;
   updated_at: string;
   items_count?: number;
+  items_done_count?: number;
+  items_cancelled_count?: number;
 }
 
 interface UseTasksOptions {
@@ -53,7 +55,7 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
     queryFn: async () => {
       let q = supabase
         .from('tasks')
-        .select('*, task_items(count)')
+        .select('*, task_items(status)')
         .eq('client_id', clientId!);
       if (dealId) q = q.eq('deal_id', dealId);
       if (assignedTo) q = q.eq('assigned_to', assignedTo);
@@ -64,12 +66,15 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
       q = q.order('created_at', { ascending: false });
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []).map((row: any) => ({
-        ...row,
-        items_count: Array.isArray(row.task_items) && row.task_items[0]?.count != null
-          ? Number(row.task_items[0].count)
-          : 0,
-      })) as Task[];
+      return (data ?? []).map((row: any) => {
+        const items: Array<{ status: string }> = Array.isArray(row.task_items) ? row.task_items : [];
+        return {
+          ...row,
+          items_count: items.length,
+          items_done_count: items.filter((i) => i.status === 'completed').length,
+          items_cancelled_count: items.filter((i) => i.status === 'cancelled').length,
+        };
+      }) as Task[];
     },
   });
 

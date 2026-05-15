@@ -63,8 +63,8 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
   const { items } = useTaskItems(expanded ? task.id : undefined, task.client_id);
   const totalItems = expanded ? items.length : (task.items_count ?? 0);
   const doneItems = expanded
-    ? items.filter((i) => i.status === 'completed').length
-    : 0;
+    ? items.filter((i) => i.status === 'completed' || i.status === 'cancelled').length
+    : ((task.items_done_count ?? 0) + (task.items_cancelled_count ?? 0));
   const hasItems = totalItems > 0;
 
   const handleStatus = async (s: TaskStatus) => {
