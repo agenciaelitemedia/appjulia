@@ -13,7 +13,7 @@ interface Props {
 }
 
 export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, currentUserId }: Props) {
-  const { items, isLoading, completeItem, cancelItem, reopenItem, removeItem } = useTaskItems(taskId, clientId);
+  const { items, isLoading, completeItem, cancelItem, reopenItem } = useTaskItems(taskId, clientId);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   if (isLoading) {
