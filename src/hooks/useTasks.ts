@@ -179,6 +179,7 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
             title: it.title,
             description: it.description,
             position: it.position,
+            is_required: (it as any).is_required ?? false,
             status: 'pending',
           });
         }
