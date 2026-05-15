@@ -6029,8 +6029,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_presence_status: {
+        Row: {
+          client_id: number | null
+          is_away: boolean | null
+          is_online: boolean | null
+          last_seen_at: string | null
+          seconds_since_seen: number | null
+          user_id: number | null
+        }
+        Insert: {
+          client_id?: number | null
+          is_away?: never
+          is_online?: never
+          last_seen_at?: string | null
+          seconds_since_seen?: never
+          user_id?: number | null
+        }
+        Update: {
+          client_id?: number | null
+          is_away?: never
+          is_online?: never
+          last_seen_at?: string | null
+          seconds_since_seen?: never
+          user_id?: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
       get_db_cache_hit_ratio: {
         Args: never
         Returns: {
@@ -6099,6 +6127,10 @@ export type Database = {
       map_priority_crm_to_chat: { Args: { p: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      touch_user_presence: {
+        Args: { p_client_id: number; p_user_id: number }
+        Returns: string
+      }
       uazapi_pick_pending_items: {
         Args: { p_limit?: number; p_worker_id: number }
         Returns: {
