@@ -6,7 +6,8 @@ import { TasksConfigTab } from './components/TasksConfigTab';
 import { LayoutDashboard, ListChecks, Settings } from 'lucide-react';
 
 export default function TasksPage() {
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
+  const isOwner = !!user && !['time', 'comercial', 'advogado'].includes(user.role);
 
   return (
     <div className="flex flex-col h-full">
@@ -33,7 +34,7 @@ export default function TasksPage() {
               >
                 <ListChecks className="h-4 w-4" /> Tarefas
               </TabsTrigger>
-              {isAdmin && (
+              {isOwner && (
                 <TabsTrigger
                   value="config"
                   className="h-10 px-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent gap-2"
@@ -51,7 +52,7 @@ export default function TasksPage() {
             <TabsContent value="tasks" className="m-0 mt-0">
               <TasksListTab />
             </TabsContent>
-            {isAdmin && (
+            {isOwner && (
               <TabsContent value="config" className="m-0 mt-0">
                 <TasksConfigTab />
               </TabsContent>
