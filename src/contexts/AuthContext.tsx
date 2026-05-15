@@ -4,6 +4,15 @@ import type { UserPermission, PermissionMap, ModuleCode, AppRole } from '@/types
 import { createPermissionMap } from '@/types/permissions';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { logUserActivity } from '@/lib/userActivityLog';
+import { supabase } from '@/integrations/supabase/client';
+
+/** Remove a presença do usuário no painel da equipe imediatamente. */
+function clearPresence(userId: number | null | undefined) {
+  if (!userId) return;
+  try {
+    void (supabase as any).rpc('clear_user_presence', { p_user_id: Number(userId) });
+  } catch { /* ignore */ }
+}
 
 declare const __APP_VERSION__: string;
 
