@@ -108,8 +108,8 @@ function TagRow({ tag, onSaved, onDeleted }: { tag: ChatTag; onSaved: () => void
 
 export function TagsManagerContent() {
   const { tags, createTag } = useWhatsAppData();
-  const { user, isAdmin } = useAuth();
-  const canManage = isAdmin || user?.role === 'user';
+  const { user } = useAuth();
+  const canManage = !!user && !['time', 'comercial', 'advogado'].includes(user.role);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#3b82f6');
   const [creating, setCreating] = useState(false);
@@ -173,8 +173,8 @@ export function TagsManagerContent() {
 }
 
 export function TagsManagerDialog({ open, onOpenChange }: TagsManagerDialogProps) {
-  const { user, isAdmin } = useAuth();
-  const canManage = isAdmin || user?.role === 'user';
+  const { user } = useAuth();
+  const canManage = !!user && !['time', 'comercial', 'advogado'].includes(user.role);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
