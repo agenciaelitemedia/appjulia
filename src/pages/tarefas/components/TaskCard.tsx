@@ -138,6 +138,29 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
         </div>
       </div>
 
+      {expanded && (
+        <div className="space-y-2">
+          {canAct && task.status === 'pending' && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5 w-full text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              disabled={loading}
+              onClick={() => handleStatus('in_progress')}
+            >
+              <Play className="h-3 w-3" /> Iniciar tarefa
+            </Button>
+          )}
+          <TaskItemsPanel
+            taskId={task.id}
+            clientId={task.client_id}
+            taskStatus={task.status}
+            canManage={canManageItems}
+            currentUserId={currentUserId}
+          />
+        </div>
+      )}
+
       <div className="flex items-center flex-wrap gap-2 text-xs text-muted-foreground">
         {/* Status */}
         <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium', STATUS_COLORS[task.status])}>
@@ -164,14 +187,6 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3 w-3" />
             {format(new Date(task.due_date), "d MMM", { locale: ptBR })}
-          </span>
-        )}
-
-        {/* Criada em */}
-        {task.created_at && (
-          <span className="inline-flex items-center gap-1" title="Criada em">
-            <Clock className="h-3 w-3" />
-            Criada {format(new Date(task.created_at), "d MMM HH:mm", { locale: ptBR })}
           </span>
         )}
 
@@ -213,30 +228,6 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
           </span>
         )}
       </div>
-
-      {/* Ações da tarefa */}
-      {expanded && (
-        <div className="space-y-2">
-          {canAct && task.status === 'pending' && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1.5 w-full text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-              disabled={loading}
-              onClick={() => handleStatus('in_progress')}
-            >
-              <Play className="h-3 w-3" /> Iniciar tarefa
-            </Button>
-          )}
-          <TaskItemsPanel
-            taskId={task.id}
-            clientId={task.client_id}
-            taskStatus={task.status}
-            canManage={canManageItems}
-            currentUserId={currentUserId}
-          />
-        </div>
-      )}
 
       {/* Confirmação de exclusão */}
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
