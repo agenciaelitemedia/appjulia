@@ -3,11 +3,12 @@ import { externalDb } from '@/lib/externalDb';
 import type { UserPermission, PermissionMap, ModuleCode, AppRole } from '@/types/permissions';
 import { createPermissionMap } from '@/types/permissions';
 import { STORAGE_KEYS } from '@/lib/constants';
+import { logUserActivity } from '@/lib/userActivityLog';
 
 declare const __APP_VERSION__: string;
 
-// 1h de inatividade → logout automático
-const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000;
+// 30min de inatividade → logout automático
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 // Throttle para escrita de "última atividade" no localStorage
 const ACTIVITY_WRITE_THROTTLE_MS = 5_000;
 // Frequência da checagem de inatividade
@@ -169,6 +170,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const lastActivity = lastActivityRaw ? Number(lastActivityRaw) : 0;
         const expired = !lastActivity || (Date.now() - lastActivity > INACTIVITY_TIMEOUT_MS);
         if (expired) {
+          // Registra logout por inatividade ao restaurar sessão expirada
+          try {
+            const parsed = JSON.parse(storedUser);
+            if (parsed?.id) {
+              await logUserActivity({
+                userId: Number(parsed.id),
+                userName: parsed.name,
+                clientId: parsed.client_id ?? null,
+                eventType: 'logout_inactivity',
+              });
+            }
+          } catch { /* ignore */ }
           localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
           localStorage.removeItem(STORAGE_KEYS.AUTH_PERMISSIONS);
           localStorage.removeItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
@@ -241,6 +254,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(STORAGE_KEYS.AUTH_LAST_ACTIVITY);
       const last = raw ? Number(raw) : 0;
       if (!last || Date.now() - last > INACTIVITY_TIMEOUT_MS) {
+        // Registra logout por inatividade
+        if (user?.id) {
+          logUserActivity({
+            userId: Number(user.id),
+            userName: user.name,
+            clientId: user.client_id ?? null,
+            eventType: 'logout_inactivity',
+          });
+        }
         setUser(null);
         setPermissions(null);
         localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
@@ -295,6 +317,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Load permissions after login
       await loadPermissions(authenticatedUser.id);
 
+      // Registra evento de login
+      logUserActivity({
+        userId: Number(authenticatedUser.id),
+        userName: authenticatedUser.name,
+        clientId: authenticatedUser.client_id ?? null,
+        eventType: 'login',
+      });
+
       // Checa nova versão a cada login — se houver, força reload
       await checkVersionAndReloadIfNeeded();
 
@@ -308,6 +338,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // Registra logout manual antes de limpar o estado
+    if (user?.id) {
+      logUserActivity({
+        userId: Number(user.id),
+        userName: user.name,
+        clientId: user.client_id ?? null,
+        eventType: 'logout_manual',
+      });
+    }
     setUser(null);
     setPermissions(null);
     localStorage.removeItem(STORAGE_KEYS.AUTH_USER);

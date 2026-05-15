@@ -5467,6 +5467,39 @@ export type Database = {
         }
         Relationships: []
       }
+      user_activity_log: {
+        Row: {
+          client_id: number | null
+          created_at: string
+          event_type: string
+          id: string
+          occurred_at: string
+          user_agent: string | null
+          user_id: number
+          user_name: string | null
+        }
+        Insert: {
+          client_id?: number | null
+          created_at?: string
+          event_type: string
+          id?: string
+          occurred_at?: string
+          user_agent?: string | null
+          user_id: number
+          user_name?: string | null
+        }
+        Update: {
+          client_id?: number | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          user_agent?: string | null
+          user_id?: number
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       vellip_call_logs: {
         Row: {
           cd_called_status: string | null
@@ -5963,6 +5996,15 @@ export type Database = {
           client_name: string | null
           oldest_pending_at: string | null
           pending_count: number | null
+        }
+        Relationships: []
+      }
+      user_last_activity: {
+        Row: {
+          last_login_at: string | null
+          last_logout_at: string | null
+          last_logout_type: string | null
+          user_id: number | null
         }
         Relationships: []
       }

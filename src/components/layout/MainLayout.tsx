@@ -12,6 +12,7 @@ import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { AgentBlockedScreen } from './AgentBlockedScreen';
 import { DisconnectedAgentsAlert } from './DisconnectedAgentsAlert';
 import { DisconnectedQueuesAlert } from './DisconnectedQueuesAlert';
+import { useGlobalPresence } from '@/hooks/useGlobalPresence';
 
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
@@ -50,6 +51,9 @@ export function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
   const { data: agentsData, isLoading: agentsLoading } = useMyAgents();
+
+  // Anuncia presença global para o dashboard de equipe
+  useGlobalPresence();
 
   if (isLoading) {
     return (
