@@ -3,6 +3,16 @@ import { useTaskItems } from '@/hooks/useTaskItems';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, RotateCcw, Loader2, Lock, LockOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Props {
   taskId: string;
@@ -15,6 +25,7 @@ interface Props {
 export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, currentUserId }: Props) {
   const { items, isLoading, completeItem, cancelItem, reopenItem } = useTaskItems(taskId, clientId);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmCancelItem, setConfirmCancelItem] = useState<{ id: string; title: string } | null>(null);
 
   if (isLoading) {
     return <div className="text-xs text-muted-foreground py-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> carregando itens...</div>;
@@ -69,7 +80,7 @@ export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, curren
                 <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 hover:text-red-600"
                   title={it.is_required ? 'Item obrigatório não pode ser cancelado' : 'Cancelar item'}
                   disabled={it.is_required}
-                  onClick={() => wrap(it.id, () => cancelItem({ id: it.id, userId: currentUserId }))}>
+                  onClick={() => setConfirmCancelItem({ id: it.id, title: it.title })}>
                   <XCircle className="h-3.5 w-3.5" />
                 </Button>
               </>
@@ -85,6 +96,31 @@ export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, curren
           </div>
         </div>
       ))}
+
+      <AlertDialog open={!!confirmCancelItem} onOpenChange={(o) => !o && setConfirmCancelItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O item <strong>"{confirmCancelItem?.title}"</strong> será marcado como cancelado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                const target = confirmCancelItem;
+                if (!target) return;
+                setConfirmCancelItem(null);
+                await wrap(target.id, () => cancelItem({ id: target.id, userId: currentUserId }));
+              }}
+            >
+              Cancelar item
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
