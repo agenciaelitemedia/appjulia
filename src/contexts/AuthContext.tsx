@@ -189,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 clientId: parsed.client_id ?? null,
                 eventType: 'logout_inactivity',
               });
+              clearPresence(parsed.id);
             }
           } catch { /* ignore */ }
           localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
@@ -271,6 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clientId: user.client_id ?? null,
             eventType: 'logout_inactivity',
           });
+          clearPresence(user.id);
         }
         setUser(null);
         setPermissions(null);
@@ -355,6 +357,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clientId: user.client_id ?? null,
         eventType: 'logout_manual',
       });
+      clearPresence(user.id);
     }
     setUser(null);
     setPermissions(null);
