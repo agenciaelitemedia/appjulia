@@ -61,9 +61,11 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
 
   // contador de itens (lightweight; o painel ainda gerencia internamente)
   const { items } = useTaskItems(expanded ? task.id : undefined, task.client_id);
-  const hasItemsLoaded = items.length > 0;
-  const totalItems = items.length;
-  const doneItems = items.filter((i) => i.status === 'completed').length;
+  const totalItems = expanded ? items.length : (task.items_count ?? 0);
+  const doneItems = expanded
+    ? items.filter((i) => i.status === 'completed').length
+    : 0;
+  const hasItems = totalItems > 0;
 
   const handleStatus = async (s: TaskStatus) => {
     setLoading(true);
@@ -163,7 +165,7 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
 
       <div className="flex items-center flex-wrap gap-2 text-xs text-muted-foreground">
         {/* Total de itens */}
-        {hasItemsLoaded && (
+        {hasItems && (
           <span className="font-medium">{doneItems}/{totalItems}</span>
         )}
 
