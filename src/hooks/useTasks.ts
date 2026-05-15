@@ -117,6 +117,14 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
         .in('id', templateIds);
       if (tErr) throw tErr;
 
+      // Buscar itens dos templates
+      const { data: tplItems, error: iErr } = await supabase
+        .from('task_template_items')
+        .select('*')
+        .in('template_id', templateIds)
+        .order('position');
+      if (iErr) throw iErr;
+
       const rows = (tpls ?? []).map((tpl) => ({
         client_id: clientId,
         template_id: tpl.id,
@@ -125,6 +133,7 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
         description: tpl.description,
         points: tpl.points,
         category: tpl.category,
+        category_id: (tpl as any).category_id ?? null,
         assigned_to: aTo,
         assigned_name: assignedName,
         status: 'pending' as TaskStatus,
@@ -133,6 +142,29 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
 
       const { data, error } = await supabase.from('tasks').insert(rows).select();
       if (error) throw error;
+
+      // Clonar itens para cada tarefa criada
+      const created = (data ?? []) as Task[];
+      const itemRows: any[] = [];
+      for (const task of created) {
+        const tplItemsForTask = (tplItems ?? []).filter((i: any) => i.template_id === task.template_id);
+        for (const it of tplItemsForTask) {
+          itemRows.push({
+            task_id: task.id,
+            client_id: clientId,
+            template_item_id: it.id,
+            title: it.title,
+            description: it.description,
+            position: it.position,
+            status: 'pending',
+          });
+        }
+      }
+      if (itemRows.length > 0) {
+        const { error: insErr } = await supabase.from('task_items').insert(itemRows);
+        if (insErr) throw insErr;
+      }
+
       return (data ?? []) as Task[];
     },
     onSuccess: () => {
