@@ -72,7 +72,11 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
   const dueBadge = (() => {
     if (!task.due_date) return null;
     if (task.status === 'completed' || task.status === 'cancelled') return null;
-    const due = new Date(task.due_date);
+    // Parse como data civil local (evita shift de timezone para "YYYY-MM-DD")
+    const ymd = String(task.due_date).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const due = ymd
+      ? new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]))
+      : new Date(task.due_date);
     if (isNaN(due.getTime())) return null;
     const today = new Date();
     const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
