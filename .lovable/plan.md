@@ -1,71 +1,41 @@
-## Diagnóstico
+## Ajustes no Dashboard de Equipe
 
-Investiguei os dados reais e encontrei **duas causas distintas**:
+### 1. Renomear cards de resumo
+Em `src/pages/equipe/components/EquipeDashboardTab.tsx`:
+- Card "Chats abertos" → **"Chats Atribuídos"** (mantém regra: status `pending` + `open`)
+- Card "Cards CRM" → **"CRM Atribuídos"** (mantém regra: exceto `won`/`lost`)
+- Cards "Online" e "Tarefas abertas" permanecem.
 
-### 1. Contagem zerada de Chats e CRM
-As colunas `assigned_to` guardam valores diferentes em cada tabela:
+A lógica em `useTeamDashboardMetrics` já filtra apenas itens em aberto — sem mudança de query.
 
-| Tabela | `assigned_to` armazena |
-|---|---|
-| `tasks` | **id numérico** do usuário (ex.: `2`) |
-| `chat_conversations` | **nome** do usuário (ex.: `Julia Deluque`, `VICTORIA`) |
-| `crm_deals` | **nome** do usuário (ex.: `VICTORIA`, `Loany Mayara`) |
+### 2. Nova linha de gráficos (abaixo dos cards, acima da tabela)
 
-O hook atual filtra os 3 com `idsAsText` (lista de ids como `'1','2','3'`), por isso só `tasks` retorna alguma coisa e Chats/CRM ficam zerados.
+Grid `grid-cols-1 lg:grid-cols-2 gap-3` com dois gráficos:
 
-### 2. Usuário logado aparece offline
-Hoje há **dois `supabase.channel('presence:client:{id}')` separados**:
+#### Gráfico A — Tempo Online por usuário (últimos 7 dias)
+- Componente novo: `src/pages/equipe/components/TeamOnlineTimeChart.tsx`
+- Hook novo: `src/hooks/useTeamOnlineTimeWeek.ts`
+- Fonte: `user_activity_log` (eventos `login`, `logout_manual`, `logout_inactivity`) dos últimos 7 dias.
+- Cálculo client-side: parear cada `login` com o próximo evento de logout do mesmo `user_id`; se ainda online, usar `now()`. Somar duração por usuário.
+- Visual: gráfico de barras horizontais (Recharts) com horas totais por membro, ordenado desc. Tooltip com `Xh Ymin`.
 
-- `useGlobalPresence` (no `MainLayout`) → faz `track()` com `key = user.id`
-- `useTeamPresence` (no Dashboard) → cria outro canal com `key = observer-${user.id}` só para ler
+#### Gráfico B — Heatmap de Presença (Dia × Hora, últimos 7 dias)
+- Componente novo: `src/pages/equipe/components/TeamPresenceHeatmap.tsx`
+- Mesma fonte (`user_activity_log` 7d) + mesmo pareamento de sessões.
+- Para cada sessão, marcar todas as células `(dia_da_semana, hora)` cobertas, somando minutos de presença da equipe.
+- Visual reutiliza padrão de `src/components/chat/analytics/ChatHeatmap.tsx` (matriz 7×24 com gradiente do `--primary`), adaptado para mostrar minutos totais e tooltip "Seg 14h — N min de presença / M usuários".
+- Mostra picos de horário em que a equipe está mais ativa.
 
-Cada `supabase.channel()` cria uma instância nova; o Supabase Realtime não merge automaticamente o estado entre instâncias do mesmo cliente, então o leitor não enxerga o próprio track e mostra "Offline".
+### 3. Sugestões adicionais (não implementar agora, apenas registrado)
+- Indicador "tempo médio de sessão" e "logouts por inatividade" como microcards extras, caso queira depois.
 
----
+### Detalhes técnicos
+- Nenhuma mudança de schema/RLS — `user_activity_log` e a view `user_last_activity` já existem.
+- Hook `useTeamOnlineTimeWeek` faz UMA query: `select user_id, event_type, created_at from user_activity_log where created_at >= now() - 7d and user_id in (...)` ordenado por `user_id, created_at`. Pareamento de sessões em memória, alimentando ambos os gráficos via `useMemo` separados (ou um único hook que retorna `{ perUser, heatmap }`).
+- Realtime: invalidate na tabela `user_activity_log` (já existe pattern em `useTeamLastActivity`).
 
-## Plano de correção (apenas frontend)
-
-### A) Presence: canal singleton compartilhado
-
-Criar `src/lib/presenceChannel.ts` com um **singleton por `client_id`**:
-
-```text
-getPresenceChannel(clientId) → reutiliza ou cria 1 canal
-  - track(meta)            → anuncia o user atual
-  - subscribe(listener)    → notifica mudanças de presença
-  - getOnlineIds()         → Set<number>
-```
-
-Refatorar:
-- `useGlobalPresence` → usa o singleton, chama `track({ user_id, name, avatar })` uma única vez por sessão.
-- `useTeamPresence` → usa o **mesmo** singleton; ouve `presence sync/join/leave` e devolve `onlineIds`. Não cria novo canal nem usa key `observer-…`.
-
-Isso garante que o usuário logado apareça online imediatamente após abrir o Dashboard.
-
-### B) Métricas: match correto por nome ou id
-
-Atualizar `useTeamDashboardMetrics(rows)` para receber `Array<{ id, name }>` em vez de só ids, e fazer:
-
-- **tasks** → continua filtrando por `assigned_to IN (ids como texto)`.
-- **chat_conversations** → filtrar `assigned_to IN (nomes)`; agregar contagens em mapa `name → count` e depois resolver para `id` via `name → id`.
-- **crm_deals** → idem `chat_conversations` (por nome). Adicionar filtro `client_id` quando disponível para evitar contar deals de outros clientes.
-
-Edge cases:
-- nomes duplicados na equipe → somar tudo na mesma chave (improvável, mas cobrir).
-- `assigned_to` vazio/null → ignorar.
-- comparação case-insensitive opcional (mantemos exato porque os dados estão consistentes).
-
-Atualizar `EquipeDashboardTab` para passar `[{id, name}]` em vez de só ids.
-
-### C) Ordenação Online primeiro
-
-A ordenação `online → offline → alfabético` já está implementada corretamente em `EquipeDashboardTab.tsx` linhas 54–61. Após corrigir o presence (item A), o usuário logado naturalmente aparecerá no topo. Sem mudança adicional.
-
----
-
-## Arquivos afetados
-
-- **Criar:** `src/lib/presenceChannel.ts`
-- **Editar:** `src/hooks/useGlobalPresence.ts`, `src/hooks/useTeamPresence.ts`, `src/hooks/useTeamDashboardMetrics.ts`, `src/pages/equipe/components/EquipeDashboardTab.tsx`
-
-Sem mudanças de schema, RLS ou backend.
+### Arquivos
+- Editar: `src/pages/equipe/components/EquipeDashboardTab.tsx`
+- Criar: `src/hooks/useTeamWeeklyActivity.ts` (retorna `{ onlineSecondsByUser, heatmapMatrix }`)
+- Criar: `src/pages/equipe/components/TeamOnlineTimeChart.tsx`
+- Criar: `src/pages/equipe/components/TeamPresenceHeatmap.tsx`
