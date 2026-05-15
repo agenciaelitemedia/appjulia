@@ -26,6 +26,7 @@ export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, curren
   const { items, isLoading, completeItem, cancelItem, reopenItem } = useTaskItems(taskId, clientId);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmCancelItem, setConfirmCancelItem] = useState<{ id: string; title: string } | null>(null);
+  const [confirmCompleteItem, setConfirmCompleteItem] = useState<{ id: string; title: string } | null>(null);
 
   if (isLoading) {
     return <div className="text-xs text-muted-foreground py-2 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> carregando itens...</div>;
@@ -74,7 +75,7 @@ export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, curren
               <>
                 <Button size="icon" variant="ghost" className="h-6 w-6 text-green-600 hover:text-green-700"
                   title="Concluir item"
-                  onClick={() => wrap(it.id, () => completeItem({ id: it.id, userId: currentUserId }))}>
+                  onClick={() => setConfirmCompleteItem({ id: it.id, title: it.title })}>
                   <CheckCircle className="h-3.5 w-3.5" />
                 </Button>
                 <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 hover:text-red-600"
@@ -117,6 +118,31 @@ export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, curren
               }}
             >
               Cancelar item
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmCompleteItem} onOpenChange={(o) => !o && setConfirmCompleteItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Concluir item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O item <strong>"{confirmCompleteItem?.title}"</strong> será marcado como concluído.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-green-600 text-white hover:bg-green-700"
+              onClick={async () => {
+                const target = confirmCompleteItem;
+                if (!target) return;
+                setConfirmCompleteItem(null);
+                await wrap(target.id, () => completeItem({ id: target.id, userId: currentUserId }));
+              }}
+            >
+              Concluir item
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
