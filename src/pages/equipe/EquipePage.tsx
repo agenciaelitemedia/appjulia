@@ -1,85 +1,31 @@
-import { useState, useMemo } from "react";
-import { EquipeHeader } from "./components/EquipeHeader";
-import { EquipeSearch } from "./components/EquipeSearch";
-import { EquipeGrid } from "./components/EquipeGrid";
-import { EquipeMemberDialog } from "./components/EquipeMemberDialog";
-import { DeleteMemberDialog } from "./components/DeleteMemberDialog";
-import { ResetPasswordDialog } from "./components/ResetPasswordDialog";
-import { useTeamMembers } from "./hooks/useEquipeData";
-import { TeamMember } from "./types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LayoutDashboard, Users } from "lucide-react";
+import { EquipeDashboardTab } from "./components/EquipeDashboardTab";
+import { EquipeManagementTab } from "./components/EquipeManagementTab";
 
 export default function EquipePage() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
-
-  const { data: members = [], isLoading } = useTeamMembers();
-
-  // Filter members by search term
-  const filteredMembers = useMemo(() => {
-    if (!searchTerm.trim()) return members;
-
-    const term = searchTerm.toLowerCase();
-    return members.filter(
-      (m) =>
-        m.name.toLowerCase().includes(term) ||
-        m.email.toLowerCase().includes(term)
-    );
-  }, [members, searchTerm]);
-
-  const handleNewMember = () => {
-    setSelectedMember(null);
-    setDialogOpen(true);
-  };
-
-  const handleEditMember = (member: TeamMember) => {
-    setSelectedMember(member);
-    setDialogOpen(true);
-  };
-
-  const handleDeleteMember = (member: TeamMember) => {
-    setSelectedMember(member);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleResetPassword = (member: TeamMember) => {
-    setSelectedMember(member);
-    setResetPasswordDialogOpen(true);
-  };
-
   return (
-    <div className="space-y-6">
-      <EquipeHeader onNewMember={handleNewMember} />
+    <div className="space-y-4">
+      <Tabs defaultValue="dashboard" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="dashboard" className="gap-2">
+            <LayoutDashboard className="w-4 h-4" />
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="management" className="gap-2">
+            <Users className="w-4 h-4" />
+            Gestão de Equipe
+          </TabsTrigger>
+        </TabsList>
 
-      <EquipeSearch value={searchTerm} onChange={setSearchTerm} />
+        <TabsContent value="dashboard">
+          <EquipeDashboardTab />
+        </TabsContent>
 
-      <EquipeGrid
-        members={filteredMembers}
-        isLoading={isLoading}
-        onEdit={handleEditMember}
-        onDelete={handleDeleteMember}
-        onResetPassword={handleResetPassword}
-      />
-
-      <EquipeMemberDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        member={selectedMember}
-      />
-
-      <DeleteMemberDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        member={selectedMember}
-      />
-
-      <ResetPasswordDialog
-        open={resetPasswordDialogOpen}
-        onOpenChange={setResetPasswordDialogOpen}
-        member={selectedMember}
-      />
+        <TabsContent value="management">
+          <EquipeManagementTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
