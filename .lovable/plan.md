@@ -1,51 +1,18 @@
-## Objetivo
+## Por que aconteceu
 
-No painel "Tarefas Rankeadas" do CRM (dentro do card do deal):
-1. Mostrar **apenas tarefas que tenham itens** cadastrados.
-2. Permitir **expandir** uma tarefa clicando nela para ver a lista de itens.
-3. Colocar o botão **"Iniciar tarefa"** logo no topo da área expandida (antes da lista de itens), para que o usuário possa marcar os itens como concluídos.
+A data foi salva como `2026-05-15 00:00:00+00` (UTC) no banco. No fuso de Brasília (UTC−3), esse instante corresponde a **14/05 às 21:00**, então `new Date(task.due_date)` + `format(...)` no `TaskCard` exibem "14 mai".
 
-## Mudanças
+Causa raiz: tratamos uma data "de calendário" (sem hora) como um instante UTC. Ao converter para o fuso local, ela "anda um dia para trás".
 
-### 1. `src/hooks/useTasks.ts` — incluir contagem de itens
+## Plano de correção
 
-Na query do `useTasks` (que retorna `rankedTasks`), trazer também o count de `task_items` por tarefa para podermos filtrar sem fazer N requests.
+Ajustar apenas o **frontend** para tratar o `due_date` como data civil (sem fuso), sem precisar mexer no banco.
 
-```ts
-.select('*, task_items(count)')
-```
+1. **Helper de parse seguro** em `TaskCard.tsx`: extrair os 10 primeiros caracteres (`YYYY-MM-DD`) do `task.due_date` e construir `new Date(year, month-1, day)` (meia-noite **local**), evitando o deslocamento UTC.
+2. **Mesma comparação para o badge**: usar essa data local para decidir verde/amarelo/vermelho (No prazo / Vence hoje / Atrasada).
+3. **Formatação**: `format(localDue, "d MMM", { locale: ptBR })` passará a exibir 15/05 corretamente para datas existentes e novas.
 
-E expor `items_count` no tipo `Task` (campo derivado).
+Nada muda no fluxo de gravação — o `<input type="date">` continua enviando `YYYY-MM-DD`, e o banco continua aceitando o mesmo formato. As tarefas já cadastradas passarão a mostrar a data correta automaticamente.
 
-### 2. `src/pages/crm-builder/components/deals/DealTasksPanel.tsx`
-
-- Filtrar `sortedRankedTasks` para conter somente tarefas com `items_count > 0`.
-- Trocar o uso atual `<TaskCard ... compact />` por `<TaskCard ... />` (modo não-compacto) **ou** ativar a expansão também no modo compacto (ver mudança abaixo no TaskCard). Prefiro manter `compact` mas habilitar expansão.
-- Mensagem de vazio passa a dizer: "Nenhuma tarefa rankeada com itens".
-
-### 3. `src/pages/tarefas/components/TaskCard.tsx`
-
-- Permitir clique no cabeçalho da tarefa para alternar `expanded` (mesmo em `compact`).
-- Renderizar `TaskItemsPanel` também em modo compacto quando `expanded === true`.
-- Mover o botão **"Iniciar tarefa"** para dentro do bloco expandido, posicionado **acima** da lista de itens (antes do `TaskItemsPanel`), visível apenas se `task.status === 'pending'` e o usuário puder agir. O botão atual fora da expansão é removido (ou mantido apenas como fallback no modo não-compact, a definir abaixo).
-- Adicionar um chevron / indicador visual de "clique para expandir" no compact.
-
-### 4. `src/pages/tarefas/components/TaskItemsPanel.tsx` (opcional)
-
-Adicionar prop opcional `headerSlot?: ReactNode` para renderizar o botão "Iniciar tarefa" dentro do painel, ou simplesmente renderizar o botão no `TaskCard` antes de `<TaskItemsPanel />` (mais simples — vamos por essa).
-
-## Comportamento final
-
-- Lista de Tarefas Rankeadas só mostra tarefas com itens.
-- Clique no card → expande mostrando:
-  1. Botão "▶ Iniciar tarefa" (se ainda `pending`).
-  2. Lista de itens (com checkboxes habilitados apenas após `in_progress`).
-- Quando todos os itens são concluídos, a tarefa fecha automaticamente (trigger já existente).
-
-## Arquivos
-
-- Editar: `src/hooks/useTasks.ts`
-- Editar: `src/pages/crm-builder/components/deals/DealTasksPanel.tsx`
-- Editar: `src/pages/tarefas/components/TaskCard.tsx`
-
-Sem mudanças de banco de dados.
+### Arquivo afetado
+- `src/pages/tarefas/components/TaskCard.tsx` (somente o bloco `dueBadge`)
