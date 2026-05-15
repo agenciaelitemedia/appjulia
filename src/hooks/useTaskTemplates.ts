@@ -8,6 +8,7 @@ export interface TaskTemplate {
   description: string | null;
   points: number;
   category: string | null;
+  category_id: string | null;
   color: string;
   estimated_hours: number | null;
   is_active: boolean;
@@ -16,10 +17,29 @@ export interface TaskTemplate {
   updated_at: string;
 }
 
+export interface TaskTemplateItemInput {
+  id?: string;
+  title: string;
+  description?: string | null;
+  position?: number;
+}
+
 export type TaskTemplateInput = Pick<TaskTemplate, 'title' | 'points' | 'color'> &
-  Partial<Pick<TaskTemplate, 'description' | 'category' | 'estimated_hours' | 'is_active'>>;
+  Partial<Pick<TaskTemplate, 'description' | 'category' | 'category_id' | 'estimated_hours' | 'is_active'>> & {
+    items: TaskTemplateItemInput[];
+  };
+
+export interface TaskTemplateItem {
+  id: string;
+  template_id: string;
+  client_id: string;
+  title: string;
+  description: string | null;
+  position: number;
+}
 
 const QUERY_KEY = (clientId: string) => ['task-templates', clientId];
+const ITEMS_KEY = (templateId: string) => ['task-template-items', templateId];
 
 export function useTaskTemplates(clientId: string | undefined) {
   const qc = useQueryClient();
@@ -42,21 +62,38 @@ export function useTaskTemplates(clientId: string | undefined) {
 
   const activeTemplates = templates.filter((t) => t.is_active);
 
+  async function syncItems(templateId: string, items: TaskTemplateItemInput[]) {
+    // estratégia simples: apaga tudo e reinsere mantendo posição
+    await supabase.from('task_template_items').delete().eq('template_id', templateId);
+    if (items.length === 0) return;
+    const rows = items.map((it, idx) => ({
+      template_id: templateId,
+      client_id: clientId,
+      title: it.title.trim(),
+      description: it.description?.trim() || null,
+      position: it.position ?? idx,
+    }));
+    const { error } = await supabase.from('task_template_items').insert(rows);
+    if (error) throw error;
+  }
+
   const createTemplate = useMutation({
     mutationFn: async (input: TaskTemplateInput) => {
+      const { items, ...tplData } = input;
       const { data, error } = await supabase
         .from('task_templates')
-        .insert({ ...input, client_id: clientId, is_active: input.is_active ?? true })
+        .insert({ ...tplData, client_id: clientId, is_active: tplData.is_active ?? true })
         .select()
         .single();
       if (error) throw error;
+      await syncItems(data.id, items);
       return data as TaskTemplate;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY(clientId ?? '') }),
   });
 
   const updateTemplate = useMutation({
-    mutationFn: async ({ id, ...patch }: Partial<TaskTemplate> & { id: string }) => {
+    mutationFn: async ({ id, items, ...patch }: Partial<TaskTemplate> & { id: string; items?: TaskTemplateItemInput[] }) => {
       const { data, error } = await supabase
         .from('task_templates')
         .update({ ...patch, updated_at: new Date().toISOString() })
@@ -64,9 +101,13 @@ export function useTaskTemplates(clientId: string | undefined) {
         .select()
         .single();
       if (error) throw error;
+      if (items) await syncItems(id, items);
       return data as TaskTemplate;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY(clientId ?? '') }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: QUERY_KEY(clientId ?? '') });
+      qc.invalidateQueries({ queryKey: ITEMS_KEY(vars.id) });
+    },
   });
 
   const toggleActive = useMutation({
@@ -110,4 +151,21 @@ export function useTaskTemplates(clientId: string | undefined) {
     isCreating: createTemplate.isPending,
     isUpdating: updateTemplate.isPending,
   };
+}
+
+export function useTaskTemplateItems(templateId: string | undefined) {
+  return useQuery<TaskTemplateItem[]>({
+    queryKey: ITEMS_KEY(templateId ?? ''),
+    enabled: !!templateId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_template_items')
+        .select('*')
+        .eq('template_id', templateId!)
+        .order('position');
+      if (error) throw error;
+      return (data ?? []) as TaskTemplateItem[];
+    },
+  });
 }
