@@ -1,17 +1,9 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-
-export interface PresenceUserMeta {
-  user_id: number;
-  user_name?: string | null;
-  user_avatar?: string | null;
-  online_at: string;
-}
+import { subscribePresence } from '@/lib/presenceChannel';
 
 /**
- * Reads who is currently online in the same `client_id` presence channel.
- * Returns a Set of user_ids and the raw meta map.
+ * Reads who is currently online in the shared per-client presence channel.
  */
 export function useTeamPresence() {
   const { user } = useAuth();
@@ -22,31 +14,11 @@ export function useTeamPresence() {
       setOnlineIds(new Set());
       return;
     }
-    const channel = supabase.channel(`presence:client:${user.client_id}`, {
-      config: { presence: { key: `observer-${user.id}` } },
+    const unsub = subscribePresence(String(user.client_id), (ids) => {
+      setOnlineIds(new Set(ids));
     });
-
-    const sync = () => {
-      const state = channel.presenceState() as Record<string, PresenceUserMeta[]>;
-      const ids = new Set<number>();
-      for (const arr of Object.values(state)) {
-        for (const meta of arr) {
-          if (meta?.user_id != null) ids.add(Number(meta.user_id));
-        }
-      }
-      setOnlineIds(ids);
-    };
-
-    channel
-      .on('presence', { event: 'sync' }, sync)
-      .on('presence', { event: 'join' }, sync)
-      .on('presence', { event: 'leave' }, sync)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.client_id, user?.id]);
+    return unsub;
+  }, [user?.client_id]);
 
   return { onlineIds, isOnline: (uid: number) => onlineIds.has(Number(uid)) };
 }

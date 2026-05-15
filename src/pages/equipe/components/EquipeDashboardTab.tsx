@@ -47,9 +47,13 @@ export function EquipeDashboardTab() {
   }, [members, user]);
 
   const userIds = useMemo(() => allRows.map((r) => r.id), [allRows]);
+  const memberRefs = useMemo(
+    () => allRows.map((r) => ({ id: r.id, name: (r.name || '').replace(/\s*\(você\)\s*$/, '') })),
+    [allRows],
+  );
   const { onlineIds } = useTeamPresence();
   const { data: activity = {} } = useTeamLastActivity(userIds);
-  const { data: metrics = {} } = useTeamDashboardMetrics(userIds);
+  const { data: metrics = {} } = useTeamDashboardMetrics(memberRefs);
 
   const sorted = useMemo(() => {
     return [...allRows].sort((a, b) => {
