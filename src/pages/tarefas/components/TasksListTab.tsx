@@ -48,9 +48,14 @@ export function TasksListTab() {
     completed: 2,
     cancelled: 3,
   };
-  const sorted = [...filtered].sort(
-    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
-  );
+  const sorted = [...filtered].sort((a, b) => {
+    const s = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+    if (s !== 0) return s;
+    // Dentro do mesmo status, mais recentes primeiro (a recém-iniciada sobe)
+    const ad = new Date(a.updated_at || a.created_at || 0).getTime();
+    const bd = new Date(b.updated_at || b.created_at || 0).getTime();
+    return bd - ad;
+  });
 
   return (
     <div className="space-y-4">
