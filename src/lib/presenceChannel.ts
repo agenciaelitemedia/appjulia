@@ -31,7 +31,30 @@ function computeOnline(channel: RealtimeChannel): Set<number> {
   return ids;
 }
 
+let visibilityHookInstalled = false;
+function ensureVisibilityHook() {
+  if (visibilityHookInstalled || typeof window === 'undefined') return;
+  visibilityHookInstalled = true;
+  const reTrackAll = () => {
+    for (const e of entries.values()) {
+      if (e.trackedMeta) {
+        const meta = { ...e.trackedMeta, online_at: new Date().toISOString() };
+        e.trackedMeta = meta;
+        try { void e.channel.track(meta); } catch { /* ignore */ }
+      }
+    }
+  };
+  window.addEventListener('focus', reTrackAll);
+  window.addEventListener('online', reTrackAll);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') reTrackAll();
+  });
+  // Heartbeat para manter presença viva e detectar quedas
+  setInterval(reTrackAll, 25_000);
+}
+
 export function acquirePresence(clientId: string): Entry {
+  ensureVisibilityHook();
   let e = entries.get(clientId);
   if (e) {
     e.refCount++;
@@ -62,7 +85,7 @@ export function acquirePresence(clientId: string): Entry {
     .on('presence', { event: 'leave' }, sync)
     .subscribe(async (status) => {
       if (status === 'SUBSCRIBED' && e!.trackedMeta) {
-        await channel.track(e!.trackedMeta);
+        try { await channel.track(e!.trackedMeta); } catch { /* ignore */ }
         sync();
       }
     });
