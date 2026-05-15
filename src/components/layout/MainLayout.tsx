@@ -13,6 +13,7 @@ import { AgentBlockedScreen } from './AgentBlockedScreen';
 import { DisconnectedAgentsAlert } from './DisconnectedAgentsAlert';
 import { DisconnectedQueuesAlert } from './DisconnectedQueuesAlert';
 import { useGlobalPresence } from '@/hooks/useGlobalPresence';
+import { useHeartbeat } from '@/hooks/useHeartbeat';
 
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
@@ -54,6 +55,7 @@ export function MainLayout() {
 
   // Anuncia presença global para o dashboard de equipe
   useGlobalPresence();
+  useHeartbeat();
 
   if (isLoading) {
     return (
