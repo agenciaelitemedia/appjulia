@@ -1,0 +1,1 @@
+ALTER VIEW public.user_presence_status SET (security_invoker = on);
