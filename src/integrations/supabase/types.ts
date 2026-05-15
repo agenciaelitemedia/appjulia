@@ -4983,6 +4983,105 @@ export type Database = {
         }
         Relationships: []
       }
+      task_categories: {
+        Row: {
+          client_id: string
+          color: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      task_items: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          client_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          description: string | null
+          id: string
+          position: number
+          status: string
+          task_id: string
+          template_item_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          status?: string
+          task_id: string
+          template_item_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          status?: string
+          task_id?: string
+          template_item_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_items_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_items_template_item_id_fkey"
+            columns: ["template_item_id"]
+            isOneToOne: false
+            referencedRelation: "task_template_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_points_ledger: {
         Row: {
           action: string
@@ -5027,9 +5126,51 @@ export type Database = {
           },
         ]
       }
+      task_template_items: {
+        Row: {
+          client_id: string
+          created_at: string
+          description: string | null
+          id: string
+          position: number
+          template_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          template_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          position?: number
+          template_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_template_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "task_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_templates: {
         Row: {
           category: string | null
+          category_id: string | null
           client_id: string
           color: string
           created_at: string
@@ -5044,6 +5185,7 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          category_id?: string | null
           client_id: string
           color?: string
           created_at?: string
@@ -5058,6 +5200,7 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          category_id?: string | null
           client_id?: string
           color?: string
           created_at?: string
@@ -5070,7 +5213,15 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "task_templates_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "task_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tasks: {
         Row: {
@@ -5078,6 +5229,7 @@ export type Database = {
           assigned_to: string | null
           cancelled_at: string | null
           category: string | null
+          category_id: string | null
           client_id: string
           completed_at: string | null
           completed_by: string | null
@@ -5099,6 +5251,7 @@ export type Database = {
           assigned_to?: string | null
           cancelled_at?: string | null
           category?: string | null
+          category_id?: string | null
           client_id: string
           completed_at?: string | null
           completed_by?: string | null
@@ -5120,6 +5273,7 @@ export type Database = {
           assigned_to?: string | null
           cancelled_at?: string | null
           category?: string | null
+          category_id?: string | null
           client_id?: string
           completed_at?: string | null
           completed_by?: string | null
@@ -5137,6 +5291,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "task_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tasks_deal_id_fkey"
             columns: ["deal_id"]
