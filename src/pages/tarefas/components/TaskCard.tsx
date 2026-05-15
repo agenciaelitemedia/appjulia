@@ -52,6 +52,7 @@ interface TaskCardProps {
 export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, currentUserId, compact }: TaskCardProps) {
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [expanded, setExpanded] = useState(task.status === 'in_progress');
 
   const isAssignee = task.assigned_to === String(currentUserId ?? '');
@@ -127,7 +128,7 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
                     <Play className="h-3.5 w-3.5 mr-2 text-blue-500" /> Iniciar
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => handleStatus('cancelled')} className="text-destructive">
+                <DropdownMenuItem onClick={() => setConfirmCancel(true)} className="text-destructive">
                   <XCircle className="h-3.5 w-3.5 mr-2" /> Cancelar tarefa
                 </DropdownMenuItem>
                 {canManage && onDelete && canDelete && (
@@ -221,6 +222,30 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
               }}
             >
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação de cancelamento */}
+      <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar tarefa?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A tarefa <strong>"{task.title}"</strong> será marcada como cancelada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                await handleStatus('cancelled');
+                setConfirmCancel(false);
+              }}
+            >
+              Cancelar tarefa
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
