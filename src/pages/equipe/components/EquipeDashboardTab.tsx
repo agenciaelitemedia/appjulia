@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useTeamMembers } from '../hooks/useEquipeData';
 import { useTeamPresence } from '@/hooks/useTeamPresence';
+import { useTeamHeartbeat } from '@/hooks/useTeamHeartbeat';
 import { useTeamLastActivity } from '@/hooks/useTeamLastActivity';
 import { useTeamDashboardMetrics } from '@/hooks/useTeamDashboardMetrics';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +14,7 @@ import { Loader2, MessageSquare, KanbanSquare, ListChecks, Users } from 'lucide-
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { formatRelativePtBR } from '@/lib/relativeTime';
 
 function fmt(date: string | null | undefined) {
   if (!date) return null;
@@ -52,17 +54,20 @@ export function EquipeDashboardTab() {
     [allRows],
   );
   const { onlineIds } = useTeamPresence();
+  const { presence, isFresh } = useTeamHeartbeat();
   const { data: activity = {} } = useTeamLastActivity(userIds);
   const { data: metrics = {} } = useTeamDashboardMetrics(memberRefs);
 
+  const isOnline = (id: number) => onlineIds.has(id) || isFresh(id);
+
   const sorted = useMemo(() => {
     return [...allRows].sort((a, b) => {
-      const aOn = onlineIds.has(a.id) ? 0 : 1;
-      const bOn = onlineIds.has(b.id) ? 0 : 1;
+      const aOn = isOnline(a.id) ? 0 : 1;
+      const bOn = isOnline(b.id) ? 0 : 1;
       if (aOn !== bOn) return aOn - bOn;
       return a.name.localeCompare(b.name, 'pt-BR');
     });
-  }, [allRows, onlineIds]);
+  }, [allRows, onlineIds, presence]);
 
   const totals = useMemo(() => {
     let chats = 0, deals = 0, tasks = 0;
@@ -71,8 +76,8 @@ export function EquipeDashboardTab() {
       if (!m) continue;
       chats += m.open_chats; deals += m.open_crm_deals; tasks += m.open_tasks;
     }
-    return { chats, deals, tasks, online: sorted.filter((r) => onlineIds.has(r.id)).length, total: sorted.length };
-  }, [sorted, metrics, onlineIds]);
+      return { chats, deals, tasks, online: sorted.filter((r) => isOnline(r.id)).length, total: sorted.length };
+  }, [sorted, metrics, onlineIds, presence]);
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -113,7 +118,8 @@ export function EquipeDashboardTab() {
                   </TableRow>
                 )}
                 {sorted.map((row) => {
-                  const online = onlineIds.has(row.id);
+                  const online = isOnline(row.id);
+                  const lastSeen = presence[row.id];
                   const act = activity[row.id];
                   const m = metrics[String(row.id)] || { open_chats: 0, open_crm_deals: 0, open_tasks: 0 };
                   const initials = (row.name || '?')
@@ -157,6 +163,11 @@ export function EquipeDashboardTab() {
                           <span className={cn('h-1.5 w-1.5 rounded-full', online ? 'bg-emerald-500' : 'bg-muted-foreground/50')} />
                           {online ? 'Online' : 'Offline'}
                         </Badge>
+                        {!online && lastSeen && (
+                          <div className="text-[10px] text-muted-foreground mt-1">
+                            {formatRelativePtBR(lastSeen)}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         {act?.last_login_at ? (
