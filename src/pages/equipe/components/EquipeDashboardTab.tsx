@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useTeamMembers } from '../hooks/useEquipeData';
-import { useTeamPresence } from '@/hooks/useTeamPresence';
 import { useTeamHeartbeat } from '@/hooks/useTeamHeartbeat';
 import { useTeamLastActivity } from '@/hooks/useTeamLastActivity';
 import { useTeamDashboardMetrics } from '@/hooks/useTeamDashboardMetrics';
@@ -53,7 +52,6 @@ export function EquipeDashboardTab() {
     () => allRows.map((r) => ({ id: r.id, name: (r.name || '').replace(/\s*\(você\)\s*$/, '') })),
     [allRows],
   );
-  const { onlineIds } = useTeamPresence();
   const { presence, isOnline: heartbeatOnline, isAway, lastSeen } = useTeamHeartbeat();
   const { data: activity = {} } = useTeamLastActivity(userIds);
   const { data: metrics = {} } = useTeamDashboardMetrics(memberRefs);
