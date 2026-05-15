@@ -77,16 +77,31 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
       compact ? 'p-2.5' : 'p-3',
     )}>
       <div className="flex items-start gap-2">
-        <div className="flex-1 min-w-0">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex-1 min-w-0 text-left"
+          title={expanded ? 'Ocultar itens' : 'Ver itens'}
+        >
           <p className={cn('text-sm font-medium leading-snug', task.status === 'completed' && 'line-through text-muted-foreground')}>
             {task.title}
           </p>
           {task.description && !compact && (
             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>
           )}
-        </div>
+        </button>
 
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground"
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? 'Ocultar itens' : 'Ver itens'}
+          >
+            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </Button>
+
           {/* Pontos */}
           <Badge variant="outline" className="gap-1 text-xs font-semibold text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20">
             <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
@@ -200,30 +215,27 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
       </div>
 
       {/* Ações da tarefa */}
-      {!compact && (
-        <div className="flex gap-2 pt-1 items-center">
+      {expanded && (
+        <div className="space-y-2">
           {canAct && task.status === 'pending' && (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 text-blue-600 border-blue-300"
-              disabled={loading} onClick={() => handleStatus('in_progress')}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5 w-full text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              disabled={loading}
+              onClick={() => handleStatus('in_progress')}
+            >
               <Play className="h-3 w-3" /> Iniciar tarefa
             </Button>
           )}
-          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1.5 ml-auto"
-            onClick={() => setExpanded((v) => !v)}>
-            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            {expanded ? 'Ocultar itens' : 'Ver itens'}
-          </Button>
+          <TaskItemsPanel
+            taskId={task.id}
+            clientId={task.client_id}
+            taskStatus={task.status}
+            canManage={canManageItems}
+            currentUserId={currentUserId}
+          />
         </div>
-      )}
-
-      {expanded && !compact && (
-        <TaskItemsPanel
-          taskId={task.id}
-          clientId={task.client_id}
-          taskStatus={task.status}
-          canManage={canManageItems}
-          currentUserId={currentUserId}
-        />
       )}
 
       {/* Confirmação de exclusão */}
