@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTaskItems } from '@/hooks/useTaskItems';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, RotateCcw, Loader2, Trash2, Circle } from 'lucide-react';
+import { CheckCircle, XCircle, RotateCcw, Loader2, Trash2, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -46,15 +46,11 @@ export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, curren
           it.status === 'completed' && 'opacity-70',
           it.status === 'cancelled' && 'opacity-50',
         )}>
-          <div className="pt-0.5">
-            {it.status === 'completed' ? <CheckCircle className="h-3.5 w-3.5 text-green-600" /> :
-             it.status === 'cancelled' ? <XCircle className="h-3.5 w-3.5 text-red-500" /> :
-             <Circle className="h-3.5 w-3.5 text-muted-foreground" />}
-          </div>
           <div className="flex-1 min-w-0">
-            <p className={cn('text-xs font-medium leading-snug',
+            <p className={cn('text-xs font-medium leading-snug flex items-center gap-1',
               it.status === 'completed' && 'line-through',
               it.status === 'cancelled' && 'line-through text-muted-foreground')}>
+              {it.is_required && <Lock className="h-3 w-3 text-amber-600 flex-shrink-0" aria-label="Item obrigatório" />}
               {it.title}
             </p>
             {it.description && <p className="text-[11px] text-muted-foreground mt-0.5">{it.description}</p>}
@@ -70,7 +66,8 @@ export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, curren
                   <CheckCircle className="h-3.5 w-3.5" />
                 </Button>
                 <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 hover:text-red-600"
-                  title="Cancelar item"
+                  title={it.is_required ? 'Item obrigatório não pode ser cancelado' : 'Cancelar item'}
+                  disabled={it.is_required}
                   onClick={() => wrap(it.id, () => cancelItem({ id: it.id, userId: currentUserId }))}>
                   <XCircle className="h-3.5 w-3.5" />
                 </Button>
@@ -85,7 +82,7 @@ export function TaskItemsPanel({ taskId, clientId, taskStatus, canManage, curren
               </Button>
             )}
 
-            {canDeleteItem && (
+            {canDeleteItem && !it.is_required && (
               <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-destructive"
                 title="Excluir item (somente antes de iniciar)"
                 onClick={() => wrap(it.id, () => removeItem(it.id))}>
