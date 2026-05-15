@@ -1,0 +1,2 @@
+ALTER TABLE public.task_template_items ADD COLUMN IF NOT EXISTS is_required boolean NOT NULL DEFAULT false;
+ALTER TABLE public.task_items ADD COLUMN IF NOT EXISTS is_required boolean NOT NULL DEFAULT false;

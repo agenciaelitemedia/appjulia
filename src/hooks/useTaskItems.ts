@@ -12,6 +12,7 @@ export interface TaskItem {
   title: string;
   description: string | null;
   position: number;
+  is_required: boolean;
   status: TaskItemStatus;
   completed_at: string | null;
   completed_by: string | null;

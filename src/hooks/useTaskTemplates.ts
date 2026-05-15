@@ -23,6 +23,7 @@ export interface TaskTemplateItemInput {
   title: string;
   description?: string | null;
   position?: number;
+  is_required?: boolean;
 }
 
 export type TaskTemplateInput = Pick<TaskTemplate, 'title' | 'points' | 'color'> &
@@ -37,6 +38,7 @@ export interface TaskTemplateItem {
   title: string;
   description: string | null;
   position: number;
+  is_required: boolean;
 }
 
 const QUERY_KEY = (clientId: string) => ['task-templates', clientId];
@@ -78,6 +80,7 @@ export function useTaskTemplates(clientId: string | undefined) {
       title: it.title.trim(),
       description: it.description?.trim() || null,
       position: it.position ?? idx,
+      is_required: it.is_required ?? false,
     }));
     const { error } = await supabase.from('task_template_items').insert(rows);
     if (error) throw error;
