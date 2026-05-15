@@ -44,14 +44,21 @@ export function DealTasksPanel({ dealId }: DealTasksPanelProps) {
   const { deleteTask } = useTasks({ clientId, dealId });
 
   const STATUS_ORDER: Record<TaskStatus, number> = {
-    pending: 0,
-    in_progress: 1,
+    in_progress: 0,
+    pending: 1,
     completed: 2,
     cancelled: 3,
   };
   const sortedRankedTasks = [...rankedTasks]
     .filter((t) => (t.items_count ?? 0) > 0)
-    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+    .sort((a, b) => {
+      const s = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+      if (s !== 0) return s;
+      // Dentro do mesmo status, mais recentes primeiro
+      const ad = new Date(a.updated_at || a.created_at || 0).getTime();
+      const bd = new Date(b.updated_at || b.created_at || 0).getTime();
+      return bd - ad;
+    });
 
   const [showRankedDialog, setShowRankedDialog] = useState(false);
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
