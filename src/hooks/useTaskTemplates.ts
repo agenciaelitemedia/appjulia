@@ -15,6 +15,7 @@ export interface TaskTemplate {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  items_count?: number;
 }
 
 export interface TaskTemplateItemInput {
@@ -51,16 +52,21 @@ export function useTaskTemplates(clientId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_templates')
-        .select('*')
+        .select('*, task_template_items(count)')
         .eq('client_id', clientId!)
         .order('category', { ascending: true, nullsFirst: false })
         .order('title');
       if (error) throw error;
-      return (data ?? []) as TaskTemplate[];
+      return (data ?? []).map((t: any) => ({
+        ...t,
+        items_count: Array.isArray(t.task_template_items)
+          ? (t.task_template_items[0]?.count ?? 0)
+          : 0,
+      })) as TaskTemplate[];
     },
   });
 
-  const activeTemplates = templates.filter((t) => t.is_active);
+  const activeTemplates = templates.filter((t) => t.is_active && (t.items_count ?? 0) > 0);
 
   async function syncItems(templateId: string, items: TaskTemplateItemInput[]) {
     // estratégia simples: apaga tudo e reinsere mantendo posição
