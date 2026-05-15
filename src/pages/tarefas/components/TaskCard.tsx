@@ -75,7 +75,7 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
   return (
     <div className={cn(
       'rounded-lg border bg-card p-3 space-y-2 transition-opacity',
-      task.status === 'completed' && 'opacity-60',
+      (task.status === 'completed' || task.status === 'cancelled') && 'opacity-60',
       compact ? 'p-2.5' : 'p-3',
     )}>
       <div className="flex items-start gap-2">
@@ -85,7 +85,10 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, c
           className="flex-1 min-w-0 text-left"
           title={expanded ? 'Ocultar itens' : 'Ver itens'}
         >
-          <p className={cn('text-sm font-medium leading-snug', task.status === 'completed' && 'line-through text-muted-foreground')}>
+          <p className={cn(
+            'text-sm font-medium leading-snug',
+            (task.status === 'completed' || task.status === 'cancelled') && 'line-through text-muted-foreground',
+          )}>
             {task.title}
           </p>
           {task.description && !compact && (
