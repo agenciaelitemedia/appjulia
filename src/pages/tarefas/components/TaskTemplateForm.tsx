@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Plus, Trash2, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTaskCategories } from '@/hooks/useTaskCategories';
 import { useTaskTemplateItems, type TaskTemplate, type TaskTemplateInput, type TaskTemplateItemInput } from '@/hooks/useTaskTemplates';
@@ -39,11 +40,11 @@ export function TaskTemplateForm({ initial, onSave, onCancel }: TaskTemplateForm
   // Carrega itens existentes quando termina o fetch
   useEffect(() => {
     if (initial?.id && !loadingItems) {
-      setItems(existingItems.map((it) => ({ id: it.id, title: it.title, description: it.description ?? '', position: it.position })));
+      setItems(existingItems.map((it) => ({ id: it.id, title: it.title, description: it.description ?? '', position: it.position, is_required: it.is_required })));
     }
   }, [initial?.id, loadingItems, existingItems]);
 
-  const addItem = () => setItems((prev) => [...prev, { title: '', description: '', position: prev.length }]);
+  const addItem = () => setItems((prev) => [...prev, { title: '', description: '', position: prev.length, is_required: false }]);
   const removeItem = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx));
   const updateItem = (idx: number, patch: Partial<TaskTemplateItemInput>) =>
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -186,6 +187,14 @@ export function TaskTemplateForm({ initial, onSave, onCancel }: TaskTemplateForm
                     placeholder={`Item ${idx + 1} — descreva a demanda`} className="h-8 text-sm" />
                   <Textarea value={it.description ?? ''} onChange={(e) => updateItem(idx, { description: e.target.value })}
                     placeholder="Observações (opcional)" className="resize-none h-14 text-xs" />
+                  <label className="flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer select-none pt-0.5">
+                    <Checkbox
+                      checked={!!it.is_required}
+                      onCheckedChange={(v) => updateItem(idx, { is_required: v === true })}
+                      className="h-3.5 w-3.5"
+                    />
+                    Item obrigatório (não pode ser excluído nem cancelado)
+                  </label>
                 </div>
                 <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
                   onClick={() => removeItem(idx)}>
