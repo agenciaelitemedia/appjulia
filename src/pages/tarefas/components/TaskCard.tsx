@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Star, Clock, User, Play, CheckCircle, XCircle, Loader2, MoreHorizontal, ExternalLink } from 'lucide-react';
+import { Star, Clock, User, Play, CheckCircle, XCircle, Loader2, MoreHorizontal, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,8 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Task, TaskStatus } from '@/hooks/useTasks';
+import { TaskItemsPanel } from './TaskItemsPanel';
+import { useTaskItems } from '@/hooks/useTaskItems';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   pending: 'Pendente',
@@ -42,16 +44,26 @@ interface TaskCardProps {
   onUpdateStatus: (id: string, status: TaskStatus) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
   isAdmin?: boolean;
+  canManage?: boolean;
   currentUserId?: string;
   compact?: boolean;
 }
 
-export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserId, compact }: TaskCardProps) {
+export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, canManage, currentUserId, compact }: TaskCardProps) {
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [expanded, setExpanded] = useState(task.status === 'in_progress');
 
-  const canAct = isAdmin || task.assigned_to === String(currentUserId ?? '');
+  const isAssignee = task.assigned_to === String(currentUserId ?? '');
+  const canAct = isAdmin || isAssignee;
+  const canManageItems = !!(canManage || isAdmin || isAssignee);
   const canDelete = task.status === 'pending';
+
+  // contador de itens (lightweight; o painel ainda gerencia internamente)
+  const { items } = useTaskItems(expanded ? task.id : undefined, task.client_id);
+  const hasItemsLoaded = items.length > 0;
+  const totalItems = items.length;
+  const doneItems = items.filter((i) => i.status === 'completed').length;
 
   const handleStatus = async (s: TaskStatus) => {
     setLoading(true);
@@ -82,7 +94,7 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserI
           </Badge>
 
           {/* Menu */}
-          {(isAdmin || canAct) && task.status !== 'completed' && task.status !== 'cancelled' && (
+          {canAct && task.status !== 'completed' && task.status !== 'cancelled' && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6">
@@ -95,15 +107,10 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserI
                     <Play className="h-3.5 w-3.5 mr-2 text-blue-500" /> Iniciar
                   </DropdownMenuItem>
                 )}
-                {task.status === 'in_progress' && (
-                  <DropdownMenuItem onClick={() => handleStatus('completed')}>
-                    <CheckCircle className="h-3.5 w-3.5 mr-2 text-green-500" /> Concluir
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuItem onClick={() => handleStatus('cancelled')} className="text-destructive">
-                  <XCircle className="h-3.5 w-3.5 mr-2" /> Cancelar
+                  <XCircle className="h-3.5 w-3.5 mr-2" /> Cancelar tarefa
                 </DropdownMenuItem>
-                {isAdmin && onDelete && canDelete && (
+                {canManage && onDelete && canDelete && (
                   <DropdownMenuItem onClick={() => setConfirmDelete(true)} className="text-destructive">
                     Excluir
                   </DropdownMenuItem>
@@ -183,25 +190,40 @@ export function TaskCard({ task, onUpdateStatus, onDelete, isAdmin, currentUserI
             <ExternalLink className="h-3 w-3" /> Card vinculado
           </span>
         )}
+
+        {/* Progresso de itens */}
+        {expanded && hasItemsLoaded && (
+          <span className="inline-flex items-center gap-1 text-xs">
+            {doneItems}/{totalItems} itens
+          </span>
+        )}
       </div>
 
-      {/* Ação rápida: concluir */}
-      {canAct && (task.status === 'pending' || task.status === 'in_progress') && !compact && (
-        <div className="flex gap-2 pt-1">
-          {task.status === 'pending' && (
+      {/* Ações da tarefa */}
+      {!compact && (
+        <div className="flex gap-2 pt-1 items-center">
+          {canAct && task.status === 'pending' && (
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 text-blue-600 border-blue-300"
               disabled={loading} onClick={() => handleStatus('in_progress')}>
-              <Play className="h-3 w-3" /> Iniciar
+              <Play className="h-3 w-3" /> Iniciar tarefa
             </Button>
           )}
-          <Button size="sm" className="h-7 text-xs gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50"
-            disabled={loading || task.status !== 'in_progress'}
-            title={task.status !== 'in_progress' ? 'Inicie a tarefa antes de concluir' : undefined}
-            onClick={() => handleStatus('completed')}>
-            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
-            Concluir (+{task.points} pts)
+          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1.5 ml-auto"
+            onClick={() => setExpanded((v) => !v)}>
+            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {expanded ? 'Ocultar itens' : 'Ver itens'}
           </Button>
         </div>
+      )}
+
+      {expanded && !compact && (
+        <TaskItemsPanel
+          taskId={task.id}
+          clientId={task.client_id}
+          taskStatus={task.status}
+          canManage={canManageItems}
+          currentUserId={currentUserId}
+        />
       )}
 
       {/* Confirmação de exclusão */}

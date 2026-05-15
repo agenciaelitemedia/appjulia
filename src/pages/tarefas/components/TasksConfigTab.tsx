@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTaskTemplates, TaskTemplate } from '@/hooks/useTaskTemplates';
+import { useTaskCategories } from '@/hooks/useTaskCategories';
 import { TaskTemplateForm } from './TaskTemplateForm';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Plus, Pencil, Star, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Pencil, Star, Trash2, Tag } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -17,10 +19,13 @@ export function TasksConfigTab() {
   const clientId = user?.client_id ? String(user.client_id) : undefined;
 
   const { templates, isLoading, createTemplate, updateTemplate, toggleActive, deleteTemplate } = useTaskTemplates(clientId);
+  const { activeCategories, createCategory, updateCategory, archiveCategory } = useTaskCategories(clientId);
 
   const [mode, setMode] = useState<'list' | 'create' | 'edit'>('list');
   const [editing, setEditing] = useState<TaskTemplate | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatColor, setNewCatColor] = useState('#6366f1');
 
   const handleSave = async (data: Parameters<typeof createTemplate>[0]) => {
     try {
@@ -77,6 +82,48 @@ export function TasksConfigTab() {
 
   return (
     <div className="space-y-5">
+      {/* === Categorias === */}
+      <div className="rounded-lg border p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">Categorias</h3>
+        </div>
+        <p className="text-xs text-muted-foreground -mt-1">Cadastre as categorias usadas pelos templates e tarefas deste escritório.</p>
+
+        <div className="flex flex-wrap gap-2">
+          {activeCategories.map((c) => (
+            <span key={c.id} className="inline-flex items-center gap-2 rounded-full border bg-card pl-2 pr-1 py-0.5 text-xs">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
+              <input
+                defaultValue={c.name}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (v && v !== c.name) updateCategory({ id: c.id, name: v });
+                }}
+                className="bg-transparent outline-none w-28"
+              />
+              <input type="color" defaultValue={c.color}
+                onChange={(e) => updateCategory({ id: c.id, color: e.target.value })}
+                className="h-4 w-4 rounded border-0 cursor-pointer" />
+              <button className="text-muted-foreground hover:text-destructive p-0.5" title="Arquivar"
+                onClick={() => archiveCategory(c.id)}>
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <Input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} placeholder="Nome da nova categoria" className="h-8 text-xs flex-1" />
+          <input type="color" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)} className="h-8 w-8 rounded border cursor-pointer" />
+          <Button size="sm" className="h-8 gap-1" disabled={!newCatName.trim()}
+            onClick={async () => { await createCategory({ name: newCatName.trim(), color: newCatColor }); setNewCatName(''); }}>
+            <Plus className="h-3 w-3" /> Adicionar
+          </Button>
+        </div>
+      </div>
+
+      {/* === Templates === */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold">Templates de tarefas</h3>
