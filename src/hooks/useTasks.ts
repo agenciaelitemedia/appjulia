@@ -13,6 +13,7 @@ export interface Task {
   description: string | null;
   points: number;
   category: string | null;
+  category_id: string | null;
   assigned_to: string | null;
   assigned_name: string | null;
   status: TaskStatus;
