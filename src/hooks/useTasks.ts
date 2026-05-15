@@ -86,6 +86,14 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
           if (dealId) qc.invalidateQueries({ queryKey: dealKey(dealId) });
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_items', filter: `client_id=eq.${clientId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: baseKey(clientId) });
+          if (dealId) qc.invalidateQueries({ queryKey: dealKey(dealId) });
+        }
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [clientId, dealId, qc]);
