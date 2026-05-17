@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Loader2, Plus } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
@@ -11,10 +12,20 @@ import { DeleteQueueDialog } from './components/DeleteQueueDialog';
 import { RestoreQueueDialog } from './components/RestoreQueueDialog';
 import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';
 import { useAgentQueueLimits } from './hooks/useAgentQueueLimits';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function FilasPage() {
   useEnsureFilasModule();
+  const navigate = useNavigate();
   const [showDeleted, setShowDeleted] = useState(false);
   const { data: queues = [], isLoading } = useQueues(showDeleted);
   const { data: limits } = useAgentQueueLimits();
@@ -25,6 +36,7 @@ export default function FilasPage() {
   const [editingQueue, setEditingQueue] = useState<Queue | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Queue | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<Queue | null>(null);
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
 
   const handleEdit = (queue: Queue) => {
     setEditingQueue(queue);
@@ -37,6 +49,14 @@ export default function FilasPage() {
 
   const activeQueues = queues.filter((q) => !q.is_deleted);
   const limitReached = activeQueues.length >= queueLimit;
+
+  const handleNewClick = () => {
+    if (limitReached) {
+      setLimitDialogOpen(true);
+    } else {
+      handleNew();
+    }
+  };
 
   if (isLoading) {
     return (
@@ -55,22 +75,9 @@ export default function FilasPage() {
             Gerencie as conexões de canais de comunicação · {activeQueues.length} / {queueLimit} filas usadas
           </p>
         </div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button onClick={handleNew} disabled={limitReached}>
-                  <Plus className="w-4 h-4 mr-2" /> Nova Fila
-                </Button>
-              </span>
-            </TooltipTrigger>
-            {limitReached && (
-              <TooltipContent>
-                Limite de {queueLimit} {queueLimit === 1 ? 'fila atingido' : 'filas atingido'}. Contate seu administrador para aumentar.
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
+        <Button onClick={handleNewClick}>
+          <Plus className="w-4 h-4 mr-2" /> Nova Fila
+        </Button>
       </div>
 
       <div className="flex items-center gap-2">
@@ -122,6 +129,29 @@ export default function FilasPage() {
           activeQueues={activeQueues}
         />
       )}
+
+      <AlertDialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limite de filas atingido</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você atingiu o limite de {queueLimit} {queueLimit === 1 ? 'fila' : 'filas'} do seu plano.
+              Para adicionar mais filas, adquira filas adicionais clicando no botão abaixo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Fechar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setLimitDialogOpen(false);
+                navigate('/filas/contratar');
+              }}
+            >
+              Contratar mais filas
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
