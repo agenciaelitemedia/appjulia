@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Loader2, MessageSquare, Pencil, Trash2, Building2, Check, X, Search } from 'lucide-react';
+import { Plus, Loader2, MessageSquare, Pencil, Trash2, Building2, Check, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
