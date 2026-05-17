@@ -85,6 +85,7 @@ const EmbedPage = lazy(() => import("./pages/embed/EmbedPage"));
 const EmbedManagerPage = lazy(() => import("./pages/admin/embeds/EmbedManagerPage"));
 const TvMasterPage = lazy(() => import("./pages/tv/TvMasterPage"));
 const ContratarTelefoniaPage = lazy(() => import("./pages/telefonia/contratar/ContratarTelefoniaPage"));
+const ContratarFilasPage = lazy(() => import("./pages/filas/contratar/ContratarFilasPage"));
 const LegalCasesPage = lazy(() => import("./pages/legal-cases/LegalCasesPage"));
 const ContractNotificationsPage = lazy(() => import("./pages/contract-notifications/ContractNotificationsPage"));
 const PedidosPage = lazy(() => import("./pages/admin/pedidos/PedidosPage"));
@@ -207,6 +208,7 @@ const App = () => (
                   <Route path="/admin/embeds" element={<ProtectedRoute module="admin_embeds"><EmbedManagerPage /></ProtectedRoute>} />
                   <Route path="/sys/:code" element={<ProtectedRoute><EmbedPage /></ProtectedRoute>} />
                   <Route path="/telefonia/contratar" element={<ProtectedRoute><ContratarTelefoniaPage /></ProtectedRoute>} />
+                  <Route path="/filas/contratar" element={<ProtectedRoute><ContratarFilasPage /></ProtectedRoute>} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
