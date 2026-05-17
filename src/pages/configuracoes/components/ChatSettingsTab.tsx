@@ -36,9 +36,9 @@ export function ChatSettingsTab() {
       })
     : settings;
 
-  const totalPages = Math.max(1, Math.ceil(filteredSettings.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredSettings.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const paginatedSettings = filteredSettings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginatedSettings = filteredSettings.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const handleNew = () => {
     setEditing(null);
