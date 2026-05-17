@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, Loader2, MessageSquare, Pencil, Trash2, Building2, Check, X } from 'lucide-react';
+import { Plus, Loader2, MessageSquare, Pencil, Trash2, Building2, Check, X, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -19,6 +20,16 @@ export function ChatSettingsTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ChatClientSettingRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatClientSettingRow | null>(null);
+  const [search, setSearch] = useState('');
+
+  const q = search.trim().toLowerCase();
+  const filteredSettings = q
+    ? settings.filter((row) => {
+        const haystack = [row.client_name, row.client_business_name, String(row.client_id)]
+          .filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(q);
+      })
+    : settings;
 
   const handleNew = () => {
     setEditing(null);
@@ -44,6 +55,16 @@ export function ChatSettingsTab() {
         </Button>
       </div>
 
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por cliente, razão social ou ID..."
+          className="pl-9"
+        />
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center h-32">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -54,9 +75,15 @@ export function ChatSettingsTab() {
           <p className="mb-1 font-medium">Nenhuma configuração de chat</p>
           <p className="text-sm">Adicione uma configuração por cliente para personalizar o comportamento do chat</p>
         </div>
+      ) : filteredSettings.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
+          <Search className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="mb-1 font-medium">Nenhum cliente encontrado</p>
+          <p className="text-sm">Tente outro termo de busca</p>
+        </div>
       ) : (
         <div className="border rounded-lg divide-y">
-          {settings.map((row) => (
+          {filteredSettings.map((row) => (
             <div key={row.id} className="flex items-center gap-4 p-4 hover:bg-accent/30 transition-colors">
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                 <Building2 className="h-5 w-5 text-primary" />
