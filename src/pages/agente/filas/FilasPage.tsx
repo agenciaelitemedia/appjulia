@@ -135,8 +135,11 @@ export default function FilasPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Limite de filas atingido</AlertDialogTitle>
             <AlertDialogDescription>
-              Você atingiu o limite de {queueLimit} {queueLimit === 1 ? 'fila' : 'filas'} do seu plano.
-              Para adicionar mais filas, adquira filas adicionais clicando no botão abaixo.
+              Seu plano permite {queueLimit === 1 ? '1 fila' : `${queueLimit} filas`} de atendimento e
+              você já está utilizando {activeQueues.length === 1 ? '1 fila' : `${activeQueues.length} filas`}.
+              Não há {activeQueues.length === 1 ? 'mais nenhuma fila disponível' : 'nenhuma fila disponível'} no momento.
+              Para criar {activeQueues.length === queueLimit && queueLimit === 0 ? 'a primeira fila' : 'uma nova fila'},
+              contrate {queueLimit === 0 ? 'um plano' : 'filas adicionais'} clicando no botão abaixo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -147,7 +150,7 @@ export default function FilasPage() {
                 navigate('/filas/contratar');
               }}
             >
-              Contratar mais filas
+              {queueLimit === 0 ? 'Contratar plano' : 'Contratar mais filas'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
