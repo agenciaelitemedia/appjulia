@@ -93,38 +93,69 @@ export function ChatSettingsTab() {
           <p className="text-sm">Tente outro termo de busca</p>
         </div>
       ) : (
-        <div className="border rounded-lg divide-y">
-          {filteredSettings.map((row) => (
-            <div key={row.id} className="flex items-center gap-4 p-4 hover:bg-accent/30 transition-colors">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Building2 className="h-5 w-5 text-primary" />
+        <>
+          <div className="border rounded-lg divide-y">
+            {paginatedSettings.map((row) => (
+              <div key={row.id} className="flex items-center gap-4 p-4 hover:bg-accent/30 transition-colors">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <Building2 className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{row.client_name || `Cliente ${row.client_id}`}</p>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {row.client_business_name || `ID ${row.client_id}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="outline">
+                    {row.settings.QUEUE_LIMIT} {row.settings.QUEUE_LIMIT === 1 ? 'fila' : 'filas'}
+                  </Badge>
+                  <Badge variant={row.settings.ALLOW_GROUPS ? 'default' : 'secondary'} className="gap-1">
+                    {row.settings.ALLOW_GROUPS ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                    Grupos
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" onClick={() => handleEdit(row)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(row)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{row.client_name || `Cliente ${row.client_id}`}</p>
-                <p className="text-sm text-muted-foreground truncate">
-                  {row.client_business_name || `ID ${row.client_id}`}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Badge variant="outline">
-                  {row.settings.QUEUE_LIMIT} {row.settings.QUEUE_LIMIT === 1 ? 'fila' : 'filas'}
-                </Badge>
-                <Badge variant={row.settings.ALLOW_GROUPS ? 'default' : 'secondary'} className="gap-1">
-                  {row.settings.ALLOW_GROUPS ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                  Grupos
-                </Badge>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Button variant="ghost" size="icon" onClick={() => handleEdit(row)}>
-                  <Pencil className="h-4 w-4" />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Mostrando {((safePage - 1) * PAGE_SIZE) + 1}-{Math.min(safePage * PAGE_SIZE, filteredSettings.length)} de {filteredSettings.length} clientes
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(row)}>
-                  <Trash2 className="h-4 w-4" />
+                <span className="text-sm text-muted-foreground min-w-[3rem] text-center">
+                  {safePage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       <ChatSettingsDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} />
