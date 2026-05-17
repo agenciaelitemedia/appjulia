@@ -6443,6 +6443,10 @@ export type Database = {
       }
     }
     Functions: {
+      apply_queue_limit_from_order: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
       clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
       get_db_cache_hit_ratio: {
         Args: never

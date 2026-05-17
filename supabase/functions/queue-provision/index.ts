@@ -110,50 +110,20 @@ Deno.serve(async (req) => {
       return json({ error: 'Falha ao provisionar' }, 500)
     }
 
-    // ===== Soma ao QUEUE_LIMIT do cliente (idempotente via metadata flag) =====
-    const meta = (order.metadata ?? {}) as Record<string, unknown>
-    const alreadyApplied = meta?.queue_limit_applied === true
-    let appliedDelta = Number(meta?.queue_limit_delta ?? 0) || 0
-
-    if (!alreadyApplied) {
-      // Busca max_queues do plano contratado
-      const { data: plan } = await sb
-        .from('queue_plans')
-        .select('max_queues')
-        .eq('id', order.plan_id)
-        .single()
-      const maxQueues = Number((plan as any)?.max_queues ?? 0) || 0
-      const extraQueues = Number(order.extra_queues ?? 0) || 0
-      appliedDelta = maxQueues + extraQueues
-
-      if (appliedDelta > 0) {
-        const clientIdStr = String(order.client_id)
-        const { data: existing } = await sb
-          .from('chat_client_settings')
-          .select('id, settings')
-          .eq('client_id', clientIdStr)
-          .maybeSingle()
-
-        if (existing) {
-          const currentSettings = ((existing as any).settings ?? {}) as Record<string, unknown>
-          const currentLimit = Number(currentSettings?.QUEUE_LIMIT ?? 1) || 1
-          const newLimit = currentLimit + appliedDelta
-          await sb
-            .from('chat_client_settings')
-            .update({
-              settings: { ...currentSettings, QUEUE_LIMIT: newLimit },
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', (existing as any).id)
-        } else {
-          await sb.from('chat_client_settings').insert({
-            client_id: clientIdStr,
-            client_name: clientName,
-            client_business_name: businessName,
-            settings: { QUEUE_LIMIT: appliedDelta, ALLOW_GROUPS: false },
-          })
-        }
-      }
+    // ===== Soma ao QUEUE_LIMIT do cliente (atômico + idempotente via RPC) =====
+    // A função `apply_queue_limit_from_order` faz lock FOR UPDATE no pedido,
+    // soma o delta em chat_client_settings e marca metadata.queue_limit_applied
+    // dentro da mesma transação — retries/reprocessamentos nunca somam 2x.
+    const { data: rpcRes, error: rpcErr } = await sb.rpc(
+      'apply_queue_limit_from_order',
+      { p_order_id: order_id },
+    )
+    if (rpcErr) {
+      await sb.from('queue_orders').update({
+        provisioning_error: 'Falha ao aplicar QUEUE_LIMIT: ' + rpcErr.message,
+        updated_at: new Date().toISOString(),
+      }).eq('id', order_id)
+      return json({ error: 'Falha ao aplicar QUEUE_LIMIT' }, 500)
     }
 
     await sb.from('queue_orders').update({
@@ -161,11 +131,10 @@ Deno.serve(async (req) => {
       provisioned_at: new Date().toISOString(),
       user_plan_id: userPlan.id,
       provisioning_error: null,
-      metadata: { ...meta, queue_limit_applied: true, queue_limit_delta: appliedDelta },
       updated_at: new Date().toISOString(),
     }).eq('id', order_id)
 
-    return json({ ok: true, user_plan_id: userPlan.id })
+    return json({ ok: true, user_plan_id: userPlan.id, queue_limit: rpcRes })
   } catch (err) {
     console.error('[queue-provision] Error:', err)
     return json({ error: (err as Error).message }, 500)
