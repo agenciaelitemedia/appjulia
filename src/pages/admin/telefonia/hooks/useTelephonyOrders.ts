@@ -61,3 +61,70 @@ export function useRetryProvisioning() {
     onError: (e: any) => toast.error('Falha: ' + (e?.message ?? 'erro')),
   });
 }
+
+export function useCancelTelephonyOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await (supabase as any)
+        .from('telephony_orders')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Pedido cancelado');
+      qc.invalidateQueries({ queryKey: ['telephony-orders'] });
+    },
+    onError: (e: any) => toast.error('Falha ao cancelar: ' + (e?.message ?? 'erro')),
+  });
+}
+
+export function useDeleteTelephonyOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await (supabase as any)
+        .from('telephony_orders')
+        .delete()
+        .eq('id', orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Pedido excluído');
+      qc.invalidateQueries({ queryKey: ['telephony-orders'] });
+    },
+    onError: (e: any) => toast.error('Falha ao excluir: ' + (e?.message ?? 'erro')),
+  });
+}
+
+export function useConfirmTelephonyPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data: order, error: updErr } = await (supabase as any)
+        .from('telephony_orders')
+        .update({
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', orderId)
+        .select('id, total_amount')
+        .maybeSingle();
+      if (updErr) throw updErr;
+
+      const { data, error } = await supabase.functions.invoke('telephony-provision', {
+        body: { order_id: orderId },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return order;
+    },
+    onSuccess: () => {
+      toast.success('Pagamento confirmado e ramais liberados');
+      qc.invalidateQueries({ queryKey: ['telephony-orders'] });
+    },
+    onError: (e: any) => toast.error('Falha: ' + (e?.message ?? 'erro')),
+  });
+}
