@@ -84,11 +84,7 @@ Deno.serve(async (req) => {
       console.warn('[queue-provision] client lookup failed', (e as Error).message)
     }
 
-    // Desativa planos anteriores
-    await sb.from('queue_user_plans')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('client_id', clientIdNum)
-
+    // Modelo cumulativo: planos anteriores permanecem ativos.
     const startDate = new Date().toISOString().slice(0, 10)
     const months = PERIOD_MONTHS[order.billing_period] ?? 1
     const dueDate = addMonthsISO(startDate, months)
@@ -114,11 +110,58 @@ Deno.serve(async (req) => {
       return json({ error: 'Falha ao provisionar' }, 500)
     }
 
+    // ===== Soma ao QUEUE_LIMIT do cliente (idempotente via metadata flag) =====
+    const meta = (order.metadata ?? {}) as Record<string, unknown>
+    const alreadyApplied = meta?.queue_limit_applied === true
+    let appliedDelta = Number(meta?.queue_limit_delta ?? 0) || 0
+
+    if (!alreadyApplied) {
+      // Busca max_queues do plano contratado
+      const { data: plan } = await sb
+        .from('queue_plans')
+        .select('max_queues')
+        .eq('id', order.plan_id)
+        .single()
+      const maxQueues = Number((plan as any)?.max_queues ?? 0) || 0
+      const extraQueues = Number(order.extra_queues ?? 0) || 0
+      appliedDelta = maxQueues + extraQueues
+
+      if (appliedDelta > 0) {
+        const clientIdStr = String(order.client_id)
+        const { data: existing } = await sb
+          .from('chat_client_settings')
+          .select('id, settings')
+          .eq('client_id', clientIdStr)
+          .maybeSingle()
+
+        if (existing) {
+          const currentSettings = ((existing as any).settings ?? {}) as Record<string, unknown>
+          const currentLimit = Number(currentSettings?.QUEUE_LIMIT ?? 1) || 1
+          const newLimit = currentLimit + appliedDelta
+          await sb
+            .from('chat_client_settings')
+            .update({
+              settings: { ...currentSettings, QUEUE_LIMIT: newLimit },
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', (existing as any).id)
+        } else {
+          await sb.from('chat_client_settings').insert({
+            client_id: clientIdStr,
+            client_name: clientName,
+            client_business_name: businessName,
+            settings: { QUEUE_LIMIT: appliedDelta, ALLOW_GROUPS: false },
+          })
+        }
+      }
+    }
+
     await sb.from('queue_orders').update({
       status: 'provisioned',
       provisioned_at: new Date().toISOString(),
       user_plan_id: userPlan.id,
       provisioning_error: null,
+      metadata: { ...meta, queue_limit_applied: true, queue_limit_delta: appliedDelta },
       updated_at: new Date().toISOString(),
     }).eq('id', order_id)
 
