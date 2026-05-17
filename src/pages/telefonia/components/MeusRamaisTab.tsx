@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,10 @@ import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { RamalDialog } from './RamalDialog';
 import { SipManualCredentialsDialog } from './SipManualCredentialsDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import type { PhoneExtension, ProviderType } from '../types';
@@ -31,6 +36,7 @@ interface Props {
 }
 
 export function MeusRamaisTab({ codAgent, clientId }: Props) {
+  const navigate = useNavigate();
   const useClient = !!clientId;
   const partitionKey = useClient ? `c:${clientId}` : `a:${codAgent || ''}`;
   // Fetch provider from phone_config so we can route mutations correctly
@@ -55,6 +61,7 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<PhoneExtension | null>(null);
   const [confirmA, setConfirmA] = useState(false);
   const [confirmB, setConfirmB] = useState(false);
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
 
   const handleSave = (ext: Partial<PhoneExtension> & { email?: string; memberName?: string }) => {
     if (editing) {
@@ -84,6 +91,9 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
               Entre em contato com o administrador do sistema para mais informações.
             </p>
           </div>
+          <Button onClick={() => navigate('/telefonia/contratar')} className="mt-2">
+            <Phone className="h-4 w-4 mr-1" /> Contratar Telefonia
+          </Button>
         </div>
       )}
 
@@ -141,7 +151,15 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
             Meus Ramais
           </CardTitle>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreateExtension || planDeactivated}>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (planDeactivated) { navigate('/telefonia/contratar'); return; }
+                if (!canCreateExtension) { setLimitDialogOpen(true); return; }
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+            >
               <Plus className="h-4 w-4 mr-1" /> Novo Ramal
             </Button>
           </div>
@@ -237,6 +255,24 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
 
       <RamalDialog open={dialogOpen} onOpenChange={setDialogOpen} extension={editing} onSave={handleSave} codAgent={codAgent} isCreating={createExtension.isPending} existingExtensions={extensions} />
       <SipManualCredentialsDialog open={sipCredsOpen} onOpenChange={setSipCredsOpen} extension={sipCredsExt} />
+
+      <AlertDialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limite de ramais atingido</AlertDialogTitle>
+            <AlertDialogDescription>
+              Seu plano permite {maxExtensions === 1 ? '1 ramal' : `${maxExtensions} ramais`} e você já está utilizando {usedExtensions === 1 ? '1 ramal' : `${usedExtensions} ramais`}.
+              Para adicionar {maxExtensions - usedExtensions <= 0 ? 'mais ramais' : 'novos ramais além do limite'}, adquira ramais adicionais.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Fechar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setLimitDialogOpen(false); navigate('/telefonia/contratar'); }}>
+              {maxExtensions === 0 ? 'Contratar plano' : 'Contratar mais ramais'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setConfirmA(false); setConfirmB(false); } }}>
         <DialogContent>
