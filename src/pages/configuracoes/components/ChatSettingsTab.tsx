@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
@@ -22,7 +25,7 @@ export function ChatSettingsTab() {
   const [deleteTarget, setDeleteTarget] = useState<ChatClientSettingRow | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [pageSize, setPageSize] = useState(20);
 
   const q = search.trim().toLowerCase();
   const filteredSettings = q
@@ -33,9 +36,9 @@ export function ChatSettingsTab() {
       })
     : settings;
 
-  const totalPages = Math.max(1, Math.ceil(filteredSettings.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredSettings.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const paginatedSettings = filteredSettings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginatedSettings = filteredSettings.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const handleNew = () => {
     setEditing(null);
@@ -47,10 +50,10 @@ export function ChatSettingsTab() {
     setDialogOpen(true);
   };
 
-  // Reset to first page when search changes
+  // Reset to first page when search or pageSize changes
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, pageSize]);
 
   return (
     <div className="space-y-4">
@@ -127,11 +130,24 @@ export function ChatSettingsTab() {
             ))}
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Mostrando {((safePage - 1) * PAGE_SIZE) + 1}-{Math.min(safePage * PAGE_SIZE, filteredSettings.length)} de {filteredSettings.length} clientes
-              </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {((safePage - 1) * pageSize) + 1}-{Math.min(safePage * pageSize, filteredSettings.length)} de {filteredSettings.length} clientes
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Por página:</span>
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                  <SelectTrigger className="h-8 w-[4.5rem]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -154,7 +170,7 @@ export function ChatSettingsTab() {
                 </Button>
               </div>
             </div>
-          )}
+          </div>
         </>
       )}
 
