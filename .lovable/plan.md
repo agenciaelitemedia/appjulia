@@ -1,18 +1,49 @@
-## Por que aconteceu
+## Objetivo
 
-A data foi salva como `2026-05-15 00:00:00+00` (UTC) no banco. No fuso de Brasília (UTC−3), esse instante corresponde a **14/05 às 21:00**, então `new Date(task.due_date)` + `format(...)` no `TaskCard` exibem "14 mai".
+Criar um módulo **Chat (Admin)** na categoria ADMINISTRAÇÃO no menu, mover as configurações de chat para essa nova área e simplificar a página `/configuracoes`.
 
-Causa raiz: tratamos uma data "de calendário" (sem hora) como um instante UTC. Ao converter para o fuso local, ela "anda um dia para trás".
+## Mudanças
 
-## Plano de correção
+### 1. Nova página `src/pages/admin/chat/ChatAdminPage.tsx`
+Página com Tabs reaproveitando componentes existentes:
+- **Provedores de Fila** — extrai o bloco atual do `ConfiguracoesPage` (lista de `ProviderCard`, botões "Novo Provedor" e "Resetar Chat", `ProviderFormDialog`, `ResetChatDialog`, auto-seed UaZapi).
+- **Chat (Configurações por cliente)** — usa `ChatSettingsTab` já existente, **com uma busca** acima da lista filtrando por `client_name` / `client_business_name` / `client_id`.
+- **History UaZapi** — usa `UazapiHistoryTab`.
+- **Monitor da Fila** — usa `UazapiMonitorTab`.
+- **Manutenção de Filas** — usa `QueueMaintenanceTab`.
 
-Ajustar apenas o **frontend** para tratar o `due_date` como data civil (sem fuso), sem precisar mexer no banco.
+Header: ícone `MessageSquare`, título "Chat (Admin)".
 
-1. **Helper de parse seguro** em `TaskCard.tsx`: extrair os 10 primeiros caracteres (`YYYY-MM-DD`) do `task.due_date` e construir `new Date(year, month-1, day)` (meia-noite **local**), evitando o deslocamento UTC.
-2. **Mesma comparação para o badge**: usar essa data local para decidir verde/amarelo/vermelho (No prazo / Vence hoje / Atrasada).
-3. **Formatação**: `format(localDue, "d MMM", { locale: ptBR })` passará a exibir 15/05 corretamente para datas existentes e novas.
+### 2. Busca na aba "Chat"
+Adicionar campo `Input` (ícone Search) em `ChatSettingsTab.tsx` que filtra `settings` no client-side (case-insensitive) por nome do cliente, razão social e ID. Sem resultados → mensagem "Nenhum cliente encontrado".
 
-Nada muda no fluxo de gravação — o `<input type="date">` continua enviando `YYYY-MM-DD`, e o banco continua aceitando o mesmo formato. As tarefas já cadastradas passarão a mostrar a data correta automaticamente.
+### 3. `src/pages/configuracoes/ConfiguracoesPage.tsx`
+- Remover abas **Provedores de Fila** e **Chat** (e todo o código associado: imports, hooks de providers, dialogs, estados).
+- Manter: **IA's**, **History UaZapi**, **Monitor da Fila**, **Manutenção de Filas**.
+- `defaultValue` da Tabs passa a ser `ai`.
 
-### Arquivo afetado
-- `src/pages/tarefas/components/TaskCard.tsx` (somente o bloco `dueBadge`)
+### 4. Registro do módulo
+Novo hook `src/hooks/useEnsureChatAdminModule.ts` (padrão dos demais `useEnsure*`):
+- code: `chat_admin`
+- name: "Chat (Admin)"
+- route: `/admin/chat`
+- menu_group: `ADMINISTRATIVO`
+- icon: `MessageSquare`
+- category: `admin`
+
+Chamar o hook em `src/components/layout/Sidebar.tsx` junto aos demais.
+
+Adicionar `'chat_admin'` em `ModuleCode` (`src/types/permissions.ts`).
+
+### 5. Roteamento
+Em `src/App.tsx`:
+- `const ChatAdminPage = lazy(() => import("./pages/admin/chat/ChatAdminPage"));`
+- `<Route path="/admin/chat" element={<ProtectedRoute module="chat_admin"><ChatAdminPage /></ProtectedRoute>} />`
+
+## Arquivos tocados
+- **Novo**: `src/pages/admin/chat/ChatAdminPage.tsx`, `src/hooks/useEnsureChatAdminModule.ts`
+- **Editado**: `src/pages/configuracoes/ConfiguracoesPage.tsx`, `src/pages/configuracoes/components/ChatSettingsTab.tsx`, `src/components/layout/Sidebar.tsx`, `src/App.tsx`, `src/types/permissions.ts`
+
+## Observações
+- Nenhuma mudança de schema/backend; só UI e registro de módulo (que usa o `externalDb.createModule` padrão).
+- Após o primeiro carregamento como admin, o item aparece automaticamente no menu ADMINISTRATIVO.
