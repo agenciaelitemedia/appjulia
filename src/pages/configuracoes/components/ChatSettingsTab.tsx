@@ -47,6 +47,11 @@ export function ChatSettingsTab() {
     setDialogOpen(true);
   };
 
+  // Reset to first page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
