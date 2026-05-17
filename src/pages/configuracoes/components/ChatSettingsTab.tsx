@@ -25,7 +25,7 @@ export function ChatSettingsTab() {
   const [deleteTarget, setDeleteTarget] = useState<ChatClientSettingRow | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [pageSize, setPageSize] = useState(20);
 
   const q = search.trim().toLowerCase();
   const filteredSettings = q
