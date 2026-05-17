@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
   orderId: string;
@@ -13,6 +15,8 @@ interface Props {
 export function CheckoutStep({ orderId, checkoutUrl, onProvisioned }: Props) {
   const [status, setStatus] = useState<'pending' | 'paid' | 'provisioned' | 'failed'>('pending');
   const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const { user } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -20,7 +24,11 @@ export function CheckoutStep({ orderId, checkoutUrl, onProvisioned }: Props) {
       if (cancelled || !row) return;
       if (row.status) setStatus(row.status);
       if (row.provisioning_error) setError(row.provisioning_error);
-      if (row.status === 'provisioned') onProvisioned();
+      if (row.status === 'provisioned') {
+        const clientId = user?.client_id ? String(user.client_id) : null;
+        if (clientId) qc.invalidateQueries({ queryKey: ['agent-queue-limits', clientId] });
+        onProvisioned();
+      }
     };
 
     (async () => {
@@ -48,7 +56,7 @@ export function CheckoutStep({ orderId, checkoutUrl, onProvisioned }: Props) {
     }, 15000);
 
     return () => { cancelled = true; clearInterval(interval); supabase.removeChannel(channel); };
-  }, [orderId, onProvisioned]);
+  }, [orderId, onProvisioned, qc, user?.client_id]);
 
   return (
     <Card className="max-w-2xl mx-auto">
