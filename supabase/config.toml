@@ -80,3 +80,12 @@ verify_jwt = false
 
 [functions.uazapi-history-dispatcher-heartbeat]
 verify_jwt = false
+
+[functions.queue-order-create]
+verify_jwt = false
+
+[functions.queue-order-checkout]
+verify_jwt = false
+
+[functions.queue-provision]
+verify_jwt = false
