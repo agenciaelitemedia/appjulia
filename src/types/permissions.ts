@@ -41,6 +41,7 @@ export type ModuleCode =
   | 'push_notifications'
   | 'contacts'
   | 'admin_embeds'
+  | 'chat_admin'
   | string; // permite codes dinâmicos para embeds (ex: 'embed_bi_dashboard')
 
 export interface Module {
