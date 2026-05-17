@@ -59,14 +59,16 @@ export default function ChatAdminPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="providers" className="w-full">
+      <Tabs defaultValue="chat" className="w-full">
         <TabsList>
-          <TabsTrigger value="providers" className="gap-2"><Network className="w-4 h-4" />Provedores de Fila</TabsTrigger>
           <TabsTrigger value="chat" className="gap-2"><MessageSquare className="w-4 h-4" />Chat</TabsTrigger>
+          <TabsTrigger value="providers" className="gap-2"><Network className="w-4 h-4" />Provedores de Fila</TabsTrigger>
           <TabsTrigger value="uazapi-history" className="gap-2"><History className="w-4 h-4" />History UaZapi</TabsTrigger>
           <TabsTrigger value="uazapi-monitor" className="gap-2"><Activity className="w-4 h-4" />Monitor da Fila</TabsTrigger>
           <TabsTrigger value="maintenance" className="gap-2"><Wrench className="w-4 h-4" />Manutenção de Filas</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="chat" className="mt-6"><ChatSettingsTab /></TabsContent>
 
         <TabsContent value="providers" className="mt-6 space-y-4">
           <div className="flex items-center justify-between">
@@ -105,7 +107,6 @@ export default function ChatAdminPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="chat" className="mt-6"><ChatSettingsTab /></TabsContent>
         <TabsContent value="uazapi-history" className="mt-6"><UazapiHistoryTab /></TabsContent>
         <TabsContent value="uazapi-monitor" className="mt-6"><UazapiMonitorTab /></TabsContent>
         <TabsContent value="maintenance" className="mt-6"><QueueMaintenanceTab /></TabsContent>
