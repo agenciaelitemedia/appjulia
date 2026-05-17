@@ -79,6 +79,7 @@ const CopilotAdminPage = lazy(() => import("./pages/admin/copiloto/CopilotAdminP
 const DataJudSearchPage = lazy(() => import("./pages/datajud/DataJudSearchPage"));
 const TelefoniaPage = lazy(() => import("./pages/telefonia/TelefoniaPage"));
 const TelefoniaAdminPage = lazy(() => import("./pages/admin/telefonia/TelefoniaAdminPage"));
+const ChatAdminPage = lazy(() => import("./pages/admin/chat/ChatAdminPage"));
 const PromptGeneratorPage = lazy(() => import("./pages/admin/prompts/PromptGeneratorPage"));
 const EmbedPage = lazy(() => import("./pages/embed/EmbedPage"));
 const EmbedManagerPage = lazy(() => import("./pages/admin/embeds/EmbedManagerPage"));
@@ -196,6 +197,7 @@ const App = () => (
                   <Route path="/admin/operacoes" element={<ProtectedRoute module="admin_agents"><OperacoesMonitorPage /></ProtectedRoute>} />
                   <Route path="/admin/copiloto" element={<ProtectedRoute module="copilot_admin"><CopilotAdminPage /></ProtectedRoute>} />
                   <Route path="/admin/telefonia" element={<ProtectedRoute module="telephony_admin"><TelefoniaAdminPage /></ProtectedRoute>} />
+                  <Route path="/admin/chat" element={<ProtectedRoute module="chat_admin"><ChatAdminPage /></ProtectedRoute>} />
                   <Route path="/admin/webhook-monitor" element={<ProtectedRoute module="admin_agents"><WebhookMonitorPage /></ProtectedRoute>} />
                   <Route path="/admin/prompts" element={<ProtectedRoute module="prompt_generator"><PromptGeneratorPage /></ProtectedRoute>} />
                   <Route path="/admin/pedidos" element={<ProtectedRoute module="julia_orders"><PedidosPage /></ProtectedRoute>} />
