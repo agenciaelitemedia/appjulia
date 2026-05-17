@@ -50,10 +50,10 @@ export function ChatSettingsTab() {
     setDialogOpen(true);
   };
 
-  // Reset to first page when search changes
+  // Reset to first page when search or pageSize changes
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, pageSize]);
 
   return (
     <div className="space-y-4">
