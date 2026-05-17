@@ -64,10 +64,10 @@ export function useCancelQueueOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (orderId: string) => {
-      const { error } = await supabase
-        .from('queue_orders' as never)
-        .update({ status: 'cancelled', updated_at: new Date().toISOString() } as any)
-        .eq('id', orderId) as any;
+      const { error } = await (supabase as any)
+        .from('queue_orders')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', orderId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -82,10 +82,10 @@ export function useDeleteQueueOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (orderId: string) => {
-      const { error } = await supabase
-        .from('queue_orders' as never)
+      const { error } = await (supabase as any)
+        .from('queue_orders')
         .delete()
-        .eq('id', orderId) as any;
+        .eq('id', orderId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -101,16 +101,16 @@ export function useConfirmQueuePayment() {
   return useMutation({
     mutationFn: async (orderId: string) => {
       // Marca como pago manualmente
-      const { data: order, error: updErr } = await supabase
-        .from('queue_orders' as never)
+      const { data: order, error: updErr } = await (supabase as any)
+        .from('queue_orders')
         .update({
           status: 'paid',
           paid_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', orderId)
         .select('id, total_amount')
-        .maybeSingle() as any;
+        .maybeSingle();
       if (updErr) throw updErr;
 
       // Dispara provisionamento
