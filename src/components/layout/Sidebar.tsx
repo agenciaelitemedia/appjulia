@@ -26,6 +26,7 @@ import { useEnsurePushNotificationsModule } from "@/hooks/useEnsurePushNotificat
 import { useEnsureContactsModule } from "@/hooks/useEnsureContactsModule";
 import { useEnsureOperacoesModule } from "@/hooks/useEnsureOperacoesModule";
 import { useEnsureTasksModule } from "@/hooks/useEnsureTasksModule";
+import { useEnsureChatAdminModule } from "@/hooks/useEnsureChatAdminModule";
 import {
   Tooltip,
   TooltipContent,
@@ -64,6 +65,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureContactsModule();
   useEnsureOperacoesModule();
   useEnsureTasksModule();
+  useEnsureChatAdminModule();
 
   const isTimeUser = user?.role === "time";
   
