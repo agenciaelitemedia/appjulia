@@ -21,6 +21,8 @@ export function ChatSettingsTab() {
   const [editing, setEditing] = useState<ChatClientSettingRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ChatClientSettingRow | null>(null);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const q = search.trim().toLowerCase();
   const filteredSettings = q
@@ -30,6 +32,10 @@ export function ChatSettingsTab() {
         return haystack.includes(q);
       })
     : settings;
+
+  const totalPages = Math.max(1, Math.ceil(filteredSettings.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedSettings = filteredSettings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const handleNew = () => {
     setEditing(null);
