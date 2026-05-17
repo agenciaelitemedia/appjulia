@@ -130,11 +130,24 @@ export function ChatSettingsTab() {
             ))}
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Mostrando {((safePage - 1) * PAGE_SIZE) + 1}-{Math.min(safePage * PAGE_SIZE, filteredSettings.length)} de {filteredSettings.length} clientes
-              </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {((safePage - 1) * pageSize) + 1}-{Math.min(safePage * pageSize, filteredSettings.length)} de {filteredSettings.length} clientes
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Por página:</span>
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                  <SelectTrigger className="h-8 w-[4.5rem]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -157,7 +170,7 @@ export function ChatSettingsTab() {
                 </Button>
               </div>
             </div>
-          )}
+          </div>
         </>
       )}
 
