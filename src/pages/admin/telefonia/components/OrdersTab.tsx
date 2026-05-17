@@ -1,9 +1,23 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, RefreshCw, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
-import { useTelephonyOrders, useRetryProvisioning } from '../hooks/useTelephonyOrders';
+import {
+  Loader2, RefreshCw, AlertTriangle, CheckCircle2, Clock,
+  CircleSlash, Trash2, BadgeCheck,
+} from 'lucide-react';
+import {
+  useTelephonyOrders, useRetryProvisioning,
+  useCancelTelephonyOrder, useDeleteTelephonyOrder, useConfirmTelephonyPayment,
+  type TelephonyOrder,
+} from '../hooks/useTelephonyOrders';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { PaymentSettingsDialog } from '@/pages/admin/pedidos/components/PaymentSettingsDialog';
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -25,6 +39,14 @@ const fmt = (cents: number | null) =>
 export function OrdersTab() {
   const { data: orders = [], isLoading } = useTelephonyOrders();
   const retry = useRetryProvisioning();
+  const cancelOrder = useCancelTelephonyOrder();
+  const deleteOrder = useDeleteTelephonyOrder();
+  const confirmPayment = useConfirmTelephonyPayment();
+
+  const [confirmTarget, setConfirmTarget] = useState<TelephonyOrder | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<TelephonyOrder | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TelephonyOrder | null>(null);
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
 
   const stats = {
     total: orders.length,
@@ -105,16 +127,30 @@ export function OrdersTab() {
                         {new Date(o.created_at).toLocaleString('pt-BR')}
                       </TableCell>
                       <TableCell>
-                        {needsRetry && (
-                          <Button
-                            size="sm" variant="outline"
-                            onClick={() => retry.mutate(o.id)}
-                            disabled={retry.isPending}
-                          >
-                            <RefreshCw className="h-3 w-3 mr-1" />
-                            Retentar
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {needsRetry && (
+                            <Button size="sm" variant="outline" className="rounded-full h-8"
+                              onClick={() => retry.mutate(o.id)} disabled={retry.isPending}>
+                              <RefreshCw className="h-3 w-3 mr-1" /> Retentar
+                            </Button>
+                          )}
+                          {(o.status === 'pending' || o.status === 'draft') && (
+                            <Button size="sm" variant="outline" className="rounded-full h-8 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                              onClick={() => setConfirmTarget(o)} title="Confirmar pagamento">
+                              <BadgeCheck className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {['pending', 'draft', 'paid', 'failed'].includes(o.status) && (
+                            <Button size="sm" variant="outline" className="rounded-full h-8 text-amber-700 border-amber-300 hover:bg-amber-50"
+                              onClick={() => setCancelTarget(o)} title="Cancelar pedido">
+                              <CircleSlash className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" className="rounded-full h-8 text-rose-700 border-rose-300 hover:bg-rose-50"
+                            onClick={() => { setDeleteConfirmed(false); setDeleteTarget(o); }} title="Excluir pedido">
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
-                        )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -124,6 +160,94 @@ export function OrdersTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Confirmar pagamento */}
+      <AlertDialog open={!!confirmTarget} onOpenChange={(o) => !o && setConfirmTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar pagamento manualmente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O pedido <span className="font-mono">{confirmTarget?.order_nsu ?? confirmTarget?.id.slice(0, 8)}</span> de{' '}
+              <strong>{confirmTarget?.customer_name}</strong> ({fmt(confirmTarget?.total_amount ?? 0)}) será marcado como pago
+              e os ramais serão liberados imediatamente para o cliente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmTarget) confirmPayment.mutate(confirmTarget.id);
+                setConfirmTarget(null);
+              }}
+            >
+              Sim, confirmar pagamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancelar pedido */}
+      <AlertDialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar este pedido?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O pedido <span className="font-mono">{cancelTarget?.order_nsu ?? cancelTarget?.id.slice(0, 8)}</span> ficará marcado
+              como cancelado e não poderá mais ser pago. Esta ação não exclui o registro.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (cancelTarget) cancelOrder.mutate(cancelTarget.id);
+                setCancelTarget(null);
+              }}
+            >
+              Sim, cancelar pedido
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Excluir pedido — dupla confirmação */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteConfirmed(false); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-rose-700">Excluir pedido permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação <strong>não pode ser desfeita</strong>. O pedido{' '}
+              <span className="font-mono">{deleteTarget?.order_nsu ?? deleteTarget?.id.slice(0, 8)}</span> de{' '}
+              <strong>{deleteTarget?.customer_name}</strong> será removido do banco de dados.
+              {deleteTarget?.status === 'provisioned' && (
+                <span className="block mt-2 text-amber-700">
+                  Atenção: este pedido já liberou ramais para o cliente. A exclusão não reverte os ramais provisionados.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center gap-2 py-3">
+            <Switch id="confirm-delete-tel-order" checked={deleteConfirmed} onCheckedChange={setDeleteConfirmed} />
+            <Label htmlFor="confirm-delete-tel-order" className="text-sm">
+              Confirmo que quero excluir este pedido permanentemente
+            </Label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!deleteConfirmed}
+              className="bg-rose-600 hover:bg-rose-700"
+              onClick={() => {
+                if (deleteTarget && deleteConfirmed) deleteOrder.mutate(deleteTarget.id);
+                setDeleteTarget(null);
+                setDeleteConfirmed(false);
+              }}
+            >
+              Excluir permanentemente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
