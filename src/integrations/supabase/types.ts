@@ -4659,6 +4659,165 @@ export type Database = {
           },
         ]
       }
+      queue_orders: {
+        Row: {
+          billing_period: string
+          checkout_url: string | null
+          client_id: string
+          created_at: string
+          customer_document: string
+          customer_email: string
+          customer_name: string
+          customer_whatsapp: string | null
+          extra_queues: number
+          extra_queues_total: number
+          fee_amount: number | null
+          id: string
+          metadata: Json | null
+          mp_payment_id: string | null
+          mp_preference_id: string | null
+          net_amount: number | null
+          order_nsu: string | null
+          paid_amount: number | null
+          paid_at: string | null
+          payment_gateway: string
+          plan_id: number
+          plan_name: string
+          plan_price: number
+          provisioned_at: string | null
+          provisioning_error: string | null
+          setup_fee: number
+          status: string
+          total_amount: number
+          updated_at: string
+          user_plan_id: number | null
+          webhook_payload: Json | null
+        }
+        Insert: {
+          billing_period: string
+          checkout_url?: string | null
+          client_id: string
+          created_at?: string
+          customer_document: string
+          customer_email: string
+          customer_name: string
+          customer_whatsapp?: string | null
+          extra_queues?: number
+          extra_queues_total?: number
+          fee_amount?: number | null
+          id?: string
+          metadata?: Json | null
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          net_amount?: number | null
+          order_nsu?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          payment_gateway?: string
+          plan_id: number
+          plan_name: string
+          plan_price?: number
+          provisioned_at?: string | null
+          provisioning_error?: string | null
+          setup_fee?: number
+          status?: string
+          total_amount?: number
+          updated_at?: string
+          user_plan_id?: number | null
+          webhook_payload?: Json | null
+        }
+        Update: {
+          billing_period?: string
+          checkout_url?: string | null
+          client_id?: string
+          created_at?: string
+          customer_document?: string
+          customer_email?: string
+          customer_name?: string
+          customer_whatsapp?: string | null
+          extra_queues?: number
+          extra_queues_total?: number
+          fee_amount?: number | null
+          id?: string
+          metadata?: Json | null
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          net_amount?: number | null
+          order_nsu?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          payment_gateway?: string
+          plan_id?: number
+          plan_name?: string
+          plan_price?: number
+          provisioned_at?: string | null
+          provisioning_error?: string | null
+          setup_fee?: number
+          status?: string
+          total_amount?: number
+          updated_at?: string
+          user_plan_id?: number | null
+          webhook_payload?: Json | null
+        }
+        Relationships: []
+      }
+      queue_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          extra_queue_price: number
+          id: number
+          is_active: boolean
+          max_queues: number
+          name: string
+          price_annual: number
+          price_monthly: number
+          price_quarterly: number
+          price_semiannual: number
+          setup_fee_annual: number | null
+          setup_fee_monthly: number | null
+          setup_fee_quarterly: number | null
+          setup_fee_semiannual: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          extra_queue_price?: number
+          id?: number
+          is_active?: boolean
+          max_queues?: number
+          name: string
+          price_annual?: number
+          price_monthly?: number
+          price_quarterly?: number
+          price_semiannual?: number
+          setup_fee_annual?: number | null
+          setup_fee_monthly?: number | null
+          setup_fee_quarterly?: number | null
+          setup_fee_semiannual?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          extra_queue_price?: number
+          id?: number
+          is_active?: boolean
+          max_queues?: number
+          name?: string
+          price_annual?: number
+          price_monthly?: number
+          price_quarterly?: number
+          price_semiannual?: number
+          setup_fee_annual?: number | null
+          setup_fee_monthly?: number | null
+          setup_fee_quarterly?: number | null
+          setup_fee_semiannual?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       queue_providers: {
         Row: {
           client_id: string
@@ -4721,6 +4880,65 @@ export type Database = {
           webchat_config_id?: string | null
         }
         Relationships: []
+      }
+      queue_user_plans: {
+        Row: {
+          assigned_at: string
+          billing_period: string
+          business_name: string | null
+          client_id: number | null
+          client_name: string | null
+          cod_agent: number | null
+          created_at: string
+          due_date: string | null
+          extra_queues: number
+          id: number
+          is_active: boolean
+          plan_id: number
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string
+          billing_period?: string
+          business_name?: string | null
+          client_id?: number | null
+          client_name?: string | null
+          cod_agent?: number | null
+          created_at?: string
+          due_date?: string | null
+          extra_queues?: number
+          id?: number
+          is_active?: boolean
+          plan_id: number
+          start_date?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string
+          billing_period?: string
+          business_name?: string | null
+          client_id?: number | null
+          client_name?: string | null
+          cod_agent?: number | null
+          created_at?: string
+          due_date?: string | null
+          extra_queues?: number
+          id?: number
+          is_active?: boolean
+          plan_id?: number
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "queue_user_plans_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "queue_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       queues: {
         Row: {

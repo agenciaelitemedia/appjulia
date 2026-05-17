@@ -93,8 +93,25 @@ Deno.serve(async (req) => {
       .eq('id', externalReference)
       .maybeSingle()
 
-    const orderTable = juliaOrder ? 'julia_orders' : 'telephony_orders'
-    const isTelephony = orderTable === 'telephony_orders'
+    let orderTable: 'julia_orders' | 'telephony_orders' | 'queue_orders' = 'telephony_orders'
+    let isTelephony = false
+    let isQueue = false
+    if (juliaOrder) {
+      orderTable = 'julia_orders'
+    } else {
+      const { data: queueOrder } = await supabase
+        .from('queue_orders')
+        .select('id')
+        .eq('id', externalReference)
+        .maybeSingle()
+      if (queueOrder) {
+        orderTable = 'queue_orders'
+        isQueue = true
+      } else {
+        orderTable = 'telephony_orders'
+        isTelephony = true
+      }
+    }
 
     if (payment.status === 'approved') {
       const paidAmountCents = Math.round((payment.transaction_amount || 0) * 100)
@@ -133,6 +150,7 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       }
       if (!isTelephony) updatePayload.installments = payment.installments || 1
+      if (isQueue) delete (updatePayload as any).installments
 
       const { error: updateError } = await supabase
         .from(orderTable)
@@ -174,6 +192,22 @@ Deno.serve(async (req) => {
           }).catch((err) => console.warn('[mercadopago-webhook] notify dispatch failed:', err))
         } catch (err) {
           console.warn('[mercadopago-webhook] notify dispatch error:', err)
+        }
+      }
+
+      // Auto-provisioning para pedidos de filas
+      if (isQueue && !updateError) {
+        try {
+          fetch(`${supabaseUrl}/functions/v1/queue-provision`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({ order_id: externalReference }),
+          }).catch((err) => console.warn('[mercadopago-webhook] queue provision dispatch failed:', err))
+        } catch (err) {
+          console.warn('[mercadopago-webhook] queue provision dispatch error:', err)
         }
       }
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {
