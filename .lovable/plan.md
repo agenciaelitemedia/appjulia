@@ -1,191 +1,81 @@
+## Diagnóstico
 
-# Plano: Contratação de Videochamadas + Admin VideoChamadas
+O lead `557599612331` aparece **duas vezes** em `chat_contacts` no client 294:
 
-Implementar o fluxo completo de contratação de planos de videochamada (Daily.co), espelhando o padrão já consolidado de `/telefonia/contratar` e `/admin/telefonia`. Inclui módulo admin com abas de **Planos** (CRUD) e **Pedidos** (similar ao `/admin/chat` / `OrdersTab` de telefonia), além do seed dos 3 planos sugeridos (Light, Pro, Escritório).
+| id | phone | remote_jid | criado | mensagens |
+|----|-------|------------|--------|-----------|
+| 31b9d7cc… | `5575999612331` (13 díg, com 9) | `557599612331@s.whatsapp.net` | 08/05 | **5** |
+| d9cb2e1c… | `557599612331` (12 díg, sem 9) | `557599612331@s.whatsapp.net` | 15/05 | **0** |
 
----
+Ao abrir o contato sem 9º dígito, o painel fica vazio — as mensagens existem, mas estão atreladas ao outro registro. Não é um problema de paginação nem de webhook perdendo mensagem; é **duplicação de contato**.
 
-## 1. Banco de dados (migration)
+O problema é sistêmico no client 294: há **97 pares duplicados** com o mesmo `remote_jid` mas `phone` diferente (com/sem 9). Boa parte foi criada em 30/04 e 15/05 — datas em que rotinas de sincronização/backfill rodaram.
 
-### 1.1 Tabela `video_plans`
-Espelha `phone_extension_plans`, trocando ramais por minutos.
+### Causa raiz
 
-```text
-id                       serial PK
-name                     text NOT NULL              -- 'Light', 'Pro', 'Escritório'
-slug                     text UNIQUE                -- 'light' | 'pro' | 'office'
-included_minutes         integer NOT NULL           -- minutos/mês inclusos (participant-minutes)
-max_concurrent_rooms     integer NOT NULL           -- salas simultâneas
-recording_included       boolean DEFAULT false
-transcription_included   boolean DEFAULT false
-price_monthly            numeric NOT NULL DEFAULT 0
-price_quarterly          numeric NOT NULL DEFAULT 0
-price_semiannual         numeric NOT NULL DEFAULT 0
-price_annual             numeric NOT NULL DEFAULT 0
-extra_minutes_pack_size  integer DEFAULT 1000       -- pacote extra (ex.: 1000 min)
-extra_minutes_pack_price numeric DEFAULT 0          -- preço do pacote extra
-setup_fee_monthly/quarterly/semiannual/annual  numeric NULL
-description              text
-is_active                boolean DEFAULT true
-sort_order               integer DEFAULT 0
-created_at / updated_at  timestamptz
-```
-RLS: `Allow all` (idêntico a `phone_extension_plans`); UI restrita por `AdminRoute`.
+`supabase/functions/uazapi-history-resume/index.ts` (linha ~165 e ~221):
 
-### 1.2 Tabela `video_orders`
-Espelha `telephony_orders`:
-```text
-id uuid PK, client_id text, customer_* (name/document/email/whatsapp),
-plan_id int FK → video_plans, plan_name text,
-billing_period text ('monthly'|'quarterly'|'semiannual'|'annual'),
-extra_minute_packs int DEFAULT 0,
-recording_enabled bool, transcription_enabled bool,
-plan_price/setup_fee/recording_total/transcription_total/extras_total/total_amount  integer (centavos),
-status text DEFAULT 'draft' ('draft'|'pending'|'paid'|'provisioned'|'failed'|'cancelled'),
-payment_gateway text DEFAULT 'mercadopago',
-checkout_url, mp_preference_id, mp_payment_id, order_nsu text,
-paid_at, provisioned_at timestamptz,
-paid_amount/net_amount/fee_amount int,
-provisioning_error text, metadata jsonb, webhook_payload jsonb,
-user_plan_id bigint NULL,
-created_at/updated_at timestamptz
-```
-Índices em `client_id`, `status`, `mp_preference_id`. RLS: insert/update abertos (igual telephony_orders) + select público (necessário p/ admin).
-
-### 1.3 Tabela `video_user_plans` (assinatura ativa do cliente)
-```text
-id bigserial PK, client_id text NOT NULL,
-plan_id int FK → video_plans,
-billing_period text, status text ('active'|'cancelled'|'expired'),
-minutes_quota int, minutes_used int DEFAULT 0,
-max_concurrent_rooms int,
-recording_enabled bool, transcription_enabled bool,
-period_start timestamptz, period_end timestamptz,
-activated_at, cancelled_at timestamptz,
-metadata jsonb, created_at/updated_at
-```
-Trigger de `updated_at`.
-
-### 1.4 Seed dos 3 planos sugeridos (insert tool, em reais)
-
-| Slug | Nome | Minutos | Salas Simult. | Recording | Transcrição | Mensal | Trim. | Sem. | Anual | Extra |
-|---|---|---|---|---|---|---|---|---|---|---|
-| light  | Light       | 5.000  | 2 | – | – | 197  | 561 (-5%)   | 1.064 (-10%) | 1.999 (-15%) | R$ 49 / 1.000 min |
-| pro    | Pro         | 20.000 | 5 | ✓ (add-on R$99/m) | – | 497  | 1.416 (-5%) | 2.685 (-10%) | 5.069 (-15%) | R$ 39 / 1.000 min |
-| office | Escritório  | 50.000 | 15 | ✓ incluso | ✓ incluso | 1.197 | 3.411 | 6.464 | 12.205 | R$ 29 / 1.000 min |
-
-Setup fee: 0 para todos.
-
----
-
-## 2. Edge Functions
-
-Espelham 1:1 as de telefonia (copiar e adaptar):
-
-- `video-order-create` — valida plano + breakdown vs servidor (centavos), cria `video_orders` status `draft`.
-- `video-order-checkout` — gera preferência MercadoPago, atualiza `checkout_url`+`mp_preference_id`, status → `pending`.
-- `video-provision` — chamada pelo webhook MP / botão admin "Confirmar pagamento": cria/renova `video_user_plans`, define quota, `period_start/end`, status do pedido → `provisioned`. Em erro grava `provisioning_error` e status `failed`.
-- Reaproveitar `mercadopago-webhook` (adicionar handler `video_order` via `external_reference`).
-
-Padrão de auth: `verify_jwt = false` para webhook; demais validam JWT do chamador (igual telephony).
-
----
-
-## 3. Frontend — Contratação `/video/contratar`
-
-Cópia estrutural de `src/pages/telefonia/contratar/`:
-
-```text
-src/pages/video/contratar/
-  ContratarVideoPage.tsx          (Stepper Plano → Dados → Pagamento → Pronto)
-  types.ts                        (VideoPlan, ContractDraft, calculateTotal)
-  steps/SelectPlanStep.tsx        (3 cards de plano + toggle período + extras de minutos)
-  steps/ConfirmDataStep.tsx       (form customer_* com máscara CPF/CNPJ; pré-preenche via useAuth)
-  steps/CheckoutStep.tsx          (iframe/redirect MP + polling de status do pedido)
+```ts
+let phone: string | null = item.phone && !isLidJid(item.remote_jid) ? item.phone : null;
+...
+await supabase.from('chat_contacts').insert({
+  client_id: clientId, phone, ...   // ← phone sem passar por normalizeBrPhone
+});
 ```
 
-- Resumo lateral igual telefonia (plano + setup + extras + add-ons).
-- Toggle Gravação/Transcrição: oculto se `recording_included`/`transcription_included` = true; cobrado como add-on R$99/mês caso contrário.
-- Comparativo cliente×servidor (`client_breakdown_cents` / `expected_total_cents`) idêntico ao telefonia.
-- Rota registrada em `src/App.tsx` dentro de `MainLayout` + `ProtectedRoute`.
-- Link "Contratar" no header de `/video` (VideoQueuePage) quando cliente não tem `video_user_plans` ativo.
+O `phone` vem do `remoteJid` do UaZapi (formato legacy, sem o 9), e é gravado direto em `chat_contacts.phone`. A busca por contato existente (`.eq('phone', phone)`) também usa o phone não normalizado, então nunca encontra o registro canônico (com 9) e cria um novo contato vazio.
+
+Como webhooks normais (`uazapi-chat-webhook`) **passam** por `normalizeBrPhone`, novas mensagens continuam caindo no contato canônico com 9 — daí o duplicado fica órfão (zero mensagens) e o usuário vê chat vazio.
+
+Também há ausência de **constraint UNIQUE** em `(client_id, channel_source, remote_jid)`, o que permite a duplicação acontecer.
 
 ---
 
-## 4. Frontend — Admin `/admin/video`
+## Plano de correção
 
-Nova página `src/pages/admin/video/VideoAdminPage.tsx` com `Tabs` (padrão `TelefoniaAdminPage`):
+### 1. Fix da fonte (uazapi-history-resume)
 
-### Aba **Planos** (`PlansTab.tsx`)
-- Tabela: Nome, Minutos, Salas Simult., Recording/Transcrição (badges), Preços (mensal destacado, tooltip dos demais períodos), Status, Ações.
-- Botão **Novo plano** → `PlanDialog.tsx` (form completo com todos os campos da tabela).
-- Ações por linha: Editar (mesmo dialog), Ativar/Desativar (toggle `is_active`), Excluir (AlertDialog dupla confirmação, igual padrão `secure-deletion-workflow`).
-- Hook `useVideoPlans.ts` (list/create/update/delete via supabase client).
+- Importar `normalizeBrPhone` de `_shared/phone-normalize.ts`.
+- Aplicar `phone = normalizeBrPhone(phone)` imediatamente após resolver o telefone (linha ~171).
+- Recalcular `remoteJid` a partir do phone normalizado **apenas para gravar/buscar**, mantendo o JID original recebido se necessário em outros pontos.
+- Buscar contato existente também por variantes (`brPhoneVariants`) para reaproveitar registros já criados pelo webhook normal.
 
-### Aba **Pedidos** (`OrdersTab.tsx`)
-Espelha `src/pages/admin/telefonia/components/OrdersTab.tsx` + `useTelephonyOrders`:
-- Lista `video_orders` com refetch 15s.
-- Filtros: status, cliente (search), período.
-- Colunas: criado em, cliente, plano, período, total (R$), gateway, status (badge), ações.
-- Ações: **Abrir checkout**, **Confirmar pagamento manual** (chama `video-provision`), **Cancelar**, **Excluir**, **Reprocessar provisionamento**.
-- Drawer/Dialog de detalhes: breakdown, payload MP, erros de provisionamento, `video_user_plans` gerado.
+### 2. Backfill/processador — auditoria rápida
 
-### Aba **Assinaturas** (opcional, recomendada)
-Lista `video_user_plans` por cliente: quota, minutos usados, vigência, botão "Renovar"/"Cancelar".
+Verificar `uazapi-history-processor`, `uazapi-chat-backfill` e `uazapi-history-import` para garantir que todo `insert` em `chat_contacts` passa por `normalizeBrPhone` e que `.eq('phone', …)` usa o valor normalizado. Aplicar a mesma correção onde faltar.
 
-Hooks novos:
-- `src/pages/admin/video/hooks/useVideoPlans.ts`
-- `src/pages/admin/video/hooks/useVideoOrders.ts` (espelho de `useTelephonyOrders`)
-- `src/pages/admin/video/hooks/useVideoUserPlans.ts`
+### 3. Migração de consolidação (dados existentes)
 
----
+Migration SQL que, para cada par duplicado em `chat_contacts` com o mesmo `(client_id, channel_source, remote_jid)`:
 
-## 5. Integração com módulo `/video` existente
+1. Elege como **canônico** o contato cujo `phone` tem 13 dígitos (com 9). Se ambos tiverem o mesmo formato, escolhe o mais antigo (`created_at` menor).
+2. Faz `UPDATE chat_messages SET contact_id = canonical_id WHERE contact_id = duplicate_id`.
+3. Faz `UPDATE chat_conversations SET contact_id = canonical_id WHERE contact_id = duplicate_id` (e demais tabelas referenciando contato, ex.: `chat_message_notes` se houver).
+4. `DELETE FROM chat_contacts WHERE id = duplicate_id`.
+5. Atualiza `last_message_at`/`last_message_text`/`unread_count` no canônico a partir do MAX da mensagem mais recente.
 
-- `useVideoRoom.ts` antes de criar sala: validar `video_user_plans` ativo do `client_id` e `max_concurrent_rooms` (consulta `video_call_records` em chamadas abertas).
-- Após encerrar chamada (já há `duration_seconds` em `video_call_records`): trigger SQL ou edge que incrementa `minutes_used` (`duration_seconds/60 * participants`).
-- Banner em `/video` quando `minutes_used >= 80% quota` com CTA → `/video/contratar`.
-- Bloqueio quando quota esgotada / sem plano: redirecionar `/video/contratar`.
+### 4. Constraint preventiva
 
----
+Migration adicional:
 
-## 6. Menu, permissões e módulos
+```sql
+-- Garantir unicidade por canal real
+CREATE UNIQUE INDEX IF NOT EXISTS chat_contacts_unique_jid
+  ON public.chat_contacts (client_id, channel_source, remote_jid)
+  WHERE remote_jid IS NOT NULL AND is_group = false;
+```
 
-- Inserir em `client_modules` (via `useEnsureVideoAdminModule` similar aos `useEnsure*Module`):
-  - `video.contratar` (cliente)
-  - `video.admin` (admin) com sub-itens `planos`, `pedidos`, `assinaturas`.
-- Sidebar: link "Videochamadas" em Admin (ícone `Video` lucide).
-- `ProtectedRoute` com `permission="video.admin"` na rota `/admin/video`.
+Isso bloqueia novas duplicações mesmo se algum caminho esquecer de normalizar.
+
+### 5. Validação pós-deploy
+
+- Rodar query de duplicidade para confirmar `0` pares restantes no client 294.
+- Reabrir o contato `5575999612331` no /chat e confirmar que as 5 mensagens aparecem e o duplicado sumiu.
 
 ---
 
-## 7. Detalhes técnicos relevantes
+## Ordem de execução
 
-- **Moedas**: planos em `numeric` (R$), pedidos em `integer` centavos — igual telefonia.
-- **Validação de preço servidor**: replicar `client_breakdown_cents` vs `server_breakdown_cents` com warning toast quando divergir.
-- **MercadoPago**: reusar credenciais e `mercadopago-checkout`/`mercadopago-webhook`; discriminar `external_reference = video_order:{id}`.
-- **Cron de expiração** (opcional, fase 2): job diário que expira `video_user_plans` com `period_end < now()`.
-- **Auditoria**: gravar em `metadata` quem confirmou pagamento manual (admin user_id + timestamp).
-- **Margem**: custo Daily ≈ $0.004/participant-min × 5.50 BRL — margens validadas: Light ~75%, Pro ~67%, Escritório ~63%.
+1. Migration de consolidação (dedup) → 2. Migration de constraint UNIQUE → 3. Patch em `uazapi-history-resume` (+ auditoria nos demais) → 4. Validação.
 
----
-
-## 8. Ordem de execução sugerida
-
-1. Migration (`video_plans`, `video_orders`, `video_user_plans`) + seed dos 3 planos.
-2. Edge functions `video-order-create`, `video-order-checkout`, `video-provision` + hook no `mercadopago-webhook`.
-3. Página `/video/contratar` (steps + hook).
-4. Admin `/admin/video` (PlansTab + PlanDialog).
-5. Admin OrdersTab + ações (confirmar/cancelar/excluir/reprocessar).
-6. Aba Assinaturas.
-7. Enforcement de quota / `max_concurrent_rooms` em `useVideoRoom`.
-8. Sidebar + módulo + permissões + banner CTA em `/video`.
-
----
-
-## 9. Fora de escopo (próximas iterações)
-
-- Cobrança automática por minuto excedente (overage billing).
-- Notificações push/whatsapp em 80% / 100% de quota.
-- Relatório de consumo por atendente em `/admin/video`.
-- Upgrade/downgrade pró-rata no meio do período.
+A correção é segura: nenhuma mensagem é perdida (são apenas re-apontadas) e o contato canônico (com 9) é preservado. O usuário não precisa fazer nada no front.
