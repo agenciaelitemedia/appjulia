@@ -164,7 +164,7 @@ async function processNumber(
     .from('chat_contacts')
     .select('id, is_group, remote_jid')
     .eq('client_id', job.client_id)
-    .eq('phone', phone)
+    .in('phone', brPhoneVariants(phone))
     .maybeSingle();
 
   if (existing) {
