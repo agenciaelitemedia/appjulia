@@ -6,6 +6,7 @@
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { normalizeBrPhone, brPhoneVariants } from "../_shared/phone-normalize.ts";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 
 declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
@@ -30,7 +31,8 @@ function respond(body: Record<string, unknown>, status = 200) {
 }
 
 function normalizePhone(raw: string): string {
-  return (raw || '').replace(/@.*/, '').replace(/[^\d]/g, '');
+  // Canonical BR-aware normalization (forces 9th digit on mobile).
+  return normalizeBrPhone(raw);
 }
 
 function isGroupJid(value: unknown): boolean {
