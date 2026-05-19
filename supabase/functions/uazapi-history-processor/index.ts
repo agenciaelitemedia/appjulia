@@ -311,7 +311,9 @@ async function processRun(runId: string, payload: any): Promise<void> {
           // Race condition: another worker may have inserted it concurrently
           const { data: again } = await supabase
             .from('chat_contacts').select('id')
-            .eq('phone', phone).eq('client_id', clientId).maybeSingle();
+            .eq('client_id', clientId)
+            .in('phone', brPhoneVariants(phone))
+            .maybeSingle();
           if (!again?.id) {
             chatError = `contact insert failed: ${insErr?.message}`;
             throw new Error(chatError);
