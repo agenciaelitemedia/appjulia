@@ -6,6 +6,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
+import { normalizeBrPhone, brPhoneVariants } from "../_shared/phone-normalize.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,7 +28,8 @@ function getSupabase() {
 }
 
 function normalizePhone(raw: string): string {
-  return (raw || '').replace(/@.*/, '').replace(/[^\d]/g, '');
+  // Canonical BR-aware normalization (forces 9th digit on mobile).
+  return normalizeBrPhone(raw);
 }
 
 function isGroupChatId(value: unknown): boolean {
@@ -162,7 +164,7 @@ async function processNumber(
     .from('chat_contacts')
     .select('id, is_group, remote_jid')
     .eq('client_id', job.client_id)
-    .eq('phone', phone)
+    .in('phone', brPhoneVariants(phone))
     .maybeSingle();
 
   if (existing) {

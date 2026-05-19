@@ -6,6 +6,7 @@
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { normalizeBrPhone, brPhoneVariants } from "../_shared/phone-normalize.ts";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 
 declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
@@ -30,7 +31,8 @@ function respond(body: Record<string, unknown>, status = 200) {
 }
 
 function normalizePhone(raw: string): string {
-  return (raw || '').replace(/@.*/, '').replace(/[^\d]/g, '');
+  // Canonical BR-aware normalization (forces 9th digit on mobile).
+  return normalizeBrPhone(raw);
 }
 
 function isGroupJid(value: unknown): boolean {
@@ -232,8 +234,8 @@ async function processRun(runId: string, payload: any): Promise<void> {
       const { data: existingContact } = await supabase
         .from('chat_contacts')
         .select('id, last_message_at, last_message_text, history_backfilled')
-        .eq('phone', phone)
         .eq('client_id', clientId)
+        .in('phone', brPhoneVariants(phone))
         .maybeSingle();
 
       // Sort messages chronologically
@@ -309,7 +311,9 @@ async function processRun(runId: string, payload: any): Promise<void> {
           // Race condition: another worker may have inserted it concurrently
           const { data: again } = await supabase
             .from('chat_contacts').select('id')
-            .eq('phone', phone).eq('client_id', clientId).maybeSingle();
+            .eq('client_id', clientId)
+            .in('phone', brPhoneVariants(phone))
+            .maybeSingle();
           if (!again?.id) {
             chatError = `contact insert failed: ${insErr?.message}`;
             throw new Error(chatError);
