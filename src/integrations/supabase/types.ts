@@ -721,6 +721,57 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_bulk_close_logs: {
+        Row: {
+          actor_identifier: string | null
+          actor_name: string | null
+          assignment_type: string
+          batch_id: string
+          client_id: string
+          closed_at: string
+          contact_id: string | null
+          conversation_id: string
+          filters: Json
+          id: string
+          previous_assigned_to: string | null
+          previous_status: string | null
+          protocol: string | null
+          queue_id: string | null
+        }
+        Insert: {
+          actor_identifier?: string | null
+          actor_name?: string | null
+          assignment_type: string
+          batch_id: string
+          client_id: string
+          closed_at?: string
+          contact_id?: string | null
+          conversation_id: string
+          filters?: Json
+          id?: string
+          previous_assigned_to?: string | null
+          previous_status?: string | null
+          protocol?: string | null
+          queue_id?: string | null
+        }
+        Update: {
+          actor_identifier?: string | null
+          actor_name?: string | null
+          assignment_type?: string
+          batch_id?: string
+          client_id?: string
+          closed_at?: string
+          contact_id?: string | null
+          conversation_id?: string
+          filters?: Json
+          id?: string
+          previous_assigned_to?: string | null
+          previous_status?: string | null
+          protocol?: string | null
+          queue_id?: string | null
+        }
+        Relationships: []
+      }
       chat_call_logs: {
         Row: {
           agent_identifier: string | null
