@@ -234,8 +234,8 @@ async function processRun(runId: string, payload: any): Promise<void> {
       const { data: existingContact } = await supabase
         .from('chat_contacts')
         .select('id, last_message_at, last_message_text, history_backfilled')
-        .eq('phone', phone)
         .eq('client_id', clientId)
+        .in('phone', brPhoneVariants(phone))
         .maybeSingle();
 
       // Sort messages chronologically
