@@ -1,81 +1,78 @@
-## Diagnóstico
+## Encerramento em lote de conversas — v2
 
-O lead `557599612331` aparece **duas vezes** em `chat_contacts` no client 294:
+Card novo em **Configurações do Chat → Geral** que permite encerrar várias conversas de uma vez, com pré-visualização, dupla confirmação, registro por conversa e log de auditoria dedicado.
 
-| id | phone | remote_jid | criado | mensagens |
-|----|-------|------------|--------|-----------|
-| 31b9d7cc… | `5575999612331` (13 díg, com 9) | `557599612331@s.whatsapp.net` | 08/05 | **5** |
-| d9cb2e1c… | `557599612331` (12 díg, sem 9) | `557599612331@s.whatsapp.net` | 15/05 | **0** |
+### Fluxo de uso
 
-Ao abrir o contato sem 9º dígito, o painel fica vazio — as mensagens existem, mas estão atreladas ao outro registro. Não é um problema de paginação nem de webhook perdendo mensagem; é **duplicação de contato**.
+1. Usuário escolhe **data início** e **data fim** (intervalo de `opened_at`).
+2. Escolhe o escopo: **Todos**, **Apenas Julia (IA)** ou **Apenas atendimento humano**.
+3. Escolhe a **fila** (uma específica ou Todas).
+4. Clica em **Analisar conversas** → mostra totais (geral, por escopo, por fila, mais antiga / mais recente). Nenhuma escrita.
+5. Botão **Encerrar conversas** abre **popup de dupla confirmação** com alerta explícito de que as conversas sairão da lista de "Em aberto".
+6. Após confirmar, executa em lotes e mostra toast com total encerrado.
 
-O problema é sistêmico no client 294: há **97 pares duplicados** com o mesmo `remote_jid` mas `phone` diferente (com/sem 9). Boa parte foi criada em 30/04 e 15/05 — datas em que rotinas de sincronização/backfill rodaram.
+### Banco de dados (nova migração)
 
-### Causa raiz
+Tabela `chat_bulk_close_logs`:
 
-`supabase/functions/uazapi-history-resume/index.ts` (linha ~165 e ~221):
+- `id` uuid pk
+- `client_id` text
+- `actor_identifier` text (cod_agent ou e-mail)
+- `actor_name` text
+- `conversation_id` uuid
+- `protocol` text
+- `contact_id` uuid
+- `queue_id` uuid (nullable)
+- `assignment_type` text (`julia` | `human`)
+- `previous_status` text
+- `previous_assigned_to` text (nullable)
+- `batch_id` uuid (identifica a operação em lote)
+- `filters` jsonb (start, end, queue, scope aplicados)
+- `closed_at` timestamptz default now()
 
-```ts
-let phone: string | null = item.phone && !isLidJid(item.remote_jid) ? item.phone : null;
-...
-await supabase.from('chat_contacts').insert({
-  client_id: clientId, phone, ...   // ← phone sem passar por normalizeBrPhone
-});
-```
+Índices: `(client_id, closed_at desc)`, `(batch_id)`, `(conversation_id)`.
 
-O `phone` vem do `remoteJid` do UaZapi (formato legacy, sem o 9), e é gravado direto em `chat_contacts.phone`. A busca por contato existente (`.eq('phone', phone)`) também usa o phone não normalizado, então nunca encontra o registro canônico (com 9) e cria um novo contato vazio.
+RLS: habilitada. SELECT por `client_id` do usuário autenticado; INSERT apenas via service-role (a edge function escreve).
 
-Como webhooks normais (`uazapi-chat-webhook`) **passam** por `normalizeBrPhone`, novas mensagens continuam caindo no contato canônico com 9 — daí o duplicado fica órfão (zero mensagens) e o usuário vê chat vazio.
+### Edge function `chat-bulk-close`
 
-Também há ausência de **constraint UNIQUE** em `(client_id, channel_source, remote_jid)`, o que permite a duplicação acontecer.
+Ações:
 
----
+- `preview` (somente SELECT, agregações):
+  - filtros: `client_id`, `status IN ('open','pending')`, `opened_at BETWEEN :start AND :end`, `queue_id` opcional, escopo (Julia = `assigned_to IS NULL`, humano = `assigned_to IS NOT NULL`).
+  - retorna `{ total, byAssignment, byQueue, oldest, newest }`.
 
-## Plano de correção
+- `commit`:
+  - valida JWT, exige permissão admin (`cod_agent` + check em `admin_agents`), valida Zod (datas, escopo, queue).
+  - gera `batch_id` (uuid).
+  - busca IDs em páginas de 200 (`SELECT id, queue_id, contact_id, assigned_to, status, protocol`), aplicando o **mesmo `WHERE status IN ('open','pending')` em cada update** para evitar race.
+  - para cada lote:
+    1. `UPDATE chat_conversations SET status='closed', closed_at=now(), close_reason='bulk_close', close_note='Encerrado em lote por <actor_name>', updated_at=now() WHERE id = ANY(...) AND status IN ('open','pending')` (RETURNING ids efetivamente fechados).
+    2. `INSERT chat_conversation_history` por conversa fechada, com `action='bulk_closed'`, `actor_name`, `notes='Encerrado em lote por <actor_name> (batch <batch_id>)'`.
+    3. `INSERT chat_bulk_close_logs` (uma linha por conversa fechada, com `batch_id`, filtros e snapshot do estado anterior).
+  - retorna `{ batch_id, closed: <n>, skipped: <n> }`.
 
-### 1. Fix da fonte (uazapi-history-resume)
+Garantias de não-quebra:
+- Apenas escreve em `chat_conversations`, `chat_conversation_history` e `chat_bulk_close_logs`.
+- Não toca em `chat_messages`, `chat_contacts`, CRM, bots, webhooks.
+- Triggers existentes (`sync_conversation_to_deal`, `auto_open_on_assignment`) não disparam para mudança de `status` para `closed` sem alteração de `assigned_to`/`priority`.
+- Lotes de 200 evitam locks longos.
+- Guarda `WHERE status IN ('open','pending')` previne fechar conversa que já foi reaberta entre preview e commit.
 
-- Importar `normalizeBrPhone` de `_shared/phone-normalize.ts`.
-- Aplicar `phone = normalizeBrPhone(phone)` imediatamente após resolver o telefone (linha ~171).
-- Recalcular `remoteJid` a partir do phone normalizado **apenas para gravar/buscar**, mantendo o JID original recebido se necessário em outros pontos.
-- Buscar contato existente também por variantes (`brPhoneVariants`) para reaproveitar registros já criados pelo webhook normal.
+### Frontend
 
-### 2. Backfill/processador — auditoria rápida
+Arquivos novos:
 
-Verificar `uazapi-history-processor`, `uazapi-chat-backfill` e `uazapi-history-import` para garantir que todo `insert` em `chat_contacts` passa por `normalizeBrPhone` e que `.eq('phone', …)` usa o valor normalizado. Aplicar a mesma correção onde faltar.
+- `src/pages/chat/components/BulkCloseConversationsCard.tsx` — UI do card (DatePicker com shadcn `Popover`+`Calendar`, seletor de escopo (RadioGroup), seletor de fila, botões Analisar/Encerrar, painel de resultado do preview, `AlertDialog` de dupla confirmação no padrão `mem://ui/patterns/secure-deletion-workflow`).
+- `src/hooks/useBulkCloseConversations.ts` — `previewMutation` e `commitMutation` via `supabase.functions.invoke('chat-bulk-close', …)`, com invalidação de `['chat-conversations']`, `['chat-conversation-list']` e `['audit-log']` após commit.
 
-### 3. Migração de consolidação (dados existentes)
+Edição:
 
-Migration SQL que, para cada par duplicado em `chat_contacts` com o mesmo `(client_id, channel_source, remote_jid)`:
+- `src/pages/chat/components/ChatGeneralSettings.tsx` — adiciona `<BulkCloseConversationsCard />` abaixo do bloco "Retornar Chat".
 
-1. Elege como **canônico** o contato cujo `phone` tem 13 dígitos (com 9). Se ambos tiverem o mesmo formato, escolhe o mais antigo (`created_at` menor).
-2. Faz `UPDATE chat_messages SET contact_id = canonical_id WHERE contact_id = duplicate_id`.
-3. Faz `UPDATE chat_conversations SET contact_id = canonical_id WHERE contact_id = duplicate_id` (e demais tabelas referenciando contato, ex.: `chat_message_notes` se houver).
-4. `DELETE FROM chat_contacts WHERE id = duplicate_id`.
-5. Atualiza `last_message_at`/`last_message_text`/`unread_count` no canônico a partir do MAX da mensagem mais recente.
+### Plano de entrega
 
-### 4. Constraint preventiva
-
-Migration adicional:
-
-```sql
--- Garantir unicidade por canal real
-CREATE UNIQUE INDEX IF NOT EXISTS chat_contacts_unique_jid
-  ON public.chat_contacts (client_id, channel_source, remote_jid)
-  WHERE remote_jid IS NOT NULL AND is_group = false;
-```
-
-Isso bloqueia novas duplicações mesmo se algum caminho esquecer de normalizar.
-
-### 5. Validação pós-deploy
-
-- Rodar query de duplicidade para confirmar `0` pares restantes no client 294.
-- Reabrir o contato `5575999612331` no /chat e confirmar que as 5 mensagens aparecem e o duplicado sumiu.
-
----
-
-## Ordem de execução
-
-1. Migration de consolidação (dedup) → 2. Migration de constraint UNIQUE → 3. Patch em `uazapi-history-resume` (+ auditoria nos demais) → 4. Validação.
-
-A correção é segura: nenhuma mensagem é perdida (são apenas re-apontadas) e o contato canônico (com 9) é preservado. O usuário não precisa fazer nada no front.
+1. Migração: cria `chat_bulk_close_logs` + índices + RLS.
+2. Edge function `chat-bulk-close` (`preview` + `commit`).
+3. Hook + card + integração no `ChatGeneralSettings`.
+4. Teste manual: preview com diferentes escopos, commit pequeno (2-3 conversas), conferir entradas em `chat_conversation_history` e `chat_bulk_close_logs`, e que a conversa some da lista "Em aberto".

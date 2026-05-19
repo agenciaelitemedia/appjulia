@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { useChatSlaConfigs, DEFAULT_SLA_BY_PRIORITY } from '@/hooks/useChatSlaConfigs';
 import { cn } from '@/lib/utils';
+import { BulkCloseConversationsCard } from './BulkCloseConversationsCard';
 
 const PRIORITY_LABELS: Record<string, { label: string; dot: string }> = {
   urgent: { label: 'Crítica',  dot: 'bg-red-500' },
@@ -234,6 +235,8 @@ export function ChatGeneralSettings() {
           </Button>
         </div>
       </div>
+
+      <BulkCloseConversationsCard />
     </div>
   );
 }
