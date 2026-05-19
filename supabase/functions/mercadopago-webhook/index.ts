@@ -93,9 +93,10 @@ Deno.serve(async (req) => {
       .eq('id', externalReference)
       .maybeSingle()
 
-    let orderTable: 'julia_orders' | 'telephony_orders' | 'queue_orders' = 'telephony_orders'
+    let orderTable: 'julia_orders' | 'telephony_orders' | 'queue_orders' | 'video_orders' = 'telephony_orders'
     let isTelephony = false
     let isQueue = false
+    let isVideo = false
     if (juliaOrder) {
       orderTable = 'julia_orders'
     } else {
@@ -108,8 +109,18 @@ Deno.serve(async (req) => {
         orderTable = 'queue_orders'
         isQueue = true
       } else {
-        orderTable = 'telephony_orders'
-        isTelephony = true
+        const { data: videoOrder } = await supabase
+          .from('video_orders' as never)
+          .select('id')
+          .eq('id', externalReference)
+          .maybeSingle()
+        if (videoOrder) {
+          orderTable = 'video_orders'
+          isVideo = true
+        } else {
+          orderTable = 'telephony_orders'
+          isTelephony = true
+        }
       }
     }
 
@@ -151,6 +162,7 @@ Deno.serve(async (req) => {
       }
       if (!isTelephony) updatePayload.installments = payment.installments || 1
       if (isQueue) delete (updatePayload as any).installments
+      if (isVideo) delete (updatePayload as any).installments
 
       const { error: updateError } = await supabase
         .from(orderTable)
@@ -208,6 +220,22 @@ Deno.serve(async (req) => {
           }).catch((err) => console.warn('[mercadopago-webhook] queue provision dispatch failed:', err))
         } catch (err) {
           console.warn('[mercadopago-webhook] queue provision dispatch error:', err)
+        }
+      }
+
+      // Auto-provisioning para pedidos de videochamadas
+      if (isVideo && !updateError) {
+        try {
+          fetch(`${supabaseUrl}/functions/v1/video-provision`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({ order_id: externalReference }),
+          }).catch((err) => console.warn('[mercadopago-webhook] video provision dispatch failed:', err))
+        } catch (err) {
+          console.warn('[mercadopago-webhook] video provision dispatch error:', err)
         }
       }
     } else if (payment.status === 'rejected' || payment.status === 'cancelled') {

@@ -1,150 +1,191 @@
-## Objetivo
 
-Adicionar um novo assistente de IA — **Avaliador de Atendimento** — no sistema, configurável em `/configuracoes` → aba **IA's** junto aos demais (AIAssistPanel, Copiloto CRM, Copiloto Chat). Além disso, permitir em **todos** os cards de IA visualizar e editar o **prompt** utilizado por cada assistente, via um ícone ao lado do seletor de modelo.
+# Plano: Contratação de Videochamadas + Admin VideoChamadas
 
-O plano será salvo em `.lovable/plans/avaliador-atendimento.md` para execução futura.
-
----
-
-## 1. Novo assistente: Avaliador de Atendimento
-
-### O que faz
-Avalia uma conversa de atendimento (chat Julia) e retorna:
-- **Nota geral** (0–10) e classificação (Excelente / Bom / Regular / Ruim)
-- **Sentimento do lead** (positivo / neutro / negativo / frustrado) com justificativa
-- **Avaliação do atendente**: cordialidade, clareza, tempo de resposta, aderência ao roteiro
-- **Pontos fortes** do atendimento (bullets)
-- **Pontos de melhoria** (bullets acionáveis)
-- **Problema resolvido?** (sim / parcialmente / não)
-- **Resumo executivo** (2-3 linhas)
-- Tags sugeridas (ex.: "follow-up necessário", "lead qualificado", "reclamação")
-
-### Onde fica disponível
-- **Painel de IA do Chat** (`AIAssistPanel`): botão **"Avaliar Atendimento"** ao lado de "Gerar Resumo".
-- **CRM (detalhes do lead)**: aba ou botão para avaliar a conversa vinculada.
-- **Histórico** persistido em nova tabela `chat_evaluations` (uma por execução, com timestamps e modelo usado), para listar/comparar avaliações ao longo do tempo.
-
-### Backend
-- Estender `supabase/functions/chat-ai-assist/index.ts` com novo `mode: "agent_evaluation"`.
-- Usar **AI SDK + Lovable AI Gateway** (`Output.object` com schema Zod) em vez de parse manual de JSON.
-- Resolver modelo via nova feature `evaluator` em `client_ai_model_config` (default `google/gemini-2.5-flash`).
-- Resolver **prompt** via nova tabela `client_ai_prompts` (fallback para prompt padrão hardcoded se não houver override).
+Implementar o fluxo completo de contratação de planos de videochamada (Daily.co), espelhando o padrão já consolidado de `/telefonia/contratar` e `/admin/telefonia`. Inclui módulo admin com abas de **Planos** (CRUD) e **Pedidos** (similar ao `/admin/chat` / `OrdersTab` de telefonia), além do seed dos 3 planos sugeridos (Light, Pro, Escritório).
 
 ---
 
-## 2. Configurações de IA's — prompts editáveis
+## 1. Banco de dados (migration)
 
-### UI (`AIModelsConfig.tsx`)
-- Em cada `FeatureCard`, adicionar ícone **`FileText`** (botão fantasma) ao lado do `Select` de modelo.
-- Clique abre `Dialog` "Prompt do assistente" com:
-  - `Textarea` grande (min-h 400px, monospace) com o prompt atual.
-  - Badge mostrando se é "Padrão do sistema" ou "Personalizado".
-  - Botões: **Salvar**, **Restaurar padrão**, **Cancelar**.
-  - Hint listando placeholders disponíveis (ex.: `{{transcript}}`, `{{client_name}}`).
-- Adicionar 4º card: **Avaliador de Atendimento** (`feature: "evaluator"`), ícone `ClipboardCheck`.
+### 1.1 Tabela `video_plans`
+Espelha `phone_extension_plans`, trocando ramais por minutos.
 
-### Backend / dados
-- Nova tabela `client_ai_prompts`:
-  ```
-  id uuid pk
-  client_id text not null
-  feature text not null  -- chat_assist | copilot_crm | copilot_chat | evaluator | (sub-modos)
-  mode text              -- opcional: summary | suggest | sentiment | full_summary | agent_evaluation
-  prompt text not null
-  updated_at timestamptz default now()
-  unique(client_id, feature, mode)
-  ```
-- RLS: leitura/escrita restrita ao `client_id` do usuário autenticado (via `has_role` / claim padrão do projeto).
-- Hook `useAIPrompts(feature, mode?)` → `{ prompt, isCustom, save, reset }`.
-- Edge functions (`chat-ai-assist`, `chat-ai-process`, copiloto): buscar prompt via helper `getPrompt(clientId, feature, mode)` com fallback ao default.
+```text
+id                       serial PK
+name                     text NOT NULL              -- 'Light', 'Pro', 'Escritório'
+slug                     text UNIQUE                -- 'light' | 'pro' | 'office'
+included_minutes         integer NOT NULL           -- minutos/mês inclusos (participant-minutes)
+max_concurrent_rooms     integer NOT NULL           -- salas simultâneas
+recording_included       boolean DEFAULT false
+transcription_included   boolean DEFAULT false
+price_monthly            numeric NOT NULL DEFAULT 0
+price_quarterly          numeric NOT NULL DEFAULT 0
+price_semiannual         numeric NOT NULL DEFAULT 0
+price_annual             numeric NOT NULL DEFAULT 0
+extra_minutes_pack_size  integer DEFAULT 1000       -- pacote extra (ex.: 1000 min)
+extra_minutes_pack_price numeric DEFAULT 0          -- preço do pacote extra
+setup_fee_monthly/quarterly/semiannual/annual  numeric NULL
+description              text
+is_active                boolean DEFAULT true
+sort_order               integer DEFAULT 0
+created_at / updated_at  timestamptz
+```
+RLS: `Allow all` (idêntico a `phone_extension_plans`); UI restrita por `AdminRoute`.
 
-### Prompts padrão a expor
-Cada modo do `chat-ai-assist` vira uma entrada editável separada:
-- `chat_assist / summary`
-- `chat_assist / suggest`
-- `chat_assist / sentiment`
-- `chat_assist / full_summary`
-- `evaluator / agent_evaluation` (novo)
-- `copilot_crm` (genérico, do copiloto CRM)
-- `copilot_chat` (genérico)
+### 1.2 Tabela `video_orders`
+Espelha `telephony_orders`:
+```text
+id uuid PK, client_id text, customer_* (name/document/email/whatsapp),
+plan_id int FK → video_plans, plan_name text,
+billing_period text ('monthly'|'quarterly'|'semiannual'|'annual'),
+extra_minute_packs int DEFAULT 0,
+recording_enabled bool, transcription_enabled bool,
+plan_price/setup_fee/recording_total/transcription_total/extras_total/total_amount  integer (centavos),
+status text DEFAULT 'draft' ('draft'|'pending'|'paid'|'provisioned'|'failed'|'cancelled'),
+payment_gateway text DEFAULT 'mercadopago',
+checkout_url, mp_preference_id, mp_payment_id, order_nsu text,
+paid_at, provisioned_at timestamptz,
+paid_amount/net_amount/fee_amount int,
+provisioning_error text, metadata jsonb, webhook_payload jsonb,
+user_plan_id bigint NULL,
+created_at/updated_at timestamptz
+```
+Índices em `client_id`, `status`, `mp_preference_id`. RLS: insert/update abertos (igual telephony_orders) + select público (necessário p/ admin).
 
-No diálogo de prompt usar `Tabs` para alternar entre os modos quando o card tiver múltiplos prompts (ex.: AIAssistPanel terá 4 abas).
+### 1.3 Tabela `video_user_plans` (assinatura ativa do cliente)
+```text
+id bigserial PK, client_id text NOT NULL,
+plan_id int FK → video_plans,
+billing_period text, status text ('active'|'cancelled'|'expired'),
+minutes_quota int, minutes_used int DEFAULT 0,
+max_concurrent_rooms int,
+recording_enabled bool, transcription_enabled bool,
+period_start timestamptz, period_end timestamptz,
+activated_at, cancelled_at timestamptz,
+metadata jsonb, created_at/updated_at
+```
+Trigger de `updated_at`.
+
+### 1.4 Seed dos 3 planos sugeridos (insert tool, em reais)
+
+| Slug | Nome | Minutos | Salas Simult. | Recording | Transcrição | Mensal | Trim. | Sem. | Anual | Extra |
+|---|---|---|---|---|---|---|---|---|---|---|
+| light  | Light       | 5.000  | 2 | – | – | 197  | 561 (-5%)   | 1.064 (-10%) | 1.999 (-15%) | R$ 49 / 1.000 min |
+| pro    | Pro         | 20.000 | 5 | ✓ (add-on R$99/m) | – | 497  | 1.416 (-5%) | 2.685 (-10%) | 5.069 (-15%) | R$ 39 / 1.000 min |
+| office | Escritório  | 50.000 | 15 | ✓ incluso | ✓ incluso | 1.197 | 3.411 | 6.464 | 12.205 | R$ 29 / 1.000 min |
+
+Setup fee: 0 para todos.
 
 ---
 
-## 3. Detalhes técnicos
+## 2. Edge Functions
 
-### Migração SQL (resumo)
-```sql
-create table public.client_ai_prompts (...);
-alter table public.client_ai_prompts enable row level security;
-create policy "client_select" on public.client_ai_prompts for select
-  using (client_id = current_setting('request.jwt.claims', true)::json->>'client_id');
--- idem insert/update
-create table public.chat_evaluations (
-  id uuid pk default gen_random_uuid(),
-  client_id text not null,
-  conversation_id text not null,
-  agent_id bigint,
-  score numeric(3,1),
-  classification text,
-  sentiment text,
-  resolved text,
-  strengths jsonb,
-  improvements jsonb,
-  summary text,
-  tags text[],
-  model text,
-  created_by uuid,
-  created_at timestamptz default now()
-);
--- index (client_id, conversation_id, created_at desc)
+Espelham 1:1 as de telefonia (copiar e adaptar):
+
+- `video-order-create` — valida plano + breakdown vs servidor (centavos), cria `video_orders` status `draft`.
+- `video-order-checkout` — gera preferência MercadoPago, atualiza `checkout_url`+`mp_preference_id`, status → `pending`.
+- `video-provision` — chamada pelo webhook MP / botão admin "Confirmar pagamento": cria/renova `video_user_plans`, define quota, `period_start/end`, status do pedido → `provisioned`. Em erro grava `provisioning_error` e status `failed`.
+- Reaproveitar `mercadopago-webhook` (adicionar handler `video_order` via `external_reference`).
+
+Padrão de auth: `verify_jwt = false` para webhook; demais validam JWT do chamador (igual telephony).
+
+---
+
+## 3. Frontend — Contratação `/video/contratar`
+
+Cópia estrutural de `src/pages/telefonia/contratar/`:
+
+```text
+src/pages/video/contratar/
+  ContratarVideoPage.tsx          (Stepper Plano → Dados → Pagamento → Pronto)
+  types.ts                        (VideoPlan, ContractDraft, calculateTotal)
+  steps/SelectPlanStep.tsx        (3 cards de plano + toggle período + extras de minutos)
+  steps/ConfirmDataStep.tsx       (form customer_* com máscara CPF/CNPJ; pré-preenche via useAuth)
+  steps/CheckoutStep.tsx          (iframe/redirect MP + polling de status do pedido)
 ```
 
-### Edge function `chat-ai-assist` — novo modo
-- Adicionar `"agent_evaluation"` em `validModes`.
-- Carregar até 200 mensagens (mesmo padrão de `full_summary`).
-- Usar `generateText({ model, output: Output.object({ schema }) })` com schema Zod descrevendo todos os campos.
-- Persistir resultado em `chat_evaluations` antes de retornar.
-- Tratar 429/402 com mensagens já padronizadas no arquivo.
-
-### Frontend — botão "Avaliar Atendimento"
-- Em `AIAssistPanel`: novo botão (`ClipboardCheck`) que chama `supabase.functions.invoke("chat-ai-assist", { body: { mode: "agent_evaluation", conversation_id, client_id }})`.
-- Resultado renderizado em card colapsável com: nota grande, badges (classificação, sentimento, resolução), seções de pontos fortes/melhorias, tags.
-- Componente `ConversationEvaluations` (similar a `ConversationSummaries`) listando avaliações históricas.
-
-### Componente reutilizável `PromptEditorDialog`
-Props: `feature`, `mode?`, `defaultPrompt`, `placeholders[]`. Encapsula fetch/save/reset e tabs.
+- Resumo lateral igual telefonia (plano + setup + extras + add-ons).
+- Toggle Gravação/Transcrição: oculto se `recording_included`/`transcription_included` = true; cobrado como add-on R$99/mês caso contrário.
+- Comparativo cliente×servidor (`client_breakdown_cents` / `expected_total_cents`) idêntico ao telefonia.
+- Rota registrada em `src/App.tsx` dentro de `MainLayout` + `ProtectedRoute`.
+- Link "Contratar" no header de `/video` (VideoQueuePage) quando cliente não tem `video_user_plans` ativo.
 
 ---
 
-## 4. Entregáveis / arquivos esperados
+## 4. Frontend — Admin `/admin/video`
 
-- `supabase/migrations/<ts>_ai_prompts_and_evaluations.sql`
-- `supabase/functions/chat-ai-assist/index.ts` (estender com `agent_evaluation` + leitura de prompt da tabela)
-- `supabase/functions/_shared/ai-prompts.ts` (helper `getPrompt`)
-- `src/hooks/useAIPrompts.ts`
-- `src/hooks/useChatEvaluations.ts`
-- `src/components/ai/PromptEditorDialog.tsx`
-- `src/pages/configuracoes/components/AIModelsConfig.tsx` (4º card + ícone prompt)
-- `src/hooks/useAIModelsConfig.ts` (adicionar `evaluator` em `AIFeature` e `DEFAULT_MODELS`)
-- `src/components/chat/AIAssistPanel.tsx` (botão Avaliar + render do resultado)
-- `src/components/chat/ConversationEvaluations.tsx`
-- Integração opcional no CRM (botão na sidebar de detalhes do lead)
+Nova página `src/pages/admin/video/VideoAdminPage.tsx` com `Tabs` (padrão `TelefoniaAdminPage`):
+
+### Aba **Planos** (`PlansTab.tsx`)
+- Tabela: Nome, Minutos, Salas Simult., Recording/Transcrição (badges), Preços (mensal destacado, tooltip dos demais períodos), Status, Ações.
+- Botão **Novo plano** → `PlanDialog.tsx` (form completo com todos os campos da tabela).
+- Ações por linha: Editar (mesmo dialog), Ativar/Desativar (toggle `is_active`), Excluir (AlertDialog dupla confirmação, igual padrão `secure-deletion-workflow`).
+- Hook `useVideoPlans.ts` (list/create/update/delete via supabase client).
+
+### Aba **Pedidos** (`OrdersTab.tsx`)
+Espelha `src/pages/admin/telefonia/components/OrdersTab.tsx` + `useTelephonyOrders`:
+- Lista `video_orders` com refetch 15s.
+- Filtros: status, cliente (search), período.
+- Colunas: criado em, cliente, plano, período, total (R$), gateway, status (badge), ações.
+- Ações: **Abrir checkout**, **Confirmar pagamento manual** (chama `video-provision`), **Cancelar**, **Excluir**, **Reprocessar provisionamento**.
+- Drawer/Dialog de detalhes: breakdown, payload MP, erros de provisionamento, `video_user_plans` gerado.
+
+### Aba **Assinaturas** (opcional, recomendada)
+Lista `video_user_plans` por cliente: quota, minutos usados, vigência, botão "Renovar"/"Cancelar".
+
+Hooks novos:
+- `src/pages/admin/video/hooks/useVideoPlans.ts`
+- `src/pages/admin/video/hooks/useVideoOrders.ts` (espelho de `useTelephonyOrders`)
+- `src/pages/admin/video/hooks/useVideoUserPlans.ts`
 
 ---
 
-## 5. Aceite / QA
+## 5. Integração com módulo `/video` existente
 
-- /configuracoes → IA's mostra 4 cards (incluindo Avaliador), cada um com ícone de prompt funcional.
-- Editar prompt salva por cliente, "Restaurar padrão" volta ao hardcoded.
-- No chat: botão "Avaliar Atendimento" retorna avaliação estruturada e persiste histórico.
-- Avaliação reflete o prompt customizado quando alterado.
-- Erros 429/402 aparecem como toast amigável.
-- RLS impede um cliente ver prompts/avaliações de outro.
+- `useVideoRoom.ts` antes de criar sala: validar `video_user_plans` ativo do `client_id` e `max_concurrent_rooms` (consulta `video_call_records` em chamadas abertas).
+- Após encerrar chamada (já há `duration_seconds` em `video_call_records`): trigger SQL ou edge que incrementa `minutes_used` (`duration_seconds/60 * participants`).
+- Banner em `/video` quando `minutes_used >= 80% quota` com CTA → `/video/contratar`.
+- Bloqueio quando quota esgotada / sem plano: redirecionar `/video/contratar`.
 
 ---
 
-## 6. Salvar plano
+## 6. Menu, permissões e módulos
 
-Gravar este documento em `.lovable/plans/avaliador-atendimento.md` na execução para servir de referência futura.
+- Inserir em `client_modules` (via `useEnsureVideoAdminModule` similar aos `useEnsure*Module`):
+  - `video.contratar` (cliente)
+  - `video.admin` (admin) com sub-itens `planos`, `pedidos`, `assinaturas`.
+- Sidebar: link "Videochamadas" em Admin (ícone `Video` lucide).
+- `ProtectedRoute` com `permission="video.admin"` na rota `/admin/video`.
+
+---
+
+## 7. Detalhes técnicos relevantes
+
+- **Moedas**: planos em `numeric` (R$), pedidos em `integer` centavos — igual telefonia.
+- **Validação de preço servidor**: replicar `client_breakdown_cents` vs `server_breakdown_cents` com warning toast quando divergir.
+- **MercadoPago**: reusar credenciais e `mercadopago-checkout`/`mercadopago-webhook`; discriminar `external_reference = video_order:{id}`.
+- **Cron de expiração** (opcional, fase 2): job diário que expira `video_user_plans` com `period_end < now()`.
+- **Auditoria**: gravar em `metadata` quem confirmou pagamento manual (admin user_id + timestamp).
+- **Margem**: custo Daily ≈ $0.004/participant-min × 5.50 BRL — margens validadas: Light ~75%, Pro ~67%, Escritório ~63%.
+
+---
+
+## 8. Ordem de execução sugerida
+
+1. Migration (`video_plans`, `video_orders`, `video_user_plans`) + seed dos 3 planos.
+2. Edge functions `video-order-create`, `video-order-checkout`, `video-provision` + hook no `mercadopago-webhook`.
+3. Página `/video/contratar` (steps + hook).
+4. Admin `/admin/video` (PlansTab + PlanDialog).
+5. Admin OrdersTab + ações (confirmar/cancelar/excluir/reprocessar).
+6. Aba Assinaturas.
+7. Enforcement de quota / `max_concurrent_rooms` em `useVideoRoom`.
+8. Sidebar + módulo + permissões + banner CTA em `/video`.
+
+---
+
+## 9. Fora de escopo (próximas iterações)
+
+- Cobrança automática por minuto excedente (overage billing).
+- Notificações push/whatsapp em 80% / 100% de quota.
+- Relatório de consumo por atendente em `/admin/video`.
+- Upgrade/downgrade pró-rata no meio do período.
