@@ -6035,6 +6035,277 @@ export type Database = {
         }
         Relationships: []
       }
+      video_orders: {
+        Row: {
+          billing_period: string
+          checkout_url: string | null
+          client_id: string
+          created_at: string
+          customer_document: string
+          customer_email: string
+          customer_name: string
+          customer_whatsapp: string | null
+          extra_minute_packs: number
+          extras_total: number
+          fee_amount: number | null
+          id: string
+          metadata: Json | null
+          mp_payment_id: string | null
+          mp_preference_id: string | null
+          net_amount: number | null
+          order_nsu: string | null
+          paid_amount: number | null
+          paid_at: string | null
+          payment_gateway: string
+          plan_id: number
+          plan_name: string
+          plan_price: number
+          provisioned_at: string | null
+          provisioning_error: string | null
+          recording_enabled: boolean
+          recording_total: number
+          setup_fee: number
+          status: string
+          total_amount: number
+          transcription_enabled: boolean
+          transcription_total: number
+          updated_at: string
+          user_plan_id: number | null
+          webhook_payload: Json | null
+        }
+        Insert: {
+          billing_period: string
+          checkout_url?: string | null
+          client_id: string
+          created_at?: string
+          customer_document: string
+          customer_email: string
+          customer_name: string
+          customer_whatsapp?: string | null
+          extra_minute_packs?: number
+          extras_total?: number
+          fee_amount?: number | null
+          id?: string
+          metadata?: Json | null
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          net_amount?: number | null
+          order_nsu?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          payment_gateway?: string
+          plan_id: number
+          plan_name: string
+          plan_price?: number
+          provisioned_at?: string | null
+          provisioning_error?: string | null
+          recording_enabled?: boolean
+          recording_total?: number
+          setup_fee?: number
+          status?: string
+          total_amount?: number
+          transcription_enabled?: boolean
+          transcription_total?: number
+          updated_at?: string
+          user_plan_id?: number | null
+          webhook_payload?: Json | null
+        }
+        Update: {
+          billing_period?: string
+          checkout_url?: string | null
+          client_id?: string
+          created_at?: string
+          customer_document?: string
+          customer_email?: string
+          customer_name?: string
+          customer_whatsapp?: string | null
+          extra_minute_packs?: number
+          extras_total?: number
+          fee_amount?: number | null
+          id?: string
+          metadata?: Json | null
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          net_amount?: number | null
+          order_nsu?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          payment_gateway?: string
+          plan_id?: number
+          plan_name?: string
+          plan_price?: number
+          provisioned_at?: string | null
+          provisioning_error?: string | null
+          recording_enabled?: boolean
+          recording_total?: number
+          setup_fee?: number
+          status?: string
+          total_amount?: number
+          transcription_enabled?: boolean
+          transcription_total?: number
+          updated_at?: string
+          user_plan_id?: number | null
+          webhook_payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_orders_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "video_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          extra_minutes_pack_price: number
+          extra_minutes_pack_size: number
+          id: number
+          included_minutes: number
+          is_active: boolean
+          max_concurrent_rooms: number
+          name: string
+          price_annual: number
+          price_monthly: number
+          price_quarterly: number
+          price_semiannual: number
+          recording_addon_price: number
+          recording_included: boolean
+          setup_fee_annual: number | null
+          setup_fee_monthly: number | null
+          setup_fee_quarterly: number | null
+          setup_fee_semiannual: number | null
+          slug: string | null
+          sort_order: number
+          transcription_addon_price: number
+          transcription_included: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          extra_minutes_pack_price?: number
+          extra_minutes_pack_size?: number
+          id?: number
+          included_minutes?: number
+          is_active?: boolean
+          max_concurrent_rooms?: number
+          name: string
+          price_annual?: number
+          price_monthly?: number
+          price_quarterly?: number
+          price_semiannual?: number
+          recording_addon_price?: number
+          recording_included?: boolean
+          setup_fee_annual?: number | null
+          setup_fee_monthly?: number | null
+          setup_fee_quarterly?: number | null
+          setup_fee_semiannual?: number | null
+          slug?: string | null
+          sort_order?: number
+          transcription_addon_price?: number
+          transcription_included?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          extra_minutes_pack_price?: number
+          extra_minutes_pack_size?: number
+          id?: number
+          included_minutes?: number
+          is_active?: boolean
+          max_concurrent_rooms?: number
+          name?: string
+          price_annual?: number
+          price_monthly?: number
+          price_quarterly?: number
+          price_semiannual?: number
+          recording_addon_price?: number
+          recording_included?: boolean
+          setup_fee_annual?: number | null
+          setup_fee_monthly?: number | null
+          setup_fee_quarterly?: number | null
+          setup_fee_semiannual?: number | null
+          slug?: string | null
+          sort_order?: number
+          transcription_addon_price?: number
+          transcription_included?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      video_user_plans: {
+        Row: {
+          activated_at: string
+          billing_period: string
+          cancelled_at: string | null
+          client_id: string
+          created_at: string
+          id: number
+          max_concurrent_rooms: number
+          metadata: Json | null
+          minutes_quota: number
+          minutes_used: number
+          period_end: string
+          period_start: string
+          plan_id: number
+          recording_enabled: boolean
+          status: string
+          transcription_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          activated_at?: string
+          billing_period: string
+          cancelled_at?: string | null
+          client_id: string
+          created_at?: string
+          id?: number
+          max_concurrent_rooms?: number
+          metadata?: Json | null
+          minutes_quota?: number
+          minutes_used?: number
+          period_end: string
+          period_start?: string
+          plan_id: number
+          recording_enabled?: boolean
+          status?: string
+          transcription_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          activated_at?: string
+          billing_period?: string
+          cancelled_at?: string | null
+          client_id?: string
+          created_at?: string
+          id?: number
+          max_concurrent_rooms?: number
+          metadata?: Json | null
+          minutes_quota?: number
+          minutes_used?: number
+          period_end?: string
+          period_start?: string
+          plan_id?: number
+          recording_enabled?: boolean
+          status?: string
+          transcription_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_user_plans_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "video_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webchat_config: {
         Row: {
           allowed_domains: string[] | null
