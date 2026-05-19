@@ -6785,6 +6785,10 @@ export type Database = {
       }
       map_priority_chat_to_crm: { Args: { p: string }; Returns: string }
       map_priority_crm_to_chat: { Args: { p: string }; Returns: string }
+      merge_duplicate_chat_contacts: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       touch_user_presence: {
