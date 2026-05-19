@@ -181,6 +181,10 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
     return { processed: 1, inserted: 0, duplicates: 0, contactCreated: 0, error: true };
   }
 
+  // Canonicaliza telefone BR (insere 9º dígito quando faltar) para evitar
+  // criar contato duplicado em relação ao webhook normal, que já normaliza.
+  phone = normalizeBrPhone(phone) || phone;
+
   const remoteJid = `${phone}@s.whatsapp.net`;
   let chatInserted = 0;
   let chatDuplicates = 0;
