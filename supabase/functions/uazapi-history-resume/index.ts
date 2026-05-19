@@ -11,6 +11,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
+import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
 
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
 
@@ -179,6 +180,10 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
     }).eq('id', item.id);
     return { processed: 1, inserted: 0, duplicates: 0, contactCreated: 0, error: true };
   }
+
+  // Canonicaliza telefone BR (insere 9º dígito quando faltar) para evitar
+  // criar contato duplicado em relação ao webhook normal, que já normaliza.
+  phone = normalizeBrPhone(phone) || phone;
 
   const remoteJid = `${phone}@s.whatsapp.net`;
   let chatInserted = 0;
