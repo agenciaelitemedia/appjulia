@@ -43,6 +43,10 @@ function isRetryableError(error: unknown): boolean {
     'socket hang up',
     'network error',
     'write connect_timeout',
+    'query_wait_timeout',
+    'connection_ended',
+    'connection_destroyed',
+    'connection_closed',
   ];
   return retryablePatterns.some(pattern => message.includes(pattern));
 }
