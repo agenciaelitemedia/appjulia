@@ -294,6 +294,8 @@ Deno.serve(async (req) => {
     }
 
     if (mode === "full_summary") {
+      const resumeModel = await getModel(client_id ?? null, "chat_resume");
+      const resumePrompt = await getPrompt(client_id ?? null, "chat_resume", DEFAULT_RESUME_PROMPT);
       const all: any[] = [];
       const PAGE = 1000;
       for (let from = 0; ; from += PAGE) {
@@ -339,24 +341,21 @@ Deno.serve(async (req) => {
         ? `RESUMOS ANTERIORES (contexto acumulado, não repetir):\n${previousBlock}\n\n`
         : "";
 
-      const prompt = `${contextPrefix}Analise a conversa abaixo e responda APENAS com JSON válido no formato:
-{
-  "sentiment": "Sentimento: [positivo/neutro/negativo/frustrado] — [explicação curta de 1 linha]",
-  "summary": "• bullet 1\\n• bullet 2\\n• bullet 3",
-  "atendimento": "Como foi o atendimento: [análise curta de 1-2 linhas sobre qualidade, tempo de resposta, cordialidade]"
-}
-Faça o resumo das conversas até agora. Pode sugerir melhorias.
+      // Usa o prompt configurado em /configuracoes (IAs → Resumo de Conversa)
+      // e pede que a saída inclua também sentimento e avaliação do atendimento
+      // em JSON, para alimentar os campos da aba Resumos.
+      const jsonShapeInstruction = `\n\nRetorne APENAS um JSON válido no formato:\n{\n  "sentiment": "Sentimento: [positivo/neutro/negativo/frustrado] — [explicação curta de 1 linha]",\n  "summary": "<o resumo seguindo as instruções acima>",\n  "atendimento": "Como foi o atendimento: [análise curta de 1-2 linhas sobre qualidade, tempo de resposta, cordialidade]"\n}`;
 
-Conversa:
-${transcript}`;
+      const userContent = `${contextPrefix}CONVERSA:\n${transcript}`;
 
       const resp = await fetch(GATEWAY, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model,
+          model: resumeModel,
           messages: [
-            { role: "user", content: prompt },
+            { role: "system", content: `${resumePrompt}${jsonShapeInstruction}` },
+            { role: "user", content: userContent },
           ],
         }),
       });
