@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock, Sparkles } from 'lucide-react';
+import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock, Sparkles, Brain, AudioLines } from 'lucide-react';
 import { MultiPhraseInput } from './MultiPhraseInput';
 import { BusinessHoursEditor, type BusinessHoursSchedule } from './BusinessHoursEditor';
 import type { AgentFormData } from '../CreateAgentWizard';
@@ -20,6 +20,9 @@ interface ConfigFields {
   NOTIFY_RESUME: string;
   USING_AUDIO: boolean;
   FOLLOWUP_CALL: boolean;
+  AUTO_TRANSCRIBE_AUDIO: boolean;
+  AUTO_SUMMARY_ON_RESOLVE: boolean;
+  AUTO_SUMMARY_ON_CLOSE: boolean;
   SESSION_START: string;
   ONLY_CAMPAIGN: boolean;
   START_CAMPAIGN: string;
@@ -64,6 +67,9 @@ const DEFAULT_CONFIG: ConfigFields = {
   NOTIFY_RESUME: '',
   USING_AUDIO: true,
   FOLLOWUP_CALL: true,
+  AUTO_TRANSCRIBE_AUDIO: false,
+  AUTO_SUMMARY_ON_RESOLVE: false,
+  AUTO_SUMMARY_ON_CLOSE: false,
   SESSION_START: '#start',
   ONLY_CAMPAIGN: false,
   START_CAMPAIGN: 'quero me aposentar',
@@ -247,6 +253,70 @@ export function ConfigStep() {
             <Switch
               checked={config.FOLLOWUP_CALL}
               onCheckedChange={(checked) => updateField('FOLLOWUP_CALL', checked)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Inteligência de Atendimento Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Brain className="h-4 w-4 text-primary" />
+            Inteligência de Atendimento
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel className="flex items-center gap-2">
+                <AudioLines className="h-3.5 w-3.5 text-cyan-600" />
+                Transcrever Áudio
+              </FormLabel>
+              <FormDescription>
+                Toda mensagem de áudio (recebida ou enviada) será transcrita automaticamente em segundo plano.
+              </FormDescription>
+            </div>
+            <Switch
+              checked={config.AUTO_TRANSCRIBE_AUDIO}
+              onCheckedChange={(checked) => updateField('AUTO_TRANSCRIBE_AUDIO', checked)}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                Resumo Automático ao Resolver
+              </FormLabel>
+              <FormDescription>
+                Ao marcar uma conversa como resolvida, gera um resumo automático e adiciona como nota interna no chat.
+              </FormDescription>
+            </div>
+            <Switch
+              checked={config.AUTO_SUMMARY_ON_RESOLVE}
+              onCheckedChange={(checked) => updateField('AUTO_SUMMARY_ON_RESOLVE', checked)}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                Resumo Automático ao Encerrar
+              </FormLabel>
+              <FormDescription>
+                Ao encerrar manualmente uma conversa, gera um resumo automático e adiciona como nota interna no chat.
+                Encerramentos em lote não disparam resumo.
+              </FormDescription>
+            </div>
+            <Switch
+              checked={config.AUTO_SUMMARY_ON_CLOSE}
+              onCheckedChange={(checked) => updateField('AUTO_SUMMARY_ON_CLOSE', checked)}
             />
           </div>
         </CardContent>
