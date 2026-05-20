@@ -447,18 +447,12 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
             </PopoverContent>
           </Popover>
 
-          {/* Schedule */}
+          {/* Etiquetas */}
           {!noteMode && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 flex-shrink-0"
-              onClick={() => setShowSchedule(true)}
-              title="Agendar mensagem"
+            <ChatInputTagButton
+              conversationId={selectedConversation?.id || null}
               disabled={!canSend}
-            >
-              <Calendar className="h-5 w-5 text-muted-foreground" />
-            </Button>
+            />
           )}
 
           {/* Format toggle */}
