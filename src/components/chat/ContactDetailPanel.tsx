@@ -550,6 +550,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
         </TabsContent>
 
         {/* Resumos */}
+        {showResumosTab && (
         <TabsContent value="resumos" className="flex-1 mt-0 min-h-0">
           <ScrollArea className="h-full">
             <div className="p-4">
@@ -566,6 +567,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
             </div>
           </ScrollArea>
         </TabsContent>
+        )}
 
         {/* Histórico */}
         <TabsContent value="historico" className="flex-1 mt-0 min-h-0">
