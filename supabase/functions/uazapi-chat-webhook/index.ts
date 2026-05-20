@@ -1340,10 +1340,10 @@ Deno.serve(async (req) => {
     if (audioMessageIdsToTranscribe.length > 0) {
       const transcribePromise = (async () => {
         try {
-          const { fetchClientAutomationFlags } = await import('../_shared/agentSettings.ts');
-          const flags = await fetchClientAutomationFlags(queue.client_id);
+          const { fetchEffectiveQueueFlags } = await import('../_shared/agentSettings.ts');
+          const flags = await fetchEffectiveQueueFlags(queue.client_id, queue.id);
           if (!flags.autoTranscribeAudio) {
-            console.log('[uazapi-chat-webhook] auto-transcribe disabled for client', queue.client_id);
+            console.log('[uazapi-chat-webhook] auto-transcribe disabled (client/queue)', queue.client_id, queue.id);
             return;
           }
           const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

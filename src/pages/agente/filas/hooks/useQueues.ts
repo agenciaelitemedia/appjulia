@@ -25,6 +25,7 @@ export interface Queue {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  settings?: Record<string, unknown> | null;
   queue_agent_links?: { cod_agent: string; is_primary: boolean }[];
 }
 
