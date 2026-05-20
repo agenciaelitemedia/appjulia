@@ -917,6 +917,7 @@ Deno.serve(async (req) => {
     let processed = 0;
     const skipped: Record<string, number> = { group: 0, no_id: 0, no_phone: 0 };
     const backfillTriggered = new Set<string>();
+    const audioMessageIdsToTranscribe: string[] = [];
     for (const msg of messages) {
       try {
         const chatId = msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender || '';
