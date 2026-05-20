@@ -55,7 +55,7 @@ function renderMessageForTranscript(m: {
   type?: string | null;
   metadata?: Record<string, unknown> | null;
 }): string | null {
-  const who = m.from_me ? "Atendente" : "Cliente";
+  const who = m.from_me ? "ATENDENTE" : "CLIENTE";
   const sender = m.sender_name ? ` (${m.sender_name})` : "";
   const t = (m.type ?? "text").toLowerCase();
   if (t === "audio" || t === "ptt") {
@@ -63,12 +63,12 @@ function renderMessageForTranscript(m: {
     const tr = meta && typeof meta === "object" ? (meta as { transcription?: { text?: string } }).transcription : undefined;
     const transcriptText = tr?.text?.trim();
     if (transcriptText) {
-      return `${who}${sender}: [Áudio transcrito] ${transcriptText}`;
+      return `[${who}${sender}] (áudio transcrito): ${transcriptText}`;
     }
-    return `${who}${sender}: [Áudio sem transcrição]`;
+    return `[${who}${sender}] (áudio sem transcrição)`;
   }
   if (!m.text) return null;
-  return `${who}${sender}: ${m.text}`;
+  return `[${who}${sender}]: ${m.text}`;
 }
 
 /**
