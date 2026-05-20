@@ -1,34 +1,48 @@
+# Corrigir uso do prompt configurado no auto-resumo
+
 ## Objetivo
-1. Garantir que todo resumo gerado automaticamente (auto_resolve / auto_close) apareça também na aba **Resumos** com período (início → fim) e quantidade de mensagens claramente identificados.
-2. Garantir que mensagens de áudio usem a transcrição (quando existir) tanto no resumo manual quanto no automático.
+Garantir que o auto-resumo use exatamente o prompt configurado em **Configurações → IA's → Resumo de Conversa**, em vez de cair no prompt padrão do sistema.
 
 ## Diagnóstico
-- `incremental_summary` (usado pelo auto-resumo) **já** insere em `chat_conversation_summaries` com `first_message_ts`, `last_message_ts` e `message_count`. ✓
-- `renderMessageForTranscript` já injeta `[Áudio transcrito] {texto}` quando há transcrição (vale para os dois modos). ✓
-- Problemas reais a corrigir:
-  - **UI da aba Resumos** mostra `"até msg N"` (ambíguo) e não diferencia visualmente quando o gatilho foi auto.
-  - O insert vem do servidor (edge function) → o React Query não invalida sozinho; o usuário precisa reabrir a aba/conversa para ver. Sem realtime, parece que "não foi para Resumos".
-  - `full_summary` (resumo manual) usa transcrição de áudio, mas o filtro `m.text || type==='audio'…` já está ok — manter.
+Hoje a função de backend **já tem suporte** para buscar o prompt configurado em `client_ai_model_config` com a feature `chat_resume`.
 
-## Mudanças
+O problema está nas chamadas do app:
+- **auto-resumo** (`incremental_summary`) é invocado sem `client_id`
+- **geração manual** (`full_summary`) também é invocada sem `client_id`
 
-### 1. `src/components/chat/ConversationSummaries.tsx`
-- Trocar `até msg ${s.message_count}` por `${s.message_count} mensagens`.
-- Mostrar bloco de período mais visível (linha dedicada com ícone): `Período: 20/05 14:32 → 20/05 15:10`.
-- Manter badge `automático` para `triggered_by` começando com `auto`.
-- Para resumos do modo incremental (sem `sentiment`/`atendimento`), apenas omitir esses blocos (já é o comportamento).
+Sem `client_id`, a função `getPrompt(client_id, 'chat_resume', DEFAULT_RESUME_PROMPT)` retorna o fallback padrão. Isso explica o comportamento observado e o tipo de saída genérica que você mostrou.
 
-### 2. `src/hooks/useConversationSummaries.ts`
-- Adicionar subscription `postgres_changes` em `chat_conversation_summaries` filtrando por `conversation_id`, e invalidar o query `['conv-summaries', conversationId]` em INSERT/UPDATE/DELETE. Isso faz o auto-resumo (inserido server-side) aparecer imediatamente na aba.
+## O que implementar
+1. Ajustar a chamada do **auto-resumo** para enviar `client_id` do usuário autenticado.
+2. Ajustar a chamada do **resumo manual** para também enviar `client_id`.
+3. Revisar o fluxo para que ambos os modos usem a mesma origem de configuração (`chat_resume`) de forma consistente.
+4. Validar se o resumo retornado passa a refletir o prompt customizado salvo em configurações.
 
-### 3. Migration
-- `ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_conversation_summaries;` (se ainda não estiver).
+## Arquivos envolvidos
+- `src/hooks/useAutoSummaryOnStatusChange.ts`
+- `src/hooks/useConversationSummaries.ts`
+- `supabase/functions/chat-ai-assist/index.ts` (apenas conferência; a lógica principal já está preparada)
 
-### 4. `supabase/functions/chat-ai-assist/index.ts` (modo `incremental_summary`)
-- Sem alteração de lógica de transcrição (já correto).
-- Confirmar que a inserção em `chat_conversation_summaries` ocorre **mesmo quando `insert_internal_note=false`** (já ocorre — o gating só pula quando a flag do agente bloqueia). Manter.
+## Resultado esperado
+Após a correção:
+- auto-resumo ao resolver/encerrar conversa usará o prompt customizado
+- resumo manual também usará o mesmo prompt customizado
+- a saída deixará de seguir o texto padrão do sistema quando houver prompt salvo para o cliente
 
-## Critérios de aceite
-- Ao resolver/encerrar uma conversa com a flag de auto-resumo ativa, um novo card aparece em **Resumos** em até ~2s sem refresh.
-- O card mostra: período `início → fim`, contagem `N mensagens`, badge `automático`.
-- Áudios com transcrição aparecem dentro do texto do resumo (não como "Áudio sem transcrição").
+## Detalhes técnicos
+- A edge function busca configuração por:
+  - tabela: `client_ai_model_config`
+  - chave: `client_id + feature='chat_resume'`
+- O bug ocorre porque as invocações atuais enviam apenas:
+  - `mode`
+  - `conversation_id`
+  - `after_ts` / `triggered_by`
+- Falta incluir no body:
+  - `client_id: String(user.client_id)`
+
+## Validação
+Depois da implementação, testar:
+1. salvar um prompt claramente diferente em **Resumo de Conversa**
+2. disparar auto-resumo numa conversa
+3. confirmar que o texto gerado segue o prompt salvo
+4. repetir no botão manual de gerar resumo para garantir consistência
