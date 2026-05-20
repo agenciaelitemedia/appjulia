@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Network, MessageSquare, History, Trash2, Activity, Wrench, CreditCard, ShoppingBag, Brain } from 'lucide-react';
+import { Plus, Loader2, Network, MessageSquare, History, Trash2, Activity, Wrench, CreditCard, ShoppingBag } from 'lucide-react';
 import { ChatSettingsTab } from '@/pages/configuracoes/components/ChatSettingsTab';
 import { UazapiHistoryTab } from '@/pages/configuracoes/components/UazapiHistoryTab';
 import { UazapiMonitorTab } from '@/pages/configuracoes/components/UazapiMonitorTab';
 import { QueueMaintenanceTab } from '@/pages/configuracoes/components/QueueMaintenanceTab';
 import { QueuePlansTab } from './components/QueuePlansTab';
 import { QueueOrdersTab } from './components/QueueOrdersTab';
-import { InteligenciaAtendimentoTab } from './components/InteligenciaAtendimentoTab';
 import { useQueueProviders, useQueueProviderMutations, type QueueProvider } from '@/pages/configuracoes/hooks/useQueueProviders';
 import { ProviderCard } from '@/pages/configuracoes/components/ProviderCard';
 import { ProviderFormDialog } from '@/pages/configuracoes/components/ProviderFormDialog';
@@ -65,7 +64,6 @@ export default function ChatAdminPage() {
       <Tabs defaultValue="chat" className="w-full">
         <TabsList>
           <TabsTrigger value="chat" className="gap-2"><MessageSquare className="w-4 h-4" />Chat</TabsTrigger>
-          <TabsTrigger value="inteligencia" className="gap-2"><Brain className="w-4 h-4" />Inteligência de Atendimento</TabsTrigger>
           <TabsTrigger value="plans" className="gap-2"><CreditCard className="w-4 h-4" />Planos</TabsTrigger>
           <TabsTrigger value="orders" className="gap-2"><ShoppingBag className="w-4 h-4" />Pedidos</TabsTrigger>
           <TabsTrigger value="providers" className="gap-2"><Network className="w-4 h-4" />Provedores de Fila</TabsTrigger>
@@ -75,7 +73,6 @@ export default function ChatAdminPage() {
         </TabsList>
 
         <TabsContent value="chat" className="mt-6"><ChatSettingsTab /></TabsContent>
-        <TabsContent value="inteligencia" className="mt-6"><InteligenciaAtendimentoTab /></TabsContent>
         <TabsContent value="plans" className="mt-6"><QueuePlansTab /></TabsContent>
         <TabsContent value="orders" className="mt-6"><QueueOrdersTab /></TabsContent>
 
