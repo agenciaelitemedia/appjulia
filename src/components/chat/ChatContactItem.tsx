@@ -152,7 +152,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     ? formatRelativeTime(contact.last_message_at)
     : null;
 
-  const visibleTags = (convTags || []).slice(0, 2);
+  const visibleTags = convTags || [];
 
   return (
     <div
