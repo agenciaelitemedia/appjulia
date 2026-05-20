@@ -2,8 +2,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Queue } from '../hooks/useQueues';
+import { useQueueMutations } from '../hooks/useQueues';
+import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { QueueAccessDialog } from './QueueAccessDialog';
@@ -46,6 +50,21 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
   const { user } = useAuth();
   const canDelete = !!user?.role && (DELETE_ALLOWED_ROLES as readonly string[]).includes(user.role);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
+  const { flags: clientFlags } = useClientAutomationFlags();
+  const { updateQueue } = useQueueMutations();
+  const qs = (queue.settings ?? {}) as Record<string, unknown>;
+  const qAutoTranscribe = qs.auto_transcribe_audio === true;
+  const qAutoResolve = qs.auto_summary_on_resolve === true;
+  const qAutoClose = qs.auto_summary_on_close === true;
+  const anyMasterOn =
+    clientFlags.autoTranscribeAudio ||
+    clientFlags.autoSummaryOnResolve ||
+    clientFlags.autoSummaryOnClose;
+
+  const toggleQueueFlag = (key: string, value: boolean) => {
+    const nextSettings = { ...qs, [key]: value };
+    updateQueue.mutate({ queue_id: queue.id, settings: nextSettings } as never);
+  };
 
   const channelBadgeClass =
     queue.channel_type === 'waba'
@@ -142,6 +161,51 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
               <WifiOff className="w-3 h-3 mr-1" />
               Desconectar
             </Button>
+          </div>
+        )}
+
+        {anyMasterOn && !queue.is_deleted && (
+          <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+              <Brain className="h-3.5 w-3.5 text-primary" />
+              Inteligência de Atendimento
+            </div>
+            {clientFlags.autoTranscribeAudio && (
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-normal text-muted-foreground">
+                  Transcrição automática de áudios
+                </Label>
+                <Switch
+                  checked={qAutoTranscribe}
+                  disabled={updateQueue.isPending}
+                  onCheckedChange={(v) => toggleQueueFlag('auto_transcribe_audio', v)}
+                />
+              </div>
+            )}
+            {clientFlags.autoSummaryOnResolve && (
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-normal text-muted-foreground">
+                  Auto-resumo ao resolver
+                </Label>
+                <Switch
+                  checked={qAutoResolve}
+                  disabled={updateQueue.isPending}
+                  onCheckedChange={(v) => toggleQueueFlag('auto_summary_on_resolve', v)}
+                />
+              </div>
+            )}
+            {clientFlags.autoSummaryOnClose && (
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-normal text-muted-foreground">
+                  Auto-resumo ao fechar
+                </Label>
+                <Switch
+                  checked={qAutoClose}
+                  disabled={updateQueue.isPending}
+                  onCheckedChange={(v) => toggleQueueFlag('auto_summary_on_close', v)}
+                />
+              </div>
+            )}
           </div>
         )}
       </CardContent>
