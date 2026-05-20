@@ -28,8 +28,10 @@ export function TranscriptionBlock({ transcription, pending, className, messageI
   const [expanded, setExpanded] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [localTranscription, setLocalTranscription] = useState<TranscriptionMeta | null>(null);
 
-  const hasTranscription = !!transcription;
+  const effective = transcription ?? localTranscription;
+  const hasTranscription = !!effective;
 
   if (!hasTranscription && !pending) {
     if (!canGenerate || !messageId) return null;
@@ -47,6 +49,16 @@ export function TranscriptionBlock({ transcription, pending, className, messageI
               });
               if (error) throw error;
               if (data?.error) throw new Error(String(data.error));
+              if (typeof data?.length === 'number') {
+                // Fetch fresh metadata so we render immediately even before realtime arrives.
+                const { data: fresh } = await supabase
+                  .from('chat_messages')
+                  .select('metadata')
+                  .eq('id', messageId)
+                  .maybeSingle();
+                const tr = (fresh?.metadata as any)?.transcription;
+                if (tr) setLocalTranscription(tr);
+              }
               onGenerated?.();
             } catch (e: any) {
               setGenError(e?.message || 'Falha ao transcrever');
@@ -66,8 +78,8 @@ export function TranscriptionBlock({ transcription, pending, className, messageI
     );
   }
 
-  const status = transcription?.status || (pending ? 'pending' : 'failed');
-  const text = transcription?.text?.trim() || '';
+  const status = effective?.status || (pending ? 'pending' : 'failed');
+  const text = effective?.text?.trim() || '';
 
   return (
     <div
