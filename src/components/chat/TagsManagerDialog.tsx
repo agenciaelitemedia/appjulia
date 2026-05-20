@@ -113,10 +113,11 @@ export function TagsManagerContent() {
   const { tags, createTag } = useWhatsAppData();
   const { user, isAdmin } = useAuth();
   const { settings, update } = useChatClientSettings();
-  // Apenas admin (dono do escritório) pode criar/editar/excluir etiquetas
-  // a partir desta página. O switch abaixo libera ou restringe a criação
-  // direta no chat para todos os usuários.
-  const canManage = isAdmin;
+  // Donos do escritório (admin, colaborador, user) sempre podem gerenciar
+  // etiquetas por esta tela. O switch abaixo controla a criação direta pelo
+  // chat para os demais perfis.
+  const isOwner = isAdmin || ['colaborador', 'user'].includes(user?.role ?? '');
+  const canManage = isOwner;
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#3b82f6');
   const [creating, setCreating] = useState(false);
@@ -134,7 +135,7 @@ export function TagsManagerContent() {
 
   return (
     <div className="space-y-3">
-        {isAdmin && (
+        {isOwner && (
           <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30">
             <div className="space-y-0.5">
               <Label htmlFor="allow-anyone-tags" className="text-sm font-medium">
