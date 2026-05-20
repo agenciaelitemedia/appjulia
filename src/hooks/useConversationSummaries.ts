@@ -70,6 +70,7 @@ export function useConversationSummaries(conversationId: string | null) {
         mode: 'full_summary',
         conversation_id: convId,
         after_ts: afterTs,
+        client_id: user?.client_id ? String(user.client_id) : undefined,
       },
     });
     if (error) throw error;

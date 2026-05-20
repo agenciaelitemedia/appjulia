@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Triggers an automatic conversation summary after a manual status change
@@ -10,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
  * Bulk closures do NOT call this hook by design.
  */
 export function useAutoSummaryOnStatusChange() {
+  const { user } = useAuth();
   const triggerAutoSummary = useCallback(
     async (
       conversationId: string,
@@ -24,13 +26,14 @@ export function useAutoSummaryOnStatusChange() {
             conversation_id: conversationId,
             triggered_by: triggeredBy,
             insert_internal_note: true,
+            client_id: user?.client_id ? String(user.client_id) : undefined,
           },
         });
       } catch (err) {
         console.warn('[useAutoSummaryOnStatusChange] failed:', err);
       }
     },
-    [],
+    [user?.client_id],
   );
 
   return { triggerAutoSummary };
