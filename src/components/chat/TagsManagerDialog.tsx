@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Trash2, Pencil, Check, X, Plus, Tag } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { cn } from '@/lib/utils';
 import type { ChatTag } from '@/types/conversation';
 
@@ -108,8 +111,12 @@ function TagRow({ tag, onSaved, onDeleted }: { tag: ChatTag; onSaved: () => void
 
 export function TagsManagerContent() {
   const { tags, createTag } = useWhatsAppData();
-  const { user } = useAuth();
-  const canManage = !!user && !['time', 'comercial', 'advogado'].includes(user.role);
+  const { user, isAdmin } = useAuth();
+  const { settings, update } = useChatClientSettings();
+  // Apenas admin (dono do escritório) pode criar/editar/excluir etiquetas
+  // a partir desta página. O switch abaixo libera ou restringe a criação
+  // direta no chat para todos os usuários.
+  const canManage = isAdmin;
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#3b82f6');
   const [creating, setCreating] = useState(false);
@@ -127,6 +134,24 @@ export function TagsManagerContent() {
 
   return (
     <div className="space-y-3">
+        {isAdmin && (
+          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30">
+            <div className="space-y-0.5">
+              <Label htmlFor="allow-anyone-tags" className="text-sm font-medium">
+                Permitir criação de etiquetas por qualquer usuário
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Quando desativado, apenas o dono do escritório pode criar etiquetas — e somente por esta tela.
+                A criação direta pelo chat fica desabilitada para os demais usuários.
+              </p>
+            </div>
+            <Switch
+              id="allow-anyone-tags"
+              checked={settings.allow_anyone_create_tags}
+              onCheckedChange={(v) => update.mutate({ allow_anyone_create_tags: v })}
+            />
+          </div>
+        )}
         <div className="space-y-1 max-h-[50vh] overflow-y-auto pr-1">
           {tags.length === 0 && !showNew && (
             <p className="text-xs text-muted-foreground text-center py-4">Nenhuma tag criada</p>

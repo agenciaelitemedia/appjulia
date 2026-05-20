@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tag as TagIcon, Search, Check, Plus, X } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -14,6 +16,9 @@ interface Props {
 
 export function ChatInputTagButton({ conversationId, disabled }: Props) {
   const { tags, createTag, addTagToConversation, removeTagFromConversation } = useWhatsAppData();
+  const { isAdmin } = useAuth();
+  const { settings } = useChatClientSettings();
+  const canCreate = isAdmin || settings.allow_anyone_create_tags;
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -35,7 +40,7 @@ export function ChatInputTagButton({ conversationId, disabled }: Props) {
 
   const filtered = tags.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
   const activeTagObjs = tags.filter(t => activeTags.includes(t.id));
-  const showCreate = search.trim() && !tags.some(t => t.name.toLowerCase() === search.toLowerCase());
+  const showCreate = canCreate && search.trim() && !tags.some(t => t.name.toLowerCase() === search.toLowerCase());
 
   const handleToggle = async (tagId: string) => {
     if (!conversationId) return;
@@ -50,7 +55,7 @@ export function ChatInputTagButton({ conversationId, disabled }: Props) {
   };
 
   const handleCreate = async () => {
-    if (!search.trim() || !conversationId) return;
+    if (!canCreate || !search.trim() || !conversationId) return;
     const tag = await createTag(search.trim(), '#3b82f6');
     if (tag) {
       await addTagToConversation(conversationId, tag.id, tag.name);
@@ -105,7 +110,7 @@ export function ChatInputTagButton({ conversationId, disabled }: Props) {
           <Search className="h-3 w-3 text-muted-foreground flex-shrink-0" />
           <input
             className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
-            placeholder="Buscar ou criar etiqueta..."
+            placeholder={canCreate ? 'Buscar ou criar etiqueta...' : 'Buscar etiqueta...'}
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => {
@@ -145,7 +150,11 @@ export function ChatInputTagButton({ conversationId, disabled }: Props) {
             </button>
           )}
           {filtered.length === 0 && !showCreate && (
-            <p className="text-xs text-muted-foreground text-center py-3">Nenhuma etiqueta encontrada</p>
+            <p className="text-xs text-muted-foreground text-center py-3">
+              {canCreate
+                ? 'Nenhuma etiqueta encontrada'
+                : 'Nenhuma etiqueta encontrada. Apenas o dono do escritório pode criar novas etiquetas.'}
+            </p>
           )}
         </div>
       </PopoverContent>
