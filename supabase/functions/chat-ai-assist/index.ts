@@ -15,6 +15,8 @@ const supabase = createClient(
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-2.5-flash";
 
+const DEFAULT_RESUME_PROMPT = `Você é um analista de atendimento. Gere um RESUMO OBJETIVO em português da conversa abaixo, priorizando os RELATOS DO CLIENTE (situação, dores, pedidos, dados pessoais relevantes ao caso). Mencione respostas do atendente APENAS quando forem indispensáveis para entender o caso (ex.: instrução crítica, compromisso assumido, encaminhamento). Use os resumos anteriores fornecidos como CONTEXTO acumulado; não os repita, apenas incorpore o que ainda for relevante. Saída em até 6 bullets curtos. Comece com 1 frase em negrito identificando o caso. Não invente informações.`;
+
 function json(b: unknown, s = 200) {
   return new Response(JSON.stringify(b), {
     status: s,
@@ -33,12 +35,47 @@ async function getModel(clientId: string | null, feature: string): Promise<strin
   return data?.model ?? DEFAULT_MODEL;
 }
 
+async function getPrompt(clientId: string | null, feature: string, fallback: string): Promise<string> {
+  if (!clientId) return fallback;
+  const { data } = await supabase
+    .from("client_ai_model_config")
+    .select("prompt")
+    .eq("client_id", clientId)
+    .eq("feature", feature)
+    .maybeSingle();
+  const p = (data?.prompt ?? "").trim();
+  return p.length > 0 ? p : fallback;
+}
+
+function renderMessageForTranscript(m: {
+  text?: string | null;
+  from_me?: boolean | null;
+  sender_name?: string | null;
+  type?: string | null;
+  metadata?: Record<string, unknown> | null;
+}): string | null {
+  const who = m.from_me ? "Atendente" : "Cliente";
+  const sender = m.sender_name ? ` (${m.sender_name})` : "";
+  const t = (m.type ?? "text").toLowerCase();
+  if (t === "audio" || t === "ptt") {
+    const meta = m.metadata as Record<string, unknown> | null | undefined;
+    const tr = meta && typeof meta === "object" ? (meta as { transcription?: { text?: string } }).transcription : undefined;
+    const transcriptText = tr?.text?.trim();
+    if (transcriptText) {
+      return `${who}${sender}: [Áudio transcrito] ${transcriptText}`;
+    }
+    return `${who}${sender}: [Áudio sem transcrição]`;
+  }
+  if (!m.text) return null;
+  return `${who}${sender}: ${m.text}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const body = await req.json();
     const { conversation_id, mode, after_ts, client_id } = body;
-    const validModes = ["summary", "suggest", "sentiment", "full_summary"];
+    const validModes = ["summary", "suggest", "sentiment", "full_summary", "incremental_summary"];
     if (!conversation_id || !validModes.includes(mode)) {
       return json({ error: "conversation_id and valid mode required", received: { conversation_id, mode } }, 200);
     }
@@ -46,6 +83,91 @@ Deno.serve(async (req) => {
     if (!apiKey) return json({ error: "LOVABLE_API_KEY not configured" }, 500);
 
     const model = await getModel(client_id ?? null, "chat_assist");
+
+    if (mode === "incremental_summary") {
+      const resumeModel = await getModel(client_id ?? null, "chat_resume");
+      const resumePrompt = await getPrompt(client_id ?? null, "chat_resume", DEFAULT_RESUME_PROMPT);
+
+      // Find the most recent summary for this conversation
+      const { data: lastSummary } = await supabase
+        .from("chat_conversation_summaries")
+        .select("summary, first_message_ts, last_message_ts, created_at")
+        .eq("conversation_id", conversation_id)
+        .order("last_message_ts", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Load up to 10 previous summaries for accumulated context
+      const { data: previousSummaries } = await supabase
+        .from("chat_conversation_summaries")
+        .select("summary, first_message_ts, last_message_ts, created_at")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", { ascending: true })
+        .limit(10);
+
+      // Build messages query
+      let msgQuery = supabase
+        .from("chat_messages")
+        .select("text, from_me, sender_name, timestamp, type, metadata")
+        .eq("conversation_id", conversation_id)
+        .order("timestamp", { ascending: false })
+        .limit(100);
+
+      if (lastSummary?.last_message_ts) {
+        msgQuery = msgQuery.gt("timestamp", lastSummary.last_message_ts);
+      }
+
+      const { data: msgsDesc } = await msgQuery;
+      const msgs = (msgsDesc || []).slice().reverse();
+      const lines = msgs.map(renderMessageForTranscript).filter((x): x is string => !!x);
+      if (lines.length === 0) {
+        return json({ error: "Sem mensagens novas para resumir", message_count: 0 }, 200);
+      }
+
+      const transcript = lines.join("\n");
+      const first_message_ts = msgs[0]?.timestamp ?? null;
+      const last_message_ts = msgs[msgs.length - 1]?.timestamp ?? null;
+      const message_count = msgs.length;
+
+      const previousBlock = (previousSummaries || [])
+        .filter((s) => s.summary)
+        .map((s, i) => `--- Resumo ${i + 1} (${s.first_message_ts ?? "?"} → ${s.last_message_ts ?? "?"}) ---\n${s.summary}`)
+        .join("\n\n");
+
+      const userContent = previousBlock
+        ? `RESUMOS ANTERIORES (contexto acumulado, não repetir):\n${previousBlock}\n\nCONVERSA ATUAL (novas mensagens a resumir):\n${transcript}`
+        : `CONVERSA (resuma desde o início):\n${transcript}`;
+
+      const resp = await fetch(GATEWAY, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: resumeModel,
+          messages: [
+            { role: "system", content: resumePrompt },
+            { role: "user", content: userContent },
+          ],
+        }),
+      });
+
+      if (resp.status === 429) return json({ error: "Limite de uso da IA atingido." }, 429);
+      if (resp.status === 402) return json({ error: "Créditos da IA esgotados." }, 402);
+      if (!resp.ok) {
+        const t = await resp.text();
+        return json({ error: "AI error", detail: t }, 500);
+      }
+
+      const aiData = await resp.json();
+      const summary = aiData?.choices?.[0]?.message?.content ?? "";
+
+      return json({
+        summary,
+        first_message_ts,
+        last_message_ts,
+        message_count,
+        model: resumeModel,
+      });
+    }
 
     if (mode === "full_summary") {
       let query = supabase
