@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { externalDb } from '@/lib/externalDb';
 import { useUserQueueAccess } from '@/hooks/useUserQueueAccess';
 import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
 
