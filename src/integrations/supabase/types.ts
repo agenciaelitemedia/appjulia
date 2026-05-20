@@ -5010,6 +5010,7 @@ export type Database = {
           name: string
           phone_number: string | null
           phone_resolved_at: string | null
+          settings: Json
           updated_at: string
           waba_id: string | null
           waba_number_id: string | null
@@ -5030,6 +5031,7 @@ export type Database = {
           name: string
           phone_number?: string | null
           phone_resolved_at?: string | null
+          settings?: Json
           updated_at?: string
           waba_id?: string | null
           waba_number_id?: string | null
@@ -5050,6 +5052,7 @@ export type Database = {
           name?: string
           phone_number?: string | null
           phone_resolved_at?: string | null
+          settings?: Json
           updated_at?: string
           waba_id?: string | null
           waba_number_id?: string | null
