@@ -16,9 +16,12 @@ interface Props {
 
 export function ChatInputTagButton({ conversationId, disabled }: Props) {
   const { tags, createTag, addTagToConversation, removeTagFromConversation } = useWhatsAppData();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { settings } = useChatClientSettings();
-  const canCreate = isAdmin || settings.allow_anyone_create_tags;
+  // Donos do escritório (admin, colaborador, user) sempre podem criar etiquetas.
+  // Demais perfis dependem da flag allow_anyone_create_tags.
+  const isOwner = isAdmin || ['colaborador', 'user'].includes(user?.role ?? '');
+  const canCreate = isOwner || settings.allow_anyone_create_tags;
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
