@@ -197,3 +197,24 @@ Estados visuais:
 - `supabase/functions/chat-ai-assist/index.ts` (modo `incremental_summary` + `getPrompt`)
 - `supabase/functions/uazapi-chat-webhook/index.ts`, `meta-webhook/index.ts`, `instagram-webhook/index.ts` (gatilho de transcrição)
 - `mem://index.md` + 3 novos arquivos de memória
+
+## 9. Status de implementação
+
+**Parte 1 (concluído):**
+- Migração `client_ai_model_config.prompt`.
+- UI `ConfigStep.tsx` com card "Inteligência de Atendimento".
+- `useAIModelsConfig` + tela `AIModelsConfig` com features `chat_resume` / `chat_transcription` e editor de prompt (com restaurar padrão).
+- `chat-ai-assist` modo `incremental_summary` (lê transcrições do áudio, contexto acumulado).
+- Helpers `src/lib/agentSettings.ts` e `supabase/functions/_shared/agentSettings.ts`.
+
+**Parte 2 (concluído):**
+- Edge `chat-transcribe-audio`: download via UaZapi `/message/download` (credenciais da `queues`), transcrição via Lovable AI usando prompt/modelo de `chat_transcription`, gravação em `chat_messages.metadata.transcription`. Idempotente.
+- `uazapi-chat-webhook`: após insert de `audio`/`ptt` (inclusive `from_me=true`), se qualquer agente da fila tem `AUTO_TRANSCRIBE_AUDIO=true`, dispara `chat-transcribe-audio` em `EdgeRuntime.waitUntil`.
+- `chat-ai-assist incremental_summary`: agora persiste em `chat_conversation_summaries` e, quando `triggered_by=auto_resolve|auto_close` + flag do agente ativa, insere nota interna `📋 Resumo automático` na timeline. Gating server-side; bulk close não dispara resumo.
+- `TranscriptionBlock.tsx`: estados `ok`/`failed`/`pending`, 2 linhas com `line-clamp-2` e toggle "Ver transcrição / Recolher".
+- `MessageBubble` renderiza `TranscriptionBlock` em áudios.
+- `useAutoSummaryOnStatusChange`: invocado em `handleResolve` e `handleConfirmClose` (manual apenas).
+- `MessageMetadata.transcription` adicionado em `src/types/chat.ts`.
+
+**Pendente (próxima iteração):**
+- Wiring de transcrição em `meta-webhook` e `instagram-webhook`: ambos exigem caminho de download alternativo (Graph API/CDN), pois `/message/download` é específico do UaZapi. Reaproveitar `chat-transcribe-audio` requer parametrizar o downloader por `channel_type`.
