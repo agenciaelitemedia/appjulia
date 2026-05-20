@@ -1,0 +1,1 @@
+DELETE FROM public.chat_conversation_summaries WHERE id = '38ee3b0c-695f-407a-a4ce-9efbd494c349';
