@@ -26,26 +26,54 @@ function json(b: unknown, s = 200) {
 }
 
 async function getModel(clientId: string | null, feature: string): Promise<string> {
-  if (!clientId) return DEFAULT_MODEL;
-  const { data } = await supabase
+  // 1) Try client-specific config
+  if (clientId) {
+    const { data } = await supabase
+      .from("client_ai_model_config")
+      .select("model")
+      .eq("client_id", clientId)
+      .eq("feature", feature)
+      .maybeSingle();
+    if (data?.model) return data.model;
+  }
+  // 2) Universal fallback: most recently updated config for this feature
+  const { data: any_row } = await supabase
     .from("client_ai_model_config")
     .select("model")
-    .eq("client_id", clientId)
     .eq("feature", feature)
+    .order("updated_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
-  return data?.model ?? DEFAULT_MODEL;
+  return any_row?.model ?? DEFAULT_MODEL;
 }
 
 async function getPrompt(clientId: string | null, feature: string, fallback: string): Promise<string> {
-  if (!clientId) return fallback;
-  const { data } = await supabase
+  // 1) Try client-specific configured prompt
+  if (clientId) {
+    const { data } = await supabase
+      .from("client_ai_model_config")
+      .select("prompt")
+      .eq("client_id", clientId)
+      .eq("feature", feature)
+      .maybeSingle();
+    const p = (data?.prompt ?? "").trim();
+    if (p.length > 0) return p;
+  }
+  // 2) Universal fallback: any client that has a non-empty prompt configured
+  //    for this feature (most recently updated wins). This makes the prompt
+  //    set in /configuracoes → IA's a global override.
+  const { data: rows } = await supabase
     .from("client_ai_model_config")
-    .select("prompt")
-    .eq("client_id", clientId)
+    .select("prompt, updated_at")
     .eq("feature", feature)
-    .maybeSingle();
-  const p = (data?.prompt ?? "").trim();
-  return p.length > 0 ? p : fallback;
+    .not("prompt", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(5);
+  for (const r of rows ?? []) {
+    const p = (r.prompt ?? "").trim();
+    if (p.length > 0) return p;
+  }
+  return fallback;
 }
 
 function renderMessageForTranscript(m: {
