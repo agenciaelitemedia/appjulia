@@ -917,6 +917,7 @@ Deno.serve(async (req) => {
     let processed = 0;
     const skipped: Record<string, number> = { group: 0, no_id: 0, no_phone: 0 };
     const backfillTriggered = new Set<string>();
+    const audioMessageIdsToTranscribe: string[] = [];
     for (const msg of messages) {
       try {
         const chatId = msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender || '';
@@ -1277,7 +1278,7 @@ Deno.serve(async (req) => {
           continue; // do NOT insert reaction as a chat_messages row
         }
 
-        const { error: msgError } = await supabase
+        const { data: insertedMsg, error: msgError } = await supabase
           .from('chat_messages')
           .insert({
             contact_id: contact.id,
@@ -1309,7 +1310,9 @@ Deno.serve(async (req) => {
                 || msg.message?.documentMessage?.mimetype
                 || null,
             },
-          });
+          })
+          .select('id')
+          .maybeSingle();
 
         if (msgError) {
           const isDuplicate = msgError.code === '23505' || msgError.message?.toLowerCase().includes('duplicate');
@@ -1319,6 +1322,11 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Track audio/ptt inserts (both fromMe and !fromMe) for auto-transcription
+        if (insertedMsg?.id && (type === 'audio' || type === 'ptt')) {
+          audioMessageIdsToTranscribe.push(insertedMsg.id);
+        }
+
         processed++;
       } catch (msgErr) {
         console.error('[uazapi-chat-webhook] Error processing message:', msgErr);
@@ -1326,6 +1334,46 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[uazapi-chat-webhook] Done. processed=${processed} skipped=${JSON.stringify(skipped)} backfills=${backfillTriggered.size}`);
+
+    // Auto-transcribe audios when any agent linked to the queue has AUTO_TRANSCRIBE_AUDIO enabled.
+    // Fire-and-forget via EdgeRuntime.waitUntil so the webhook responds immediately.
+    if (audioMessageIdsToTranscribe.length > 0) {
+      const transcribePromise = (async () => {
+        try {
+          const { fetchAgentFlagsByCod } = await import('../_shared/agentSettings.ts');
+          const { data: links } = await supabase
+            .from('queue_agent_links')
+            .select('cod_agent')
+            .eq('queue_id', queueId);
+          const codAgents = (links || []).map((l: any) => l.cod_agent).filter(Boolean);
+          let anyEnabled = false;
+          for (const c of codAgents) {
+            const flags = await fetchAgentFlagsByCod(c);
+            if (flags.autoTranscribeAudio) { anyEnabled = true; break; }
+          }
+          if (!anyEnabled) {
+            console.log('[uazapi-chat-webhook] auto-transcribe disabled for queue', queueId);
+            return;
+          }
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+          const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+          for (const mid of audioMessageIdsToTranscribe) {
+            fetch(`${supabaseUrl}/functions/v1/chat-transcribe-audio`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${serviceKey}`,
+                apikey: serviceKey,
+              },
+              body: JSON.stringify({ message_id: mid }),
+            }).catch((e) => console.warn('[uazapi-chat-webhook] transcribe invoke err:', String(e)));
+          }
+        } catch (e) {
+          console.warn('[uazapi-chat-webhook] auto-transcribe error:', String(e));
+        }
+      })();
+      EdgeRuntime.waitUntil(transcribePromise);
+    }
 
     // Move n8n fan-out to background so webhook responds immediately.
     // EdgeRuntime.waitUntil keeps the isolate alive until the promise settles

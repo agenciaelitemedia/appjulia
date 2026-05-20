@@ -92,6 +92,15 @@ export interface MessageMetadata {
   // Audio specific
   is_ptt?: boolean;
   waveform?: number[];
+
+  // AI transcription (audio/ptt)
+  transcription?: {
+    text?: string | null;
+    status?: 'ok' | 'failed' | 'pending';
+    reason?: string;
+    model?: string;
+    generated_at?: string;
+  };
   
   // Sender info (for groups)
   sender_id?: string;

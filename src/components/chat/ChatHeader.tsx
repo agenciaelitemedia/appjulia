@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConversationPresence } from '@/hooks/useConversationPresence';
 import { useChatKeyboardShortcuts } from '@/hooks/useChatKeyboardShortcuts';
+import { useAutoSummaryOnStatusChange } from '@/hooks/useAutoSummaryOnStatusChange';
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
 import { TransferDialog } from './TransferDialog';
@@ -228,6 +229,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter } = useWhatsAppData();
+  const { triggerAutoSummary } = useAutoSummaryOnStatusChange();
   const { user } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const { getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(
@@ -363,6 +365,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const handleConfirmClose = async (closeNote: string, _sendSurvey: boolean) => {
     if (!selectedConversation) return;
     await updateConversationStatus(selectedConversation.id, 'closed', closeNote || undefined);
+    triggerAutoSummary(selectedConversation.id, 'auto_close');
   };
 
   const currentUserName = user?.name || (user?.id ? String(user.id) : '');
@@ -386,6 +389,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const handleResolve = async () => {
     if (!selectedConversation) return;
     await updateConversationStatus(selectedConversation.id, 'resolved');
+    triggerAutoSummary(selectedConversation.id, 'auto_resolve');
   };
 
   const handleReopen = async () => {

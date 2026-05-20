@@ -1,6 +1,7 @@
 // AI assistant for chat: summarize conversation or suggest reply.
 // Uses Lovable AI Gateway (LOVABLE_API_KEY).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { fetchAgentFlagsByCod } from "../_shared/agentSettings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,11 +71,50 @@ function renderMessageForTranscript(m: {
   return `${who}${sender}: ${m.text}`;
 }
 
+/**
+ * Returns true if the agent linked to the conversation's queue has the
+ * matching AUTO_SUMMARY flag enabled. If ANY linked agent has it on, summary
+ * is allowed. Defaults to `false` on any lookup error.
+ */
+async function isAutoSummaryAllowed(
+  conversationId: string,
+  triggeredBy: "auto_resolve" | "auto_close",
+): Promise<boolean> {
+  try {
+    const { data: conv } = await supabase
+      .from("chat_conversations")
+      .select("queue_id")
+      .eq("id", conversationId)
+      .maybeSingle();
+    if (!conv?.queue_id) return false;
+    const { data: links } = await supabase
+      .from("queue_agent_links")
+      .select("cod_agent")
+      .eq("queue_id", conv.queue_id);
+    const codAgents = (links || []).map((l: any) => l.cod_agent).filter(Boolean);
+    for (const c of codAgents) {
+      const flags = await fetchAgentFlagsByCod(c);
+      if (triggeredBy === "auto_resolve" && flags.autoSummaryOnResolve) return true;
+      if (triggeredBy === "auto_close" && flags.autoSummaryOnClose) return true;
+    }
+    return false;
+  } catch (_e) {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const body = await req.json();
-    const { conversation_id, mode, after_ts, client_id } = body;
+    const {
+      conversation_id,
+      mode,
+      after_ts,
+      client_id,
+      triggered_by,
+      insert_internal_note,
+    } = body;
     const validModes = ["summary", "suggest", "sentiment", "full_summary", "incremental_summary"];
     if (!conversation_id || !validModes.includes(mode)) {
       return json({ error: "conversation_id and valid mode required", received: { conversation_id, mode } }, 200);
@@ -160,12 +200,95 @@ Deno.serve(async (req) => {
       const aiData = await resp.json();
       const summary = aiData?.choices?.[0]?.message?.content ?? "";
 
+      // Persist summary + (optionally) post an internal note in the chat timeline.
+      // Gating by agent automation flags (AUTO_SUMMARY_ON_RESOLVE / _ON_CLOSE)
+      // happens here so bulk closures (which don't trigger this mode) are safe.
+      let persisted_id: string | null = null;
+      let note_id: string | null = null;
+      try {
+        if (insert_internal_note && (triggered_by === "auto_resolve" || triggered_by === "auto_close")) {
+          const allowed = await isAutoSummaryAllowed(conversation_id, triggered_by);
+          if (!allowed) {
+            return json({
+              summary,
+              first_message_ts,
+              last_message_ts,
+              message_count,
+              model: resumeModel,
+              skipped: "agent_flag_disabled",
+            });
+          }
+        }
+
+        // Look up contact_id + client_id for persistence
+        const { data: conv } = await supabase
+          .from("chat_conversations")
+          .select("contact_id, client_id")
+          .eq("id", conversation_id)
+          .maybeSingle();
+
+        if (conv && summary) {
+          const { data: inserted } = await supabase
+            .from("chat_conversation_summaries")
+            .insert({
+              conversation_id,
+              contact_id: conv.contact_id,
+              client_id: conv.client_id,
+              summary,
+              first_message_ts,
+              last_message_ts,
+              message_count,
+              triggered_by: triggered_by || "manual",
+            })
+            .select("id")
+            .maybeSingle();
+          persisted_id = inserted?.id ?? null;
+
+          if (insert_internal_note && (triggered_by === "auto_resolve" || triggered_by === "auto_close")) {
+            const heading = triggered_by === "auto_resolve"
+              ? "📋 Resumo automático (resolvida)"
+              : "📋 Resumo automático (encerrada)";
+            const { data: note } = await supabase
+              .from("chat_messages")
+              .insert({
+                conversation_id,
+                contact_id: conv.contact_id,
+                client_id: conv.client_id,
+                type: "text",
+                from_me: true,
+                status: "sent",
+                internal_note: true,
+                note_type: "info",
+                text: `${heading}\n\n${summary}`,
+                sender_name: "Atende Julia · IA",
+                channel_type: "internal_note",
+                timestamp: new Date().toISOString(),
+                metadata: {
+                  internal_note: true,
+                  note_type: "info",
+                  kind: "auto_summary",
+                  triggered_by,
+                  summary_id: persisted_id,
+                  model: resumeModel,
+                },
+              })
+              .select("id")
+              .maybeSingle();
+            note_id = note?.id ?? null;
+          }
+        }
+      } catch (persistErr) {
+        console.warn("[chat-ai-assist] persist/note error:", persistErr);
+      }
+
       return json({
         summary,
         first_message_ts,
         last_message_ts,
         message_count,
         model: resumeModel,
+        persisted_id,
+        note_id,
       });
     }
 
