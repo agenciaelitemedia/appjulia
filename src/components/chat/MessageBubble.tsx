@@ -297,7 +297,8 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     case 'audio':
     case 'ptt':
       return (
-        <div className="flex items-center gap-2 min-w-[240px]">
+        <div className="flex flex-col gap-1 min-w-[240px]">
+          <div className="flex items-center gap-2">
           {usable ? (
             <>
               <Button
@@ -352,6 +353,10 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
                 <FallbackBox label="Baixar áudio" />
               )}
             </div>
+          )}
+          </div>
+          {message.metadata?.transcription && (
+            <TranscriptionBlock transcription={message.metadata.transcription} />
           )}
         </div>
       );
