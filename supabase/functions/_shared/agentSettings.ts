@@ -140,3 +140,68 @@ export async function fetchClientAutomationFlags(
     return { ...DEFAULT_AUTOMATION_FLAGS };
   }
 }
+
+// In-memory cache for queue-level flags (TTL 60s).
+const queueFlagsCache = new Map<string, { value: Partial<AgentAutomationFlags>; expires: number }>();
+
+function asBoolStrict(v: unknown): boolean {
+  return v === true || v === 'true' || v === 1 || v === '1';
+}
+
+/**
+ * Returns the per-queue automation flags stored in `queues.settings`.
+ * Missing flags default to false. Cached 60s.
+ */
+export async function fetchQueueAutomationFlags(
+  queueId: string | null | undefined,
+): Promise<Partial<AgentAutomationFlags>> {
+  if (!queueId) return {};
+  const now = Date.now();
+  const cached = queueFlagsCache.get(queueId);
+  if (cached && cached.expires > now) return cached.value;
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceKey) return {};
+
+  try {
+    const url = `${supabaseUrl}/rest/v1/queues?id=eq.${encodeURIComponent(queueId)}&select=settings&limit=1`;
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
+    });
+    if (!resp.ok) return {};
+    const rows = await resp.json();
+    const s = (Array.isArray(rows) ? rows[0]?.settings : null) as Record<string, unknown> | null;
+    const flags: Partial<AgentAutomationFlags> = {
+      autoTranscribeAudio: asBoolStrict(s?.auto_transcribe_audio),
+      autoSummaryOnResolve: asBoolStrict(s?.auto_summary_on_resolve),
+      autoSummaryOnClose: asBoolStrict(s?.auto_summary_on_close),
+    };
+    queueFlagsCache.set(queueId, { value: flags, expires: now + 60_000 });
+    return flags;
+  } catch (_err) {
+    return {};
+  }
+}
+
+/**
+ * Effective flags = client master AND queue toggle. Both default to false.
+ * Use this in webhooks / auto flows so the per-queue switch can disable a feature
+ * even when the client master is on.
+ */
+export async function fetchEffectiveQueueFlags(
+  clientId: string | number | null | undefined,
+  queueId: string | null | undefined,
+): Promise<AgentAutomationFlags> {
+  const [client, queue] = await Promise.all([
+    fetchClientAutomationFlags(clientId),
+    fetchQueueAutomationFlags(queueId),
+  ]);
+  return {
+    autoTranscribeAudio: client.autoTranscribeAudio && !!queue.autoTranscribeAudio,
+    autoSummaryOnResolve: client.autoSummaryOnResolve && !!queue.autoSummaryOnResolve,
+    autoSummaryOnClose: client.autoSummaryOnClose && !!queue.autoSummaryOnClose,
+    usingAudio: client.usingAudio,
+  };
+}

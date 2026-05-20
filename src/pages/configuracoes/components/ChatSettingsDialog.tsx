@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Building2, X, Loader2, Network, Settings2, History, AlertTriangle } from 'lucide-react';
+import { Building2, X, Loader2, Network, Settings2, History, AlertTriangle, Brain } from 'lucide-react';
 import { ChatSettingsClientPicker } from './ChatSettingsClientPicker';
 import {
   DEFAULT_CHAT_SETTINGS,
@@ -230,6 +230,60 @@ export function ChatSettingsDialog({ open, onOpenChange, editing }: Props) {
                   value={settings.history_sync_days ?? 7}
                   onChange={(e) => updateField('history_sync_days', Math.min(7, parseInt(e.target.value, 10) || 7))}
                   className="w-24 text-center"
+                />
+              </div>
+            </div>
+
+            {/* Inteligência de Atendimento (master por cliente) */}
+            <div className="space-y-4 border rounded-lg p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Brain className="h-4 w-4" /> Inteligência de Atendimento
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Libera as funcionalidades para este cliente. O dono do escritório ainda
+                precisa ativar individualmente em cada fila para que tenham efeito.
+              </p>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 flex-1">
+                  <Label className="text-sm">Transcrição automática de áudios</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Permite habilitar a transcrição em filas deste cliente
+                  </p>
+                </div>
+                <Switch
+                  checked={!!settings.auto_transcribe_audio}
+                  onCheckedChange={(v) => updateField('auto_transcribe_audio', v)}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 flex-1">
+                  <Label className="text-sm">Auto-resumo ao resolver atendimento</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Permite habilitar o resumo automático ao resolver em filas deste cliente
+                  </p>
+                </div>
+                <Switch
+                  checked={!!settings.auto_summary_on_resolve}
+                  onCheckedChange={(v) => updateField('auto_summary_on_resolve', v)}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5 flex-1">
+                  <Label className="text-sm">Auto-resumo ao fechar atendimento</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Permite habilitar o resumo automático ao fechar em filas deste cliente
+                  </p>
+                </div>
+                <Switch
+                  checked={!!settings.auto_summary_on_close}
+                  onCheckedChange={(v) => updateField('auto_summary_on_close', v)}
                 />
               </div>
             </div>

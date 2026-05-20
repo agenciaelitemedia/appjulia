@@ -16,6 +16,11 @@ export interface ChatClientSettingsJson {
   NOTIFICATION_SOUND?: boolean;
   SHOW_INTERNAL_NOTES?: boolean;
   history_sync_days?: number;
+  // Master flags (admin only) — liberam o uso das funcionalidades para o client_id.
+  // O dono do escritório precisa ainda habilitar por fila para que tenham efeito.
+  auto_transcribe_audio?: boolean;
+  auto_summary_on_resolve?: boolean;
+  auto_summary_on_close?: boolean;
 }
 
 export const DEFAULT_CHAT_SETTINGS: ChatClientSettingsJson = {
@@ -32,6 +37,9 @@ export const DEFAULT_CHAT_SETTINGS: ChatClientSettingsJson = {
   NOTIFICATION_SOUND: true,
   SHOW_INTERNAL_NOTES: true,
   history_sync_days: 7,
+  auto_transcribe_audio: false,
+  auto_summary_on_resolve: false,
+  auto_summary_on_close: false,
 };
 
 export interface ChatClientSettingRow {
