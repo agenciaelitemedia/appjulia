@@ -7,9 +7,9 @@ import {
 } from '@/lib/agentSettings';
 
 /**
- * Returns consolidated automation flags for the logged-in user's client_id.
- * A flag is `true` if ANY agent under that client has it enabled in
- * `agents.settings`. Missing flags default to `false`.
+ * Returns automation flags for the logged-in user's client_id.
+ * Source: `chat_client_settings.settings` (per-client config managed in
+ * /admin/chat → "Inteligência de Atendimento"). Missing flags default to false.
  */
 export function useClientAutomationFlags() {
   const { user } = useAuth();
@@ -22,16 +22,18 @@ export function useClientAutomationFlags() {
     gcTime: 10 * 60_000,
     queryFn: async (): Promise<AgentAutomationFlags> => {
       if (!clientId) return { ...DEFAULT_AUTOMATION_FLAGS };
-      const { data, error } = await supabase.functions.invoke(
-        'client-automation-flags',
-        { body: { client_id: clientId } },
-      );
+      const { data, error } = await supabase
+        .from('chat_client_settings')
+        .select('settings')
+        .eq('client_id', clientId)
+        .maybeSingle();
       if (error) throw error;
+      const s = (data?.settings ?? {}) as Record<string, unknown>;
       return {
-        autoTranscribeAudio: !!data?.autoTranscribeAudio,
-        autoSummaryOnResolve: !!data?.autoSummaryOnResolve,
-        autoSummaryOnClose: !!data?.autoSummaryOnClose,
-        usingAudio: !!data?.usingAudio,
+        autoTranscribeAudio: Boolean(s.auto_transcribe_audio ?? false),
+        autoSummaryOnResolve: Boolean(s.auto_summary_on_resolve ?? false),
+        autoSummaryOnClose: Boolean(s.auto_summary_on_close ?? false),
+        usingAudio: Boolean(s.using_audio ?? false),
       };
     },
   });

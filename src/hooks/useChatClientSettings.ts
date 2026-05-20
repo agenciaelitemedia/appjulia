@@ -6,11 +6,17 @@ import { toast } from 'sonner';
 export interface ChatClientSettings {
   return_chat_enabled: boolean;
   return_chat_tolerance_minutes: number;
+  auto_transcribe_audio: boolean;
+  auto_summary_on_resolve: boolean;
+  auto_summary_on_close: boolean;
 }
 
 const DEFAULTS: ChatClientSettings = {
   return_chat_enabled: false,
   return_chat_tolerance_minutes: 0,
+  auto_transcribe_audio: false,
+  auto_summary_on_resolve: false,
+  auto_summary_on_close: false,
 };
 
 export function useChatClientSettings() {
@@ -33,6 +39,9 @@ export function useChatClientSettings() {
       return {
         return_chat_enabled: Boolean(s.return_chat_enabled ?? false),
         return_chat_tolerance_minutes: Number(s.return_chat_tolerance_minutes ?? 0),
+        auto_transcribe_audio: Boolean(s.auto_transcribe_audio ?? false),
+        auto_summary_on_resolve: Boolean(s.auto_summary_on_resolve ?? false),
+        auto_summary_on_close: Boolean(s.auto_summary_on_close ?? false),
       };
     },
   });

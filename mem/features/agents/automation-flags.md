@@ -1,16 +1,21 @@
 ---
 name: Agent Automation Flags
-description: Flags em agents.settings que controlam transcrição automática e resumos pós-status
+description: Flags por client_id em chat_client_settings que controlam transcrição automática e resumos
 type: feature
 ---
 
-Flags booleanas em `agents.settings` (JSONB no DB externo) consumidas via `getAgentAutomationFlags()` (`src/lib/agentSettings.ts` e `supabase/functions/_shared/agentSettings.ts`):
+Flags booleanas armazenadas por **client_id** em `chat_client_settings.settings` (JSONB, Supabase nativo). Chaves snake_case:
 
-- `AUTO_TRANSCRIBE_AUDIO`: transcreve áudios recebidos e enviados via `chat-transcribe-audio` (fire-and-forget no webhook). Default `false`.
-- `AUTO_SUMMARY_ON_RESOLVE`: ao resolver manualmente, dispara `chat-ai-assist incremental_summary` que insere nota interna `📋 Resumo automático (resolvida)`. Default `false`.
-- `AUTO_SUMMARY_ON_CLOSE`: idem para encerramento manual. **Bulk close NÃO dispara resumo** por design.
-- `USING_AUDIO`: pré-existente; gate geral para envio/recebimento de áudios.
+- `auto_transcribe_audio`: transcreve áudios recebidos/enviados via `chat-transcribe-audio` (fire-and-forget no webhook). Default `false`.
+- `auto_summary_on_resolve`: ao resolver manualmente, dispara `chat-ai-assist incremental_summary` (nota interna `📋 Resumo automático (resolvida)`). Default `false`.
+- `auto_summary_on_close`: idem para encerramento manual. **Bulk close NÃO dispara resumo** por design.
 
-Gating é sempre server-side e por **client_id** (não por fila): se ANY agente do mesmo `client_id` da conversa/fila tem a flag ativa, dispara. Frontend só chama; servidor decide via `isAutoSummaryAllowed()` em `chat-ai-assist` (consulta `chat_conversations.client_id`) e via auto-transcribe em `uazapi-chat-webhook` (usa `queue.client_id`). Resolver consolidado: `fetchClientAutomationFlags(clientId)` em `_shared/agentSettings.ts` (cache 60s, OR lógico entre todos os agents do client). Edge function `client-automation-flags` expõe ao frontend; hook `useClientAutomationFlags` cacheia 5min.
+`USING_AUDIO` permanece em `agents.settings` (escopo de agente).
 
-UI: card "Inteligência de Atendimento" em `ConfigStep.tsx`, abaixo de "Áudio e Ligações". Aba "Resumos" em `ContactDetailPanel` aparece **apenas** se `AUTO_SUMMARY_ON_RESOLVE` OR `AUTO_SUMMARY_ON_CLOSE` for true para o client logado.
+Gating server-side: `fetchClientAutomationFlags(clientId)` em `supabase/functions/_shared/agentSettings.ts` lê `chat_client_settings.settings` via REST (cache 60s). Consumidores:
+- `chat-ai-assist` → consulta `chat_conversations.client_id` para `isAutoSummaryAllowed`.
+- `uazapi-chat-webhook` → usa `queue.client_id` para auto-transcribe.
+
+Frontend: hook `useClientAutomationFlags` lê direto de `chat_client_settings` (cache 5min). Aba "Resumos" em `ContactDetailPanel` aparece **apenas** se `auto_summary_on_resolve` OR `auto_summary_on_close` for true.
+
+UI de configuração: `/admin/chat` → aba **"Inteligência de Atendimento"** (`InteligenciaAtendimentoTab.tsx`). Removida do wizard de agente.
