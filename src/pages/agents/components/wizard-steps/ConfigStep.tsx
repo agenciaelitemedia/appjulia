@@ -258,6 +258,70 @@ export function ConfigStep() {
         </CardContent>
       </Card>
 
+      {/* Inteligência de Atendimento Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Brain className="h-4 w-4 text-primary" />
+            Inteligência de Atendimento
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel className="flex items-center gap-2">
+                <AudioLines className="h-3.5 w-3.5 text-cyan-600" />
+                Transcrever Áudio
+              </FormLabel>
+              <FormDescription>
+                Toda mensagem de áudio (recebida ou enviada) será transcrita automaticamente em segundo plano.
+              </FormDescription>
+            </div>
+            <Switch
+              checked={config.AUTO_TRANSCRIBE_AUDIO}
+              onCheckedChange={(checked) => updateField('AUTO_TRANSCRIBE_AUDIO', checked)}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                Resumo Automático ao Resolver
+              </FormLabel>
+              <FormDescription>
+                Ao marcar uma conversa como resolvida, gera um resumo automático e adiciona como nota interna no chat.
+              </FormDescription>
+            </div>
+            <Switch
+              checked={config.AUTO_SUMMARY_ON_RESOLVE}
+              onCheckedChange={(checked) => updateField('AUTO_SUMMARY_ON_RESOLVE', checked)}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <FormLabel className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                Resumo Automático ao Encerrar
+              </FormLabel>
+              <FormDescription>
+                Ao encerrar manualmente uma conversa, gera um resumo automático e adiciona como nota interna no chat.
+                Encerramentos em lote não disparam resumo.
+              </FormDescription>
+            </div>
+            <Switch
+              checked={config.AUTO_SUMMARY_ON_CLOSE}
+              onCheckedChange={(checked) => updateField('AUTO_SUMMARY_ON_CLOSE', checked)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Session Section */}
       <Card>
         <CardHeader className="pb-3">
