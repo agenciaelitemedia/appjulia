@@ -139,19 +139,24 @@ Deno.serve(async (req) => {
         .limit(10);
 
       // Build messages query
-      let msgQuery = supabase
-        .from("chat_messages")
-        .select("id, text, from_me, sender_name, timestamp, type, metadata")
-        .eq("conversation_id", conversation_id)
-        .order("timestamp", { ascending: false })
-        .limit(100);
-
-      if (lastSummary?.last_message_ts) {
-        msgQuery = msgQuery.gt("timestamp", lastSummary.last_message_ts);
+      const msgs: any[] = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        let q = supabase
+          .from("chat_messages")
+          .select("id, text, from_me, sender_name, timestamp, type, metadata")
+          .eq("conversation_id", conversation_id)
+          .order("timestamp", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (lastSummary?.last_message_ts) {
+          q = q.gt("timestamp", lastSummary.last_message_ts);
+        }
+        const { data: page, error: pageErr } = await q;
+        if (pageErr) break;
+        if (!page || page.length === 0) break;
+        msgs.push(...page);
+        if (page.length < PAGE) break;
       }
-
-      const { data: msgsDesc } = await msgQuery;
-      const msgs = (msgsDesc || []).slice().reverse();
 
       // Audios without transcription are intentionally NOT auto-transcribed
       // here. Transcription is only generated on manual user click in the UI.
