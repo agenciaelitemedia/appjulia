@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock, Sparkles, Brain, AudioLines } from 'lucide-react';
+import { MessageSquare, Bell, Phone, Play, FileText, Video, Clock, Sparkles } from 'lucide-react';
 import { MultiPhraseInput } from './MultiPhraseInput';
 import { BusinessHoursEditor, type BusinessHoursSchedule } from './BusinessHoursEditor';
 import type { AgentFormData } from '../CreateAgentWizard';
@@ -20,9 +20,6 @@ interface ConfigFields {
   NOTIFY_RESUME: string;
   USING_AUDIO: boolean;
   FOLLOWUP_CALL: boolean;
-  AUTO_TRANSCRIBE_AUDIO: boolean;
-  AUTO_SUMMARY_ON_RESOLVE: boolean;
-  AUTO_SUMMARY_ON_CLOSE: boolean;
   SESSION_START: string;
   ONLY_CAMPAIGN: boolean;
   START_CAMPAIGN: string;
@@ -67,9 +64,6 @@ const DEFAULT_CONFIG: ConfigFields = {
   NOTIFY_RESUME: '',
   USING_AUDIO: true,
   FOLLOWUP_CALL: true,
-  AUTO_TRANSCRIBE_AUDIO: false,
-  AUTO_SUMMARY_ON_RESOLVE: false,
-  AUTO_SUMMARY_ON_CLOSE: false,
   SESSION_START: '#start',
   ONLY_CAMPAIGN: false,
   START_CAMPAIGN: 'quero me aposentar',
