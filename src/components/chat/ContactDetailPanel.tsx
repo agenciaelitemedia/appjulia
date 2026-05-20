@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { ConversationParticipants } from './ConversationParticipants';
 import { PriorityBadge } from './PriorityBadge';
 import { ConversationSummaries } from './ConversationSummaries';
+import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -170,6 +171,11 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const queryClient = useQueryClient();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(contact.name);
+
+  // Show "Resumos" tab only if AUTO_SUMMARY_ON_RESOLVE or AUTO_SUMMARY_ON_CLOSE
+  // is enabled for ANY agent of the logged-in user's client_id.
+  const { flags: automationFlags } = useClientAutomationFlags();
+  const showResumosTab = automationFlags.autoSummaryOnResolve || automationFlags.autoSummaryOnClose;
 
   // Past conversations — cached by React Query, avoids re-fetch on every re-render
   const { data: pastConversations = [] } = useQuery<ChatConversation[]>({
@@ -393,15 +399,17 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
 
       {/* Tabs */}
       <Tabs defaultValue="geral" className="flex-1 flex flex-col min-h-0">
-        <TabsList className="mx-4 mt-3 mb-0 grid w-auto grid-cols-3">
+        <TabsList className={cn("mx-4 mt-3 mb-0 grid w-auto", showResumosTab ? "grid-cols-3" : "grid-cols-2")}>
           <TabsTrigger value="geral" className="gap-1.5 text-xs">
             <Info className="h-3 w-3" />
             Geral
           </TabsTrigger>
-          <TabsTrigger value="resumos" className="gap-1.5 text-xs">
-            <FileText className="h-3 w-3" />
-            Resumos
-          </TabsTrigger>
+          {showResumosTab && (
+            <TabsTrigger value="resumos" className="gap-1.5 text-xs">
+              <FileText className="h-3 w-3" />
+              Resumos
+            </TabsTrigger>
+          )}
           <TabsTrigger value="historico" className="gap-1.5 text-xs">
             <History className="h-3 w-3" />
             Histórico
@@ -542,6 +550,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
         </TabsContent>
 
         {/* Resumos */}
+        {showResumosTab && (
         <TabsContent value="resumos" className="flex-1 mt-0 min-h-0">
           <ScrollArea className="h-full">
             <div className="p-4">
@@ -558,6 +567,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
             </div>
           </ScrollArea>
         </TabsContent>
+        )}
 
         {/* Histórico */}
         <TabsContent value="historico" className="flex-1 mt-0 min-h-0">

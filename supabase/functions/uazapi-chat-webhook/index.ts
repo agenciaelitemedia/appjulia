@@ -1335,24 +1335,15 @@ Deno.serve(async (req) => {
 
     console.log(`[uazapi-chat-webhook] Done. processed=${processed} skipped=${JSON.stringify(skipped)} backfills=${backfillTriggered.size}`);
 
-    // Auto-transcribe audios when any agent linked to the queue has AUTO_TRANSCRIBE_AUDIO enabled.
+    // Auto-transcribe audios when ANY agent of the queue's client_id has AUTO_TRANSCRIBE_AUDIO enabled.
     // Fire-and-forget via EdgeRuntime.waitUntil so the webhook responds immediately.
     if (audioMessageIdsToTranscribe.length > 0) {
       const transcribePromise = (async () => {
         try {
-          const { fetchAgentFlagsByCod } = await import('../_shared/agentSettings.ts');
-          const { data: links } = await supabase
-            .from('queue_agent_links')
-            .select('cod_agent')
-            .eq('queue_id', queueId);
-          const codAgents = (links || []).map((l: any) => l.cod_agent).filter(Boolean);
-          let anyEnabled = false;
-          for (const c of codAgents) {
-            const flags = await fetchAgentFlagsByCod(c);
-            if (flags.autoTranscribeAudio) { anyEnabled = true; break; }
-          }
-          if (!anyEnabled) {
-            console.log('[uazapi-chat-webhook] auto-transcribe disabled for queue', queueId);
+          const { fetchClientAutomationFlags } = await import('../_shared/agentSettings.ts');
+          const flags = await fetchClientAutomationFlags(queue.client_id);
+          if (!flags.autoTranscribeAudio) {
+            console.log('[uazapi-chat-webhook] auto-transcribe disabled for client', queue.client_id);
             return;
           }
           const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

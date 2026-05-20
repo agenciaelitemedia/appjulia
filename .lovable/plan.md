@@ -1,220 +1,77 @@
-## Objetivo
+# Plano: Gating de Transcrição/Resumo por client_id
 
-Adicionar configurações por agente em `/admin/agentes/:id/editar` (e propagar para o módulo de chat) que ativem três automações: **Transcrever Áudio**, **Resumo Automático ao Resolver** e **Resumo Automático ao Encerrar** (manual). Criar dois "AI Features" novos (resumo e transcrição) configuráveis em `/configuracoes` → aba **IA's**, com escolha de modelo e edição de prompt. Renderizar transcrições inline na bolha de áudio com UX colapsada.
+## Objetivo
+Trocar o gating das flags `AUTO_TRANSCRIBE_AUDIO`, `AUTO_SUMMARY_ON_RESOLVE`, `AUTO_SUMMARY_ON_CLOSE` para considerar **qualquer agente do mesmo `client_id`** da conversa/fila (em vez de só os agentes vinculados à fila). Também ocultar a aba "Resumos" do painel de contato quando ambas as flags de resumo estiverem off.
+
+Flags ausentes em `agents.settings` continuam sendo tratadas como `false` (já está assim em `getAgentAutomationFlags`).
 
 ---
 
-## 1. UI no `ConfigStep` (cadastro/edição de agente)
+## 1. Backend (Edge Functions)
 
-Arquivo: `src/pages/agents/components/wizard-steps/ConfigStep.tsx`
+### 1.1 `supabase/functions/_shared/agentSettings.ts`
+Adicionar nova função `fetchClientAutomationFlags(clientId)` que:
+- Faz `SELECT settings FROM agents WHERE client_id = $1::bigint` via `db-query`.
+- Itera todas as linhas e devolve `AgentAutomationFlags` com **OR lógico** (se ANY agente do client tiver true, flag = true).
+- Cache em memória curto (ex: 60s, Map<clientId, {flags, ts}>) para evitar query repetida em rajadas de webhook.
 
-- Adicionar três campos ao tipo `ConfigFields` e ao `DEFAULT_CONFIG` (todos default `false`):
-  - `AUTO_TRANSCRIBE_AUDIO: boolean`
-  - `AUTO_SUMMARY_ON_RESOLVE: boolean`
-  - `AUTO_SUMMARY_ON_CLOSE: boolean` (encerramento **manual** apenas)
-- Inserir um novo `<Card>` logo após o card "Áudio e Ligações" (~linha 253), título **Inteligência de Atendimento** (ícone `Sparkles`/`Brain`), contendo três blocos `Switch` no mesmo padrão visual.
-- Helper `updateField` existente já cuida da serialização em `config_json` → `agents.settings`. Sem mudanças no fluxo de save.
+### 1.2 `supabase/functions/chat-ai-assist/index.ts`
+Substituir `isAutoSummaryAllowed`:
+- Buscar `client_id` da `chat_conversations` (não mais `queue_id`).
+- Chamar `fetchClientAutomationFlags(client_id)`.
+- Retornar `flags.autoSummaryOnResolve` ou `flags.autoSummaryOnClose` conforme `triggered_by`.
 
-## 2. Helper compartilhado de leitura das flags
+### 1.3 `supabase/functions/uazapi-chat-webhook/index.ts`
+No bloco de auto-transcribe (linhas 1338-1376):
+- Remover lookup em `queue_agent_links`.
+- Resolver `client_id` da fila (já temos `queueId` — usar `queues.client_id` ou já disponível no escopo).
+- Chamar `fetchClientAutomationFlags(clientId)` e usar `flags.autoTranscribeAudio`.
 
-Arquivo novo: `src/lib/agentSettings.ts`
+---
 
-- `getAgentAutomationFlags(settingsRaw: string | object | null)` → `{ autoTranscribeAudio, autoSummaryOnResolve, autoSummaryOnClose, usingAudio }` com defaults `false`. Parse defensivo.
-- Versão Deno equivalente em `supabase/functions/_shared/agentSettings.ts` para uso server-side.
+## 2. Frontend
 
-## 3. Novos AI Features configuráveis em `/configuracoes` → IA's
+### 2.1 Novo hook `src/hooks/useClientAutomationFlags.ts`
+- Recebe `clientId` do `AuthContext` (`user.client_id`).
+- React Query, `staleTime: 5min`.
+- Chama um novo endpoint (ver 2.2) que devolve as flags consolidadas do client.
+- Retorna `{ autoTranscribeAudio, autoSummaryOnResolve, autoSummaryOnClose }`.
 
-### 3.1 Migração de schema (apenas mudança aditiva)
+### 2.2 Nova edge function `supabase/functions/client-automation-flags/index.ts`
+- Recebe `{ client_id }`.
+- Usa `fetchClientAutomationFlags`.
+- Retorna JSON com as 3 flags.
+- Necessária porque o frontend não pode ler `agents.settings` (DB externo) diretamente.
 
-- Alterar `client_ai_model_config`:
-  - Adicionar coluna `prompt text NULL` (mantém upsert por `(client_id, feature)`).
-- Inserir/permitir duas novas features no enum aplicacional (a coluna `feature` é `text`, nenhuma alteração de schema necessária além do prompt):
-  - `chat_resume` — usado por resumo automático ao resolver/encerrar e por resumo manual.
-  - `chat_transcription` — usado pela transcrição automática e manual de áudios.
+### 2.3 `src/components/chat/ContactDetailPanel.tsx`
+- Importar `useClientAutomationFlags`.
+- Calcular `showResumos = autoSummaryOnResolve || autoSummaryOnClose`.
+- Quando `false`:
+  - Mudar `TabsList` para `grid-cols-2` e omitir o `TabsTrigger value="resumos"`.
+  - Omitir o `TabsContent value="resumos"`.
+  - Se a tab default estava em `resumos`, manter `defaultValue="geral"` (já é).
 
-### 3.2 `useAIModelsConfig` (`src/hooks/useAIModelsConfig.ts`)
+### 2.4 `src/hooks/useAutoSummaryOnStatusChange.ts`
+Sem mudança — o servidor decide. (Já comentado: "gated server-side".)
 
-- Expandir `AIFeature` para `'chat_assist' | 'copilot_crm' | 'copilot_chat' | 'chat_resume' | 'chat_transcription'`.
-- Estender `DEFAULT_MODELS` (defaults `google/gemini-2.5-flash`).
-- Novo `DEFAULT_PROMPTS: Record<AIFeature, string>` com os prompts iniciais (ver 3.4).
-- Adicionar `getPrompt(feature)` retornando `configs.find(...)?.prompt ?? DEFAULT_PROMPTS[feature]`.
-- Estender mutation: `upsertModel` aceita `{ feature, model?, prompt? }` (faz upsert parcial sem zerar o outro campo).
+---
 
-### 3.3 `AIModelsConfig.tsx` (`src/pages/configuracoes/components/AIModelsConfig.tsx`)
+## 3. Comportamento resultante
 
-- Adicionar dois novos `FeatureCard`:
-  - **Resumo de Conversa** (`chat_resume`), ícone `FileText`.
-  - **Transcrição de Áudio** (`chat_transcription`), ícone `AudioLines`.
-- Em cada `FeatureCard`, adicionar botão de ícone (`Pencil`/`Eye`) ao lado do `<Select>` que abre um `<Dialog>` "Editar Prompt":
-  - `Textarea` grande com o prompt atual (ou `DEFAULT_PROMPTS[feature]`).
-  - Botões **Restaurar padrão** e **Salvar**.
-  - Salvar dispara `upsertModel.mutateAsync({ feature, prompt })`.
+| Ação | Condição de disparo |
+|---|---|
+| Transcrição automática de áudio recebido/enviado | ANY agente do `client_id` da fila com `AUTO_TRANSCRIBE_AUDIO=true` |
+| Resumo automático ao resolver manualmente | ANY agente do `client_id` da conversa com `AUTO_SUMMARY_ON_RESOLVE=true` |
+| Resumo automático ao encerrar manualmente | ANY agente do `client_id` da conversa com `AUTO_SUMMARY_ON_CLOSE=true` |
+| Aba "Resumos" visível em ContactDetailPanel | `AUTO_SUMMARY_ON_RESOLVE` OR `AUTO_SUMMARY_ON_CLOSE` true para o client logado |
+| Botão "Gerar Resumo" manual | Continua existindo dentro da aba (logo só aparece se a aba aparece) |
+| Flag ausente em `agents.settings` | Tratada como `false` (já implementado) |
 
-### 3.4 Prompts padrão
+---
 
-- `**chat_resume` (resumo objetivo, focado no cliente):**
-  > Você é um analista de atendimento. Gere um RESUMO OBJETIVO em português da conversa abaixo, priorizando os RELATOS DO CLIENTE (situação, dores, pedidos, dados pessoais relevantes ao caso). Mencione respostas do atendente APENAS quando forem indispensáveis para entender o caso (ex.: instrução crítica, compromisso assumido, encaminhamento). Use os resumos anteriores fornecidos como CONTEXTO acumulado; não os repita, apenas incorpore o que ainda for relevante. Saída em até 6 bullets curtos. Comece com 1 frase em negrito identificando o caso. Não invente informações.
-- `**chat_transcription`:**
-  > Você é um transcritor profissional em português (pt-BR). Transcreva o áudio com fidelidade, sem traduzir, sem resumir e sem comentários. Mantenha hesitações apenas se forem semanticamente relevantes. Retorne somente o texto transcrito.
+## 4. Detalhes técnicos
 
-## 4. Resumo automático (manual em Resolver/Encerrar)
-
-### 4.1 Regra confirmada
-
-- Encerramento em LOTE (`chat-bulk-close`) **NÃO gera resumo**.
-- Resumo automático é disparado apenas em:
-  - Clique em **Resolver** (manual) com `AUTO_SUMMARY_ON_RESOLVE=true`.
-  - Clique em **Encerrar** (manual) com `AUTO_SUMMARY_ON_CLOSE=true`.
-
-### 4.2 Janela do resumo (regra fixa)
-
-- Buscar em `chat_conversation_summaries` o último resumo da conversa (ordenado por `last_message_ts DESC`).
-- Se existir: novas mensagens = `timestamp > lastSummary.last_message_ts`, limitadas às últimas **100** mensagens.
-- Se não existir: usar as últimas **100** mensagens da conversa.
-- Carregar os últimos **N=10** resumos anteriores como **contexto acumulado** (apenas `summary` + intervalo de datas) e enviar ao modelo como bloco "RESUMOS ANTERIORES".
-- Persistir o registro novo em `chat_conversation_summaries` com:
-  - `first_message_ts` (data/hora da 1ª mensagem da janela usada agora).
-  - `last_message_ts` (data/hora da última mensagem usada agora).
-  - `message_count`, `triggered_by` (`'auto_resolve' | 'auto_close' | 'manual'`).
-
-### 4.3 Edge function `chat-ai-assist`
-
-Arquivo: `supabase/functions/chat-ai-assist/index.ts`
-
-- Acrescentar modo `**incremental_summary**`:
-  - Body: `{ conversation_id, client_id, mode: 'incremental_summary' }`.
-  - Service-role busca `chat_conversation_summaries` (últimos resumos) e `chat_messages` (janela conforme 4.2).
-  - Resolve modelo via `getModel(client_id, 'chat_resume')` e prompt via nova função `getPrompt(client_id, 'chat_resume')` (helper a adicionar no edge: consulta `client_ai_model_config.prompt`, com fallback para um literal default igual ao 3.4).
-  - Monta `messages = [{role:'system', content: prompt}, {role:'user', content: <RESUMOS ANTERIORES>\n\n<TRANSCRIÇÃO ATUAL com transcrições de áudio inseridas no lugar das mensagens de áudio>}]`.
-  - **IMPORTANTE:** ao montar a transcrição, se `chat_messages.metadata.transcription` existir, substituir o placeholder do áudio por `[Áudio transcrito: "..."]`. Sem transcrição, usa `[Áudio sem transcrição]`.
-  - Retorna `{ summary, sentiment?, atendimento?, first_message_ts, last_message_ts, message_count }`.
-- Mantém modos existentes (`summary`, `suggest`, `sentiment`, `full_summary`) intactos.
-
-### 4.4 Hook compartilhado e gravação da nota
-
-Arquivo novo: `src/hooks/useAutoSummaryOnStatusChange.ts`
-
-- Função `triggerAutoSummary({ conversationId, contactId, trigger: 'auto_resolve' | 'auto_close' })`:
-  1. Lê o agente vinculado (via `cod_agent` do contato/conversa) e checa flag correspondente. Se desligada, no-op.
-  2. Chama `supabase.functions.invoke('chat-ai-assist', { body: { conversation_id, client_id, mode: 'incremental_summary' } })`.
-  3. Insere em `chat_conversation_summaries` (mesma estrutura usada por `useConversationSummaries`).
-  4. Insere uma **nota interna** em `chat_messages`:
-    - `internal_note = true`, `metadata.note_type = 'info'`, `metadata.kind = 'auto_summary'`, `metadata.triggered_by = trigger`.
-    - `text` = `**Resumo automático (Resolvida|Encerrada) — ${dataHora}**\n\n${summary}`.
-    - `conversation_id`, `contact_id`, `client_id`, `type='text'`, `from_me=false`, `status='sent'`, `timestamp=now()`.
-  5. Toast neutro de sucesso/erro; falha NÃO desfaz o resolve/close (best-effort).
-- Toda a chamada é assíncrona/post-status; em caso de erro apenas registra `console.warn`.
-
-### 4.5 Disparo na UI
-
-Arquivo: `src/components/chat/ChatHeader.tsx`
-
-- Após cada `updateConversationStatus(id, 'resolved')` (linhas ~331 e ~388) → chamar `triggerAutoSummary({..., trigger:'auto_resolve'})`.
-- Após `updateConversationStatus(id, 'closed')` (botão "Encerrar conversa", ~linha 603) → chamar `triggerAutoSummary({..., trigger:'auto_close'})`.
-- Bulk close (`BulkCloseConversationsCard`) permanece sem resumo (regra confirmada).
-
-## 5. Transcrição automática de áudios
-
-### 5.1 Critérios
-
-- Aplica-se a mensagens `type IN ('audio','ptt')`, tanto `from_me=false` (cliente) quanto `from_me=true` (atendente).
-- Somente se o agente vinculado tiver `AUTO_TRANSCRIBE_AUDIO=true` E (`USING_AUDIO=true` para áudios recebidos).
-
-### 5.2 Edge function nova: `supabase/functions/chat-transcribe-audio/index.ts`
-
-- Body: `{ message_id, client_id?, force?: boolean }`.
-- Resolve `chat_messages` → obtém `media_url` (ou `metadata.media_url`) e `cod_agent` do contato.
-- Se `metadata.transcription` já existe e `!force` → retorna existente.
-- Faz `POST /message/download` no UaZapi (padrão "Media Decrypt" da memória) quando o arquivo for `.enc`. Resultado: `audio/ogg|mpeg|wav` base64/URL.
-- Chama Lovable AI Gateway no modo multimodal de áudio:
-  - Modelo via `getModel(client_id, 'chat_transcription')` (default `google/gemini-2.5-flash`).
-  - System prompt via `getPrompt(client_id, 'chat_transcription')`.
-  - Envia o áudio como `input_audio` (formato suportado pelo provider) + instrução do prompt.
-- Salva resultado em `chat_messages.metadata.transcription = { text, generated_at, model, source: 'auto'|'manual' }`. Atualiza `updated_at` da mensagem.
-- Retorna `{ transcription, model }`. Tratamento de 429/402 explícito.
-- `verify_jwt = true` (chamadas vêm do client autenticado) — exceto quando invocada por outro edge function (server-side) que use service-role.
-
-### 5.3 Gatilho automático
-
-- Em `supabase/functions/uazapi-chat-webhook/index.ts`, `meta-webhook/index.ts` e `instagram-webhook/index.ts`: após persistir uma mensagem de áudio, se a flag estiver ativa, usar `EdgeRuntime.waitUntil(fetch(... /chat-transcribe-audio))` (fire-and-forget). Falha apenas loga.
-- Helper compartilhado em `_shared/agentSettings.ts` faz a leitura.
-
-### 5.4 UI da bolha de áudio (capricho)
-
-Arquivo: `src/components/chat/messages/AudioMessage.tsx` (ou equivalente já existente; localizar via grep `type === 'audio'` e `MessageBubble`).
-
-Estados visuais:
-
-- **Sem flag ativa para o client** → não exibir nada além do player.
-- **Com flag ativa, sem transcrição** → mostrar abaixo do player um pequeno link/botão `text-xs` `flex items-center gap-1` ícone `Sparkles`:
-  - `[Sparkles] Gerar transcrição` → ao clicar, chama `chat-transcribe-audio` (mode manual), exibe spinner inline, ao terminar revalida React Query e renderiza transcrição.
-- **Com transcrição disponível** → exibir caixa compacta com fundo `bg-muted/40`, `rounded-md`, `px-3 py-2`, `text-sm leading-relaxed`:
-  - Cabeçalho: ícone `AudioLines` + label `Transcrição` (`text-xs text-muted-foreground uppercase tracking-wide`).
-  - Corpo: 2 primeiras linhas visíveis (`line-clamp-2`).
-  - Link inferior: `Ver transcrição` (toggle) — ao clicar expande para texto completo (`line-clamp-none`), label muda para `Recolher`. Animação `transition-all duration-200`.
-  - Quando expandido, mostrar metadados sutis: data/hora da geração e `Gerada automaticamente` ou `Gerada manualmente`.
-- Componente isolado: `src/components/chat/messages/TranscriptionBlock.tsx`, com props `{ transcription?: {text, generated_at, source}, canGenerate: boolean, onGenerate: () => Promise<void> }`. Renderizado pelo `MessageBubble` quando `type === 'audio' || type === 'ptt'`.
-- `canGenerate` vem de hook novo `useClientHasAudioTranscription()` que retorna `true` se o agente vinculado ao contato/conversa tem `AUTO_TRANSCRIBE_AUDIO=true`. Como o agente pode variar por conversa, esse hook recebe `cod_agent`.
-
-### 5.5 Uso das transcrições no resumo
-
-- O modo `incremental_summary` (4.3) já consulta `metadata.transcription.text` ao montar a transcrição para o LLM, garantindo que áudios — tanto do cliente quanto do atendente — entrem no contexto do resumo.
-
-## 6. Memória
-
-- Atualizar `mem://index.md` adicionando:
-  - `[Agent Automation Flags](mem://features/agents/automation-flags)` — chaves no JSON `agents.settings`.
-  - `[Chat Transcription UI](mem://ui/patterns/audio-transcription-block)` — padrão visual da caixa de transcrição.
-  - `[AI Features Prompts](mem://features/admin/ai-features-prompt-editor)` — schema `client_ai_model_config.prompt` e features novas.
-
-## 7. Garantias de não-regressão
-
-- Defaults `false` em todas as três flags → agentes existentes não mudam comportamento.
-- Resumo e transcrição são fire-and-forget: erro NUNCA bloqueia resolve/close ou recebimento de mensagem.
-- `chat-bulk-close` permanece inalterado (sem resumo).
-- Migração apenas adiciona coluna `prompt`. Linhas existentes ficam `NULL` → função usa default literal.
-- Falhas de IA retornam 429/402 explicitamente e são mostradas via toast.
-
-## 8. Arquivos a criar/editar
-
-**Criar:**
-
-- `src/lib/agentSettings.ts`
-- `src/hooks/useAutoSummaryOnStatusChange.ts`
-- `src/hooks/useClientHasAudioTranscription.ts`
-- `src/components/chat/messages/TranscriptionBlock.tsx`
-- `supabase/functions/chat-transcribe-audio/index.ts`
-- `supabase/functions/_shared/agentSettings.ts`
-- migração SQL: `ALTER TABLE public.client_ai_model_config ADD COLUMN IF NOT EXISTS prompt text NULL;`
-
-**Editar:**
-
-- `src/pages/agents/components/wizard-steps/ConfigStep.tsx` (novo card)
-- `src/hooks/useAIModelsConfig.ts` (features `chat_resume`, `chat_transcription`, `prompt`)
-- `src/pages/configuracoes/components/AIModelsConfig.tsx` (2 novos cards + diálogo de prompt)
-- `src/components/chat/ChatHeader.tsx` (chamada do hook após resolve/close)
-- `src/components/chat/messages/...` (renderizar `TranscriptionBlock` em áudios)
-- `supabase/functions/chat-ai-assist/index.ts` (modo `incremental_summary` + `getPrompt`)
-- `supabase/functions/uazapi-chat-webhook/index.ts`, `meta-webhook/index.ts`, `instagram-webhook/index.ts` (gatilho de transcrição)
-- `mem://index.md` + 3 novos arquivos de memória
-
-## 9. Status de implementação
-
-**Parte 1 (concluído):**
-- Migração `client_ai_model_config.prompt`.
-- UI `ConfigStep.tsx` com card "Inteligência de Atendimento".
-- `useAIModelsConfig` + tela `AIModelsConfig` com features `chat_resume` / `chat_transcription` e editor de prompt (com restaurar padrão).
-- `chat-ai-assist` modo `incremental_summary` (lê transcrições do áudio, contexto acumulado).
-- Helpers `src/lib/agentSettings.ts` e `supabase/functions/_shared/agentSettings.ts`.
-
-**Parte 2 (concluído):**
-- Edge `chat-transcribe-audio`: download via UaZapi `/message/download` (credenciais da `queues`), transcrição via Lovable AI usando prompt/modelo de `chat_transcription`, gravação em `chat_messages.metadata.transcription`. Idempotente.
-- `uazapi-chat-webhook`: após insert de `audio`/`ptt` (inclusive `from_me=true`), se qualquer agente da fila tem `AUTO_TRANSCRIBE_AUDIO=true`, dispara `chat-transcribe-audio` em `EdgeRuntime.waitUntil`.
-- `chat-ai-assist incremental_summary`: agora persiste em `chat_conversation_summaries` e, quando `triggered_by=auto_resolve|auto_close` + flag do agente ativa, insere nota interna `📋 Resumo automático` na timeline. Gating server-side; bulk close não dispara resumo.
-- `TranscriptionBlock.tsx`: estados `ok`/`failed`/`pending`, 2 linhas com `line-clamp-2` e toggle "Ver transcrição / Recolher".
-- `MessageBubble` renderiza `TranscriptionBlock` em áudios.
-- `useAutoSummaryOnStatusChange`: invocado em `handleResolve` e `handleConfirmClose` (manual apenas).
-- `MessageMetadata.transcription` adicionado em `src/types/chat.ts`.
-
-**Pendente (próxima iteração):**
-- Wiring de transcrição em `meta-webhook` e `instagram-webhook`: ambos exigem caminho de download alternativo (Graph API/CDN), pois `/message/download` é específico do UaZapi. Reaproveitar `chat-transcribe-audio` requer parametrizar o downloader por `channel_type`.
+- **Cache**: 60s server-side (em `_shared/agentSettings.ts` Map) + 5min client-side (React Query). Mudanças nas flags do agente refletem em ~1min nos webhooks e até 5min na UI (refetch on focus).
+- **Type safety**: nenhuma migração SQL. Só código.
+- **Compatibilidade**: a lógica antiga (por queue) é totalmente substituída — nenhum fallback necessário, pois o novo critério é mais amplo.
+- **Edge function nova** (`client-automation-flags`) precisa de `verify_jwt = false` (padrão Lovable) e roda com service role internamente via `fetchClientAutomationFlags`.
