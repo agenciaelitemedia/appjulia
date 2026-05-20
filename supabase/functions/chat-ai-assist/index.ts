@@ -1,7 +1,7 @@
 // AI assistant for chat: summarize conversation or suggest reply.
 // Uses Lovable AI Gateway (LOVABLE_API_KEY).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { fetchAgentFlagsByCod } from "../_shared/agentSettings.ts";
+import { fetchClientAutomationFlags } from "../_shared/agentSettings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,20 +83,13 @@ async function isAutoSummaryAllowed(
   try {
     const { data: conv } = await supabase
       .from("chat_conversations")
-      .select("queue_id")
+      .select("client_id")
       .eq("id", conversationId)
       .maybeSingle();
-    if (!conv?.queue_id) return false;
-    const { data: links } = await supabase
-      .from("queue_agent_links")
-      .select("cod_agent")
-      .eq("queue_id", conv.queue_id);
-    const codAgents = (links || []).map((l: any) => l.cod_agent).filter(Boolean);
-    for (const c of codAgents) {
-      const flags = await fetchAgentFlagsByCod(c);
-      if (triggeredBy === "auto_resolve" && flags.autoSummaryOnResolve) return true;
-      if (triggeredBy === "auto_close" && flags.autoSummaryOnClose) return true;
-    }
+    if (!conv?.client_id) return false;
+    const flags = await fetchClientAutomationFlags(conv.client_id);
+    if (triggeredBy === "auto_resolve") return flags.autoSummaryOnResolve;
+    if (triggeredBy === "auto_close") return flags.autoSummaryOnClose;
     return false;
   } catch (_e) {
     return false;
