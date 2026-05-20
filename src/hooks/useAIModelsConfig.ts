@@ -59,14 +59,13 @@ export function useAIModelsConfig() {
       prompt,
     }: { feature: AIFeature; model?: string; prompt?: string | null }) => {
       const existing = configs.find((c) => c.feature === feature);
-      const payload: Record<string, unknown> = {
+      const payload = {
         client_id: clientId!,
         feature,
         model: model ?? existing?.model ?? DEFAULT_MODELS[feature],
+        prompt: prompt !== undefined ? prompt : existing?.prompt ?? null,
         updated_at: new Date().toISOString(),
       };
-      if (prompt !== undefined) payload.prompt = prompt;
-      else if (existing?.prompt !== undefined) payload.prompt = existing.prompt;
       const { error } = await supabase
         .from('client_ai_model_config')
         .upsert(payload, { onConflict: 'client_id,feature' });
