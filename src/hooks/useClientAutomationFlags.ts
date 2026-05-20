@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
 import {
   DEFAULT_AUTOMATION_FLAGS,
   type AgentAutomationFlags,
@@ -13,14 +14,14 @@ import {
  */
 export function useClientAutomationFlags() {
   const { user } = useAuth();
-  const clientId = user?.client_id ? String(user.client_id) : null;
 
   const query = useQuery({
-    queryKey: ['client-automation-flags', clientId],
-    enabled: !!clientId,
+    queryKey: ['client-automation-flags', user?.id, user?.client_id],
+    enabled: !!user?.id,
     staleTime: 5 * 60_000,
     gcTime: 10 * 60_000,
     queryFn: async (): Promise<AgentAutomationFlags> => {
+      const clientId = await resolveEffectiveClientId(user, 'useClientAutomationFlags');
       if (!clientId) return { ...DEFAULT_AUTOMATION_FLAGS };
       const { data, error } = await supabase
         .from('chat_client_settings')
