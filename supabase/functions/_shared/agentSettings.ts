@@ -81,7 +81,7 @@ export async function fetchAgentFlagsByCod(
     });
     if (!resp.ok) return { ...DEFAULT_AUTOMATION_FLAGS };
     const out = await resp.json();
-    const rows = Array.isArray(out?.result) ? out.result : Array.isArray(out) ? out : [];
+    const rows = Array.isArray(out?.data) ? out.data : [];
     const settings = rows[0]?.settings;
     return getAgentAutomationFlags(settings);
   } catch (_err) {
