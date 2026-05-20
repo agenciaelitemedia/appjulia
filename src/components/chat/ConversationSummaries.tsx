@@ -81,20 +81,30 @@ export function ConversationSummaries({ conversationId, contactId }: Conversatio
               </span>
               <span className="flex items-center gap-1">
                 <MessageSquare className="h-3 w-3" />
-                até msg {s.message_count}
+                {s.message_count} mensagens
               </span>
-              {s.triggered_by === 'auto' && (
+              {s.triggered_by && s.triggered_by.startsWith('auto') && (
                 <Badge variant="secondary" className="text-xs py-0 px-1.5 h-4 gap-0.5">
                   <Zap className="h-2.5 w-2.5" />
-                  automático
+                  {s.triggered_by === 'auto_resolve'
+                    ? 'auto (resolvida)'
+                    : s.triggered_by === 'auto_close'
+                    ? 'auto (encerrada)'
+                    : 'automático'}
                 </Badge>
               )}
-              <span className="ml-auto text-[10px]">
-                {formatTs(s.first_message_ts)} → {formatTs(s.last_message_ts)}
-              </span>
             </div>
 
             <div className="p-4 space-y-3">
+              {/* Período */}
+              <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Clock className="h-3 w-3" />
+                <span className="font-medium text-foreground">Período:</span>
+                <span>{formatTs(s.first_message_ts)}</span>
+                <span>→</span>
+                <span>{formatTs(s.last_message_ts)}</span>
+              </div>
+
               {/* Sentiment */}
               {s.sentiment && (
                 <div className="text-sm">
