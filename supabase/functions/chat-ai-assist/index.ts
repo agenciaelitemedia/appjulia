@@ -1,6 +1,7 @@
 // AI assistant for chat: summarize conversation or suggest reply.
 // Uses Lovable AI Gateway (LOVABLE_API_KEY).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { fetchAgentFlagsByCod } from "../_shared/agentSettings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
