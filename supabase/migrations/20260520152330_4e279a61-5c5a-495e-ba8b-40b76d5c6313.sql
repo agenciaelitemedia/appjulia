@@ -1,0 +1,1 @@
+ALTER TABLE public.client_ai_model_config ADD COLUMN IF NOT EXISTS prompt text NULL;
