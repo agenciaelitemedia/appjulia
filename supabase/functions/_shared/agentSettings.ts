@@ -88,3 +88,66 @@ export async function fetchAgentFlagsByCod(
     return { ...DEFAULT_AUTOMATION_FLAGS };
   }
 }
+
+// In-memory cache for client-wide consolidated flags (TTL 60s).
+const clientFlagsCache = new Map<string, { value: AgentAutomationFlags; expires: number }>();
+
+/**
+ * Returns consolidated automation flags for a client_id by OR-ing the
+ * `settings` of ALL agents under that client. A missing/unparseable flag
+ * counts as false. Cached in-memory for 60s.
+ */
+export async function fetchClientAutomationFlags(
+  clientId: string | number | null | undefined,
+): Promise<AgentAutomationFlags> {
+  if (clientId === null || clientId === undefined || clientId === '') {
+    return { ...DEFAULT_AUTOMATION_FLAGS };
+  }
+  const key = String(clientId);
+  const now = Date.now();
+  const cached = clientFlagsCache.get(key);
+  if (cached && cached.expires > now) return cached.value;
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceKey) return { ...DEFAULT_AUTOMATION_FLAGS };
+
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/db-query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+      },
+      body: JSON.stringify({
+        action: 'raw',
+        data: {
+          query: `SELECT settings FROM agents WHERE client_id = $1::bigint`,
+          params: [key],
+        },
+      }),
+    });
+    if (!resp.ok) return { ...DEFAULT_AUTOMATION_FLAGS };
+    const out = await resp.json();
+    const rows = Array.isArray(out?.data) ? out.data : [];
+    const merged: AgentAutomationFlags = { ...DEFAULT_AUTOMATION_FLAGS };
+    for (const row of rows) {
+      const f = getAgentAutomationFlags(row?.settings);
+      if (f.autoTranscribeAudio) merged.autoTranscribeAudio = true;
+      if (f.autoSummaryOnResolve) merged.autoSummaryOnResolve = true;
+      if (f.autoSummaryOnClose) merged.autoSummaryOnClose = true;
+      if (f.usingAudio) merged.usingAudio = true;
+      if (
+        merged.autoTranscribeAudio &&
+        merged.autoSummaryOnResolve &&
+        merged.autoSummaryOnClose &&
+        merged.usingAudio
+      ) break;
+    }
+    clientFlagsCache.set(key, { value: merged, expires: now + 60_000 });
+    return merged;
+  } catch (_err) {
+    return { ...DEFAULT_AUTOMATION_FLAGS };
+  }
+}
