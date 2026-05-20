@@ -294,30 +294,52 @@ Deno.serve(async (req) => {
     }
 
     if (mode === "full_summary") {
-      let query = supabase
-        .from("chat_messages")
-        .select("text, from_me, sender_name, timestamp, type")
-        .eq("conversation_id", conversation_id)
-        .order("timestamp", { ascending: true })
-        .limit(200);
-
-      if (after_ts) {
-        query = query.gt("timestamp", after_ts);
+      const all: any[] = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        let q = supabase
+          .from("chat_messages")
+          .select("text, from_me, sender_name, timestamp, type, metadata")
+          .eq("conversation_id", conversation_id)
+          .order("timestamp", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (after_ts) q = q.gt("timestamp", after_ts);
+        const { data: page, error: pageErr } = await q;
+        if (pageErr) break;
+        if (!page || page.length === 0) break;
+        all.push(...page);
+        if (page.length < PAGE) break;
       }
-
-      const { data: msgs } = await query;
-      const filtered = (msgs || []).filter((m) => m.text);
+      const filtered = all.filter((m) => m.text || m.type === "audio" || m.type === "ptt");
       if (filtered.length === 0) return json({ error: "Sem mensagens novas para resumir" }, 200);
 
       const transcript = filtered
-        .map((m) => `${m.from_me ? "Atendente" : "Cliente"} (${m.sender_name || ""}): ${m.text}`)
+        .map(renderMessageForTranscript)
+        .filter((x): x is string => !!x)
         .join("\n");
 
       const first_message_ts = filtered[0]?.timestamp ?? null;
       const last_message_ts = filtered[filtered.length - 1]?.timestamp ?? null;
       const message_count = filtered.length;
 
-      const prompt = `Analise a conversa abaixo e responda APENAS com JSON válido no formato:
+      // Carrega resumos anteriores para usar como contexto acumulado
+      const { data: previousSummaries } = await supabase
+        .from("chat_conversation_summaries")
+        .select("summary, first_message_ts, last_message_ts, created_at")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", { ascending: true })
+        .limit(10);
+
+      const previousBlock = (previousSummaries || [])
+        .filter((s) => s.summary)
+        .map((s, i) => `--- Resumo ${i + 1} (${s.first_message_ts ?? "?"} → ${s.last_message_ts ?? "?"}) ---\n${s.summary}`)
+        .join("\n\n");
+
+      const contextPrefix = previousBlock
+        ? `RESUMOS ANTERIORES (contexto acumulado, não repetir):\n${previousBlock}\n\n`
+        : "";
+
+      const prompt = `${contextPrefix}Analise a conversa abaixo e responda APENAS com JSON válido no formato:
 {
   "sentiment": "Sentimento: [positivo/neutro/negativo/frustrado] — [explicação curta de 1 linha]",
   "summary": "• bullet 1\\n• bullet 2\\n• bullet 3",
