@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 type TranscriptionMeta = {
   text?: string | null;
@@ -15,15 +16,70 @@ interface Props {
   /** Show a "pending" placeholder when transcription is enabled but not yet computed. */
   pending?: boolean;
   className?: string;
+  /** Message id, required to allow manual generation. */
+  messageId?: string;
+  /** Show a "Gerar transcrição" button when no transcription exists. */
+  canGenerate?: boolean;
+  /** Callback after a successful generation (e.g. refetch messages). */
+  onGenerated?: () => void;
 }
 
-export function TranscriptionBlock({ transcription, pending, className }: Props) {
+export function TranscriptionBlock({ transcription, pending, className, messageId, canGenerate, onGenerated }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+  const [localTranscription, setLocalTranscription] = useState<TranscriptionMeta | null>(null);
 
-  if (!transcription && !pending) return null;
+  const effective = transcription ?? localTranscription;
+  const hasTranscription = !!effective;
 
-  const status = transcription?.status || (pending ? 'pending' : 'failed');
-  const text = transcription?.text?.trim() || '';
+  if (!hasTranscription && !pending) {
+    if (!canGenerate || !messageId) return null;
+    return (
+      <div className={cn('mt-2', className)}>
+        <button
+          type="button"
+          disabled={generating}
+          onClick={async () => {
+            setGenError(null);
+            setGenerating(true);
+            try {
+              const { data, error } = await supabase.functions.invoke('chat-transcribe-audio', {
+                body: { message_id: messageId },
+              });
+              if (error) throw error;
+              if (data?.error) throw new Error(String(data.error));
+              if (typeof data?.length === 'number') {
+                // Fetch fresh metadata so we render immediately even before realtime arrives.
+                const { data: fresh } = await supabase
+                  .from('chat_messages')
+                  .select('metadata')
+                  .eq('id', messageId)
+                  .maybeSingle();
+                const tr = (fresh?.metadata as any)?.transcription;
+                if (tr) setLocalTranscription(tr);
+              }
+              onGenerated?.();
+            } catch (e: any) {
+              setGenError(e?.message || 'Falha ao transcrever');
+            } finally {
+              setGenerating(false);
+            }
+          }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-60"
+        >
+          {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+          {generating ? 'Gerando transcrição…' : 'Gerar transcrição'}
+        </button>
+        {genError && (
+          <p className="mt-1 text-[11px] text-destructive">{genError}</p>
+        )}
+      </div>
+    );
+  }
+
+  const status = effective?.status || (pending ? 'pending' : 'failed');
+  const text = effective?.text?.trim() || '';
 
   return (
     <div

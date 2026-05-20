@@ -355,9 +355,11 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
             </div>
           )}
           </div>
-          {message.metadata?.transcription && (
-            <TranscriptionBlock transcription={message.metadata.transcription} />
-          )}
+          <TranscriptionBlock
+            transcription={message.metadata?.transcription}
+            messageId={message.id}
+            canGenerate
+          />
         </div>
       );
 

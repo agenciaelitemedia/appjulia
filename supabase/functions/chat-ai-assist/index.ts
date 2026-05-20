@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
       // Build messages query
       let msgQuery = supabase
         .from("chat_messages")
-        .select("text, from_me, sender_name, timestamp, type, metadata")
+        .select("id, text, from_me, sender_name, timestamp, type, metadata")
         .eq("conversation_id", conversation_id)
         .order("timestamp", { ascending: false })
         .limit(100);
@@ -152,6 +152,41 @@ Deno.serve(async (req) => {
 
       const { data: msgsDesc } = await msgQuery;
       const msgs = (msgsDesc || []).slice().reverse();
+
+      // Transcribe any audio messages still missing a transcription so they
+      // contribute to the summary. Cap to avoid huge batches.
+      const audiosToTranscribe = msgs
+        .filter((m: any) => {
+          if (!["audio", "ptt"].includes(String(m.type || "").toLowerCase())) return false;
+          const tr = (m.metadata as any)?.transcription;
+          return !tr?.text;
+        })
+        .slice(0, 10);
+
+      if (audiosToTranscribe.length > 0) {
+        const url = `${Deno.env.get("SUPABASE_URL")!}/functions/v1/chat-transcribe-audio`;
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        await Promise.allSettled(
+          audiosToTranscribe.map((m: any) =>
+            fetch(url, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ message_id: m.id }),
+            }).then((r) => r.text()).catch(() => null),
+          ),
+        );
+        // Reload updated metadata for the transcribed messages and merge.
+        const ids = audiosToTranscribe.map((m: any) => m.id);
+        const { data: refreshed } = await supabase
+          .from("chat_messages")
+          .select("id, metadata")
+          .in("id", ids);
+        const byId = new Map<string, any>((refreshed || []).map((r: any) => [r.id, r.metadata]));
+        for (const m of msgs as any[]) {
+          if (byId.has(m.id)) m.metadata = byId.get(m.id);
+        }
+      }
+
       const lines = msgs.map(renderMessageForTranscript).filter((x): x is string => !!x);
       if (lines.length === 0) {
         return json({ error: "Sem mensagens novas para resumir", message_count: 0 }, 200);
