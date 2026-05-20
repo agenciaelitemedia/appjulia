@@ -399,15 +399,17 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
 
       {/* Tabs */}
       <Tabs defaultValue="geral" className="flex-1 flex flex-col min-h-0">
-        <TabsList className="mx-4 mt-3 mb-0 grid w-auto grid-cols-3">
+        <TabsList className={cn("mx-4 mt-3 mb-0 grid w-auto", showResumosTab ? "grid-cols-3" : "grid-cols-2")}>
           <TabsTrigger value="geral" className="gap-1.5 text-xs">
             <Info className="h-3 w-3" />
             Geral
           </TabsTrigger>
-          <TabsTrigger value="resumos" className="gap-1.5 text-xs">
-            <FileText className="h-3 w-3" />
-            Resumos
-          </TabsTrigger>
+          {showResumosTab && (
+            <TabsTrigger value="resumos" className="gap-1.5 text-xs">
+              <FileText className="h-3 w-3" />
+              Resumos
+            </TabsTrigger>
+          )}
           <TabsTrigger value="historico" className="gap-1.5 text-xs">
             <History className="h-3 w-3" />
             Histórico
