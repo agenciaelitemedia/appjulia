@@ -229,6 +229,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter } = useWhatsAppData();
+  const { triggerAutoSummary } = useAutoSummaryOnStatusChange();
   const { user } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const { getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(
