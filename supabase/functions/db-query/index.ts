@@ -43,6 +43,10 @@ function isRetryableError(error: unknown): boolean {
     'socket hang up',
     'network error',
     'write connect_timeout',
+    'query_wait_timeout',
+    'connection_ended',
+    'connection_destroyed',
+    'connection_closed',
   ];
   return retryablePatterns.some(pattern => message.includes(pattern));
 }
@@ -3361,13 +3365,18 @@ serve(async (req) => {
     });
 
     } catch (error: unknown) {
-      // Do NOT close the singleton pool on error — it is reused across requests.
-      // postgres.js will recover broken connections from the pool automatically.
-      
       lastError = error;
       
       // Check if this is a retryable error and we have attempts left
       if (isRetryableError(error) && attempt < MAX_RETRIES) {
+        // The pooled connections are likely poisoned (CONNECT_TIMEOUT /
+        // query_wait_timeout leave sockets in a half-open state). Reset the
+        // singleton so the next attempt opens fresh sockets.
+        if (pool) {
+          try { pool.end({ timeout: 0 }); } catch { /* ignore */ }
+          pool = null;
+          poolCaSignature = null;
+        }
         const delayMs = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
         console.warn(`Attempt ${attempt}/${MAX_RETRIES} failed with retryable error, waiting ${delayMs}ms before retry:`, error);
         await sleep(delayMs);
