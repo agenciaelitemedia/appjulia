@@ -71,6 +71,38 @@ function renderMessageForTranscript(m: {
   return `${who}${sender}: ${m.text}`;
 }
 
+/**
+ * Returns true if the agent linked to the conversation's queue has the
+ * matching AUTO_SUMMARY flag enabled. If ANY linked agent has it on, summary
+ * is allowed. Defaults to `false` on any lookup error.
+ */
+async function isAutoSummaryAllowed(
+  conversationId: string,
+  triggeredBy: "auto_resolve" | "auto_close",
+): Promise<boolean> {
+  try {
+    const { data: conv } = await supabase
+      .from("chat_conversations")
+      .select("queue_id")
+      .eq("id", conversationId)
+      .maybeSingle();
+    if (!conv?.queue_id) return false;
+    const { data: links } = await supabase
+      .from("queue_agent_links")
+      .select("cod_agent")
+      .eq("queue_id", conv.queue_id);
+    const codAgents = (links || []).map((l: any) => l.cod_agent).filter(Boolean);
+    for (const c of codAgents) {
+      const flags = await fetchAgentFlagsByCod(c);
+      if (triggeredBy === "auto_resolve" && flags.autoSummaryOnResolve) return true;
+      if (triggeredBy === "auto_close" && flags.autoSummaryOnClose) return true;
+    }
+    return false;
+  } catch (_e) {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
