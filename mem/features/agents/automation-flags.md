@@ -11,6 +11,6 @@ Flags booleanas em `agents.settings` (JSONB no DB externo) consumidas via `getAg
 - `AUTO_SUMMARY_ON_CLOSE`: idem para encerramento manual. **Bulk close NÃO dispara resumo** por design.
 - `USING_AUDIO`: pré-existente; gate geral para envio/recebimento de áudios.
 
-Gating é sempre server-side: se ANY agente vinculado à fila tem a flag ativa, dispara. Frontend só chama; servidor decide via `isAutoSummaryAllowed()` em `chat-ai-assist`.
+Gating é sempre server-side e por **client_id** (não por fila): se ANY agente do mesmo `client_id` da conversa/fila tem a flag ativa, dispara. Frontend só chama; servidor decide via `isAutoSummaryAllowed()` em `chat-ai-assist` (consulta `chat_conversations.client_id`) e via auto-transcribe em `uazapi-chat-webhook` (usa `queue.client_id`). Resolver consolidado: `fetchClientAutomationFlags(clientId)` em `_shared/agentSettings.ts` (cache 60s, OR lógico entre todos os agents do client). Edge function `client-automation-flags` expõe ao frontend; hook `useClientAutomationFlags` cacheia 5min.
 
-UI: card "Inteligência de Atendimento" em `ConfigStep.tsx`, abaixo de "Áudio e Ligações".
+UI: card "Inteligência de Atendimento" em `ConfigStep.tsx`, abaixo de "Áudio e Ligações". Aba "Resumos" em `ContactDetailPanel` aparece **apenas** se `AUTO_SUMMARY_ON_RESOLVE` OR `AUTO_SUMMARY_ON_CLOSE` for true para o client logado.
