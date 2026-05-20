@@ -11,8 +11,7 @@ import type { MessageType, ChatMessage } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
 import { AudioRecorder } from './AudioRecorder';
 import { MentionAutocomplete } from './MentionAutocomplete';
-import { ScheduleMessageDialog } from './ScheduleMessageDialog';
-import { ScheduledMessagesList } from './ScheduledMessagesList';
+import { ChatInputTagButton } from './ChatInputTagButton';
 import { FormatToolbar } from './FormatToolbar';
 import { MessagePreview } from './MessagePreview';
 import { applyFormat, type FormatToken } from '@/lib/whatsappFormat';
@@ -448,18 +447,12 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
             </PopoverContent>
           </Popover>
 
-          {/* Schedule */}
+          {/* Etiquetas */}
           {!noteMode && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 flex-shrink-0"
-              onClick={() => setShowSchedule(true)}
-              title="Agendar mensagem"
+            <ChatInputTagButton
+              conversationId={selectedConversation?.id || null}
               disabled={!canSend}
-            >
-              <Calendar className="h-5 w-5 text-muted-foreground" />
-            </Button>
+            />
           )}
 
           {/* Format toggle */}
@@ -611,24 +604,6 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
         </div>
       </div>
 
-      {/* Schedule message dialog */}
-      <ScheduleMessageDialog
-        open={showSchedule}
-        onOpenChange={setShowSchedule}
-        contactId={contactId}
-        clientId={selectedContact?.client_id || ''}
-        codAgent={selectedContact?.cod_agent || null}
-        conversationId={selectedConversation?.id || null}
-        initialText={text}
-        onScheduled={() => setShowScheduledList(true)}
-      />
-
-      {/* Scheduled messages list */}
-      <ScheduledMessagesList
-        open={showScheduledList}
-        onOpenChange={setShowScheduledList}
-        contactId={contactId}
-      />
     </div>
   );
 }
