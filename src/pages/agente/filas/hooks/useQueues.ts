@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { externalDb } from '@/lib/externalDb';
 import { useUserQueueAccess } from '@/hooks/useUserQueueAccess';
+import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
 
 export interface Queue {
   id: string;
@@ -65,34 +66,12 @@ async function invokeQueueManagement(action: string, data: Record<string, unknow
   throw lastError || new Error('Falha ao invocar queue-management');
 }
 
-// Resolve client_id from the user, falling back to the linked agents (user_agents → agents.client_id).
-async function resolveClientId(user: { client_id?: number | string | null; id?: number | string } | null | undefined): Promise<string | null> {
-  if (user?.client_id) return String(user.client_id);
-  if (!user?.id) return null;
-  // 1st fallback: inherit from principal user (users.user_id → users.client_id)
-  try {
-    const inherited = await externalDb.getEffectiveClientId(Number(user.id));
-    if (inherited) return inherited;
-  } catch (e) {
-    console.warn('[useQueues] getEffectiveClientId failed', e);
-  }
-  // 2nd fallback (legacy): via user_agents → agents.client_id
-  try {
-    const userAgents = await externalDb.getUserAgents<{ client_id?: string | number | null }>(Number(user.id));
-    const found = userAgents?.find((a) => a?.client_id != null);
-    return found?.client_id ? String(found.client_id) : null;
-  } catch (e) {
-    console.warn('[useQueues] Failed to resolve client_id from user_agents', e);
-    return null;
-  }
-}
-
 export function useQueues(includeDeleted = false) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ['queues', user?.id, user?.client_id, includeDeleted],
     queryFn: async () => {
-      const clientId = await resolveClientId(user);
+      const clientId = await resolveEffectiveClientId(user, 'useQueues');
       if (!clientId) return [];
       const result = await invokeQueueManagement('list', {
         client_id: clientId,
@@ -138,7 +117,7 @@ export function useQueueMutations() {
 
   const createQueue = useMutation({
     mutationFn: async (formData: QueueFormData) => {
-      const clientId = await resolveClientId(user);
+      const clientId = await resolveEffectiveClientId(user, 'useQueues');
       if (!clientId) throw new Error('Não foi possível identificar o cliente. Verifique se há um agente vinculado ao seu usuário.');
       if (!formData.name?.trim()) throw new Error('Nome da fila é obrigatório');
       if (!formData.channel_type) throw new Error('Canal é obrigatório');
