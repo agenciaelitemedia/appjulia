@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -35,6 +35,29 @@ export function useConversationSummaries(conversationId: string | null) {
       return (data || []) as ConversationSummary[];
     },
   });
+
+  // Realtime: refresh when a summary is inserted server-side (auto-resumo)
+  useEffect(() => {
+    if (!conversationId) return;
+    const channel = supabase
+      .channel(`conv-summaries-${conversationId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_conversation_summaries',
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['conv-summaries', conversationId] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversationId, queryClient]);
 
   const generateSummary = useCallback(async (
     convId: string,

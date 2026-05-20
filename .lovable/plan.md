@@ -1,39 +1,34 @@
-## Problema
+## Objetivo
+1. Garantir que todo resumo gerado automaticamente (auto_resolve / auto_close) apareça também na aba **Resumos** com período (início → fim) e quantidade de mensagens claramente identificados.
+2. Garantir que mensagens de áudio usem a transcrição (quando existir) tanto no resumo manual quanto no automático.
 
-1. O botão "Gerar Resumo / Novo Resumo" no painel usa o modo `full_summary` da edge `chat-ai-assist`, que:
-   - Limita a **200 mensagens** (`.limit(200)`).
-   - **Não carrega resumos anteriores** como contexto (esse fluxo é exclusivo do modo `incremental_summary`).
-2. O modo `incremental_summary` também tem cap de **100 mensagens**.
-3. Resultado: primeiro resumo trunca em 200 mensagens; resumos seguintes ignoram os anteriores.
+## Diagnóstico
+- `incremental_summary` (usado pelo auto-resumo) **já** insere em `chat_conversation_summaries` com `first_message_ts`, `last_message_ts` e `message_count`. ✓
+- `renderMessageForTranscript` já injeta `[Áudio transcrito] {texto}` quando há transcrição (vale para os dois modos). ✓
+- Problemas reais a corrigir:
+  - **UI da aba Resumos** mostra `"até msg N"` (ambíguo) e não diferencia visualmente quando o gatilho foi auto.
+  - O insert vem do servidor (edge function) → o React Query não invalida sozinho; o usuário precisa reabrir a aba/conversa para ver. Sem realtime, parece que "não foi para Resumos".
+  - `full_summary` (resumo manual) usa transcrição de áudio, mas o filtro `m.text || type==='audio'…` já está ok — manter.
 
 ## Mudanças
 
-### 1. `supabase/functions/chat-ai-assist/index.ts` — remover limites e unificar contexto
+### 1. `src/components/chat/ConversationSummaries.tsx`
+- Trocar `até msg ${s.message_count}` por `${s.message_count} mensagens`.
+- Mostrar bloco de período mais visível (linha dedicada com ícone): `Período: 20/05 14:32 → 20/05 15:10`.
+- Manter badge `automático` para `triggered_by` começando com `auto`.
+- Para resumos do modo incremental (sem `sentiment`/`atendimento`), apenas omitir esses blocos (já é o comportamento).
 
-**Modo `incremental_summary`:**
-- Remover `.limit(100)` da query de mensagens.
-- Paginar a busca em lotes de 1000 (loop `range`) ordenando ASC por `timestamp` (mais simples que reverter desc), respeitando `lastSummary.last_message_ts` quando existir.
-- Manter carregamento dos até 10 resumos anteriores (já existe).
-- Manter prompt com bloco `RESUMOS ANTERIORES` + `CONVERSA ATUAL`.
+### 2. `src/hooks/useConversationSummaries.ts`
+- Adicionar subscription `postgres_changes` em `chat_conversation_summaries` filtrando por `conversation_id`, e invalidar o query `['conv-summaries', conversationId]` em INSERT/UPDATE/DELETE. Isso faz o auto-resumo (inserido server-side) aparecer imediatamente na aba.
 
-**Modo `full_summary`:**
-- Também paginar em lotes de 1000, sem cap fixo.
-- Carregar resumos anteriores (mesmo bloco do incremental) quando houver, para consistência. (Atualmente não usa.)
-- Continuar respeitando `after_ts` quando fornecido.
+### 3. Migration
+- `ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_conversation_summaries;` (se ainda não estiver).
 
-### 2. `src/hooks/useConversationSummaries.ts` — usar modo incremental no botão manual
+### 4. `supabase/functions/chat-ai-assist/index.ts` (modo `incremental_summary`)
+- Sem alteração de lógica de transcrição (já correto).
+- Confirmar que a inserção em `chat_conversation_summaries` ocorre **mesmo quando `insert_internal_note=false`** (já ocorre — o gating só pula quando a flag do agente bloqueia). Manter.
 
-- Trocar a chamada de `mode: 'full_summary'` por `mode: 'incremental_summary'` em `generateSummary`, passando `client_id` e `triggered_by`.
-- A edge function já persiste o resumo nesse modo → **remover o `insert` duplicado** do hook (manter apenas `invalidateQueries`).
-- Para o modo manual continuar funcionando para o "primeiro resumo" (sem `after_ts`), confiar no fluxo já existente: quando não há `lastSummary`, o edge busca tudo desde o início.
-- Ajustar retorno: usar `data.summary` direto (o registro já está no banco; o invalidate vai recarregar).
-
-### 3. Sem mudanças no schema, no `TranscriptionBlock` nem em `ConversationSummaries.tsx`
-
-A UI continua igual; só muda o caminho de geração por trás do botão.
-
-## Validação
-
-- Conversa com >200 mensagens: gerar primeiro resumo → conferir que cobre desde a primeira mensagem (consultar `first_message_ts` e `message_count` no card).
-- Gerar segundo resumo: verificar nos logs da edge que o prompt inclui o bloco `RESUMOS ANTERIORES (contexto acumulado…)`.
-- Conferir que não há resumo duplicado em `chat_conversation_summaries` após clicar "Novo Resumo".
+## Critérios de aceite
+- Ao resolver/encerrar uma conversa com a flag de auto-resumo ativa, um novo card aparece em **Resumos** em até ~2s sem refresh.
+- O card mostra: período `início → fim`, contagem `N mensagens`, badge `automático`.
+- Áudios com transcrição aparecem dentro do texto do resumo (não como "Áudio sem transcrição").
