@@ -1,31 +1,39 @@
-## Objetivo
+## Problema
 
-1. Mostrar botão "Gerar transcrição" em áudios que ainda não possuem transcrição.
-2. Garantir que o resumo automático sempre considere o conteúdo de áudios (transcrevendo o que falta antes de resumir).
+1. O botão "Gerar Resumo / Novo Resumo" no painel usa o modo `full_summary` da edge `chat-ai-assist`, que:
+   - Limita a **200 mensagens** (`.limit(200)`).
+   - **Não carrega resumos anteriores** como contexto (esse fluxo é exclusivo do modo `incremental_summary`).
+2. O modo `incremental_summary` também tem cap de **100 mensagens**.
+3. Resultado: primeiro resumo trunca em 200 mensagens; resumos seguintes ignoram os anteriores.
 
 ## Mudanças
 
-### 1. Frontend — botão manual de transcrição
-**`src/components/chat/messages/TranscriptionBlock.tsx`**
-- Aceitar novas props: `messageId`, `canGenerate?: boolean`, `onGenerated?: () => void`.
-- Quando `!transcription && canGenerate`, renderizar um bloco compacto com botão **"Gerar transcrição"** (ícone Sparkles + Loader2 enquanto roda).
-- Ao clicar: `supabase.functions.invoke('chat-transcribe-audio', { body: { message_id } })`, mostrar loading, exibir resultado ou erro inline; chamar `onGenerated` para refetch.
+### 1. `supabase/functions/chat-ai-assist/index.ts` — remover limites e unificar contexto
 
-**`src/components/chat/MessageBubble.tsx`** (case `audio`/`ptt`)
-- Sempre renderizar `<TranscriptionBlock>` (remover o guard `message.metadata?.transcription &&`).
-- Passar `messageId={message.id}`, `canGenerate` apenas quando a flag de transcrição estiver habilitada para a fila (já existe via `useEffectiveQueueFlags`/`useClientAutomationFlags` no contexto do chat — usar o hook mais leve disponível, ou simplesmente sempre habilitar e deixar o edge function responder "feature disabled" se aplicável).
-- `onGenerated`: invalidar a query de mensagens da conversa (React Query key `['chat-messages', conversationId]`).
+**Modo `incremental_summary`:**
+- Remover `.limit(100)` da query de mensagens.
+- Paginar a busca em lotes de 1000 (loop `range`) ordenando ASC por `timestamp` (mais simples que reverter desc), respeitando `lastSummary.last_message_ts` quando existir.
+- Manter carregamento dos até 10 resumos anteriores (já existe).
+- Manter prompt com bloco `RESUMOS ANTERIORES` + `CONVERSA ATUAL`.
 
-### 2. Backend — usar transcrições no resumo
-**`supabase/functions/chat-ai-assist/index.ts`** (modo `incremental_summary`)
-- Antes de montar o `transcript`, identificar mensagens `type IN ('audio','ptt')` sem `metadata.transcription.text` e com `external_id`.
-- Para cada uma (limite ~10, em paralelo com `Promise.allSettled`), invocar `chat-transcribe-audio` internamente via `fetch` ao próprio endpoint do projeto (SERVICE_ROLE) e aguardar.
-- Recarregar essas mensagens (`select metadata`) e mesclar no array `msgs` antes de chamar `renderMessageForTranscript`. O renderizador já inclui o texto transcrito (linhas 61–69).
-- Falhas continuam como `[Áudio sem transcrição]` — comportamento atual preservado.
+**Modo `full_summary`:**
+- Também paginar em lotes de 1000, sem cap fixo.
+- Carregar resumos anteriores (mesmo bloco do incremental) quando houver, para consistência. (Atualmente não usa.)
+- Continuar respeitando `after_ts` quando fornecido.
 
-### 3. Sem mudanças de banco
-Esquema atual (`chat_messages.metadata.transcription`) já suporta tudo.
+### 2. `src/hooks/useConversationSummaries.ts` — usar modo incremental no botão manual
+
+- Trocar a chamada de `mode: 'full_summary'` por `mode: 'incremental_summary'` em `generateSummary`, passando `client_id` e `triggered_by`.
+- A edge function já persiste o resumo nesse modo → **remover o `insert` duplicado** do hook (manter apenas `invalidateQueries`).
+- Para o modo manual continuar funcionando para o "primeiro resumo" (sem `after_ts`), confiar no fluxo já existente: quando não há `lastSummary`, o edge busca tudo desde o início.
+- Ajustar retorno: usar `data.summary` direto (o registro já está no banco; o invalidate vai recarregar).
+
+### 3. Sem mudanças no schema, no `TranscriptionBlock` nem em `ConversationSummaries.tsx`
+
+A UI continua igual; só muda o caminho de geração por trás do botão.
 
 ## Validação
-- Abrir um áudio sem transcrição em `/chat` → ver botão, clicar, ver transcrição aparecer.
-- Resolver/encerrar uma conversa com áudios sem transcrição → checar resumo automático contém o conteúdo dos áudios.
+
+- Conversa com >200 mensagens: gerar primeiro resumo → conferir que cobre desde a primeira mensagem (consultar `first_message_ts` e `message_count` no card).
+- Gerar segundo resumo: verificar nos logs da edge que o prompt inclui o bloco `RESUMOS ANTERIORES (contexto acumulado…)`.
+- Conferir que não há resumo duplicado em `chat_conversation_summaries` após clicar "Novo Resumo".
