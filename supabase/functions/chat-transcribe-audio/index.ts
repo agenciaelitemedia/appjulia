@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const messageId: string | undefined = body?.message_id;
+    const force: boolean = body?.force === true;
     if (!messageId) {
       return new Response(JSON.stringify({ error: "message_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (msg.metadata?.transcription?.text) {
+    if (!force && msg.metadata?.transcription?.text && msg.metadata?.transcription?.status === 'ok') {
       return new Response(JSON.stringify({ ok: true, skipped: "already_transcribed" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -177,6 +178,8 @@ Deno.serve(async (req) => {
         model,
         generated_at: new Date().toISOString(),
         status: "ok",
+        endpoint: ai.endpoint,
+        provider: ai.provider,
       },
     };
 
