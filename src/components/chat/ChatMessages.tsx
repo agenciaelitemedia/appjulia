@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import type { ChatMessage, ChatContact } from '@/types/chat';
 import type { ConversationHistoryEntry } from '@/types/conversation';
 import { isEncryptionEnvelope } from '@/lib/chat/envelopeFilter';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ChatMessagesProps {
   contactId: string;
@@ -81,6 +82,31 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
     if (selectedConversation) {
       loadConversationHistory(selectedConversation.id);
     }
+  }, [selectedConversation?.id, loadConversationHistory]);
+
+  // Realtime: refresh history when new events (resolved/assumed/reopened/notes)
+  // are written for the current conversation, so badges appear instantly.
+  useEffect(() => {
+    if (!selectedConversation?.id) return;
+    const convId = selectedConversation.id;
+    const channel = supabase
+      .channel(`conv-history-${convId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_conversation_history',
+          filter: `conversation_id=eq.${convId}`,
+        },
+        () => {
+          loadConversationHistory(convId);
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedConversation?.id, loadConversationHistory]);
 
   // Initial load
