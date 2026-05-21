@@ -177,6 +177,8 @@ Deno.serve(async (req) => {
         model,
         generated_at: new Date().toISOString(),
         status: "ok",
+        endpoint: ai.endpoint,
+        provider: ai.provider,
       },
     };
 
