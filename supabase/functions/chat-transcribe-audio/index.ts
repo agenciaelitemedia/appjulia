@@ -19,6 +19,16 @@ const corsHeaders = {
 const DEFAULT_PROMPT =
   "Você é um transcritor de áudio profissional. Transcreva o áudio fornecido fielmente em português brasileiro, preservando pontuação e parágrafos. Retorne APENAS a transcrição, sem comentários. Se inaudível, retorne '[Áudio inaudível]'.";
 
+const FALLBACK_MODEL = "google/gemini-2.5-pro";
+const MAX_BASE64_BYTES = 28_000_000; // ~21MB binário
+
+function ok(body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -27,9 +37,7 @@ Deno.serve(async (req) => {
     const messageId: string | undefined = body?.message_id;
     const force: boolean = body?.force === true;
     if (!messageId) {
-      return new Response(JSON.stringify({ error: "message_id required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return ok({ ok: false, error: "message_id required", reason: "bad_request" });
     }
 
     const supabase = createClient(
@@ -45,21 +53,15 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (msgErr || !msg) {
-      return new Response(JSON.stringify({ error: "message not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return ok({ ok: false, error: "message not found", reason: "not_found" });
     }
 
     if (!["audio", "ptt"].includes(msg.type)) {
-      return new Response(JSON.stringify({ ok: true, skipped: "not_audio" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return ok({ ok: true, skipped: "not_audio" });
     }
 
     if (!force && msg.metadata?.transcription?.text && msg.metadata?.transcription?.status === 'ok') {
-      return new Response(JSON.stringify({ ok: true, skipped: "already_transcribed" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return ok({ ok: true, skipped: "already_transcribed" });
     }
 
     // 2) Load queue credentials via conversation
@@ -70,9 +72,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!conv?.queue_id) {
-      return new Response(JSON.stringify({ error: "queue not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      await markFailed(supabase, msg, "queue_not_found");
+      return ok({ ok: false, error: "queue not found", reason: "queue_not_found" });
     }
 
     const { data: queue } = await supabase
@@ -82,17 +83,15 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!queue?.evo_url || !queue?.evo_apikey) {
-      return new Response(JSON.stringify({ error: "queue uazapi credentials missing" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      await markFailed(supabase, msg, "queue_credentials_missing");
+      return ok({ ok: false, error: "queue uazapi credentials missing", reason: "queue_credentials_missing" });
     }
 
     // 3) Download decrypted audio via UaZapi /message/download
     const extId = msg.external_id || msg.message_id;
     if (!extId) {
-      return new Response(JSON.stringify({ error: "external_id missing" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      await markFailed(supabase, msg, "external_id_missing");
+      return ok({ ok: false, error: "external_id missing", reason: "external_id_missing" });
     }
 
     const baseUrl = queue.evo_url.replace(/\/$/, "");
@@ -106,93 +105,155 @@ Deno.serve(async (req) => {
       const errTxt = await downloadResp.text();
       console.warn(`[chat-transcribe-audio] download failed ${downloadResp.status}: ${errTxt}`);
       await markFailed(supabase, msg, "download_failed");
-      return new Response(JSON.stringify({ error: "download failed", status: downloadResp.status }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return ok({ ok: false, error: "download failed", reason: "download_failed", status: downloadResp.status });
     }
 
     const dl = await downloadResp.json();
     const base64Data = dl.base64Data || dl.base64 || dl.data || dl.file || null;
     const mimetype: string = dl.mimetype || dl.mimeType || dl.mime || "audio/ogg";
+    const audioUrl: string | null = dl.url || dl.fileURL || dl.link || null;
+    const audioDurationS: number | null = dl.seconds || dl.duration || null;
 
     if (!base64Data) {
       await markFailed(supabase, msg, "no_base64");
-      return new Response(JSON.stringify({ error: "no base64 in download response" }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return ok({ ok: false, error: "no base64 in download response", reason: "no_base64" });
+    }
+
+    if (typeof base64Data === "string" && base64Data.length > MAX_BASE64_BYTES) {
+      await markFailed(supabase, msg, "audio_too_large");
+      return ok({ ok: false, error: "audio too large", reason: "audio_too_large" });
     }
 
     // 4) Transcribe via configured provider (Lovable default / OpenRouter)
     const ai = await resolveAI(supabase, "chat_transcription");
-    const model = ai.model;
     const prompt = ai.prompt ?? DEFAULT_PROMPT;
     if (!ai.apiKey) {
       await markFailed(supabase, msg, "no_api_key");
-      return new Response(JSON.stringify({ error: "IA não configurada (sem chave)" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return ok({ ok: false, error: "IA não configurada (sem chave)", reason: "no_api_key" });
     }
     const format = mimetype.includes("mp4") || mimetype.includes("m4a") ? "mp4"
       : mimetype.includes("wav") ? "wav"
       : mimetype.includes("mp3") || mimetype.includes("mpeg") ? "mp3"
       : "ogg";
 
-    const aiResp = await fetch(ai.endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${ai.apiKey}`,
-        "Content-Type": "application/json",
-        ...providerHeaders(ai.provider),
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: prompt },
-          {
-            role: "user",
-            content: [
-              { type: "input_audio", input_audio: { data: base64Data, format } },
-              { type: "text", text: "Transcreva este áudio:" },
-            ],
-          },
-        ],
-      }),
-    });
+    const callAI = async (modelName: string) => {
+      const started = Date.now();
+      const resp = await fetch(ai.endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ai.apiKey}`,
+          "Content-Type": "application/json",
+          ...providerHeaders(ai.provider),
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [
+            { role: "system", content: prompt },
+            {
+              role: "user",
+              content: [
+                { type: "input_audio", input_audio: { data: base64Data, format } },
+                { type: "text", text: "Transcreva este áudio:" },
+              ],
+            },
+          ],
+        }),
+      });
+      const ms = Date.now() - started;
+      return { resp, ms };
+    };
+
+    const contextBase = {
+      message_id: msg.id,
+      conversation_id: msg.conversation_id,
+      external_id: extId,
+      mimetype,
+      format,
+      audio_url: audioUrl,
+      audio_duration_s: audioDurationS,
+    };
+
+    let { resp: aiResp, ms: durationMs } = await callAI(ai.model);
+    let usedModel = ai.model;
+    let status: "ok" | "fallback" | "failed" = "ok";
+
+    // Fallback automático para Gemini Pro em 5xx do primeiro modelo
+    if (!aiResp.ok && aiResp.status >= 500 && ai.model !== FALLBACK_MODEL) {
+      const firstErr = await aiResp.text().catch(() => "");
+      console.warn(`[chat-transcribe-audio] primary model ${ai.model} failed ${aiResp.status}: ${firstErr} → fallback to ${FALLBACK_MODEL}`);
+      await logUsage(supabase, {
+        client_id: msg.client_id,
+        feature: "chat_transcription",
+        provider: ai.provider,
+        endpoint: ai.endpoint,
+        model: ai.model,
+        status: "failed",
+        duration_ms: durationMs,
+        error_reason: `ai_${aiResp.status}`,
+        context: contextBase,
+      });
+      const fb = await callAI(FALLBACK_MODEL);
+      aiResp = fb.resp;
+      durationMs = fb.ms;
+      usedModel = FALLBACK_MODEL;
+      status = "fallback";
+    }
 
     if (!aiResp.ok) {
       const errTxt = await aiResp.text();
       console.warn(`[chat-transcribe-audio] AI error ${aiResp.status}: ${errTxt}`);
       await markFailed(supabase, msg, `ai_${aiResp.status}`);
-      return new Response(JSON.stringify({ error: "ai error", status: aiResp.status }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      await logUsage(supabase, {
+        client_id: msg.client_id,
+        feature: "chat_transcription",
+        provider: ai.provider,
+        endpoint: ai.endpoint,
+        model: usedModel,
+        status: "failed",
+        duration_ms: durationMs,
+        error_reason: `ai_${aiResp.status}`,
+        context: contextBase,
       });
+      return ok({ ok: false, error: "ai error", reason: `ai_${aiResp.status}` });
     }
 
     const aiData = await aiResp.json();
     const text: string = aiData?.choices?.[0]?.message?.content?.trim() || "[Transcrição indisponível]";
+    const usage = aiData?.usage ?? {};
 
     const newMeta = {
       ...(msg.metadata || {}),
       transcription: {
         text,
-        model,
+        model: usedModel,
         generated_at: new Date().toISOString(),
-        status: "ok",
+        status: status === "fallback" ? "ok" : "ok",
         endpoint: ai.endpoint,
         provider: ai.provider,
+        fallback_used: status === "fallback",
       },
     };
 
     await supabase.from("chat_messages").update({ metadata: newMeta }).eq("id", msg.id);
 
-    return new Response(JSON.stringify({ ok: true, message_id: msg.id, length: text.length }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    await logUsage(supabase, {
+      client_id: msg.client_id,
+      feature: "chat_transcription",
+      provider: ai.provider,
+      endpoint: ai.endpoint,
+      model: usedModel,
+      status,
+      duration_ms: durationMs,
+      prompt_tokens: usage?.prompt_tokens ?? null,
+      completion_tokens: usage?.completion_tokens ?? null,
+      total_tokens: usage?.total_tokens ?? null,
+      context: { ...contextBase, text_length: text.length },
     });
+
+    return ok({ ok: true, message_id: msg.id, length: text.length, model: usedModel, status });
   } catch (err) {
     console.error("[chat-transcribe-audio] error:", err);
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return ok({ ok: false, error: String(err), reason: "exception" });
   }
 });
 
@@ -209,4 +270,42 @@ async function markFailed(supabase: any, msg: any, reason: string) {
     };
     await supabase.from("chat_messages").update({ metadata: newMeta }).eq("id", msg.id);
   } catch (_e) { /* ignore */ }
+}
+
+interface UsageRow {
+  client_id?: string | null;
+  user_id?: string | null;
+  feature: string;
+  provider: string;
+  endpoint: string;
+  model: string;
+  status: string;
+  duration_ms?: number | null;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  error_reason?: string | null;
+  context?: Record<string, unknown>;
+}
+
+async function logUsage(supabase: any, row: UsageRow) {
+  try {
+    await supabase.from("ai_usage_logs").insert({
+      client_id: row.client_id ?? null,
+      user_id: row.user_id ?? null,
+      feature: row.feature,
+      provider: row.provider,
+      endpoint: row.endpoint,
+      model: row.model,
+      status: row.status,
+      duration_ms: row.duration_ms ?? null,
+      prompt_tokens: row.prompt_tokens ?? null,
+      completion_tokens: row.completion_tokens ?? null,
+      total_tokens: row.total_tokens ?? null,
+      error_reason: row.error_reason ?? null,
+      context: row.context ?? {},
+    });
+  } catch (e) {
+    console.warn("[chat-transcribe-audio] logUsage failed", e);
+  }
 }

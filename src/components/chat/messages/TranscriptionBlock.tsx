@@ -13,6 +13,26 @@ type TranscriptionMeta = {
   provider?: string;
 };
 
+function translateReason(reason?: string | null): string {
+  if (!reason) return '';
+  const map: Record<string, string> = {
+    download_failed: 'falha ao baixar áudio',
+    no_base64: 'mídia vazia',
+    audio_too_large: 'áudio muito grande',
+    queue_not_found: 'fila não encontrada',
+    queue_credentials_missing: 'credenciais da fila ausentes',
+    external_id_missing: 'id da mensagem ausente',
+    no_api_key: 'IA não configurada',
+    not_found: 'mensagem não encontrada',
+    bad_request: 'requisição inválida',
+    exception: 'erro inesperado',
+  };
+  if (map[reason]) return map[reason];
+  if (/^ai_5/.test(reason)) return 'serviço de IA indisponível';
+  if (/^ai_4/.test(reason)) return 'erro na chamada à IA';
+  return reason;
+}
+
 interface Props {
   transcription?: TranscriptionMeta | null;
   /** Show a "pending" placeholder when transcription is enabled but not yet computed. */
@@ -44,7 +64,14 @@ export function TranscriptionBlock({ transcription, pending, className, messageI
         body: { message_id: messageId, force },
       });
       if (error) throw error;
-      if (data?.error) throw new Error(String(data.error));
+      // Edge function agora sempre responde 200; falhas vêm como { ok:false, error, reason }
+      if (data && data.ok === false) {
+        const friendly = translateReason(data.reason) || String(data.error || 'Falha ao transcrever');
+        setGenError(friendly);
+        // Atualiza estado local para que o botão de retry permaneça visível
+        setLocalTranscription({ status: 'failed', reason: data.reason, text: null });
+        return;
+      }
       const { data: fresh } = await supabase
         .from('chat_messages')
         .select('metadata')
@@ -103,7 +130,9 @@ export function TranscriptionBlock({ transcription, pending, className, messageI
           </span>
         )}
         {status === 'failed' && (
-          <span className="text-muted-foreground font-normal ml-1">indisponível</span>
+          <span className="text-muted-foreground font-normal ml-1">
+            indisponível{effective?.reason ? ` · ${translateReason(effective.reason)}` : ''}
+          </span>
         )}
         {canRetry && (
           <button
