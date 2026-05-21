@@ -158,11 +158,6 @@ export function TranscriptionBlock({ transcription, pending, className, messageI
           >
             {text}
           </p>
-          {effective?.endpoint && (
-            <p className="mt-1 text-[10px] text-muted-foreground/80 break-all font-mono">
-              endpoint: {effective.endpoint}
-            </p>
-          )}
           {text.length > 120 && (
             <button
               type="button"
