@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# LLM Wiki — raw sources (PDFs, large files). Keep structure, ignore content.
+raw/**
+!raw/.gitkeep
+!raw/attachments/.gitkeep

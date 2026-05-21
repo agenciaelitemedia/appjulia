@@ -1,0 +1,11 @@
+{
+  "useMarkdownLinks": false,
+  "newLinkFormat": "relative",
+  "attachmentFolderPath": "raw/attachments",
+  "spellcheck": false,
+  "spellcheckDictionary": [],
+  "spellcheckLanguages": null,
+  "strictLineBreaks": false,
+  "defaultViewMode": "source",
+  "livePreview": true
+}
