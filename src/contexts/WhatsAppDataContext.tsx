@@ -22,6 +22,7 @@ import type {
 } from '@/types/conversation';
 import { useAccessibleQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
+import { useContactLatestConversation, leaderGroup } from '@/hooks/useContactLatestConversation';
 
 // Period filter (mirrors options shown in ChatList)
 export type ChatPeriodFilter =
