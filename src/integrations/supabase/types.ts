@@ -98,6 +98,60 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_usage_logs: {
+        Row: {
+          client_id: string | null
+          completion_tokens: number | null
+          context: Json
+          created_at: string
+          duration_ms: number | null
+          endpoint: string
+          error_reason: string | null
+          feature: string
+          id: string
+          model: string
+          prompt_tokens: number | null
+          provider: string
+          status: string
+          total_tokens: number | null
+          user_id: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          completion_tokens?: number | null
+          context?: Json
+          created_at?: string
+          duration_ms?: number | null
+          endpoint: string
+          error_reason?: string | null
+          feature: string
+          id?: string
+          model: string
+          prompt_tokens?: number | null
+          provider: string
+          status: string
+          total_tokens?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          completion_tokens?: number | null
+          context?: Json
+          created_at?: string
+          duration_ms?: number | null
+          endpoint?: string
+          error_reason?: string | null
+          feature?: string
+          id?: string
+          model?: string
+          prompt_tokens?: number | null
+          provider?: string
+          status?: string
+          total_tokens?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       chat_agent_capacity: {
         Row: {
           agent_identifier: string
