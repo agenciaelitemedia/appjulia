@@ -436,6 +436,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     [allQueues]
   );
 
+  // Per-contact "leader" conversation (most recent across all queues/statuses).
+  // Drives the chat-list deduplication: each contact appears in exactly one
+  // status tab — the tab matching its leader's effective group.
+  const { leaderByContact } = useContactLatestConversation(clientId, activeQueueIds);
+
   // Resolve effective queue for a given contact — source of truth = the conversation itself.
   // The top-bar selectedQueue filter is for LISTING only; operations always use the contact's real queue.
   // Priority:
