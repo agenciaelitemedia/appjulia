@@ -63,9 +63,19 @@ export function useHeartbeat() {
         const url = `${(import.meta as any).env?.VITE_SUPABASE_URL || ''}/rest/v1/rpc/clear_user_presence`;
         const apikey = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY || '';
         if (!url || !apikey) return;
-        const blob = new Blob([JSON.stringify({ p_user_id: userId })], { type: 'application/json' });
-        // sendBeacon não permite headers customizados; embutimos apikey via querystring (PostgREST aceita).
-        navigator.sendBeacon(`${url}?apikey=${encodeURIComponent(apikey)}`, blob);
+        // Usa fetch com keepalive + credentials:'omit' para evitar erro de CORS
+        // ("Allow-Origin: *" não funciona com credentials:'include' que o sendBeacon força).
+        void fetch(`${url}?apikey=${encodeURIComponent(apikey)}`, {
+          method: 'POST',
+          keepalive: true,
+          credentials: 'omit',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey,
+            Authorization: `Bearer ${apikey}`,
+          },
+          body: JSON.stringify({ p_user_id: userId }),
+        }).catch(() => {});
       } catch { /* ignore */ }
     };
 
