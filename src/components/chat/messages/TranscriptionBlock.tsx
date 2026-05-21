@@ -44,7 +44,14 @@ export function TranscriptionBlock({ transcription, pending, className, messageI
         body: { message_id: messageId, force },
       });
       if (error) throw error;
-      if (data?.error) throw new Error(String(data.error));
+      // Edge function agora sempre responde 200; falhas vêm como { ok:false, error, reason }
+      if (data && data.ok === false) {
+        const friendly = translateReason(data.reason) || String(data.error || 'Falha ao transcrever');
+        setGenError(friendly);
+        // Atualiza estado local para que o botão de retry permaneça visível
+        setLocalTranscription({ status: 'failed', reason: data.reason, text: null });
+        return;
+      }
       const { data: fresh } = await supabase
         .from('chat_messages')
         .select('metadata')
@@ -103,7 +110,9 @@ export function TranscriptionBlock({ transcription, pending, className, messageI
           </span>
         )}
         {status === 'failed' && (
-          <span className="text-muted-foreground font-normal ml-1">indisponível</span>
+          <span className="text-muted-foreground font-normal ml-1">
+            indisponível{effective?.reason ? ` · ${translateReason(effective.reason)}` : ''}
+          </span>
         )}
         {canRetry && (
           <button
