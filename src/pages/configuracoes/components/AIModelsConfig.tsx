@@ -285,13 +285,48 @@ function FeatureCard({ agent }: { agent: AgentDef }) {
 
   const currentModel = getModel(agent.feature);
 
-  // Make sure the currently selected model is always selectable even if not in the list.
-  const options = items.some((i) => i.model === currentModel)
-    ? items
-    : [{ id: '__current', feature: agent.feature, label: currentModel, model: currentModel, provider: 'lovable' as AIProvider, is_default: false, sort_order: -1, created_at: '' }, ...items];
+  // Fixed Lovable default (Gemini Flash) — always available, never -pro.
+  const LOVABLE_DEFAULT = {
+    id: '__lovable_default',
+    feature: agent.feature,
+    label: 'Lovable AI · Gemini 2.5 Flash (padrão)',
+    model: 'google/gemini-2.5-flash',
+    provider: 'lovable' as AIProvider,
+    is_default: true,
+    sort_order: -1,
+    created_at: '',
+  };
+
+  // Filter out any Lovable *-pro entries; keep all OpenRouter entries as-is.
+  const filteredItems = items.filter(
+    (i) => !(i.provider === 'lovable' && /-pro($|-)/i.test(i.model)),
+  );
+
+  // Compose: fixed Lovable default first + the rest (avoid duplicates of the default model).
+  const baseOptions = [
+    LOVABLE_DEFAULT,
+    ...filteredItems.filter((i) => i.model !== LOVABLE_DEFAULT.model),
+  ];
+
+  // Ensure the currently selected model is selectable even if not in the curated list.
+  const options = baseOptions.some((i) => i.model === currentModel)
+    ? baseOptions
+    : [
+        ...baseOptions,
+        {
+          id: '__current',
+          feature: agent.feature,
+          label: currentModel,
+          model: currentModel,
+          provider: 'openrouter' as AIProvider,
+          is_default: false,
+          sort_order: 999,
+          created_at: '',
+        },
+      ];
 
   const handleSelect = async (model: string) => {
-    const item = items.find((i) => i.model === model);
+    const item = options.find((i) => i.model === model);
     const provider: AIProvider = item?.provider ?? 'lovable';
     try {
       await upsertModel.mutateAsync({ feature: agent.feature, model, provider });
