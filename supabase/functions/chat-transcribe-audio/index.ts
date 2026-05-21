@@ -9,7 +9,7 @@
 // ============================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { resolveAI, providerHeaders, OPENROUTER_TRANSCRIBE_ENDPOINT } from "../_shared/aiGateway.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,8 +19,8 @@ const corsHeaders = {
 const DEFAULT_PROMPT =
   "Você é um transcritor de áudio profissional. Transcreva o áudio fornecido fielmente em português brasileiro, preservando pontuação e parágrafos. Retorne APENAS a transcrição, sem comentários. Se inaudível, retorne '[Áudio inaudível]'.";
 
-const FALLBACK_MODEL = "google/gemini-2.5-pro";
 const MAX_BASE64_BYTES = 28_000_000; // ~21MB binário
+const LANG_PT = "pt"; // ISO-639-1 pt-BR
 
 function ok(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
       return ok({ ok: false, error: "audio too large", reason: "audio_too_large" });
     }
 
-    // 4) Transcribe via configured provider (Lovable default / OpenRouter)
+    // 4) Transcribe via configured provider (Lovable chat / OpenRouter audio)
     const ai = await resolveAI(supabase, "chat_transcription");
     const prompt = ai.prompt ?? DEFAULT_PROMPT;
     if (!ai.apiKey) {
@@ -136,28 +136,40 @@ Deno.serve(async (req) => {
       : mimetype.includes("mp3") || mimetype.includes("mpeg") ? "mp3"
       : "ogg";
 
-    const callAI = async (modelName: string) => {
+    // For OpenRouter we use the dedicated audio transcription endpoint;
+    // for Lovable we use the chat-completions gateway with input_audio.
+    const useOpenRouterTranscribe = ai.provider === "openrouter";
+    const effectiveEndpoint = useOpenRouterTranscribe ? OPENROUTER_TRANSCRIBE_ENDPOINT : ai.endpoint;
+
+    const callAI = async () => {
       const started = Date.now();
-      const resp = await fetch(ai.endpoint, {
+      const reqBody = useOpenRouterTranscribe
+        ? {
+            input_audio: { data: base64Data, format },
+            model: ai.model,
+            language: LANG_PT,
+          }
+        : {
+            model: ai.model,
+            messages: [
+              { role: "system", content: prompt },
+              {
+                role: "user",
+                content: [
+                  { type: "input_audio", input_audio: { data: base64Data, format } },
+                  { type: "text", text: "Transcreva este áudio:" },
+                ],
+              },
+            ],
+          };
+      const resp = await fetch(effectiveEndpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${ai.apiKey}`,
           "Content-Type": "application/json",
           ...providerHeaders(ai.provider),
         },
-        body: JSON.stringify({
-          model: modelName,
-          messages: [
-            { role: "system", content: prompt },
-            {
-              role: "user",
-              content: [
-                { type: "input_audio", input_audio: { data: base64Data, format } },
-                { type: "text", text: "Transcreva este áudio:" },
-              ],
-            },
-          ],
-        }),
+        body: JSON.stringify(reqBody),
       });
       const ms = Date.now() - started;
       return { resp, ms };
@@ -173,41 +185,18 @@ Deno.serve(async (req) => {
       audio_duration_s: audioDurationS,
     };
 
-    let { resp: aiResp, ms: durationMs } = await callAI(ai.model);
-    let usedModel = ai.model;
-    let status: "ok" | "fallback" | "failed" = "ok";
-
-    // Fallback automático para Gemini Pro em 5xx do primeiro modelo
-    if (!aiResp.ok && aiResp.status >= 500 && ai.model !== FALLBACK_MODEL) {
-      const firstErr = await aiResp.text().catch(() => "");
-      console.warn(`[chat-transcribe-audio] primary model ${ai.model} failed ${aiResp.status}: ${firstErr} → fallback to ${FALLBACK_MODEL}`);
-      await logUsage(supabase, {
-        client_id: msg.client_id,
-        feature: "chat_transcription",
-        provider: ai.provider,
-        endpoint: ai.endpoint,
-        model: ai.model,
-        status: "failed",
-        duration_ms: durationMs,
-        error_reason: `ai_${aiResp.status}`,
-        context: contextBase,
-      });
-      const fb = await callAI(FALLBACK_MODEL);
-      aiResp = fb.resp;
-      durationMs = fb.ms;
-      usedModel = FALLBACK_MODEL;
-      status = "fallback";
-    }
+    const { resp: aiResp, ms: durationMs } = await callAI();
+    const usedModel = ai.model;
 
     if (!aiResp.ok) {
       const errTxt = await aiResp.text();
-      console.warn(`[chat-transcribe-audio] AI error ${aiResp.status}: ${errTxt}`);
+      console.warn(`[chat-transcribe-audio] AI error ${aiResp.status} (provider=${ai.provider} model=${ai.model}): ${errTxt}`);
       await markFailed(supabase, msg, `ai_${aiResp.status}`);
       await logUsage(supabase, {
         client_id: msg.client_id,
         feature: "chat_transcription",
         provider: ai.provider,
-        endpoint: ai.endpoint,
+        endpoint: effectiveEndpoint,
         model: usedModel,
         status: "failed",
         duration_ms: durationMs,
@@ -218,7 +207,9 @@ Deno.serve(async (req) => {
     }
 
     const aiData = await aiResp.json();
-    const text: string = aiData?.choices?.[0]?.message?.content?.trim() || "[Transcrição indisponível]";
+    const text: string = useOpenRouterTranscribe
+      ? (aiData?.text?.toString().trim() || "[Transcrição indisponível]")
+      : (aiData?.choices?.[0]?.message?.content?.trim() || "[Transcrição indisponível]");
     const usage = aiData?.usage ?? {};
 
     const newMeta = {
@@ -227,10 +218,9 @@ Deno.serve(async (req) => {
         text,
         model: usedModel,
         generated_at: new Date().toISOString(),
-        status: status === "fallback" ? "ok" : "ok",
-        endpoint: ai.endpoint,
+        status: "ok",
+        endpoint: effectiveEndpoint,
         provider: ai.provider,
-        fallback_used: status === "fallback",
       },
     };
 
@@ -240,9 +230,9 @@ Deno.serve(async (req) => {
       client_id: msg.client_id,
       feature: "chat_transcription",
       provider: ai.provider,
-      endpoint: ai.endpoint,
+      endpoint: effectiveEndpoint,
       model: usedModel,
-      status,
+      status: "ok",
       duration_ms: durationMs,
       prompt_tokens: usage?.prompt_tokens ?? null,
       completion_tokens: usage?.completion_tokens ?? null,
@@ -250,7 +240,7 @@ Deno.serve(async (req) => {
       context: { ...contextBase, text_length: text.length },
     });
 
-    return ok({ ok: true, message_id: msg.id, length: text.length, model: usedModel, status });
+    return ok({ ok: true, message_id: msg.id, length: text.length, model: usedModel, status: "ok" });
   } catch (err) {
     console.error("[chat-transcribe-audio] error:", err);
     return ok({ ok: false, error: String(err), reason: "exception" });
