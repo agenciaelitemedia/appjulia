@@ -28,7 +28,7 @@ export function useAIModelList(feature: AIFeature) {
   const { data: items = [], isLoading } = useQuery({
     queryKey: key,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('client_ai_model_config_list')
         .select('*')
         .eq('feature', feature)
@@ -40,7 +40,7 @@ export function useAIModelList(feature: AIFeature) {
 
   const createItem = useMutation({
     mutationFn: async (input: AIModelListInput) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('client_ai_model_config_list')
         .insert({ feature, ...input });
       if (error) throw error;
@@ -50,7 +50,7 @@ export function useAIModelList(feature: AIFeature) {
 
   const updateItem = useMutation({
     mutationFn: async ({ id, ...patch }: Partial<AIModelListInput> & { id: string }) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('client_ai_model_config_list')
         .update(patch)
         .eq('id', id);
@@ -61,7 +61,7 @@ export function useAIModelList(feature: AIFeature) {
 
   const deleteItem = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('client_ai_model_config_list')
         .delete()
         .eq('id', id);
