@@ -77,6 +77,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_provider_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_agent_capacity: {
         Row: {
           agent_identifier: string
