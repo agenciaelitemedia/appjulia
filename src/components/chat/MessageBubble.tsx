@@ -10,7 +10,9 @@ import { TranscriptionBlock } from './messages/TranscriptionBlock';
 import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
 import type { MessageReaction } from '@/hooks/useMessageReactions';
-import type { DownloadMediaResult } from '@/contexts/WhatsAppDataContext';
+import { type DownloadMediaResult, useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
+import { useQueueAutomationFlags } from '@/hooks/useQueueAutomationFlags';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -102,6 +104,12 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
   const [playbackRate, setPlaybackRate] = useState(1);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Gate de transcrição: precisa estar habilitado no client (master) E na fila.
+  const { selectedQueue } = useWhatsAppData();
+  const { flags: clientFlags } = useClientAutomationFlags();
+  const { flags: queueFlags } = useQueueAutomationFlags(selectedQueue?.id ?? null);
+  const canTranscribe = clientFlags.autoTranscribeAudio && queueFlags.autoTranscribeAudio;
 
   // Sync local URL with prop when parent updates message
   useEffect(() => {
@@ -358,7 +366,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
           <TranscriptionBlock
             transcription={message.metadata?.transcription}
             messageId={message.id}
-            canGenerate
+            canGenerate={canTranscribe}
           />
         </div>
       );
