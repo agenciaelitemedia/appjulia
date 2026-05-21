@@ -10,7 +10,9 @@ import { TranscriptionBlock } from './messages/TranscriptionBlock';
 import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
 import type { MessageReaction } from '@/hooks/useMessageReactions';
-import type { DownloadMediaResult } from '@/contexts/WhatsAppDataContext';
+import { type DownloadMediaResult, useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
+import { useQueueAutomationFlags } from '@/hooks/useQueueAutomationFlags';
 
 interface MessageBubbleProps {
   message: ChatMessage;
