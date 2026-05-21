@@ -4,6 +4,7 @@
 
 const LOVABLE_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const OPENROUTER_GATEWAY = "https://openrouter.ai/api/v1/chat/completions";
+export const OPENROUTER_TRANSCRIBE_ENDPOINT = "https://openrouter.ai/api/v1/audio/transcriptions";
 const GLOBAL = "GLOBAL";
 
 // Per-feature fallback model (used when nothing is configured or on safe fallback).
