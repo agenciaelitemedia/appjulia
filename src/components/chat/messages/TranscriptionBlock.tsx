@@ -13,6 +13,26 @@ type TranscriptionMeta = {
   provider?: string;
 };
 
+function translateReason(reason?: string | null): string {
+  if (!reason) return '';
+  const map: Record<string, string> = {
+    download_failed: 'falha ao baixar áudio',
+    no_base64: 'mídia vazia',
+    audio_too_large: 'áudio muito grande',
+    queue_not_found: 'fila não encontrada',
+    queue_credentials_missing: 'credenciais da fila ausentes',
+    external_id_missing: 'id da mensagem ausente',
+    no_api_key: 'IA não configurada',
+    not_found: 'mensagem não encontrada',
+    bad_request: 'requisição inválida',
+    exception: 'erro inesperado',
+  };
+  if (map[reason]) return map[reason];
+  if (/^ai_5/.test(reason)) return 'serviço de IA indisponível';
+  if (/^ai_4/.test(reason)) return 'erro na chamada à IA';
+  return reason;
+}
+
 interface Props {
   transcription?: TranscriptionMeta | null;
   /** Show a "pending" placeholder when transcription is enabled but not yet computed. */
