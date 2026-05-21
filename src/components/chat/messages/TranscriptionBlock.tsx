@@ -83,7 +83,8 @@ export function TranscriptionBlock({ transcription, pending, className, messageI
   const status = effective?.status || (pending ? 'pending' : 'failed');
   const text = effective?.text?.trim() || '';
   const isUnavailable = status === 'failed' || /transcri[cç][aã]o indispon[ií]vel/i.test(text) || /[áa]udio inaud[ií]vel/i.test(text);
-  const canRetry = !!messageId && canGenerate && isUnavailable;
+  // Retry é sempre permitido em falhas, independente das flags de auto-transcrição.
+  const canRetry = !!messageId && isUnavailable;
 
   return (
     <div
