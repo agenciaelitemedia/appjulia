@@ -2045,11 +2045,20 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const selectedConversation = useMemo(() => {
     if (!selectedContactId) return null;
-    // Priority: active first, then resolved/closed for read-only view
-    return conversations.find(c => c.contact_id === selectedContactId && ['pending', 'open'].includes(c.status))
-      || conversations.find(c => c.contact_id === selectedContactId && ['resolved', 'closed'].includes(c.status))
-      || null;
-  }, [conversations, selectedContactId]);
+     // Leader = most recent conversation for this contact across all queues/statuses.
+     // Prefer the loaded copy from `conversations` (carries any local mutations);
+     // fall back to the leader map (which may include conversations whose group
+     // hasn't been auto-loaded yet, e.g. closed tickets while on the active tab).
+     const leader = leaderByContact.get(selectedContactId);
+     if (leader) {
+       const loaded = conversations.find(c => c.id === leader.id);
+       return loaded || leader;
+     }
+     // Defensive fallback to legacy behavior if the leader map is still cold.
+     return conversations.find(c => c.contact_id === selectedContactId && ['pending', 'open'].includes(c.status))
+       || conversations.find(c => c.contact_id === selectedContactId && ['resolved', 'closed'].includes(c.status))
+       || null;
+   }, [conversations, selectedContactId, leaderByContact]);
 
   const filteredContacts = useMemo(() => {
     let filtered = contacts;
