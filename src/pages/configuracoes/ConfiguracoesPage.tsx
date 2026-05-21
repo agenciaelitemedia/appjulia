@@ -1,9 +1,10 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bot, History, Activity, Wrench } from 'lucide-react';
+import { Bot, History, Activity, Wrench, BarChart3 } from 'lucide-react';
 import { AIModelsConfig } from './components/AIModelsConfig';
 import { UazapiHistoryTab } from './components/UazapiHistoryTab';
 import { UazapiMonitorTab } from './components/UazapiMonitorTab';
 import { QueueMaintenanceTab } from './components/QueueMaintenanceTab';
+import { AIUsageDashboard } from './components/AIUsageDashboard';
 
 export default function ConfiguracoesPage() {
   return (
@@ -18,6 +19,10 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="ai" className="gap-2">
             <Bot className="w-4 h-4" />
             IA's
+          </TabsTrigger>
+          <TabsTrigger value="ai-dashboard" className="gap-2">
+            <BarChart3 className="w-4 h-4" />
+            IA's Dashboard
           </TabsTrigger>
           <TabsTrigger value="uazapi-history" className="gap-2">
             <History className="w-4 h-4" />
@@ -41,6 +46,16 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
           <AIModelsConfig />
+        </TabsContent>
+
+        <TabsContent value="ai-dashboard" className="mt-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">IA's Dashboard</h2>
+            <p className="text-sm text-muted-foreground">
+              Métricas de uso por agente de IA, com filtros por cliente e período
+            </p>
+          </div>
+          <AIUsageDashboard />
         </TabsContent>
 
         <TabsContent value="uazapi-history" className="mt-6">
