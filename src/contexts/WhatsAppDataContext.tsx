@@ -1175,7 +1175,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       .from('chat_conversation_history')
       .select('*')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
       .limit(500);
     setConversationHistory((data || []) as ConversationHistoryEntry[]);
   }, []);
