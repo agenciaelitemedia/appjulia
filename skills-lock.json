@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "pdftk-server": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/pdftk-server/SKILL.md",
+      "computedHash": "a56ec988d9fae251b9d913fdf646f770a30474027e5d6e6d3250a83958f21ec3"
+    }
+  }
+}

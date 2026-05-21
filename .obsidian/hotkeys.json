@@ -1,8 +1,0 @@
-{
-  "editor:toggle-source": [{ "modifiers": ["Mod", "Shift"], "key": "E" }],
-  "graph:open": [{ "modifiers": ["Mod", "Shift"], "key": "G" }],
-  "switcher:open": [{ "modifiers": ["Mod"], "key": "O" }],
-  "backlink:open": [{ "modifiers": ["Mod", "Shift"], "key": "B" }],
-  "app:go-back": [{ "modifiers": ["Mod"], "key": "ArrowLeft" }],
-  "app:go-forward": [{ "modifiers": ["Mod"], "key": "ArrowRight" }]
-}

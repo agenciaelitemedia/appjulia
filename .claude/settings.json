@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -v \"^pages$\")",
+      "Bash(grep -E \"^\\\\s+[a-z_]+:\\\\s+\\\\{$\" \"c:/dev/appjulia/src/integrations/supabase/types.ts\")",
+      "Bash(sed 's/[: ]//g')",
+      "Bash(sed 's/.*CREATE TABLE //')",
+      "Bash(sed 's/ .*//')",
+      "Bash(sed 's/public\\\\.//')"
+    ]
+  }
+}

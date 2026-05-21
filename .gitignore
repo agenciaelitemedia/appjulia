@@ -27,3 +27,6 @@ dist-ssr
 raw/**
 !raw/.gitkeep
 !raw/attachments/.gitkeep
+
+# Claude Code local settings (may contain secrets/credentials)
+.claude/settings.local.json
