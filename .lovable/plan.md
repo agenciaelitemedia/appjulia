@@ -1,57 +1,88 @@
-## Diagnóstico
 
-Config atual em `client_ai_model_config` para `chat_transcription`:
-- provider = `openrouter`, model = `openai/whisper-1`
+## Objetivo
 
-A edge function `chat-transcribe-audio` chama `POST /v1/chat/completions` com payload `input_audio` — Whisper não é modelo de chat → 5xx → cai no `FALLBACK_MODEL = google/gemini-2.5-pro` (hardcoded). Por isso parece que "está usando Gemini" mesmo com Whisper configurado.
+Hoje um mesmo contato (ex.: `5534988860163`) aparece simultaneamente em **Em aberto** e em **Resolvidos / Fechados** porque ele possui vários tickets ativos em filas diferentes. Cada aba filtra contatos olhando se *qualquer* conversa do contato bate com o status — então um contato com `pending` na fila MRA e `resolved` na fila MKT Natal aparece nas duas.
 
-OpenRouter expõe um endpoint dedicado de transcrição: `POST https://openrouter.ai/api/v1/audio/transcriptions` aceitando body JSON com `input_audio.data/format`, `model`, `language`.
+Queremos que cada contato apareça em **uma única aba**, decidida pelo estado da conversa mais recente (`updated_at` desc; em empate, `opened_at` desc) considerando a tupla `(contact + client + queue + channel)`.
 
-## Plano de Correção
+Importante: a estrutura de tickets por fila no banco **não muda** — todos os tickets continuam existindo. A mudança é apenas na visualização da lista do chat.
 
-### 1. Roteamento por provider em `chat-transcribe-audio/index.ts`
+## Regra de dedupe
 
-- **provider = `lovable`** → fluxo atual (`/chat/completions` com `input_audio`), modelo **sempre `google/gemini-2.5-flash`** (nunca `pro`).
-- **provider = `openrouter`** → chamar:
-  ```
-  POST https://openrouter.ai/api/v1/audio/transcriptions
-  Authorization: Bearer <OPENROUTER_KEY>
-  Content-Type: application/json
-  body: {
-    input_audio: { data: <base64>, format: "ogg"|"mp3"|"wav"|"mp4" },
-    model: <model exato vindo de client_ai_model_config>,  // ex.: openai/whisper-1
-    language: "pt"   // ISO-639-1 pt-BR
-  }
-  ```
-  Resposta: `data.text` → gravar como `transcription`.
-- **Sempre respeitar o modelo configurado** em `/configurações → Modelos de IA` — não substituir nem normalizar (se o usuário escolheu `openai/whisper-1`, manda `openai/whisper-1`; se trocar para `openai/whisper-large-v3`, manda esse).
-- **Remover o fallback automático para `gemini-2.5-pro`**. Em falha real do provider escolhido, retornar `{ ok:false, reason:'ai_<status>' }` (HTTP 200 — UI já trata e oferece "Tentar novamente"). Nada de mascarar com outro modelo.
-- Continuar logando em `ai_usage_logs` com `provider`, `endpoint`, `model`, `status` reais.
+Para cada `contact_id` do cliente atual:
 
-### 2. `_shared/aiGateway.ts`
+1. Buscar **todas** as conversas do contato (todos os status, todas as filas/canais).
+2. Escolher a "conversa líder" = a com maior `updated_at` (desempate: `opened_at` desc, depois `created_at` desc).
+3. Calcular o "status efetivo" da líder com a mesma regra já existente:
+   - `pending` + `assigned_to` preenchido → tratado como `open`.
+   - Demais valores mantidos: `pending`, `open`, `resolved`, `closed`.
+4. Mapear status efetivo → grupo de aba:
+   - `pending`, `open` → aba **Em aberto** (`active`)
+   - `resolved` → aba **Resolvidos**
+   - `closed` → aba **Fechados**
+   - Aba combinada **Resolvidos/Fechados** recebe contatos cujo líder é `resolved` ou `closed`.
+5. O contato só entra na aba se o grupo da aba == grupo do líder.
+6. A `selectedConversation` (conversa exibida ao clicar no contato) passa a ser **a conversa líder**, e não mais "primeira pending/open encontrada". Assim o usuário vê o ticket mais atual ao abrir o chat — independente da fila.
 
-- Expor constante `OPENROUTER_TRANSCRIBE_ENDPOINT = "https://openrouter.ai/api/v1/audio/transcriptions"`.
-- Manter `FEATURE_DEFAULT_MODEL.chat_transcription = 'google/gemini-2.5-flash'` (fallback quando não há config).
+## Por que isso exige um mapa "todos os status"
 
-### 3. UI `/configurações → Modelos de IA`
+O estado `conversations` em `WhatsAppDataContext.tsx` é carregado por **grupo** (active, resolved, closed) de forma preguiçosa. Se o usuário está na aba "Em aberto", o grupo `closed` pode não estar em memória — então não dá para saber se a conversa mais recente do contato é, na verdade, `closed`. Precisamos de uma fonte enxuta com **uma linha por contato**, contendo só o necessário para decidir o grupo.
 
-Em `src/pages/configuracoes/components/` (cartões por feature) + `useAIModelList`:
+## Implementação
 
-- Para **toda feature**, garantir que a lista do dropdown sempre comece com a opção fixa **Lovable AI → `google/gemini-2.5-flash`** marcada como default.
-- **Filtrar/remover qualquer modelo Lovable terminado em `-pro`** do dropdown (Flash, Flash-Lite, Flash-Image continuam disponíveis).
-- Modelos OpenRouter continuam sendo gerenciados pelo CRUD existente — o usuário adiciona livremente (ex.: `openai/whisper-1`, `openai/whisper-large-v3`, etc.).
-- No cartão **Transcrição de Áudio**, exibir hint: "Modelos OpenRouter usam o endpoint `/audio/transcriptions` com `language=pt`. O modelo selecionado aqui é o que será efetivamente chamado."
-- Migração leve: garantir que `chat_transcription` permaneça com `provider='openrouter', model='openai/whisper-1'` (config atual do usuário) — nenhuma sobrescrita.
+### 1. Hook novo: `useContactLatestConversation`
+Local: `src/hooks/useContactLatestConversation.ts` (novo).
 
-### 4. Logs (`ai_usage_logs`)
+- Faz uma query enxuta a `chat_conversations` filtrada por `client_id` (e respeitando filas não-soft-deletadas, espelhando o filtro que já existe no contexto).
+- Colunas: `contact_id, status, assigned_to, queue_id, channel, updated_at, opened_at, snoozed_until, id, protocol`.
+- Agrupa por `contact_id` no frontend e retorna `Map<contact_id, LeaderConv>` onde `LeaderConv` é a conversa de maior `updated_at`.
+- Assina `postgres_changes` em `chat_conversations` (filtrado por `client_id`) para manter o mapa em tempo real (insert/update → recomputa líder daquele contato; delete → recomputa).
+- Expõe `{ leaderByContact, isLoading }`.
 
-Sem mudança de schema. Após o fix, registros refletirão a verdade:
-- `provider=openrouter`, `endpoint=…/audio/transcriptions`, `model=openai/whisper-1`, `status=ok|failed`.
+Esse hook substitui — para fins de dedupe da lista — a necessidade de ter todos os grupos carregados em `conversations`.
 
-## Arquivos a alterar
+### 2. Integrar no `WhatsAppDataContext.tsx`
 
-- `supabase/functions/chat-transcribe-audio/index.ts` — branch por provider + remover fallback Gemini + `language: "pt"`.
-- `supabase/functions/_shared/aiGateway.ts` — constante do endpoint de transcrição OpenRouter.
-- `src/pages/configuracoes/components/` (cartões de Modelos de IA) — opção Lovable Flash fixa + filtro `*-pro`.
+- Chamar `useContactLatestConversation(clientId, allowedQueueIds)` dentro do provider.
+- Expor `leaderByContact` no value do contexto (novo campo opcional para futuros usos).
+- Alterar `filteredContacts` (linhas ~2047–2098):
+  - Substituir o filtro atual (`contactIdsWithStatus.includes(c.id)`) por:
+    ```ts
+    const leader = leaderByContact.get(c.id);
+    if (!leader) return false; // contato sem ticket fica fora das abas de status
+    const group = leaderGroup(leader); // 'active' | 'resolved' | 'closed'
+    if (filter === 'all')              return true;
+    if (filter === 'resolved_closed')  return group === 'resolved' || group === 'closed';
+    return group === filter || (filter === 'open' && group === 'active') || (filter === 'pending' && group === 'active');
+    ```
+  - Continuar respeitando snooze pelo líder (`leader.snoozed_until`).
+- Alterar `selectedConversation` (linhas ~2040–2045): em vez de "primeiro pending/open", usar a conversa líder do `selectedContactId` (buscando primeiro em `conversations` carregadas; se não estiver carregada — porque o grupo do líder ainda não foi carregado — usar `leaderByContact` para obter o `id` e carregar sob demanda via `loadConversationsPage`/select pontual).
 
-Pronto para implementar — pode confirmar com "ok" / "implementar".
+### 3. Contadores (`totalUnreadCount`, `individualUnreadCount`, `groupUnreadCount`)
+Permanecem somando `contacts.unread_count` (não mudam — unread é por contato no schema atual).
+
+Os contadores por aba que hoje vivem em `effectiveStatusCounts` (linhas ~823) devem passar a contar **contatos únicos** por grupo usando `leaderByContact`, para baterem com a nova listagem deduplicada.
+
+### 4. UI
+Sem mudança visual obrigatória. Opcional (fora deste escopo, perguntar depois): mostrar um pequeno badge "+N filas" no item do contato quando ele tiver mais de um ticket ativo, para o atendente saber que existem outros tickets do mesmo lead em outras filas.
+
+### 5. Memória do projeto
+Atualizar `mem://features/chat/conversation-reopen-rules.md` com nota: "Na UI da lista do chat, contatos são deduplicados pela conversa de maior `updated_at`; o ticket por fila continua existindo no banco". Adicionar entrada nova `mem://ui/patterns/chat-contact-deduplication`.
+
+## Arquivos tocados
+
+```text
+src/hooks/useContactLatestConversation.ts        (novo)
+src/contexts/WhatsAppDataContext.tsx             (filteredContacts, selectedConversation, counts)
+mem://ui/patterns/chat-contact-deduplication     (novo)
+mem://features/chat/conversation-reopen-rules    (nota adicionada)
+```
+
+Sem migrations. Sem mudanças em edge functions. Sem alteração no fluxo de criação/reabertura de tickets.
+
+## Validação
+
+1. Caso real `5534988860163`: ao aplicar, deve aparecer **apenas** na aba "Em aberto" (líder = `pending` MRA de 21/05 23:00), sumindo da aba "Resolvidos / Fechados".
+2. Resolver o ticket líder dele → contato migra para "Resolvidos" em tempo real (via subscription), e os tickets pending mais antigos em outras filas só voltam a "promover" o contato se receberem nova atividade que avance o `updated_at`.
+3. Contato com apenas tickets `closed` antigos aparece só em "Fechados".
+4. Contagens por aba batem com a contagem visível de itens listados.

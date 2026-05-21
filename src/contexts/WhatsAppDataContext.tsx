@@ -22,6 +22,7 @@ import type {
 } from '@/types/conversation';
 import { useAccessibleQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
+import { useContactLatestConversation, leaderGroup } from '@/hooks/useContactLatestConversation';
 
 // Period filter (mirrors options shown in ChatList)
 export type ChatPeriodFilter =
@@ -435,6 +436,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     [allQueues]
   );
 
+  // Per-contact "leader" conversation (most recent across all queues/statuses).
+  // Drives the chat-list deduplication: each contact appears in exactly one
+  // status tab — the tab matching its leader's effective group.
+  const { leaderByContact } = useContactLatestConversation(clientId, activeQueueIds);
+
   // Resolve effective queue for a given contact — source of truth = the conversation itself.
   // The top-bar selectedQueue filter is for LISTING only; operations always use the contact's real queue.
   // Priority:
@@ -820,16 +826,17 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // unfiltered totals exposed via context for backwards compatibility.
   const convCounts = useMemo(() => {
     let pending = 0, open = 0;
-    for (const c of conversations) {
-      // Conversa com responsável é classificada como "Em Atendimento" (open),
-      // mesmo que o status físico ainda seja 'pending'.
-      const hasAssignee = !!(c.assigned_to && String(c.assigned_to).trim() !== '');
-      const effective = c.status === 'pending' && hasAssignee ? 'open' : c.status;
+    // Count DISTINCT contacts whose leader conversation sits in the active group.
+    // Mirrors the deduplication applied to `filteredContacts` below.
+    for (const leader of leaderByContact.values()) {
+      if (leaderGroup(leader) !== 'active') continue;
+      const hasAssignee = !!(leader.assigned_to && String(leader.assigned_to).trim() !== '');
+      const effective = leader.status === 'pending' && hasAssignee ? 'open' : leader.status;
       if (effective === 'pending') pending++;
       else if (effective === 'open') open++;
     }
     return { pending, open };
-  }, [conversations]);
+  }, [leaderByContact]);
 
   const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
     if (!clientId) return null;
@@ -2038,11 +2045,20 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const selectedConversation = useMemo(() => {
     if (!selectedContactId) return null;
-    // Priority: active first, then resolved/closed for read-only view
-    return conversations.find(c => c.contact_id === selectedContactId && ['pending', 'open'].includes(c.status))
-      || conversations.find(c => c.contact_id === selectedContactId && ['resolved', 'closed'].includes(c.status))
-      || null;
-  }, [conversations, selectedContactId]);
+     // Leader = most recent conversation for this contact across all queues/statuses.
+     // Prefer the loaded copy from `conversations` (carries any local mutations);
+     // fall back to the leader map (which may include conversations whose group
+     // hasn't been auto-loaded yet, e.g. closed tickets while on the active tab).
+     const leader = leaderByContact.get(selectedContactId);
+     if (leader) {
+       const loaded = conversations.find(c => c.id === leader.id);
+       return loaded || leader;
+     }
+     // Defensive fallback to legacy behavior if the leader map is still cold.
+     return conversations.find(c => c.contact_id === selectedContactId && ['pending', 'open'].includes(c.status))
+       || conversations.find(c => c.contact_id === selectedContactId && ['resolved', 'closed'].includes(c.status))
+       || null;
+   }, [conversations, selectedContactId, leaderByContact]);
 
   const filteredContacts = useMemo(() => {
     let filtered = contacts;
@@ -2061,30 +2077,36 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       );
     }
 
+    // Dedup by contact: each contact appears in exactly one status tab, decided
+    // by its leader conversation (most recent across all queues/channels).
     if (conversationStatusFilter !== 'all') {
-      const contactIdsWithStatus = conversations
-        .filter(c => {
-          const hasAssignee = !!(c.assigned_to && String(c.assigned_to).trim() !== '');
-          const effective = c.status === 'pending' && hasAssignee ? 'open' : c.status;
-          if (conversationStatusFilter === 'resolved_closed') {
-            return effective === 'resolved' || effective === 'closed';
-          }
+      filtered = filtered.filter(c => {
+        const leader = leaderByContact.get(c.id);
+        if (!leader) return false;
+        const group = leaderGroup(leader);
+        if (!group) return false;
+        if (conversationStatusFilter === 'resolved_closed') {
+          return group === 'resolved' || group === 'closed';
+        }
+        // 'pending' and 'open' tabs both map to the 'active' group; respect the
+        // existing effective-status convention (pending + assignee → open).
+        if (conversationStatusFilter === 'pending' || conversationStatusFilter === 'open') {
+          if (group !== 'active') return false;
+          const hasAssignee = !!(leader.assigned_to && String(leader.assigned_to).trim() !== '');
+          const effective = leader.status === 'pending' && hasAssignee ? 'open' : leader.status;
           return effective === conversationStatusFilter;
-        })
-        .map(c => c.contact_id);
-      filtered = filtered.filter(c => contactIdsWithStatus.includes(c.id));
+        }
+        return group === conversationStatusFilter;
+      });
     } else {
-      // Hide snoozed conversations from the default list
+      // Hide contacts whose leader is currently snoozed.
       const now = Date.now();
-      const snoozedContactIds = new Set(
-        conversations
-          .filter(c => {
-            const conv = c as { snoozed_until?: string | null };
-            return conv.snoozed_until && new Date(conv.snoozed_until).getTime() > now;
-          })
-          .map(c => c.contact_id)
-      );
-      filtered = filtered.filter(c => !snoozedContactIds.has(c.id));
+      filtered = filtered.filter(c => {
+        const leader = leaderByContact.get(c.id);
+        const snoozedUntil = (leader as { snoozed_until?: string | null } | undefined)?.snoozed_until;
+        if (snoozedUntil && new Date(snoozedUntil).getTime() > now) return false;
+        return true;
+      });
     }
 
     // Always sort by most recent message (WhatsApp-style)
@@ -2095,7 +2117,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     });
 
     return filtered;
-  }, [contacts, activeTab, searchQuery, conversationStatusFilter, conversations]);
+  }, [contacts, activeTab, searchQuery, conversationStatusFilter, leaderByContact]);
 
   const totalUnreadCount = useMemo(() =>
     contacts.reduce((sum, c) => sum + (c.unread_count || 0), 0),
