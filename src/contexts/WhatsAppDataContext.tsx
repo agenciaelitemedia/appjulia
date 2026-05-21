@@ -826,16 +826,17 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // unfiltered totals exposed via context for backwards compatibility.
   const convCounts = useMemo(() => {
     let pending = 0, open = 0;
-    for (const c of conversations) {
-      // Conversa com responsável é classificada como "Em Atendimento" (open),
-      // mesmo que o status físico ainda seja 'pending'.
-      const hasAssignee = !!(c.assigned_to && String(c.assigned_to).trim() !== '');
-      const effective = c.status === 'pending' && hasAssignee ? 'open' : c.status;
+    // Count DISTINCT contacts whose leader conversation sits in the active group.
+    // Mirrors the deduplication applied to `filteredContacts` below.
+    for (const leader of leaderByContact.values()) {
+      if (leaderGroup(leader) !== 'active') continue;
+      const hasAssignee = !!(leader.assigned_to && String(leader.assigned_to).trim() !== '');
+      const effective = leader.status === 'pending' && hasAssignee ? 'open' : leader.status;
       if (effective === 'pending') pending++;
       else if (effective === 'open') open++;
     }
     return { pending, open };
-  }, [conversations]);
+  }, [leaderByContact]);
 
   const getOrCreateConversation = useCallback(async (contactId: string): Promise<ChatConversation | null> => {
     if (!clientId) return null;
