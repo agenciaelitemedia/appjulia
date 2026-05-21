@@ -2077,30 +2077,36 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       );
     }
 
+    // Dedup by contact: each contact appears in exactly one status tab, decided
+    // by its leader conversation (most recent across all queues/channels).
     if (conversationStatusFilter !== 'all') {
-      const contactIdsWithStatus = conversations
-        .filter(c => {
-          const hasAssignee = !!(c.assigned_to && String(c.assigned_to).trim() !== '');
-          const effective = c.status === 'pending' && hasAssignee ? 'open' : c.status;
-          if (conversationStatusFilter === 'resolved_closed') {
-            return effective === 'resolved' || effective === 'closed';
-          }
+      filtered = filtered.filter(c => {
+        const leader = leaderByContact.get(c.id);
+        if (!leader) return false;
+        const group = leaderGroup(leader);
+        if (!group) return false;
+        if (conversationStatusFilter === 'resolved_closed') {
+          return group === 'resolved' || group === 'closed';
+        }
+        // 'pending' and 'open' tabs both map to the 'active' group; respect the
+        // existing effective-status convention (pending + assignee → open).
+        if (conversationStatusFilter === 'pending' || conversationStatusFilter === 'open') {
+          if (group !== 'active') return false;
+          const hasAssignee = !!(leader.assigned_to && String(leader.assigned_to).trim() !== '');
+          const effective = leader.status === 'pending' && hasAssignee ? 'open' : leader.status;
           return effective === conversationStatusFilter;
-        })
-        .map(c => c.contact_id);
-      filtered = filtered.filter(c => contactIdsWithStatus.includes(c.id));
+        }
+        return group === conversationStatusFilter;
+      });
     } else {
-      // Hide snoozed conversations from the default list
+      // Hide contacts whose leader is currently snoozed.
       const now = Date.now();
-      const snoozedContactIds = new Set(
-        conversations
-          .filter(c => {
-            const conv = c as { snoozed_until?: string | null };
-            return conv.snoozed_until && new Date(conv.snoozed_until).getTime() > now;
-          })
-          .map(c => c.contact_id)
-      );
-      filtered = filtered.filter(c => !snoozedContactIds.has(c.id));
+      filtered = filtered.filter(c => {
+        const leader = leaderByContact.get(c.id);
+        const snoozedUntil = (leader as { snoozed_until?: string | null } | undefined)?.snoozed_until;
+        if (snoozedUntil && new Date(snoozedUntil).getTime() > now) return false;
+        return true;
+      });
     }
 
     // Always sort by most recent message (WhatsApp-style)
@@ -2111,7 +2117,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     });
 
     return filtered;
-  }, [contacts, activeTab, searchQuery, conversationStatusFilter, conversations]);
+  }, [contacts, activeTab, searchQuery, conversationStatusFilter, leaderByContact]);
 
   const totalUnreadCount = useMemo(() =>
     contacts.reduce((sum, c) => sum + (c.unread_count || 0), 0),
