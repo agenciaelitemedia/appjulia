@@ -2414,6 +2414,42 @@ export type Database = {
         }
         Relationships: []
       }
+      client_ai_model_config_list: {
+        Row: {
+          created_at: string
+          feature: string
+          id: string
+          is_default: boolean
+          label: string
+          model: string
+          provider: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          feature: string
+          id?: string
+          is_default?: boolean
+          label: string
+          model: string
+          provider: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          feature?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          model?: string
+          provider?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contract_deletion_audit: {
         Row: {
           cod_agent: string | null
