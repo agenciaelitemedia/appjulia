@@ -105,10 +105,13 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Gate de transcrição: precisa estar habilitado no client (master) E na fila.
-  const { selectedQueue } = useWhatsAppData();
+  // Gate de transcrição: precisa estar habilitado no client (master) E na fila
+  // dona da CONVERSA (não a fila selecionada no topo). Após a deduplicação por
+  // contato, a conversa exibida pode estar em uma fila diferente da do filtro.
+  const { selectedQueue, selectedConversation } = useWhatsAppData();
+  const effectiveQueueId = selectedConversation?.queue_id ?? selectedQueue?.id ?? null;
   const { flags: clientFlags } = useClientAutomationFlags();
-  const { flags: queueFlags } = useQueueAutomationFlags(selectedQueue?.id ?? null);
+  const { flags: queueFlags } = useQueueAutomationFlags(effectiveQueueId);
   const canTranscribe = clientFlags.autoTranscribeAudio && queueFlags.autoTranscribeAudio;
 
   // Sync local URL with prop when parent updates message
