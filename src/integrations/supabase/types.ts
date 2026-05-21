@@ -2372,6 +2372,7 @@ export type Database = {
           feature: string
           id: string
           model: string
+          provider: string
           prompt: string | null
           updated_at: string | null
         }
@@ -2380,6 +2381,7 @@ export type Database = {
           feature: string
           id?: string
           model?: string
+          provider?: string
           prompt?: string | null
           updated_at?: string | null
         }
@@ -2388,7 +2390,59 @@ export type Database = {
           feature?: string
           id?: string
           model?: string
+          provider?: string
           prompt?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      client_ai_model_config_list: {
+        Row: {
+          created_at: string | null
+          feature: string
+          id: string
+          is_default: boolean
+          label: string
+          model: string
+          provider: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string | null
+          feature: string
+          id?: string
+          is_default?: boolean
+          label: string
+          model: string
+          provider?: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string | null
+          feature?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          model?: string
+          provider?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      ai_provider_keys: {
+        Row: {
+          api_key: string
+          provider: string
+          updated_at: string | null
+        }
+        Insert: {
+          api_key: string
+          provider: string
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: string
+          provider?: string
           updated_at?: string | null
         }
         Relationships: []

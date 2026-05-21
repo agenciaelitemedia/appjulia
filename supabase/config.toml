@@ -89,3 +89,5 @@ verify_jwt = false
 
 [functions.queue-provision]
 verify_jwt = false
+[functions.ai-provider-key-set]
+verify_jwt = false

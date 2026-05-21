@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,9 +22,9 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("[transcribe] LOVABLE_API_KEY not set");
+    const supportAI = await resolveAI(supabase, "support_transcription");
+    if (!supportAI.apiKey) {
+      console.error("[transcribe] AI key not configured");
       return new Response(JSON.stringify({ error: "API key not configured" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -154,19 +155,20 @@ Deno.serve(async (req) => {
         const roleLabel = msg.sender_role === "suporte" ? `suporte ${msg.sender_name || ""}`.trim() : "cliente";
 
         if (msg.message_type === "audio") {
-          // Transcribe audio via Lovable AI
-          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          // Transcribe audio via configured provider (Lovable default / OpenRouter)
+          const aiResp = await fetch(supportAI.endpoint, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              Authorization: `Bearer ${supportAI.apiKey}`,
               "Content-Type": "application/json",
+              ...providerHeaders(supportAI.provider),
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: supportAI.model,
               messages: [
                 {
                   role: "system",
-                  content: "Você é um transcritor de áudio. Transcreva o áudio fornecido fielmente em português brasileiro. Retorne APENAS a transcrição, sem comentários adicionais. Se não conseguir entender o áudio, retorne '[Áudio inaudível]'."
+                  content: supportAI.prompt ?? "Você é um transcritor de áudio. Transcreva o áudio fornecido fielmente em português brasileiro. Retorne APENAS a transcrição, sem comentários adicionais. Se não conseguir entender o áudio, retorne '[Áudio inaudível]'."
                 },
                 {
                   role: "user",
@@ -208,15 +210,16 @@ Deno.serve(async (req) => {
           console.log(`[transcribe] Transcribed audio ${msg.id}`);
 
         } else if (msg.message_type === "image") {
-          // Describe image via Lovable AI
-          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          // Describe image via configured provider (Lovable default / OpenRouter)
+          const aiResp = await fetch(supportAI.endpoint, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              Authorization: `Bearer ${supportAI.apiKey}`,
               "Content-Type": "application/json",
+              ...providerHeaders(supportAI.provider),
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: supportAI.model,
               messages: [
                 {
                   role: "system",

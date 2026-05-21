@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,19 +46,20 @@ serve(async (req) => {
       userMessage += `\n\nPerguntas personalizadas:\n${custom_questions}`;
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY não configurada");
+    const ai = await resolveAI(supabase, "script_generation");
+    if (!ai.apiKey) {
+      throw new Error("IA não configurada (sem chave)");
     }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch(ai.endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${ai.apiKey}`,
         "Content-Type": "application/json",
+        ...providerHeaders(ai.provider),
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: ai.model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
@@ -125,7 +127,8 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("prompt-generator error:", error);
-    return new Response(JSON.stringify({ error: error.message || "Erro interno" }), {
+    const message = error instanceof Error ? error.message : "Erro interno";
+    return new Response(JSON.stringify({ error: message || "Erro interno" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { resolveAI, providerHeaders } from '../_shared/aiGateway.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,6 +30,9 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+    // Resolve global config for the autoreply agent (Lovable default / OpenRouter).
+    const autoreplyAI = await resolveAI(supabase, 'chat_autoreply');
+
     // 1. Carregar conversa + contexto
     const { data: conversation } = await supabase
       .from('chat_conversations')
@@ -53,11 +57,11 @@ Deno.serve(async (req) => {
 
 Mensagem: "${body.messageText}"`;
 
-    const classifyRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const classifyRes = await fetch(autoreplyAI.endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${LOVABLE_API_KEY}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${autoreplyAI.apiKey}`, ...providerHeaders(autoreplyAI.provider) },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: autoreplyAI.model,
         messages: [
           { role: 'system', content: 'Você é um classificador. Responda APENAS com JSON, sem markdown ou comentários.' },
           { role: 'user', content: classifyPrompt },
@@ -110,7 +114,7 @@ Mensagem: "${body.messageText}"`;
       .eq('is_active', true)
       .order('position', { ascending: true });
 
-    const matchedRule = rules.find((r: any) => {
+    const matchedRule = (rules ?? []).find((r: any) => {
       const intentMatch = !r.match_intents?.length || r.match_intents.includes(classification.intent);
       const kwMatch = !r.match_keywords?.length || r.match_keywords.some((kw: string) =>
         body.messageText.toLowerCase().includes(kw.toLowerCase())
@@ -148,7 +152,7 @@ Mensagem: "${body.messageText}"`;
 
           // Filtro simples por relevância (palavras em comum)
           const lowerMsg = body.messageText.toLowerCase();
-          const scored = articles.map((a: any) => {
+          const scored = (articles ?? []).map((a: any) => {
             const text = `${a.title} ${a.summary || ''} ${(a.keywords || []).join(' ')}`.toLowerCase();
             const score = text.split(/\s+/).filter((w: string) => w.length > 3 && lowerMsg.includes(w)).length;
             return { ...a, score };
@@ -162,11 +166,16 @@ Mensagem: "${body.messageText}"`;
           }
         }
 
-        const replyRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        // Rule-level model override keeps precedence (historically a Lovable model);
+        // otherwise use the global autoreply config (Lovable default / OpenRouter).
+        const replyEndpoint = matchedRule.model ? 'https://ai.gateway.lovable.dev/v1/chat/completions' : autoreplyAI.endpoint;
+        const replyKey = matchedRule.model ? LOVABLE_API_KEY : autoreplyAI.apiKey;
+        const replyProvider = matchedRule.model ? 'lovable' : autoreplyAI.provider;
+        const replyRes = await fetch(replyEndpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${LOVABLE_API_KEY}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${replyKey}`, ...providerHeaders(replyProvider) },
           body: JSON.stringify({
-            model: matchedRule.model || 'google/gemini-2.5-flash',
+            model: matchedRule.model || autoreplyAI.model,
             messages: [
               { role: 'system', content: (matchedRule.system_prompt || 'Você é um atendente cordial.') + kbContext + '\n\nResponda de forma concisa, em português.' },
               { role: 'user', content: body.messageText },

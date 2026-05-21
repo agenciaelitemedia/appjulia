@@ -9,6 +9,7 @@
 // ============================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,26 +18,6 @@ const corsHeaders = {
 
 const DEFAULT_PROMPT =
   "Você é um transcritor de áudio profissional. Transcreva o áudio fornecido fielmente em português brasileiro, preservando pontuação e parágrafos. Retorne APENAS a transcrição, sem comentários. Se inaudível, retorne '[Áudio inaudível]'.";
-
-async function getTranscriptionPrompt(supabase: any, clientId: string | null): Promise<{ prompt: string; model: string }> {
-  let prompt = DEFAULT_PROMPT;
-  let model = "google/gemini-2.5-flash";
-  if (!clientId) return { prompt, model };
-  try {
-    const { data } = await supabase
-      .from("client_ai_model_config")
-      .select("provider, model, prompt")
-      .eq("client_id", clientId)
-      .eq("feature", "chat_transcription")
-      .maybeSingle();
-    if (data?.prompt) prompt = data.prompt;
-    if (data?.model) {
-      const prov = data.provider || "google";
-      model = data.model.includes("/") ? data.model : `${prov}/${data.model}`;
-    }
-  } catch (_e) { /* use defaults */ }
-  return { prompt, model };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -47,13 +28,6 @@ Deno.serve(async (req) => {
     if (!messageId) {
       return new Response(JSON.stringify({ error: "message_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not set" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -147,18 +121,27 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 4) Transcribe via Lovable AI
-    const { prompt, model } = await getTranscriptionPrompt(supabase, msg.client_id);
+    // 4) Transcribe via configured provider (Lovable default / OpenRouter)
+    const ai = await resolveAI(supabase, "chat_transcription");
+    const model = ai.model;
+    const prompt = ai.prompt ?? DEFAULT_PROMPT;
+    if (!ai.apiKey) {
+      await markFailed(supabase, msg, "no_api_key");
+      return new Response(JSON.stringify({ error: "IA não configurada (sem chave)" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const format = mimetype.includes("mp4") || mimetype.includes("m4a") ? "mp4"
       : mimetype.includes("wav") ? "wav"
       : mimetype.includes("mp3") || mimetype.includes("mpeg") ? "mp3"
       : "ogg";
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResp = await fetch(ai.endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${ai.apiKey}`,
         "Content-Type": "application/json",
+        ...providerHeaders(ai.provider),
       },
       body: JSON.stringify({
         model,

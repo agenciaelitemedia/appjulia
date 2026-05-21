@@ -1,7 +1,8 @@
 // AI assistant for chat: summarize conversation or suggest reply.
-// Uses Lovable AI Gateway (LOVABLE_API_KEY).
+// Model/provider/endpoint/key resolved per agent via _shared/aiGateway.ts.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { fetchEffectiveQueueFlags } from "../_shared/agentSettings.ts";
+import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,9 +14,6 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const DEFAULT_MODEL = "google/gemini-2.5-flash";
-
 const DEFAULT_RESUME_PROMPT = `Você é um analista de atendimento. Gere um RESUMO OBJETIVO em português da conversa abaixo, priorizando os RELATOS DO CLIENTE (situação, dores, pedidos, dados pessoais relevantes ao caso). Mencione respostas do atendente APENAS quando forem indispensáveis para entender o caso (ex.: instrução crítica, compromisso assumido, encaminhamento). Use os resumos anteriores fornecidos como CONTEXTO acumulado; não os repita, apenas incorpore o que ainda for relevante. Saída em até 6 bullets curtos. Comece com 1 frase em negrito identificando o caso. Não invente informações.`;
 
 function json(b: unknown, s = 200) {
@@ -23,57 +21,6 @@ function json(b: unknown, s = 200) {
     status: s,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-}
-
-async function getModel(clientId: string | null, feature: string): Promise<string> {
-  // 1) Try client-specific config
-  if (clientId) {
-    const { data } = await supabase
-      .from("client_ai_model_config")
-      .select("model")
-      .eq("client_id", clientId)
-      .eq("feature", feature)
-      .maybeSingle();
-    if (data?.model) return data.model;
-  }
-  // 2) Universal fallback: most recently updated config for this feature
-  const { data: any_row } = await supabase
-    .from("client_ai_model_config")
-    .select("model")
-    .eq("feature", feature)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return any_row?.model ?? DEFAULT_MODEL;
-}
-
-async function getPrompt(clientId: string | null, feature: string, fallback: string): Promise<string> {
-  // 1) Try client-specific configured prompt
-  if (clientId) {
-    const { data } = await supabase
-      .from("client_ai_model_config")
-      .select("prompt")
-      .eq("client_id", clientId)
-      .eq("feature", feature)
-      .maybeSingle();
-    const p = (data?.prompt ?? "").trim();
-    if (p.length > 0) return p;
-  }
-  // 2) Universal fallback: any client that has a non-empty prompt configured
-  //    for this feature (most recently updated wins). This makes the prompt
-  //    set in /configuracoes → IA's a global override.
-  const { data: rows } = await supabase
-    .from("client_ai_model_config")
-    .select("prompt, updated_at")
-    .eq("feature", feature)
-    .not("prompt", "is", null)
-    .order("updated_at", { ascending: false })
-    .limit(5);
-  for (const r of rows ?? []) {
-    const p = (r.prompt ?? "").trim();
-    if (p.length > 0) return p;
-  }
-  return fallback;
 }
 
 function renderMessageForTranscript(m: {
@@ -132,7 +79,6 @@ Deno.serve(async (req) => {
       conversation_id,
       mode,
       after_ts,
-      client_id,
       triggered_by,
       insert_internal_note,
     } = body;
@@ -140,14 +86,11 @@ Deno.serve(async (req) => {
     if (!conversation_id || !validModes.includes(mode)) {
       return json({ error: "conversation_id and valid mode required", received: { conversation_id, mode } }, 200);
     }
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) return json({ error: "LOVABLE_API_KEY not configured" }, 500);
-
-    const model = await getModel(client_id ?? null, "chat_assist");
-
     if (mode === "incremental_summary") {
-      const resumeModel = await getModel(client_id ?? null, "chat_resume");
-      const resumePrompt = await getPrompt(client_id ?? null, "chat_resume", DEFAULT_RESUME_PROMPT);
+      const resumeAI = await resolveAI(supabase, "chat_resume");
+      const resumeModel = resumeAI.model;
+      const resumePrompt = resumeAI.prompt ?? DEFAULT_RESUME_PROMPT;
+      if (!resumeAI.apiKey) return json({ error: "IA não configurada (sem chave)." }, 500);
 
       // Find the most recent summary for this conversation
       const { data: lastSummary } = await supabase
@@ -207,9 +150,9 @@ Deno.serve(async (req) => {
         ? `RESUMOS ANTERIORES (contexto acumulado, não repetir):\n${previousBlock}\n\nCONVERSA ATUAL (novas mensagens a resumir):\n${transcript}`
         : `CONVERSA (resuma desde o início):\n${transcript}`;
 
-      const resp = await fetch(GATEWAY, {
+      const resp = await fetch(resumeAI.endpoint, {
         method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${resumeAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(resumeAI.provider) },
         body: JSON.stringify({
           model: resumeModel,
           messages: [
@@ -322,8 +265,10 @@ Deno.serve(async (req) => {
     }
 
     if (mode === "full_summary") {
-      const resumeModel = await getModel(client_id ?? null, "chat_resume");
-      const resumePrompt = await getPrompt(client_id ?? null, "chat_resume", DEFAULT_RESUME_PROMPT);
+      const resumeAI = await resolveAI(supabase, "chat_resume");
+      const resumeModel = resumeAI.model;
+      const resumePrompt = resumeAI.prompt ?? DEFAULT_RESUME_PROMPT;
+      if (!resumeAI.apiKey) return json({ error: "IA não configurada (sem chave)." }, 500);
       const all: any[] = [];
       const PAGE = 1000;
       for (let from = 0; ; from += PAGE) {
@@ -376,9 +321,9 @@ Deno.serve(async (req) => {
 
       const userContent = `${contextPrefix}CONVERSA:\n${transcript}`;
 
-      const resp = await fetch(GATEWAY, {
+      const resp = await fetch(resumeAI.endpoint, {
         method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${resumeAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(resumeAI.provider) },
         body: JSON.stringify({
           model: resumeModel,
           messages: [
@@ -436,11 +381,13 @@ Deno.serve(async (req) => {
       sentiment: "Analise o sentimento geral do cliente na conversa. Responda em UMA linha em português: 'Sentimento: [positivo/neutro/negativo/frustrado] — [explicação curta]'.",
     };
 
-    const resp = await fetch(GATEWAY, {
+    const assistAI = await resolveAI(supabase, "chat_assist");
+    if (!assistAI.apiKey) return json({ error: "IA não configurada (sem chave)." }, 500);
+    const resp = await fetch(assistAI.endpoint, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${assistAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(assistAI.provider) },
       body: JSON.stringify({
-        model,
+        model: assistAI.model,
         messages: [
           { role: "system", content: systemByMode[mode] },
           { role: "user", content: transcript },

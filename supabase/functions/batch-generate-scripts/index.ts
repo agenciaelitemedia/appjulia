@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,8 +12,8 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const ai = await resolveAI(supabase, "script_generation");
 
   // Fetch prompt config
   let systemPrompt = "Você é um especialista em direito. Gere roteiros usando marcadores ===SECAO_1_INICIO===, ===SECAO_1_FIM===, ===SECAO_2_INICIO===, ===SECAO_2_FIM===, ===SECAO_3_INICIO===, ===SECAO_3_FIM===.";
@@ -36,11 +37,11 @@ serve(async (req) => {
 
   for (const c of allCases) {
     try {
-      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const aiResponse = await fetch(ai.endpoint, {
         method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${ai.apiKey}`, "Content-Type": "application/json", ...providerHeaders(ai.provider) },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: ai.model,
           messages: [{ role: "system", content: systemPrompt }, { role: "user", content: `Caso: ${c.case_name}` }],
         }),
       });
@@ -75,7 +76,7 @@ serve(async (req) => {
       // Rate limit delay
       await new Promise(r => setTimeout(r, 6000));
     } catch (e) {
-      results.push({ id: c.id, name: c.case_name, status: "error", message: e.message });
+      results.push({ id: c.id, name: c.case_name, status: "error", message: e instanceof Error ? e.message : String(e) });
     }
   }
 

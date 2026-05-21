@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
+import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,8 +54,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    // Global AI config for the CRM copilot (Lovable default / OpenRouter).
+    const copilotAI = await resolveAI(supabase, "copilot_crm");
+    if (!copilotAI.apiKey) throw new Error("IA não configurada (sem chave)");
 
     const rawCaCert = Deno.env.get("EXTERNAL_DB_CA_CERT") ?? "";
     const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
@@ -214,24 +216,16 @@ serve(async (req) => {
 
         console.log(`Agent ${agent.cod_agent}: calling AI with ${cardsSummary.length} cards`);
 
-        // 8. Resolve AI model for this agent's user
-        const { data: modelCfg } = await supabase
-          .from("client_ai_model_config")
-          .select("model")
-          .eq("client_id", String(agent.user_id))
-          .eq("feature", "copilot_crm")
-          .maybeSingle();
-        const agentModel = (modelCfg as any)?.model ?? "google/gemini-2.5-flash";
-
-        // 9. Call Lovable AI
-        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        // 9. Call configured AI provider
+        const aiResponse = await fetch(copilotAI.endpoint, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            Authorization: `Bearer ${copilotAI.apiKey}`,
             "Content-Type": "application/json",
+            ...providerHeaders(copilotAI.provider),
           },
           body: JSON.stringify({
-            model: agentModel,
+            model: copilotAI.model,
             messages: [
               {
                 role: "system",

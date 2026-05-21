@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
+import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -66,8 +67,6 @@ serve(async (req) => {
       ? history.slice(-20).filter((m: any) => m.role && m.content && typeof m.content === 'string')
       : [];
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const rawCaCert = Deno.env.get("EXTERNAL_DB_CA_CERT") ?? "";
     const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
@@ -135,21 +134,18 @@ Agentes do usuário: ${agentCodes.join(', ')}
 
 Responda em português brasileiro, seja conciso e objetivo.`;
 
-    // Resolve AI model for this user
-    const { data: modelCfg } = await supabase
-      .from("client_ai_model_config")
-      .select("model")
-      .eq("client_id", String(userId))
-      .eq("feature", "copilot_chat")
-      .maybeSingle();
-    const chatModel = (modelCfg as any)?.model ?? "google/gemini-2.5-flash";
+    // Resolve AI model/provider (global config: Lovable default / OpenRouter)
+    const ai = await resolveAI(supabase, "copilot_chat");
+    if (!ai.apiKey) throw new Error("IA não configurada (sem chave)");
+    const chatModel = ai.model;
 
     // Stream AI response
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch(ai.endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${ai.apiKey}`,
         "Content-Type": "application/json",
+        ...providerHeaders(ai.provider),
       },
       body: JSON.stringify({
         model: chatModel,
