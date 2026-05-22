@@ -119,14 +119,26 @@ function lowerStatusesThan(target: string): string[] {
     .map(([k]) => k);
 }
 function collectMessageIds(src: any): string[] {
-  return Array.from(new Set([
+  const candidates = [
     src?.messageid,
     src?.id,
     src?.message_id,
     src?.wa_messageid,
     src?.key?.id,
     src?.update?.key?.id,
-  ].filter((x) => typeof x === 'string' && x.length > 0))) as string[];
+    src?.MessageIDs,
+    src?.messageIds,
+    src?.message_ids,
+    src?.event?.MessageIDs,
+    src?.event?.messageIds,
+    src?.event?.message_ids,
+  ];
+
+  return Array.from(new Set(
+    candidates
+      .flatMap((value) => Array.isArray(value) ? value : [value])
+      .filter((x) => typeof x === 'string' && x.length > 0),
+  )) as string[];
 }
 function buildIdOrFilter(ids: string[]): string {
   return ids
@@ -793,8 +805,10 @@ Deno.serve(async (req) => {
     // Resolve event name resilient to UaZapi sometimes sending `event` as an
     // object instead of string (observed for messages_update payloads).
     function resolveEventName(p: any): string {
-      const raw = p?.event ?? p?.EventType ?? p?.type;
-      if (typeof raw === 'string' && raw.trim()) return raw;
+      const direct = p?.EventType ?? p?.eventType ?? p?.type;
+      if (typeof direct === 'string' && direct.trim()) return direct;
+
+      const raw = p?.event;
       if (raw && typeof raw === 'object') {
         const candidate = raw.type || raw.name || raw.event;
         if (typeof candidate === 'string' && candidate.trim()) return candidate;
@@ -842,7 +856,11 @@ Deno.serve(async (req) => {
 
     // ─── STATUS UPDATES (delivered, read, etc.) + EDITS ───
     if (event === 'messages.update') {
-      const updates = Array.isArray(payload.data) ? payload.data : [payload.data || payload];
+      const updates = Array.isArray(payload.data)
+        ? payload.data
+        : Array.isArray(payload.event)
+          ? payload.event
+          : [payload.data || payload.event || payload];
       for (const upd of updates) {
         const idCandidates = collectMessageIds(upd);
         if (idCandidates.length === 0) continue;
@@ -865,7 +883,15 @@ Deno.serve(async (req) => {
           }
         }
 
-        const mapped = mapStatus(upd.status ?? upd.update?.status);
+        const mapped = mapStatus(
+          upd.status
+          ?? upd.update?.status
+          ?? upd.ack
+          ?? upd.Type
+          ?? upd.type
+          ?? upd.event?.status
+          ?? upd.event?.update?.status,
+        );
         if (mapped) {
           const lower = lowerStatusesThan(mapped);
           let q = supabase
