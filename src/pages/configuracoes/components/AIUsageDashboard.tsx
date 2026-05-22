@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, Activity, Coins, Clock, CheckCircle2, AlertTriangle, DollarSign, Timer, Check, ChevronsUpDown } from 'lucide-react';
+import { RefreshCcw, Activity, Coins, Clock, CheckCircle2, AlertTriangle, DollarSign, Timer, Check, ChevronsUpDown, TrendingUp } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
@@ -155,6 +155,26 @@ export function AIUsageDashboard() {
   const clientOptions = clientsInfo ?? (distinctClients ?? []).map((id) => ({ id, name: id, business_name: null as string | null }));
   const selectedClient = clientFilter === 'all' ? null : clientOptions.find((c) => c.id === clientFilter);
   const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
+
+  // Cotação USD -> BRL (AwesomeAPI, sem chave, com CORS)
+  const { data: usdBrl } = useQuery({
+    queryKey: ['usd_brl_rate'],
+    queryFn: async () => {
+      const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+      if (!res.ok) throw new Error('Falha ao consultar cotação USD/BRL');
+      const json = await res.json();
+      const node = json?.USDBRL ?? json?.['USDBRL'];
+      const bid = Number(node?.bid);
+      const timestamp = Number(node?.timestamp);
+      return {
+        rate: Number.isFinite(bid) && bid > 0 ? bid : null,
+        updatedAt: Number.isFinite(timestamp) ? new Date(timestamp * 1000) : null,
+      };
+    },
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+  const usdRate = usdBrl?.rate ?? null;
 
   const rows = data ?? [];
 
