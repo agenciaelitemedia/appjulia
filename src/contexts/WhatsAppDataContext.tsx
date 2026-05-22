@@ -218,6 +218,7 @@ interface ExtendedContextValue extends ChatContextValue {
       team?: Array<{ id: number | string; name: string }>;
       byId?: string;
       noteType?: 'info' | 'question' | 'urgent';
+      extraMetadata?: Record<string, any>;
     }
   ) => Promise<void>;
 
