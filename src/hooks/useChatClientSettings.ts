@@ -10,6 +10,8 @@ export interface ChatClientSettings {
   auto_summary_on_resolve: boolean;
   auto_summary_on_close: boolean;
   allow_anyone_create_tags: boolean;
+  events_enabled: boolean;
+  event_visibility: Record<string, boolean>;
 }
 
 const DEFAULTS: ChatClientSettings = {
@@ -19,6 +21,8 @@ const DEFAULTS: ChatClientSettings = {
   auto_summary_on_resolve: false,
   auto_summary_on_close: false,
   allow_anyone_create_tags: true,
+  events_enabled: true,
+  event_visibility: {},
 };
 
 export function useChatClientSettings() {
@@ -45,6 +49,10 @@ export function useChatClientSettings() {
         auto_summary_on_resolve: Boolean(s.auto_summary_on_resolve ?? false),
         auto_summary_on_close: Boolean(s.auto_summary_on_close ?? false),
         allow_anyone_create_tags: Boolean(s.allow_anyone_create_tags ?? true),
+        events_enabled: Boolean(s.events_enabled ?? true),
+        event_visibility: (s.event_visibility && typeof s.event_visibility === 'object'
+          ? s.event_visibility as Record<string, boolean>
+          : {}),
       };
     },
   });
