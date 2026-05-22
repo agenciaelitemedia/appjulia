@@ -148,6 +148,37 @@ Deno.serve(async (req) => {
       }
 
       // ==========================================
+      // RECONFIGURE WEBHOOK on ALL active UaZapi queues
+      // (maintenance: re-subscribes messages.update etc.)
+      // ==========================================
+      case 'reconfigure_webhook_all': {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        if (!supabaseUrl) return respond({ error: 'SUPABASE_URL missing' }, 500);
+        const supabase = getSupabase();
+        const { data: queues, error } = await supabase
+          .from('queues')
+          .select('id, name, evo_url, evo_apikey')
+          .eq('channel_type', 'uazapi')
+          .eq('is_active', true);
+        if (error) return respond({ error: error.message }, 500);
+        const results: Array<Record<string, unknown>> = [];
+        for (const q of (queues ?? [])) {
+          if (!q.evo_apikey) {
+            results.push({ queue_id: q.id, name: q.name, ok: false, reason: 'no_token' });
+            continue;
+          }
+          try {
+            const r = await configureWebhook(q.evo_url || baseUrl, q.evo_apikey, supabaseUrl, q.id);
+            results.push({ queue_id: q.id, name: q.name, ok: r.ok, status: r.status });
+          } catch (e) {
+            results.push({ queue_id: q.id, name: q.name, ok: false, error: (e as Error).message });
+          }
+        }
+        const okCount = results.filter((r) => r.ok).length;
+        return respond({ success: true, total: results.length, ok: okCount, results });
+      }
+
+      // ==========================================
       // CONNECT - trigger QR Code generation
       // ==========================================
       case 'connect': {
