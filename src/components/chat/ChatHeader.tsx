@@ -228,7 +228,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
 }
 
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
-  const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter } = useWhatsAppData();
+  const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter, sendInternalNote } = useWhatsAppData();
   const { triggerAutoSummary } = useAutoSummaryOnStatusChange();
   const { user } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
@@ -364,6 +364,19 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
 
   const handleConfirmClose = async (closeNote: string, _sendSurvey: boolean) => {
     if (!selectedConversation) return;
+    const trimmedNote = (closeNote || '').trim();
+    if (trimmedNote) {
+      try {
+        await sendInternalNote(
+          selectedConversation.contact_id,
+          `🔒 Encerramento: ${trimmedNote}`,
+          currentUserName || 'Sistema',
+          { noteType: 'info' }
+        );
+      } catch (e) {
+        console.warn('[close] failed to post closure internal note', e);
+      }
+    }
     await updateConversationStatus(selectedConversation.id, 'closed', closeNote || undefined);
     triggerAutoSummary(selectedConversation.id, 'auto_close');
   };
