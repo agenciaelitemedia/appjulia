@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
 import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -217,6 +218,7 @@ serve(async (req) => {
         console.log(`Agent ${agent.cod_agent}: calling AI with ${cardsSummary.length} cards`);
 
         // 9. Call configured AI provider
+        const aiStarted = Date.now();
         const aiResponse = await fetch(copilotAI.endpoint, {
           method: "POST",
           headers: {
@@ -281,15 +283,38 @@ Regras:
             tool_choice: { type: "function", function: { name: "report_insights" } },
           }),
         });
+        const aiDurationMs = Date.now() - aiStarted;
 
         if (!aiResponse.ok) {
           const errText = await aiResponse.text();
           console.error(`AI error ${agent.cod_agent}:`, aiResponse.status, errText);
+          await logAIUsage(supabase, {
+            user_id: String(agent.user_id),
+            feature: "copilot_crm",
+            provider: copilotAI.provider,
+            endpoint: copilotAI.endpoint,
+            model: copilotAI.model,
+            status: "failed",
+            duration_ms: aiDurationMs,
+            error_reason: `ai_${aiResponse.status}`,
+            context: { cod_agent: agent.cod_agent, cards_count: cards.length },
+          });
           results.push({ cod_agent: agent.cod_agent, status: "ai_error", error: aiResponse.status });
           continue;
         }
 
         const aiData = await aiResponse.json();
+        await logAIUsage(supabase, {
+          user_id: String(agent.user_id),
+          feature: "copilot_crm",
+          provider: copilotAI.provider,
+          endpoint: copilotAI.endpoint,
+          model: copilotAI.model,
+          status: "ok",
+          duration_ms: aiDurationMs,
+          usage: aiData?.usage,
+          context: { cod_agent: agent.cod_agent, cards_count: cards.length },
+        });
         const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
         if (!toolCall) {
           results.push({ cod_agent: agent.cod_agent, status: "no_tool_call" });

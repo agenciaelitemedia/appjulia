@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -156,6 +157,7 @@ Deno.serve(async (req) => {
 
         if (msg.message_type === "audio") {
           // Transcribe audio via configured provider (Lovable default / OpenRouter)
+          const startedAt = Date.now();
           const aiResp = await fetch(supportAI.endpoint, {
             method: "POST",
             headers: {
@@ -186,10 +188,21 @@ Deno.serve(async (req) => {
               ],
             }),
           });
+          const durationMs = Date.now() - startedAt;
 
           if (!aiResp.ok) {
             const errText = await aiResp.text();
             console.warn(`[transcribe] AI error for ${msg.id}:`, aiResp.status, errText);
+            await logAIUsage(supabase, {
+              feature: "support_transcription",
+              provider: supportAI.provider,
+              endpoint: supportAI.endpoint,
+              model: supportAI.model,
+              status: "failed",
+              duration_ms: durationMs,
+              error_reason: `ai_${aiResp.status}`,
+              context: { message_id: msg.id, mimetype },
+            });
             errors++;
             continue;
           }
@@ -206,11 +219,24 @@ Deno.serve(async (req) => {
             })
             .eq("id", msg.id);
 
+          await logAIUsage(supabase, {
+            feature: "support_transcription",
+            provider: supportAI.provider,
+            endpoint: supportAI.endpoint,
+            model: supportAI.model,
+            status: "ok",
+            duration_ms: durationMs,
+            usage: aiData?.usage,
+            audio_seconds: (downloadData as any)?.seconds ?? (downloadData as any)?.duration ?? null,
+            context: { message_id: msg.id, mimetype, text_length: transcription.length },
+          });
+
           processed++;
           console.log(`[transcribe] Transcribed audio ${msg.id}`);
 
         } else if (msg.message_type === "image") {
           // Describe image via configured provider (Lovable default / OpenRouter)
+          const startedAt = Date.now();
           const aiResp = await fetch(supportAI.endpoint, {
             method: "POST",
             headers: {
@@ -240,10 +266,21 @@ Deno.serve(async (req) => {
               ],
             }),
           });
+          const durationMs = Date.now() - startedAt;
 
           if (!aiResp.ok) {
             const errText = await aiResp.text();
             console.warn(`[transcribe] AI image error for ${msg.id}:`, aiResp.status, errText);
+            await logAIUsage(supabase, {
+              feature: "support_image_describe",
+              provider: supportAI.provider,
+              endpoint: supportAI.endpoint,
+              model: supportAI.model,
+              status: "failed",
+              duration_ms: durationMs,
+              error_reason: `ai_${aiResp.status}`,
+              context: { message_id: msg.id, mimetype },
+            });
             errors++;
             continue;
           }
@@ -259,6 +296,17 @@ Deno.serve(async (req) => {
               message_text: `📷 Imagem do ${roleLabel}: ${description}`,
             })
             .eq("id", msg.id);
+
+          await logAIUsage(supabase, {
+            feature: "support_image_describe",
+            provider: supportAI.provider,
+            endpoint: supportAI.endpoint,
+            model: supportAI.model,
+            status: "ok",
+            duration_ms: durationMs,
+            usage: aiData?.usage,
+            context: { message_id: msg.id, mimetype, text_length: description.length },
+          });
 
           processed++;
           console.log(`[transcribe] Described image ${msg.id}`);

@@ -1,62 +1,69 @@
-# Plano de mudanças no Chat
+# Contabilizar uso e custo da IA em todos os agentes
 
-## 1. Marcar mensagens recebidas como lidas (apenas visual, 2 checks azuis)
+## Contexto
 
-**Sem chamada externa** — não dispara markRead na UaZapi/WABA. Apenas efeito visual no nosso chat.
+Hoje só `chat-transcribe-audio` registra em `ai_usage_logs`. Demais agentes que chamam IA (assist, autoreply, copiloto, geração de prompt, transcrição do suporte) não persistem nada. Além disso, os retornos OpenRouter/OpenAI já trazem `usage.cost` (USD) e, para transcrição, `usage.seconds` (duração do áudio) — que não estamos capturando.
 
-**Onde:** `src/components/chat/MessageBubble.tsx`
+```json
+"usage": { "cost": 0.000508, "input_tokens": 83, "output_tokens": 30, "seconds": 9.2, "total_tokens": 113 }
+```
 
-- No `StatusIcon`, hoje só renderiza ícone quando `from_me=true`. Vamos manter o comportamento atual para enviadas e adicionar render de `CheckCheck` azul (`text-sky-500`) também para mensagens recebidas (`from_me=false`), independente de `status`.
-- Alternativa mais limpa: no `MessageBubble`, na linha de meta (timestamp), exibir o duplo check azul como elemento decorativo quando `!from_me`.
-- Nenhuma alteração no banco, no webhook ou no `markAsRead` do contexto.
+Objetivo: padronizar o log de uso em **todas** as edge functions de IA e expor custo total, minutos transcritos e custo/minuto no Dashboard.
 
-## 2. Parâmetros corretos de `replyid` e `forward`
+## Mudanças
 
-**Arquivo:** `src/contexts/WhatsAppDataContext.tsx` + `src/lib/uazapi/types.ts`
+### 1. Banco — `ai_usage_logs`
+Migration adicionando colunas:
+- `cost_usd numeric(12,6)` — custo informado pelo provider
+- `audio_seconds numeric(10,2)` — duração do áudio (apenas transcrição)
 
-a) `sendMessage(contactId, text, replyToMessage?, options?)`
-- Renomear payload UaZapi de `quotedMessageId` → **`replyid`** (linha ~1426).
-- Adicionar parâmetro opcional `options?: { forward?: boolean }`. Quando `forward=true`, incluir `forward: true` no body do `/send/text`.
-- Atualizar tipos em `ChatContextValue` e `SendTextRequest`.
+### 2. Helper compartilhado `_shared/aiUsageLogger.ts` (novo)
+Centraliza o insert em `ai_usage_logs` para evitar duplicação. Função `logAIUsage(supabase, { client_id, user_id, feature, provider, endpoint, model, status, duration_ms, usage, error_reason, context, audio_seconds })` que:
+- Extrai `prompt_tokens` (com fallback para `input_tokens`), `completion_tokens` (fallback `output_tokens`), `total_tokens`.
+- Extrai `cost_usd = usage?.cost ?? null`.
+- Extrai `audio_seconds = audio_seconds ?? usage?.seconds ?? null`.
+- Faz o insert em background com try/catch silencioso.
 
-b) `sendMedia(contactId, file, type, caption?, options?)`
-- Aceitar `replyid` e `forward` no payload do `/send/media` (para encaminhar mídia).
+### 3. Edge functions — instrumentação
+Para cada uma, medir `Date.now()` antes/depois da chamada e chamar `logAIUsage` no sucesso e na falha:
 
-c) `src/components/chat/ForwardDialog.tsx`
-- Quando origem for mídia com `media_url`, chamar `sendMedia` com `forward: true`.
-- Quando origem for texto, chamar `sendMessage(id, message.text ?? caption ?? '', undefined, { forward: true })`.
+- `chat-transcribe-audio` → migrar `logUsage` local para o helper, passar `audio_seconds` do `/message/download` + fallback `usage.seconds`. Feature: `chat_transcription`.
+- `support-transcribe-audio` → adicionar log (hoje não tem). Features: `support_transcription` (áudio) e `support_image_describe` (imagem, sem `audio_seconds`).
+- `chat-ai-assist` → feature `chat_assist`.
+- `chat-ai-process` → identificar a feature do payload (`chat_autoreply`, `chat_resume`, etc.) e logar com o nome correto; se não houver, usar `chat_process`.
+- `copilot-chat` → feature `copilot_chat`.
+- `crm-copilot-monitor` → feature `copilot_crm`.
+- `prompt-generator` → feature `script_generation` (ou `prompt_generator`).
+- `batch-generate-scripts` → feature `script_generation_batch`, um log por item gerado.
 
-## 3. Vídeo abre em popup (lightbox) com download
+Em todos: capturar `client_id` quando disponível no body/JWT; em falha (status != 200) registrar `status='failed'`, `error_reason='ai_<status>'` e o tempo decorrido.
 
-**Arquivos:** `src/components/chat/MediaLightbox.tsx` (estender) + `MessageBubble.tsx`
+### 4. Dashboard `AIUsageDashboard.tsx`
+- Acrescentar `cost_usd` e `audio_seconds` ao tipo `Row` e ao `select`.
+- Novos KPIs (linha extra de cards):
+  - **Custo total (USD)** — soma de `cost_usd`
+  - **Minutos de áudio** — soma de `audio_seconds`/60
+  - **USD / minuto** — custo transcrição ÷ minutos
+- Tabela "Uso por agente": colunas **Custo (USD)**, **Minutos** (vazio quando não aplicável), **USD/min** (somente para features de transcrição).
+- Tabela "Logs recentes": coluna **Custo** (`$0.000508`) e **Duração** (s) quando houver.
+- Adicionar entradas faltantes em `FEATURE_LABELS` para os novos identificadores (`support_image_describe`, `chat_process`, `script_generation_batch`, etc.).
 
-- Adicionar prop `kind: 'image' | 'video'` (default `image`) ao `MediaLightbox`. Quando `video`, renderizar `<video controls autoPlay>` no lugar de `<img>` (mantendo toolbar de download/fechar; remover botões de zoom).
-- Em `MessageBubble.tsx` (case `'video'`): substituir o `<video controls>` inline por um thumbnail clicável (`<video preload="metadata">` sem controls + overlay com ícone `Play`). Ao clicar, abrir `MediaLightbox` com `kind="video"`, `url=mediaUrl`, `fileName`. O botão de download flutuante atual é mantido.
+## Detalhes técnicos
 
-## 4. Modal de envio de mídia só fecha pelo botão Cancelar / após sucesso
+- Lovable Gateway pode não retornar `cost`; nesses casos `cost_usd` fica `null` e o dashboard ignora na soma (não conta como zero distorcido).
+- Cálculo USD/min defendido contra divisão por zero.
+- Nenhuma mudança em RLS — políticas `ai_usage_logs_*` já permitem insert/select.
+- Log é fire-and-forget (não bloqueia resposta ao usuário); erros do logger são apenas `console.warn`.
 
-**Arquivo:** `src/components/chat/MediaPreviewDialog.tsx`
-
-- Remover auto-close via `onOpenChange` (passar `onOpenChange={() => {}}`).
-- No `<DialogContent>`:
-  - `onPointerDownOutside={(e) => e.preventDefault()}`
-  - `onEscapeKeyDown={(e) => e.preventDefault()}`
-  - `onInteractOutside={(e) => e.preventDefault()}`
-- Ocultar o "X" padrão do `DialogContent` (classe utilitária `[&>button.absolute]:hidden`).
-- Botão **Cancelar** sempre habilitado: aborta envio em andamento (limpa `pendingMedia` via `onCancel` em `ChatInput`).
-- Auto-close ao sucesso já ocorre via `setPendingMedia(null)` em `ChatInput.confirmSendMedia` — mantido.
-
-## Riscos & validação
-
-- `replyid`: precisa ser o stanza id real (`message_id` ou `external_id`) — código já tenta ambos, só renomear a chave.
-- Lightbox de vídeo: testar autoplay (browsers podem exigir `muted`); manter `controls` para destravar áudio.
-- Modal travado: em caso de erro de envio (`status=failed`), `sending` volta a `false` no `finally`, então Cancelar continua funcional.
-
-## Arquivos afetados
-
-- `src/components/chat/MessageBubble.tsx`
-- `src/contexts/WhatsAppDataContext.tsx`
-- `src/lib/uazapi/types.ts`
-- `src/components/chat/ForwardDialog.tsx`
-- `src/components/chat/MediaLightbox.tsx`
-- `src/components/chat/MediaPreviewDialog.tsx`
+## Arquivos
+- `supabase/migrations/<timestamp>_ai_usage_logs_cost.sql` (novo)
+- `supabase/functions/_shared/aiUsageLogger.ts` (novo)
+- `supabase/functions/chat-transcribe-audio/index.ts`
+- `supabase/functions/support-transcribe-audio/index.ts`
+- `supabase/functions/chat-ai-assist/index.ts`
+- `supabase/functions/chat-ai-process/index.ts`
+- `supabase/functions/copilot-chat/index.ts`
+- `supabase/functions/crm-copilot-monitor/index.ts`
+- `supabase/functions/prompt-generator/index.ts`
+- `supabase/functions/batch-generate-scripts/index.ts`
+- `src/pages/configuracoes/components/AIUsageDashboard.tsx`

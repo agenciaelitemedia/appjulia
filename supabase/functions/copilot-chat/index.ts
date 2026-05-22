@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
 import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -140,6 +141,7 @@ Responda em português brasileiro, seja conciso e objetivo.`;
     const chatModel = ai.model;
 
     // Stream AI response
+    const aiStarted = Date.now();
     const aiResponse = await fetch(ai.endpoint, {
       method: "POST",
       headers: {
@@ -155,10 +157,23 @@ Responda em português brasileiro, seja conciso e objetivo.`;
           { role: "user", content: message },
         ],
         stream: true,
+        stream_options: { include_usage: true },
       }),
     });
+    const aiDurationMs = Date.now() - aiStarted;
 
     if (!aiResponse.ok) {
+      await logAIUsage(supabase, {
+        user_id: String(userId),
+        feature: "copilot_chat",
+        provider: ai.provider,
+        endpoint: ai.endpoint,
+        model: chatModel,
+        status: "failed",
+        duration_ms: aiDurationMs,
+        error_reason: `ai_${aiResponse.status}`,
+        context: { cards_count: cards.length, agent_count: agentCodes.length },
+      });
       if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit excedido, tente novamente em breve." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -176,7 +191,47 @@ Responda em português brasileiro, seja conciso e objetivo.`;
       });
     }
 
-    return new Response(aiResponse.body, {
+    // Tap the stream to capture usage (last chunk when include_usage=true)
+    // while passing the original bytes through to the client unchanged.
+    const [clientStream, sniffStream] = aiResponse.body!.tee();
+    (async () => {
+      let usage: any = null;
+      let buf = "";
+      const reader = sniffStream.getReader();
+      const decoder = new TextDecoder();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf("\n")) !== -1) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (!payload || payload === "[DONE]") continue;
+            try {
+              const obj = JSON.parse(payload);
+              if (obj?.usage) usage = obj.usage;
+            } catch { /* partial */ }
+          }
+        }
+      } catch (_e) { /* ignore */ }
+      await logAIUsage(supabase, {
+        user_id: String(userId),
+        feature: "copilot_chat",
+        provider: ai.provider,
+        endpoint: ai.endpoint,
+        model: chatModel,
+        status: "ok",
+        duration_ms: aiDurationMs,
+        usage,
+        context: { cards_count: cards.length, agent_count: agentCodes.length, streamed: true },
+      });
+    })();
+
+    return new Response(clientStream, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (err) {
