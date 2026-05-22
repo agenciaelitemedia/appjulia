@@ -10,6 +10,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveAI, providerHeaders, OPENROUTER_TRANSCRIBE_ENDPOINT } from "../_shared/aiGateway.ts";
+import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -192,7 +193,7 @@ Deno.serve(async (req) => {
       const errTxt = await aiResp.text();
       console.warn(`[chat-transcribe-audio] AI error ${aiResp.status} (provider=${ai.provider} model=${ai.model}): ${errTxt}`);
       await markFailed(supabase, msg, `ai_${aiResp.status}`);
-      await logUsage(supabase, {
+      await logAIUsage(supabase, {
         client_id: msg.client_id,
         feature: "chat_transcription",
         provider: ai.provider,
@@ -201,6 +202,7 @@ Deno.serve(async (req) => {
         status: "failed",
         duration_ms: durationMs,
         error_reason: `ai_${aiResp.status}`,
+        audio_seconds: audioDurationS,
         context: contextBase,
       });
       return ok({ ok: false, error: "ai error", reason: `ai_${aiResp.status}` });
@@ -226,7 +228,7 @@ Deno.serve(async (req) => {
 
     await supabase.from("chat_messages").update({ metadata: newMeta }).eq("id", msg.id);
 
-    await logUsage(supabase, {
+    await logAIUsage(supabase, {
       client_id: msg.client_id,
       feature: "chat_transcription",
       provider: ai.provider,
@@ -234,9 +236,8 @@ Deno.serve(async (req) => {
       model: usedModel,
       status: "ok",
       duration_ms: durationMs,
-      prompt_tokens: usage?.prompt_tokens ?? null,
-      completion_tokens: usage?.completion_tokens ?? null,
-      total_tokens: usage?.total_tokens ?? null,
+      usage,
+      audio_seconds: audioDurationS,
       context: { ...contextBase, text_length: text.length },
     });
 
@@ -260,42 +261,4 @@ async function markFailed(supabase: any, msg: any, reason: string) {
     };
     await supabase.from("chat_messages").update({ metadata: newMeta }).eq("id", msg.id);
   } catch (_e) { /* ignore */ }
-}
-
-interface UsageRow {
-  client_id?: string | null;
-  user_id?: string | null;
-  feature: string;
-  provider: string;
-  endpoint: string;
-  model: string;
-  status: string;
-  duration_ms?: number | null;
-  prompt_tokens?: number | null;
-  completion_tokens?: number | null;
-  total_tokens?: number | null;
-  error_reason?: string | null;
-  context?: Record<string, unknown>;
-}
-
-async function logUsage(supabase: any, row: UsageRow) {
-  try {
-    await supabase.from("ai_usage_logs").insert({
-      client_id: row.client_id ?? null,
-      user_id: row.user_id ?? null,
-      feature: row.feature,
-      provider: row.provider,
-      endpoint: row.endpoint,
-      model: row.model,
-      status: row.status,
-      duration_ms: row.duration_ms ?? null,
-      prompt_tokens: row.prompt_tokens ?? null,
-      completion_tokens: row.completion_tokens ?? null,
-      total_tokens: row.total_tokens ?? null,
-      error_reason: row.error_reason ?? null,
-      context: row.context ?? {},
-    });
-  } catch (e) {
-    console.warn("[chat-transcribe-audio] logUsage failed", e);
-  }
 }
