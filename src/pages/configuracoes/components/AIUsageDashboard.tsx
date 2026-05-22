@@ -258,15 +258,65 @@ export function AIUsageDashboard() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Cliente</Label>
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="w-56"><SelectValue placeholder="Todos os clientes" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os clientes</SelectItem>
-                {(distinctClients ?? []).map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={clientPopoverOpen}
+                  className={cn(
+                    'w-72 justify-between font-normal h-10',
+                    !selectedClient && 'text-muted-foreground',
+                  )}
+                >
+                  <span className="truncate text-left">
+                    {selectedClient ? (
+                      <span className="flex flex-col leading-tight">
+                        <span className="text-sm truncate">{selectedClient.name}</span>
+                        {selectedClient.business_name && (
+                          <span className="text-xs text-muted-foreground truncate">{selectedClient.business_name}</span>
+                        )}
+                      </span>
+                    ) : (
+                      'Todos os clientes'
+                    )}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[320px] p-0 bg-popover border border-border shadow-lg z-50" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar por nome ou escritório..." className="h-10" />
+                  <CommandList className="max-h-[320px]">
+                    <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="todos os clientes"
+                        onSelect={() => { setClientFilter('all'); setClientPopoverOpen(false); }}
+                      >
+                        <Check className={cn('mr-2 h-4 w-4', clientFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        <span className="font-medium">Todos os clientes</span>
+                      </CommandItem>
+                      {clientOptions.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={`${c.name} ${c.business_name ?? ''} ${c.id}`}
+                          onSelect={() => { setClientFilter(c.id); setClientPopoverOpen(false); }}
+                        >
+                          <Check className={cn('mr-2 h-4 w-4', clientFilter === c.id ? 'opacity-100' : 'opacity-0')} />
+                          <div className="flex flex-col gap-0.5 overflow-hidden">
+                            <span className="font-medium truncate">{c.name}</span>
+                            {c.business_name && (
+                              <span className="text-xs text-muted-foreground truncate">{c.business_name}</span>
+                            )}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Agente</Label>
