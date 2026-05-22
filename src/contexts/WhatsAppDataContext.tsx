@@ -836,7 +836,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     for (const leader of leaderByContact.values()) {
       if (leaderGroup(leader) !== 'active') continue;
       const hasAssignee = !!(leader.assigned_to && String(leader.assigned_to).trim() !== '');
-      const effective = leader.status === 'pending' && hasAssignee ? 'open' : leader.status;
+      const effective =
+        leader.status === 'pending' && hasAssignee ? 'open' :
+        leader.status === 'open' && !hasAssignee ? 'pending' :
+        leader.status;
       if (effective === 'pending') pending++;
       else if (effective === 'open') open++;
     }
@@ -2300,7 +2303,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         if (conversationStatusFilter === 'pending' || conversationStatusFilter === 'open') {
           if (group !== 'active') return false;
           const hasAssignee = !!(leader.assigned_to && String(leader.assigned_to).trim() !== '');
-          const effective = leader.status === 'pending' && hasAssignee ? 'open' : leader.status;
+          const effective =
+            leader.status === 'pending' && hasAssignee ? 'open' :
+            leader.status === 'open' && !hasAssignee ? 'pending' :
+            leader.status;
           return effective === conversationStatusFilter;
         }
         return group === conversationStatusFilter;
