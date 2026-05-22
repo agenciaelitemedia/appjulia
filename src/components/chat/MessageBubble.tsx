@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward, Reply, WifiOff, ImageOff, RotateCw, Pencil } from 'lucide-react';
+import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward, Reply, WifiOff, ImageOff, RotateCw, Pencil, Lock } from 'lucide-react';
 import { MediaLightbox } from './MediaLightbox';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
