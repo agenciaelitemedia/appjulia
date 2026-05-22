@@ -528,6 +528,7 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
     // Internal note styling
     if (isInternalNote) {
       const senderName = message.metadata?.sender_name;
+      const isClosureNote = !!message.metadata?.closure_note;
       const noteType = (message.metadata?.note_type || 'info') as 'info' | 'question' | 'urgent';
       const noteStyles = {
         info: {
@@ -552,14 +553,15 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
           label: 'text-red-700 dark:text-red-300',
           body: 'text-red-900 dark:text-red-100',
           time: 'text-red-500/70',
-          title: 'Nota de Urgência',
+          title: isClosureNote ? 'Nota de Encerramento' : 'Nota de Urgência',
         },
       }[noteType];
+      const NoteIcon = isClosureNote ? Lock : StickyNoteIcon;
       return (
         <div ref={ref} className="flex justify-center px-4">
           <div className={cn('max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm border', noteStyles.container)}>
             <div className="flex items-center gap-1.5 mb-1">
-              <StickyNoteIcon className={cn('h-3 w-3', noteStyles.icon)} />
+              <NoteIcon className={cn('h-3 w-3', noteStyles.icon)} />
               <span className={cn('text-[10px] font-semibold', noteStyles.label)}>
                 {noteStyles.title} {senderName ? `— ${senderName}` : ''}
               </span>
