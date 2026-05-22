@@ -1,64 +1,62 @@
-## Objetivo
-Fazer os checks das mensagens evoluírem corretamente de enviado para entregue e lido no chat.
+## Causa-raiz identificada
 
-## Diagnóstico atual
-- O componente do chat já sabe exibir os checks corretamente:
-  - `sent` = 1 check
-  - `delivered` = 2 checks
-  - `read` = 2 checks destacados
-- O listener realtime também já atualiza mensagens alteradas no banco.
-- O gargalo está no backend: os logs recentes mostram eventos chegando como `messages`, não como `messages.update`.
-- Hoje o webhook só traduz mudança de status dentro do ramo `messages.update`.
-- No banco, isso aparece claramente: a maioria das mensagens enviadas nas últimas 24h ficou em `sent`, e só uma parte pequena chegou em `read`.
+Nos logs do webhook aparece:
 
-## Plano
-### 1. Tratar status também no fluxo `messages` / `messages.upsert`
-Adicionar no webhook a leitura de status quando o provedor mandar o evento como `messages`, não apenas `messages.update`.
-
-### 2. Normalizar os identificadores usados no match
-Aplicar a mesma estratégia robusta de IDs nos dois fluxos:
-- `id`
-- `messageid`
-- `key.id`
-- id com prefixo do owner
-- id sem prefixo
-
-Assim o update de status consegue encontrar a linha certa em `chat_messages` mesmo quando o provedor muda o formato do identificador.
-
-### 3. Evitar regressão de status
-Impedir que uma mensagem volte de `read` para `delivered` ou `sent` se os eventos chegarem fora de ordem.
-
-### 4. Melhorar observabilidade do webhook
-Adicionar logs objetivos para cada tentativa de atualização de status:
-- evento recebido
-- IDs candidatos
-- status bruto recebido
-- status final mapeado
-- quantidade de linhas afetadas
-
-### 5. Validar ponta a ponta
-Depois da implementação, validar este fluxo:
-1. enviar mensagem
-2. confirmar `sent`
-3. aguardar `delivered`
-4. abrir no aparelho destino e confirmar `read`
-5. garantir que o bubble muda de 1 check para 2 checks e depois para 2 checks destacados
-
-## Detalhes técnicos
-```text
-Frontend
-- MessageBubble: já está correto
-- realtime UPDATE de chat_messages: já está correto
-
-Backend
-- uazapi-chat-webhook:
-  - hoje atualiza status só em messages.update
-  - precisa também atualizar status em messages/messages.upsert
-  - precisa normalizar IDs antes do update
-  - precisa ignorar downgrade de status
+```
+Event: [object Object] (isMessageUpsert=false), queue: MKT Natal
 ```
 
-## Resultado esperado
-- As mensagens deixam de ficar presas em 1 check.
-- O status passa a evoluir conforme os eventos reais do provedor.
-- O chat fica resiliente mesmo quando o provedor envia atualização de status no evento `messages` em vez de `messages.update`.
+Ou seja, quando a UaZapi envia o evento `messages_update`, o campo `payload.event` chega como **objeto**, não como string. Hoje o código faz:
+
+```ts
+const rawEvent = payload.event || 'messages';
+const event = EVENT_ALIAS[rawEvent] || rawEvent;
+```
+
+- `EVENT_ALIAS[<objeto>]` é `undefined`
+- `event` continua sendo o objeto
+- não bate em `messages.update` nem em `messages.upsert`
+- a função sai sem atualizar o status → mensagem fica para sempre em 1 check
+
+Isso explica perfeitamente:
+- Por que adicionar `messages_update` na lista de eventos não resolveu (ele está chegando, só não é reconhecido).
+- Por que só a fila MKT Natal (que mandou pro 5534988860163) ficou travada em `sent`.
+
+## Plano de correção
+
+### 1. Normalizar `payload.event` quando vier como objeto
+No `uazapi-chat-webhook/index.ts`, extrair o nome do evento de forma resiliente:
+- se `payload.event` for string → usa direto
+- se for objeto → tenta `event.type`, `event.name`, `event.event`, ou a primeira chave do objeto
+- se ainda não der string → fallback para `payload.EventType` / `payload.type` / `'messages'`
+
+### 2. Log de diagnóstico do payload bruto
+Logar `typeof payload.event`, as chaves quando for objeto, e o evento final resolvido. Assim a gente confirma o formato da UaZapi e nunca mais perde evento silenciosamente.
+
+### 3. Garantir que o alias inclui todas as variações
+Manter `messages_update`, `message_update`, `messages.update`, `message-update` no `EVENT_ALIAS` para cobrir todos os formatos.
+
+### 4. Validação ponta a ponta
+1. Reenviar mensagem para 5534988860163
+2. Conferir nos logs: `Event: messages.update (isMessageUpsert=false)`
+3. Conferir log novo `messages.update STATUS { status: 'delivered', affected: 1 }`
+4. Conferir bubble passando de 1 → 2 checks → 2 checks destacados
+
+## Detalhes técnicos
+
+Arquivo único a alterar: `supabase/functions/uazapi-chat-webhook/index.ts`
+
+Trecho equivalente ao novo parser:
+
+```ts
+function resolveEventName(payload: any): string {
+  const raw = payload?.event ?? payload?.EventType ?? payload?.type;
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object') {
+    return raw.type || raw.name || raw.event || Object.keys(raw)[0] || 'messages';
+  }
+  return 'messages';
+}
+```
+
+Sem alterações no frontend, no realtime ou no banco — o tratamento de status (`mapStatus`, guard anti-downgrade, `collectMessageIds`) já está correto, só não estava sendo executado por causa do parsing do evento.

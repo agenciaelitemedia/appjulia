@@ -790,13 +790,30 @@ Deno.serve(async (req) => {
     }
 
     const payload = await req.json();
-    const rawEvent = payload.event || 'messages';
+    // Resolve event name resilient to UaZapi sometimes sending `event` as an
+    // object instead of string (observed for messages_update payloads).
+    function resolveEventName(p: any): string {
+      const raw = p?.event ?? p?.EventType ?? p?.type;
+      if (typeof raw === 'string' && raw.trim()) return raw;
+      if (raw && typeof raw === 'object') {
+        const candidate = raw.type || raw.name || raw.event;
+        if (typeof candidate === 'string' && candidate.trim()) return candidate;
+        const keys = Object.keys(raw);
+        if (keys.length === 1) return keys[0];
+      }
+      return 'messages';
+    }
+    const rawEvent = resolveEventName(payload);
+    if (payload?.event && typeof payload.event === 'object') {
+      console.log('[uazapi-chat-webhook] event was object, resolved to:', rawEvent, 'keys:', Object.keys(payload.event));
+    }
     // uazapi.com sends underscore event names (messages_update); Evolution/Baileys
     // send dot-notation (messages.update). Normalize underscore -> dot so the
     // branches below match BOTH providers. 'messages' stays an upsert alias.
     const EVENT_ALIAS: Record<string, string> = {
       messages_update: 'messages.update',
       message_update: 'messages.update',
+      'message-update': 'messages.update',
       messages_delete: 'messages.delete',
       message_delete: 'messages.delete',
       connection: 'connection.update',
