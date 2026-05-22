@@ -1212,8 +1212,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       type: 'text',
       from_me: true,
       status: 'sent',
-      timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString(),
+      timestamp: getServerNowBRT(),
+      created_at: getServerNowBRT(),
     };
 
     // Resolve current conversation for this contact (for mention persistence)
@@ -1379,8 +1379,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       type: 'text',
       from_me: true,
       status: 'sending',
-      timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString(),
+      timestamp: getServerNowBRT(),
+      created_at: getServerNowBRT(),
       ...(quotedMeta ? { metadata: quotedMeta } : {}),
     };
 
@@ -1642,8 +1642,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       media_url: previewUrl,
       file_name: file.name,
       caption,
-      timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString(),
+      timestamp: getServerNowBRT(),
+      created_at: getServerNowBRT(),
     };
 
     knownMessageIds.current.add(tempMessage.id);
