@@ -1572,6 +1572,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
       }
 
+      // Some providers return a new key.id for the edited envelope. If present,
+      // we keep the ORIGINAL message_id (the one already used for status
+      // tracking and for the webhook dedup logic in edit-detection), and
+      // simply persist the new text + edited_at.
       await supabase
         .from('chat_messages')
         .update({ text: trimmed, edited_at: editedAt })
