@@ -284,7 +284,7 @@ export function AIUsageDashboard() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1">
             <Label className="text-xs text-muted-foreground">Cliente</Label>
             <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
               <PopoverTrigger asChild>
@@ -297,17 +297,12 @@ export function AIUsageDashboard() {
                     !selectedClient && 'text-muted-foreground',
                   )}
                 >
-                  <span className="truncate text-left">
-                    {selectedClient ? (
-                      <span className="flex flex-col leading-tight">
-                        <span className="text-sm truncate">{selectedClient.name}</span>
-                        {selectedClient.business_name && (
-                          <span className="text-xs text-muted-foreground truncate">{selectedClient.business_name}</span>
-                        )}
-                      </span>
-                    ) : (
-                      'Todos os clientes'
-                    )}
+                  <span className="truncate text-left text-sm">
+                    {selectedClient
+                      ? selectedClient.business_name
+                        ? `${selectedClient.name} — ${selectedClient.business_name}`
+                        : selectedClient.name
+                      : 'Todos os clientes'}
                   </span>
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
