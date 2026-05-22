@@ -1510,15 +1510,15 @@ export function ChatList() {
             key={tab.value}
             onClick={() => setConversationStatusFilter(tab.value)}
             className={cn(
-              'py-2 text-xs font-semibold border-b-2 transition-colors flex items-center justify-center gap-1.5',
+              'py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5',
               tab.iconOnly ? 'shrink-0 px-3' : 'flex-1',
               conversationStatusFilter === tab.value
                 ? tab.value === 'pending'
-                  ? 'border-amber-500 text-amber-600'
+                  ? 'bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-50'
                   : tab.value === 'open'
-                    ? 'border-emerald-500 text-emerald-600'
-                    : 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                    ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-50'
+                    : 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
             )}
           >
             {tab.iconOnly ? tab.icon : tab.label}
@@ -1527,9 +1527,9 @@ export function ChatList() {
               'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
               conversationStatusFilter === tab.value
                 ? tab.value === 'pending'
-                  ? 'bg-amber-500 text-white'
+                  ? 'bg-amber-600 text-white'
                   : tab.value === 'open'
-                    ? 'bg-emerald-500 text-white'
+                    ? 'bg-emerald-600 text-white'
                     : 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground'
             )}>
@@ -1546,8 +1546,8 @@ export function ChatList() {
       {/* Contact List */}
       <div ref={listRef} className={cn(
         "flex-1 overflow-y-auto transition-colors",
-        conversationStatusFilter === 'pending' && 'bg-amber-50/40 dark:bg-amber-950/10',
-        conversationStatusFilter === 'open' && 'bg-emerald-50/40 dark:bg-emerald-950/10',
+        conversationStatusFilter === 'pending' && 'bg-amber-50 dark:bg-amber-950/20 [&_.bg-background]:bg-amber-50 [&_.bg-background]:dark:bg-amber-950/20 [&_.bg-muted\\/30]:bg-amber-100/70 [&_.bg-muted\\/30]:dark:bg-amber-900/20',
+        conversationStatusFilter === 'open' && 'bg-emerald-50 dark:bg-emerald-950/20 [&_.bg-background]:bg-emerald-50 [&_.bg-background]:dark:bg-emerald-950/20 [&_.bg-muted\\/30]:bg-emerald-100/70 [&_.bg-muted\\/30]:dark:bg-emerald-900/20',
       )}>
         {/* Silent-refetch banner — shown when reloading but the list is
             already populated, so the user doesn't lose the current view. */}
