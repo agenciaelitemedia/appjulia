@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Square, Trash2, Send, Loader2 } from 'lucide-react';
+import { Square, Trash2, Send, Loader2, Play, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface AudioRecorderProps {
@@ -13,11 +13,15 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
   const [isSending, setIsSending] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackTime, setPlaybackTime] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -56,6 +60,8 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
         const rawBlob = new Blob(chunksRef.current, { type: recordedMime || 'audio/webm' });
         stream.getTracks().forEach(t => t.stop());
         setAudioBlob(rawBlob);
+        const url = URL.createObjectURL(rawBlob);
+        setPreviewUrl(url);
       };
 
       mediaRecorder.start(250);
@@ -81,10 +87,15 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
   const handleCancel = useCallback(() => {
     stopRecording();
     streamRef.current?.getTracks().forEach(t => t.stop());
+    if (audioElRef.current) { audioElRef.current.pause(); }
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setIsPlaying(false);
+    setPlaybackTime(0);
     setAudioBlob(null);
     setDuration(0);
     onCancel();
-  }, [stopRecording, onCancel]);
+  }, [stopRecording, onCancel, previewUrl]);
 
   const handleSend = useCallback(async () => {
     if (!audioBlob) return;
@@ -93,10 +104,24 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       await onSend(audioBlob);
     } finally {
       setIsSending(false);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      setIsPlaying(false);
+      setPlaybackTime(0);
       setAudioBlob(null);
       setDuration(0);
     }
-  }, [audioBlob, onSend]);
+  }, [audioBlob, onSend, previewUrl]);
+
+  const togglePlayback = useCallback(() => {
+    const el = audioElRef.current;
+    if (!el) return;
+    if (el.paused) {
+      void el.play();
+    } else {
+      el.pause();
+    }
+  }, []);
 
   // Auto-start recording on mount
   useEffect(() => {
@@ -104,6 +129,7 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       streamRef.current?.getTracks().forEach(t => t.stop());
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   // intentionally runs once on mount — no dependencies needed
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,6 +137,17 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-destructive/5 border-t animate-in slide-in-from-bottom-2">
+      {previewUrl && (
+        <audio
+          ref={audioElRef}
+          src={previewUrl}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => { setIsPlaying(false); setPlaybackTime(0); }}
+          onTimeUpdate={(e) => setPlaybackTime(Math.floor((e.target as HTMLAudioElement).currentTime))}
+          className="hidden"
+        />
+      )}
       {/* Cancel */}
       <Button
         variant="ghost"
@@ -121,6 +158,20 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
       >
         <Trash2 className="h-4 w-4" />
       </Button>
+
+      {/* Play preview (after recording stops) */}
+      {!isRecording && audioBlob && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-primary hover:bg-primary/10"
+          onClick={togglePlayback}
+          disabled={isSending}
+          aria-label={isPlaying ? 'Pausar prévia' : 'Ouvir prévia'}
+        >
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        </Button>
+      )}
 
       {/* Recording indicator / Waveform */}
       <div className="flex-1 flex items-center gap-3">
@@ -141,7 +192,9 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
             />
           ))}
           {!isRecording && audioBlob && (
-            <span className="text-sm text-muted-foreground">Áudio gravado</span>
+            <span className="text-sm text-muted-foreground">
+              {isPlaying ? 'Reproduzindo prévia…' : 'Prévia pronta — ouça antes de enviar'}
+            </span>
           )}
         </div>
 
@@ -150,7 +203,9 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
           'text-sm font-mono min-w-[40px] text-right',
           isRecording ? 'text-destructive' : 'text-muted-foreground'
         )}>
-          {formatDuration(duration)}
+          {isPlaying || playbackTime > 0
+            ? `${formatDuration(playbackTime)} / ${formatDuration(duration)}`
+            : formatDuration(duration)}
         </span>
       </div>
 
