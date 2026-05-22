@@ -1434,7 +1434,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
         }
         const proxyData = data?.data || {};
-        externalMessageId = proxyData?.key?.id || proxyData?.id || proxyData?.messageId || proxyData?.messageid;
+        // Prefer the WhatsApp stanza id (key.id) for message_id — that's the id
+        // the provider uses in status/edit events. Keep the uazapi internal id
+        // as external_id fallback so the webhook can still match either way.
+        const waStanzaId = proxyData?.key?.id;
+        const uazInternalId = proxyData?.id || proxyData?.messageId || proxyData?.messageid;
+        externalMessageId = waStanzaId || uazInternalId;
+        // Stash both ids on the closure scope for the insert below.
+        (tempMessage as any).__wa_id = waStanzaId || externalMessageId;
+        (tempMessage as any).__uaz_id = uazInternalId || externalMessageId;
       }
 
       setMessages(prev => ({
@@ -1454,8 +1462,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         type: tempMessage.type,
         from_me: tempMessage.from_me,
         status: 'sent',
-        message_id: externalMessageId,
-        external_id: externalMessageId,
+        message_id: (tempMessage as any).__wa_id ?? externalMessageId,
+        external_id: (tempMessage as any).__uaz_id ?? externalMessageId,
         reply_to: replyToMessage?.message_id || replyToMessage?.id || null,
         metadata: quotedMeta ?? null,
         timestamp: tempMessage.timestamp,
