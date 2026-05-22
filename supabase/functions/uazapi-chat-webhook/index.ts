@@ -1032,7 +1032,7 @@ Deno.serve(async (req) => {
           .from('chat_messages')
           .select('id')
           .eq('client_id', queue.client_id)
-          .eq('message_id', messageId)
+          .or(`message_id.eq.${messageId},external_id.eq.${messageId}`)
           .limit(1)
           .maybeSingle();
 

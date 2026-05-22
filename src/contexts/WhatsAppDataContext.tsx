@@ -1538,7 +1538,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       return;
     }
 
-    const targetId = message.message_id || message.external_id;
+    const targetId = message.external_id || message.message_id;
     if (!targetId) {
       toast.error('Mensagem sem identificador para edição');
       return;
@@ -1572,13 +1572,28 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
       }
 
-      // Some providers return a new key.id for the edited envelope. If present,
-      // we keep the ORIGINAL message_id (the one already used for status
-      // tracking and for the webhook dedup logic in edit-detection), and
-      // simply persist the new text + edited_at.
+      const editResponse = data?.data || {};
+      const editedEnvelopeId = editResponse?.id || editResponse?.messageId || editResponse?.messageid || editResponse?.key?.id;
+
+      setMessages(prev => ({
+        ...prev,
+        [contactId]: prev[contactId]?.map(m =>
+          m.id === message.id
+            ? { ...m, text: trimmed, edited_at: editedAt, external_id: editedEnvelopeId || m.external_id }
+            : m
+        ) || [],
+      }));
+
+      // UaZapi returns a fresh envelope id for edited messages. Persist it in
+      // external_id so the subsequent webhook upsert matches the existing row
+      // and is skipped instead of being inserted as a duplicate message.
       await supabase
         .from('chat_messages')
-        .update({ text: trimmed, edited_at: editedAt })
+        .update({
+          text: trimmed,
+          edited_at: editedAt,
+          ...(editedEnvelopeId ? { external_id: editedEnvelopeId } : {}),
+        })
         .eq('id', message.id);
     } catch (err) {
       console.error('Error editing message:', err);
