@@ -6,6 +6,7 @@
 export const UAZAPI_DEFAULT_WEBHOOK_EVENTS = [
   'messages',
   'messages.update',
+  'messages_update',
   'messages.delete',
   'chats.update',
   'chats.upsert',
