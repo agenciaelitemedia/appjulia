@@ -100,9 +100,11 @@ export type Database = {
       }
       ai_usage_logs: {
         Row: {
+          audio_seconds: number | null
           client_id: string | null
           completion_tokens: number | null
           context: Json
+          cost_usd: number | null
           created_at: string
           duration_ms: number | null
           endpoint: string
@@ -117,9 +119,11 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          audio_seconds?: number | null
           client_id?: string | null
           completion_tokens?: number | null
           context?: Json
+          cost_usd?: number | null
           created_at?: string
           duration_ms?: number | null
           endpoint: string
@@ -134,9 +138,11 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          audio_seconds?: number | null
           client_id?: string | null
           completion_tokens?: number | null
           context?: Json
+          cost_usd?: number | null
           created_at?: string
           duration_ms?: number | null
           endpoint?: string
