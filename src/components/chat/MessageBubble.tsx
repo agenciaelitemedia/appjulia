@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
 import type { MessageReaction } from '@/hooks/useMessageReactions';
 import { type DownloadMediaResult, useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { forceDownload } from '@/lib/forceDownload';
 import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { useQueueAutomationFlags } from '@/hooks/useQueueAutomationFlags';
 
@@ -242,13 +243,24 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
         <>
           <div className="relative max-w-[280px]">
             {usable ? (
-              <img
-                src={mediaUrl}
-                alt={message.caption || 'Imagem'}
-                className="rounded-lg max-w-full cursor-pointer hover:opacity-90 transition-opacity"
-                loading="lazy"
-                onClick={() => setLightboxOpen(true)}
-              />
+              <div className="relative group">
+                <img
+                  src={mediaUrl}
+                  alt={message.caption || 'Imagem'}
+                  className="rounded-lg max-w-full cursor-pointer hover:opacity-90 transition-opacity"
+                  loading="lazy"
+                  onClick={() => setLightboxOpen(true)}
+                />
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="absolute top-2 right-2 h-8 w-8 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => { e.stopPropagation(); forceDownload(mediaUrl!, message.file_name); }}
+                  aria-label="Baixar imagem"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </div>
             ) : message.metadata?.thumbnail ? (
               <div className="relative">
                 <img
@@ -287,12 +299,23 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
       return (
         <div className="relative max-w-[280px]">
           {usable ? (
-            <video
-              src={mediaUrl}
-              controls
-              className="rounded-lg max-w-full"
-              preload="metadata"
-            />
+            <div className="relative group">
+              <video
+                src={mediaUrl}
+                controls
+                className="rounded-lg max-w-full"
+                preload="metadata"
+              />
+              <Button
+                variant="secondary"
+                size="icon"
+                className="absolute top-2 right-2 h-8 w-8 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => forceDownload(mediaUrl!, message.file_name)}
+                aria-label="Baixar vídeo"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </div>
           ) : (
             <div className="bg-muted rounded-lg p-8 flex items-center justify-center aspect-video">
               {isLoading && downloadState === 'idle' ? (
@@ -390,11 +413,15 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
             )}
           </div>
           {usable ? (
-            <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download={message.file_name || true}>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Download className="h-4 w-4" />
-              </Button>
-            </a>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => forceDownload(mediaUrl!, message.file_name)}
+              aria-label="Baixar documento"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
           ) : (
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDownload} disabled={isLoading}>
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
