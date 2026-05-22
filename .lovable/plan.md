@@ -1,35 +1,73 @@
-## Alterações em `src/components/chat/ChatList.tsx`
+## Objetivo
 
-### 1. Renomear abas de status (linha ~1504)
-- `'Em Abertos'` → **`'Aguardando Atendimento'`**
-- `'Em Atendimento'` → **`'Meus Atendimentos'`**
+Adicionar em `/chat/configuracoes` (aba **Geral**) um novo card que permita habilitar/desabilitar a exibição dos eventos do sistema (badges como "Ana Luiza assumiu a conversa", "reabriu", "adicionou etiqueta", "auto_returned" etc.) na timeline do chat. Os eventos continuam sendo registrados no banco — apenas a visualização passa a respeitar a configuração.
 
-### 2. Realce colorido por aba selecionada
-Substituir o estilo atual (`border-primary text-primary` + badge `bg-primary`) por cores específicas:
+## Comportamento
 
-- **Aguardando Atendimento (pending)** selecionada → borda + texto + badge em **amarelo** (`border-amber-500 text-amber-600`, badge `bg-amber-500 text-white`).
-- **Meus Atendimentos (open)** selecionada → borda + texto + badge em **verde** (`border-emerald-500 text-emerald-600`, badge `bg-emerald-500 text-white`).
-- **Resolvidas/Encerradas** mantém o estilo neutro atual.
+1. **Card "Eventos da Conversa"** abaixo do card "Retornar Chat automaticamente" em `ChatGeneralSettings.tsx`.
+2. **Switch master** "Mostrar eventos no chat":
+   - **Desligado** → nenhum evento (`ConversationEvent`) é renderizado na timeline.
+   - **Ligado** → abre a lista de eventos individuais (cada um com seu próprio switch).
+3. **Lista de eventos individuais** renderizada exatamente como aparece no chat (mesmo componente visual usado em `ConversationEvent` — ícone + label + cor de borda/fundo), cada item com um Switch ao lado.
+4. **Tradução de `auto_returned`** → "Sistema devolveu a conversa à fila" (precisa ser adicionado ao mapa `ACTION_LABELS` em `ConversationEvent.tsx`, hoje cai no fallback genérico).
+5. **Persistência** no `chat_client_settings.settings` como `event_visibility` (objeto `{ [action]: boolean }`) + `events_enabled` (boolean master). Default: tudo ligado para manter o comportamento atual.
 
-### 3. Fundo suave da lista de contatos conforme aba (linha ~1539)
-Aplicar uma cor de fundo bem suave ao container `<div ref={listRef} className="flex-1 overflow-y-auto">` de acordo com `conversationStatusFilter`:
-- `pending` → `bg-amber-50/40` (dark: `bg-amber-950/10`)
-- `open` → `bg-emerald-50/40` (dark: `bg-emerald-950/10`)
-- `resolved_closed` → sem tint (mantém `bg-background`)
+## Eventos suportados (extraídos de `ConversationEvent.tsx`)
 
-### 4. Renomear atalhos do select de atendente (linhas 1332–1336)
-- `'Todos atendentes'` → **`'Todos Atendimentos'`**
-- `'Sem atendente'` → **`'Aguardando Atendimento'`**
-- `'Meus atendimentos'` permanece.
+| Chave         | Label                       | Cor          |
+|---------------|-----------------------------|--------------|
+| opened        | abriu a conversa            | emerald      |
+| closed        | encerrou a conversa         | muted        |
+| resolved      | resolveu a conversa         | blue         |
+| reopened      | reabriu a conversa          | amber        |
+| assigned      | assumiu / transferiu        | purple       |
+| auto_returned | devolveu à fila (novo)      | amber/muted  |
+| note_added    | adicionou uma nota          | muted        |
+| note_updated  | editou uma nota             | muted        |
+| note_deleted  | removeu uma nota            | muted        |
+| priority_changed | alterou prioridade       | muted        |
+| tag_added     | adicionou etiqueta          | muted        |
+| tag_removed   | removeu etiqueta            | muted        |
+| won           | marcou como ganho           | muted        |
+| lost          | marcou como perdido         | muted        |
+| moved         | movimentou o card           | muted        |
+| created/updated/archived | demais ações       | muted        |
 
-### 5. Esconder lista de membros da equipe para não-donos
-Apenas o "dono do escritório" pode ver a lista completa de atendentes no select; demais usuários só veem os 3 atalhos.
+## Arquivos a alterar
 
-Critério de dono: `isAdmin || user?.role === 'user'` (papel principal/proprietário da conta — mesmo critério já usado em outras partes do ChatList para diferenciar a conta dona).
+### 1. `src/components/chat/ConversationEvent.tsx`
+- Adicionar `auto_returned` em `ACTION_LABELS` ("devolveu a conversa à fila automaticamente") e em `ACTION_ICONS` (ex.: `RotateCcw`).
+- Exportar a lista de eventos suportados + um helper `getEventConfigByAction(action)` (sem precisar de uma entry) para que o card de configurações reuse o mesmo render do badge (mesmo ícone, mesma classe de cor, mesma forma). Isso garante "mostre exatamente como aparece no chat".
 
-Implementação: passar `members={isOwner ? teamMembers : []}` para `<TeamMemberSelect>`. Os `extraOptions` continuam aparecendo para todos.
+### 2. `src/hooks/useChatClientSettings.ts`
+- Estender a interface com:
+  ```ts
+  events_enabled: boolean; // master
+  event_visibility: Record<string, boolean>; // por ação
+  ```
+- Defaults: `events_enabled: true`, `event_visibility: {}` (vazio = todos visíveis).
 
-## Observações
-- Mudanças puramente de UI/labels; nenhuma lógica de filtragem, permissões reais ou backend é alterada.
-- As cores usam classes Tailwind padrão (amber/emerald) coerentes com o restante do app (já usadas em `ContactDetailPanel`/`ChatHeader` para indicar status "em atendimento").
-- Nenhuma migração ou alteração de tipo necessária.
+### 3. `src/pages/chat/components/ChatGeneralSettings.tsx`
+- Novo card `<ConversationEventsSettingsCard />` abaixo do bloco "Retornar Chat".
+- UI:
+  - Header com ícone + título "Eventos da Conversa" + Switch master + Badge Ativo/Inativo.
+  - Quando ligado, body lista os eventos como mini-cards: badge renderizado exatamente como em `ConversationEvent` (label de exemplo, ex.: "Ana Luiza assumiu a conversa") + Switch à direita.
+  - Ações em massa: "Habilitar todos" / "Desabilitar todos".
+  - Footer com "Salvar alterações" no mesmo padrão dos outros cards (dirty/saved + botão).
+
+### 4. `src/components/chat/ChatMessages.tsx`
+- Antes de mapear `item.kind === 'event'`, consultar `useChatClientSettings`:
+  - Se `!settings.events_enabled` → não renderiza nenhum evento.
+  - Se ligado → renderiza apenas quando `event_visibility[item.data.action] !== false` (ausência = visível por default).
+- Eventos suprimidos não afetam o agrupamento por data (data já vem das mensagens).
+
+## Detalhes técnicos
+
+- Não é necessária migration: tudo persiste em `chat_client_settings.settings` (jsonb).
+- A função `getEventConfig` em `ConversationEvent.tsx` precisa ser exportada (ou um helper equivalente) para reuso na tela de configurações — assim os badges renderizam idênticos (mesmo `text-*-600 bg-*-500/10 border-*-500/20`).
+- Para o item da lista de eventos no settings, montar `entry` sintético com `actor_name` placeholder (ex.: "Ana Luiza") só para visualização, sem timestamp.
+- Filtro no `ChatMessages` é puramente client-side; o backend continua gravando todos os eventos em `chat_conversation_history`.
+
+## Pontos abertos
+
+Nenhum bloqueante. Default = todos os eventos visíveis (preserva comportamento atual).

@@ -15,6 +15,7 @@ import type { ChatMessage, ChatContact } from '@/types/chat';
 import type { ConversationHistoryEntry } from '@/types/conversation';
 import { isEncryptionEnvelope } from '@/lib/chat/envelopeFilter';
 import { supabase } from '@/integrations/supabase/client';
+import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 
 interface ChatMessagesProps {
   contactId: string;
@@ -28,6 +29,7 @@ type TimelineItem =
 
 export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) {
   const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
+  const { settings: chatClientSettings } = useChatClientSettings();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -403,6 +405,8 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
               <div className="space-y-2">
                 {items.map((item) => {
                   if (item.kind === 'event') {
+                    if (!chatClientSettings.events_enabled) return null;
+                    if (chatClientSettings.event_visibility?.[item.data.action] === false) return null;
                     return <ConversationEvent key={`evt-${item.data.id}`} entry={item.data} />;
                   }
                   return (
