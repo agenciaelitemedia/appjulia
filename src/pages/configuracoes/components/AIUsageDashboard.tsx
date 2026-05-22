@@ -369,11 +369,12 @@ export function AIUsageDashboard() {
       </div>
 
       {/* KPIs de custo */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
           icon={<DollarSign className="h-4 w-4 text-emerald-500" />}
-          label="Custo total (USD)"
-          value={fmtUSD(kpis.totalCost)}
+          label="Custo total"
+          value={usdRate ? fmtBRL(kpis.totalCost * usdRate) : '—'}
+          subValue={fmtUSD(kpis.totalCost)}
           loading={isLoading}
         />
         <KpiCard
@@ -384,9 +385,27 @@ export function AIUsageDashboard() {
         />
         <KpiCard
           icon={<DollarSign className="h-4 w-4 text-violet-500" />}
-          label="USD por minuto (transcrição)"
-          value={kpis.audioMinutes > 0 ? `${fmtUSD(kpis.usdPerMinute)}/min` : '—'}
+          label="Custo por minuto (transcrição)"
+          value={
+            kpis.audioMinutes > 0 && usdRate
+              ? `${fmtBRL(kpis.usdPerMinute * usdRate)}/min`
+              : kpis.audioMinutes > 0
+                ? '—'
+                : '—'
+          }
+          subValue={kpis.audioMinutes > 0 ? `${fmtUSD(kpis.usdPerMinute)}/min` : undefined}
           loading={isLoading}
+        />
+        <KpiCard
+          icon={<TrendingUp className="h-4 w-4 text-amber-500" />}
+          label="Cotação do dólar (USD → BRL)"
+          value={usdRate ? fmtBRL(usdRate) : '—'}
+          subValue={
+            usdBrl?.updatedAt
+              ? `Atualizado ${usdBrl.updatedAt.toLocaleString('pt-BR')}`
+              : 'AwesomeAPI'
+          }
+          loading={!usdBrl}
         />
       </div>
 
