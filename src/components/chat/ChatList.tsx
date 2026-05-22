@@ -1324,15 +1324,15 @@ export function ChatList() {
             </Popover>
           ) : <div />}
           <TeamMemberSelect
-            members={teamMembers}
+            members={(isAdmin || user?.role === 'user') ? teamMembers : []}
             valueKey="id"
             value={ownerFilter}
             onValueChange={(v) => setOwnerFilter(v ?? 'all')}
             allowUnassigned={false}
             extraOptions={[
-              { value: 'all', label: 'Todos atendentes', icon: Users },
+              { value: 'all', label: 'Todos Atendimentos', icon: Users },
               { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
-              { value: 'unassigned', label: 'Sem atendente', icon: UserX },
+              { value: 'unassigned', label: 'Aguardando Atendimento', icon: UserX },
             ]}
             placeholder="Atendente"
             size="sm"
@@ -1501,8 +1501,8 @@ export function ChatList() {
         <TooltipProvider delayDuration={200}>
         {([
           { value: 'resolved_closed' as const, label: '', icon: <CheckCheck className="h-4 w-4" />, count: effClosedConvCount, iconOnly: true, tooltip: 'Resolvidas / Encerradas' },
-          { value: 'pending' as const, label: 'Em Abertos', count: effPendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
-          { value: 'open' as const,    label: 'Em Atendimento', count: effOpenConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
+          { value: 'pending' as const, label: 'Aguardando Atendimento', count: effPendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
+          { value: 'open' as const,    label: 'Meus Atendimentos', count: effOpenConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
         ]).map(tab => (
           <Tooltip key={tab.value}>
             <TooltipTrigger asChild>
@@ -1513,7 +1513,11 @@ export function ChatList() {
               'py-2 text-xs font-semibold border-b-2 transition-colors flex items-center justify-center gap-1.5',
               tab.iconOnly ? 'shrink-0 px-3' : 'flex-1',
               conversationStatusFilter === tab.value
-                ? 'border-primary text-primary'
+                ? tab.value === 'pending'
+                  ? 'border-amber-500 text-amber-600'
+                  : tab.value === 'open'
+                    ? 'border-emerald-500 text-emerald-600'
+                    : 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
@@ -1522,7 +1526,11 @@ export function ChatList() {
             <span className={cn(
               'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
               conversationStatusFilter === tab.value
-                ? 'bg-primary text-primary-foreground'
+                ? tab.value === 'pending'
+                  ? 'bg-amber-500 text-white'
+                  : tab.value === 'open'
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground'
             )}>
               {tab.count >= 99 ? '99+' : tab.count}
@@ -1536,7 +1544,11 @@ export function ChatList() {
         </TooltipProvider>
       </div>
       {/* Contact List */}
-      <div ref={listRef} className="flex-1 overflow-y-auto">
+      <div ref={listRef} className={cn(
+        "flex-1 overflow-y-auto transition-colors",
+        conversationStatusFilter === 'pending' && 'bg-amber-50/40 dark:bg-amber-950/10',
+        conversationStatusFilter === 'open' && 'bg-emerald-50/40 dark:bg-emerald-950/10',
+      )}>
         {/* Silent-refetch banner — shown when reloading but the list is
             already populated, so the user doesn't lose the current view. */}
         {(isLoading || (isSearching && isSearchFetching && (searchResults?.contacts?.length ?? 0) > 0)) && contacts.length > 0 && (
