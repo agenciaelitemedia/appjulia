@@ -55,6 +55,7 @@ export interface ChatMessage {
   metadata?: MessageMetadata;
   internal_note?: boolean;
   conversation_id?: string;
+  edited_at?: string;
   timestamp: string;
   created_at: string;
 }
@@ -249,6 +250,7 @@ export interface ChatContextValue extends ChatState {
   loadContacts: (opts?: { reset?: boolean; append?: boolean }) => Promise<void>;
   loadMessages: (contactId: string, limit?: number, offset?: number) => Promise<{ messages: ChatMessage[]; hasMore: boolean }>;
   sendMessage: (contactId: string, text: string, replyToMessage?: ChatMessage) => Promise<void>;
+  editMessage: (contactId: string, message: ChatMessage, newText: string) => Promise<void>;
   sendMedia: (contactId: string, file: File, type: MessageType, caption?: string) => Promise<void>;
   markAsRead: (contactId: string) => Promise<void>;
   syncContacts: (codAgent?: string) => Promise<void>;

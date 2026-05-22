@@ -139,7 +139,8 @@
     "https://deno.land/std@0.168.0/http/server.ts": "e99c1bee8a3f6571ee4cdeb2966efad465b8f6fe62bec1bdb59c1f007cc4d155",
     "https://deno.land/x/postgresjs@v3.4.4/mod.js": "cb68f17d6d90df318934deccdb469d740be0888e7a597a9e7eea7100ce36a252",
     "https://esm.sh/@supabase/supabase-js@2.106.1": "1b378cc89620ed0bf3e646b946b593e75d8e8ac0e43a4e07db6b71516ca757ec",
-    "https://esm.sh/@supabase/supabase-js@2.45.0": "36ae57c3f2dc3f94fd122a846b40a87114d29bb2f47e910cb46bee5575febf2e"
+    "https://esm.sh/@supabase/supabase-js@2.45.0": "36ae57c3f2dc3f94fd122a846b40a87114d29bb2f47e910cb46bee5575febf2e",
+    "https://esm.sh/@supabase/supabase-js@2.49.1": "947c71e163ca8bb5b538eccb5ee86fbc8da6bcb916a861586db5fad1af4701bb"
   },
   "workspace": {
     "packageJson": {

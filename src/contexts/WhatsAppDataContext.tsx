@@ -1434,7 +1434,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
         }
         const proxyData = data?.data || {};
-        externalMessageId = proxyData?.key?.id || proxyData?.id || proxyData?.messageId;
+        externalMessageId = proxyData?.key?.id || proxyData?.id || proxyData?.messageId || proxyData?.messageid;
       }
 
       setMessages(prev => ({
@@ -1508,6 +1508,78 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       }));
     }
   }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.name]);
+
+  // ============================================
+  // Edit an already-sent text message (UaZapi only)
+  // ============================================
+  const editMessage = useCallback(async (
+    contactId: string,
+    message: ChatMessage,
+    newText: string,
+  ) => {
+    const trimmed = newText.trim();
+    if (!trimmed || trimmed === message.text) return;
+
+    const queue = await getEffectiveQueue(contactId);
+    if (!queue) {
+      toast.error('Sem fila ativa para este contato');
+      return;
+    }
+    if (queue.channel_type === 'waba') {
+      toast.error('A API oficial do WhatsApp não permite editar mensagens.');
+      return;
+    }
+
+    const targetId = message.message_id || message.external_id;
+    if (!targetId) {
+      toast.error('Mensagem sem identificador para edição');
+      return;
+    }
+
+    const editedAt = new Date().toISOString();
+    const previousText = message.text;
+
+    // Optimistic update
+    setMessages(prev => ({
+      ...prev,
+      [contactId]: prev[contactId]?.map(m =>
+        m.id === message.id ? { ...m, text: trimmed, edited_at: editedAt } : m
+      ) || [],
+    }));
+
+    try {
+      const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
+        body: {
+          method: 'POST',
+          endpoint: '/message/edit',
+          token: queue.evo_apikey,
+          baseUrl: queue.evo_url,
+          body: { id: targetId, text: trimmed },
+        },
+      });
+      if (error) throw error;
+      if (!data?.ok) {
+        const upstream = data?.data;
+        const msg = upstream?.message || upstream?.error || `UaZapi status ${data?.status}`;
+        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      }
+
+      await supabase
+        .from('chat_messages')
+        .update({ text: trimmed, edited_at: editedAt })
+        .eq('id', message.id);
+    } catch (err) {
+      console.error('Error editing message:', err);
+      toast.error(err instanceof Error ? err.message : 'Erro ao editar mensagem');
+      // Revert optimistic update
+      setMessages(prev => ({
+        ...prev,
+        [contactId]: prev[contactId]?.map(m =>
+          m.id === message.id ? { ...m, text: previousText, edited_at: message.edited_at } : m
+        ) || [],
+      }));
+    }
+  }, [getEffectiveQueue]);
 
   // ============================================
   // Send Media via Edge Function
@@ -2523,6 +2595,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     loadContacts,
     loadMessages,
     sendMessage,
+    editMessage,
     sendMedia,
     downloadMedia,
     markAsRead,
@@ -2612,7 +2685,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     upsertConversation,
   }), [
     contacts, messages, selectedContactId, activeTab, searchQuery, isLoading, isSyncing,
-    loadContacts, loadMessages, sendMessage, sendMedia, downloadMedia, markAsRead, syncContacts, selectContact,
+    loadContacts, loadMessages, sendMessage, editMessage, sendMedia, downloadMedia, markAsRead, syncContacts, selectContact,
     selectedContact, filteredContacts, totalUnreadCount, individualUnreadCount, groupUnreadCount,
     selectedQueue, conversations, selectedConversation, conversationStatusFilter, convCounts,
     loadConversations, getOrCreateConversation, updateConversationStatus, assignConversation,

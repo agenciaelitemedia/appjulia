@@ -19,13 +19,14 @@ import { supabase } from '@/integrations/supabase/client';
 interface ChatMessagesProps {
   contactId: string;
   onReply?: (message: ChatMessage) => void;
+  onEdit?: (message: ChatMessage) => void;
 }
 
 type TimelineItem =
   | { kind: 'message'; data: ChatMessage; ts: number }
   | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
 
-export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
+export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) {
   const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -412,6 +413,7 @@ export function ChatMessages({ contactId, onReply }: ChatMessagesProps) {
                       onReact={handleReact}
                       onForward={handleForward}
                       onReply={onReply}
+                      onEdit={onEdit}
                       onDownloadMedia={downloadMedia}
                       isGroup={contacts.find(c => c.id === contactId)?.is_group}
                     />

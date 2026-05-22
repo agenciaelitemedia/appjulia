@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward, Reply, WifiOff, ImageOff, RotateCw } from 'lucide-react';
+import { Check, CheckCheck, Clock, AlertCircle, Download, Play, Pause, Loader2, FileText, MapPin, User, StickyNote as StickyNoteIcon, Forward, Reply, WifiOff, ImageOff, RotateCw, Pencil } from 'lucide-react';
 import { MediaLightbox } from './MediaLightbox';
 import { Button } from '@/components/ui/button';
 import { QuotedMessage } from './QuotedMessage';
@@ -21,8 +21,11 @@ interface MessageBubbleProps {
   onReact?: (message: ChatMessage, emoji: string) => void;
   onForward?: (message: ChatMessage) => void;
   onReply?: (message: ChatMessage) => void;
+  onEdit?: (message: ChatMessage) => void;
   isGroup?: boolean;
 }
+
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 // WhatsApp text formatting - fixed regex bug (no global flag in test)
 function formatWhatsAppText(text: string): React.ReactNode {
@@ -459,7 +462,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
 
 
 export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
-  function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward, onReply, isGroup }, ref) {
+  function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward, onReply, onEdit, isGroup }, ref) {
     const isMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker', 'location', 'contact'].includes(message.type);
     const hasQuote = message.metadata?.quoted_message;
     const isInternalNote = !!message.metadata?.internal_note;
@@ -556,6 +559,19 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
           {message.from_me && (
             <div className="flex flex-col gap-0.5 items-center">
               {onReact && <ReactionPicker onSelect={(emoji) => onReact(message, emoji)} side="top" align="end" />}
+              {onEdit && message.type === 'text'
+                && !(message.external_id?.startsWith('wamid.') || message.message_id?.startsWith('wamid.'))
+                && (Date.now() - new Date(message.timestamp).getTime() <= EDIT_WINDOW_MS) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onEdit(message)}
+                  aria-label="Editar"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
               {onReply && (
                 <Button
                   variant="ghost"
@@ -620,6 +636,9 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
                 'flex items-center justify-end gap-1 mt-1',
                 message.from_me ? 'text-foreground/60' : 'text-muted-foreground'
               )}>
+                {message.edited_at && (
+                  <span className="text-[10px] italic opacity-70">editada</span>
+                )}
                 <span className="text-[10px]">
                   {format(new Date(message.timestamp), 'HH:mm')}
                 </span>

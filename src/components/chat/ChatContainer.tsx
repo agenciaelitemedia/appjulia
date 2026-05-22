@@ -49,6 +49,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
     retryHydrateSelectedContact,
   } = useWhatsAppData();
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
 
   return (
     <div className={cn('flex h-full w-full bg-background min-w-0 overflow-hidden', className)}>
@@ -75,12 +76,18 @@ export function ChatContainer({ className }: ChatContainerProps) {
               onShowDetails={() => setShowDetailPanel(!showDetailPanel)}
             />
             <ErrorBoundary fallback={<ChatMessagesFallback />}>
-              <ChatMessages contactId={selectedContactId!} onReply={setReplyToMessage} />
+              <ChatMessages
+                contactId={selectedContactId!}
+                onReply={setReplyToMessage}
+                onEdit={(m) => { setReplyToMessage(null); setEditingMessage(m); }}
+              />
             </ErrorBoundary>
             <ChatInput
               contactId={selectedContactId!}
               replyToMessage={replyToMessage}
               onCancelReply={() => setReplyToMessage(null)}
+              editingMessage={editingMessage}
+              onCancelEdit={() => setEditingMessage(null)}
             />
           </>
         ) : selectedContactId && contactHydrationError ? (

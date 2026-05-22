@@ -748,10 +748,25 @@ Deno.serve(async (req) => {
 
     const payload = await req.json();
     const rawEvent = payload.event || 'messages';
+    // uazapi.com sends underscore event names (messages_update); Evolution/Baileys
+    // send dot-notation (messages.update). Normalize underscore -> dot so the
+    // branches below match BOTH providers. 'messages' stays an upsert alias.
+    const EVENT_ALIAS: Record<string, string> = {
+      messages_update: 'messages.update',
+      message_update: 'messages.update',
+      messages_delete: 'messages.delete',
+      message_delete: 'messages.delete',
+      connection: 'connection.update',
+      connection_update: 'connection.update',
+      contacts: 'contacts.update',
+      contacts_update: 'contacts.update',
+      chats: 'chats.update',
+      chats_update: 'chats.update',
+    };
+    const event = EVENT_ALIAS[rawEvent] || rawEvent;
     // Normalize: treat messages, messages.upsert, message as the same logical MESSAGE_UPSERT event
     const MESSAGE_UPSERT_ALIASES = new Set(['messages', 'messages.upsert', 'message']);
-    const isMessageUpsert = MESSAGE_UPSERT_ALIASES.has(rawEvent);
-    const event = rawEvent;
+    const isMessageUpsert = MESSAGE_UPSERT_ALIASES.has(event);
 
     console.log(`[uazapi-chat-webhook] Event: ${event} (isMessageUpsert=${isMessageUpsert}), queue: ${queue.name}`);
 
@@ -765,23 +780,42 @@ Deno.serve(async (req) => {
       return respond({ ok: true, event: 'connection.update' });
     }
 
-    // ─── STATUS UPDATES (delivered, read, etc.) ───
+    // ─── STATUS UPDATES (delivered, read, etc.) + EDITS ───
     if (event === 'messages.update') {
       const updates = Array.isArray(payload.data) ? payload.data : [payload.data || payload];
+      // Maps both Evolution (SERVER_ACK/numeric) and uazapi.com (Sent/Delivered/Read) statuses.
+      const statusMap: Record<string, string> = {
+        '0': 'failed', '1': 'pending', '2': 'sent', '3': 'delivered', '4': 'read', '5': 'read',
+        'error': 'failed', 'failed': 'failed', 'canceled': 'failed', 'cancelled': 'failed',
+        'pending': 'pending', 'queued': 'pending',
+        'server_ack': 'sent', 'sent': 'sent',
+        'delivery_ack': 'delivered', 'delivered': 'delivered',
+        'read': 'read', 'read_ack': 'read', 'played': 'read',
+      };
       for (const upd of updates) {
-        const messageId = upd.id || upd.key?.id;
-        const newStatus = upd.status || upd.update?.status;
-        if (messageId && newStatus) {
-          const statusMap: Record<number | string, string> = {
-            0: 'error', 1: 'pending', 2: 'sent', 3: 'delivered', 4: 'read', 5: 'played',
-            'ERROR': 'error', 'PENDING': 'pending', 'SERVER_ACK': 'sent',
-            'DELIVERY_ACK': 'delivered', 'READ': 'read', 'PLAYED': 'played',
-          };
-          const mapped = statusMap[newStatus] || String(newStatus).toLowerCase();
+        const messageId = upd.messageid || upd.id || upd.key?.id;
+        if (!messageId) continue;
+
+        // Inbound EDIT: provider resends the message with new content for an existing id.
+        const editedText: string | undefined =
+          (typeof upd.edited === 'string' && upd.edited.trim()) ? upd.edited
+          : (upd.update?.message?.editedMessage?.message?.conversation
+            ?? upd.message?.editedMessage?.message?.conversation
+            ?? upd.editedText);
+        if (editedText && String(editedText).trim()) {
+          await supabase
+            .from('chat_messages')
+            .update({ text: String(editedText), edited_at: new Date().toISOString() })
+            .or(`message_id.eq.${messageId},external_id.eq.${messageId}`);
+        }
+
+        const rawStatus = upd.status ?? upd.update?.status;
+        if (rawStatus !== undefined && rawStatus !== null && rawStatus !== '') {
+          const mapped = statusMap[String(rawStatus).toLowerCase()] || String(rawStatus).toLowerCase();
           await supabase
             .from('chat_messages')
             .update({ status: mapped })
-            .eq('message_id', messageId);
+            .or(`message_id.eq.${messageId},external_id.eq.${messageId}`);
         }
       }
       return respond({ ok: true, event: 'messages.update', count: updates.length });
@@ -1054,7 +1088,7 @@ Deno.serve(async (req) => {
           contactNameToWrite = (!fromMe && pushName) ? pushName : senderPhone;
         }
 
-        const { data: contact } = await supabase
+        const { data: contact }: { data: any } = await supabase
           .from('chat_contacts')
           .upsert({
             client_id: queue.client_id,
@@ -1152,7 +1186,7 @@ Deno.serve(async (req) => {
           // 2) Check for a resolved conversation to reopen (resolved = soft close).
           //    Lookup mais permissivo: ignora queue_id (caso a fila tenha sido trocada),
           //    mantém isolamento por canal.
-          const { data: resolvedConv } = await supabase
+          const { data: resolvedConv }: { data: any } = await supabase
             .from('chat_conversations')
             .select('id, queue_id, assigned_to')
             .eq('contact_id', contact.id)

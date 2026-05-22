@@ -14,6 +14,7 @@ import { MentionAutocomplete } from './MentionAutocomplete';
 import { ChatInputTagButton } from './ChatInputTagButton';
 import { FormatToolbar } from './FormatToolbar';
 import { MessagePreview } from './MessagePreview';
+import { MediaPreviewDialog } from './MediaPreviewDialog';
 import { applyFormat, type FormatToken } from '@/lib/whatsappFormat';
 import { externalDb } from '@/lib/externalDb';
 import { interpolateVariables } from '@/lib/messageVariables';
@@ -22,14 +23,16 @@ interface ChatInputProps {
   contactId: string;
   replyToMessage?: ChatMessage | null;
   onCancelReply?: () => void;
+  editingMessage?: ChatMessage | null;
+  onCancelEdit?: () => void;
 }
 
 interface TeamMember { id: number | string; name: string }
 
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
-export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInputProps) {
-  const { sendMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead, setConversationStatusFilter } = useWhatsAppData();
+export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMessage, onCancelEdit }: ChatInputProps) {
+  const { sendMessage, editMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead, setConversationStatusFilter } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -42,6 +45,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showFormatBar, setShowFormatBar] = useState(false);
+  const [pendingMedia, setPendingMedia] = useState<{ file: File; type: MessageType; caption?: string } | null>(null);
   const [team, setTeam] = useState<TeamMember[]>([]);
   // Signature toggle — prepends "*Nome do Usuário:*\n" to outgoing messages.
   // Persisted per-user via localStorage; default ON.
@@ -55,6 +59,15 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
     if (!signatureKey || typeof window === 'undefined') return;
     window.localStorage.setItem(signatureKey, signEnabled ? '1' : '0');
   }, [signEnabled, signatureKey]);
+
+  // Enter "edit mode": prefill the composer with the message text and focus.
+  useEffect(() => {
+    if (editingMessage) {
+      setNoteMode(false);
+      setText(editingMessage.text ?? '');
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    }
+  }, [editingMessage]);
 
   /**
    * Prepend the agent signature to outgoing content.
@@ -139,6 +152,23 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
     if (!text.trim() || isSending) return;
 
     const rawText = text.trim();
+
+    // Edit mode: update the existing message instead of sending a new one.
+    if (editingMessage) {
+      setIsSending(true);
+      try {
+        await editMessage(contactId, editingMessage, rawText);
+        setText('');
+        onCancelEdit?.();
+      } catch (error) {
+        setText(rawText);
+      } finally {
+        setIsSending(false);
+        textareaRef.current?.focus();
+      }
+      return;
+    }
+
     // Interpola variáveis: {{nome}}, {{primeiro_nome}}, {{protocolo}}, {{atendente}}, {{data}}, {{hora}}
     const messageText = interpolateVariables(rawText, {
       contactName: selectedContact?.name ?? null,
@@ -183,20 +213,24 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
     }
   };
 
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, type: MessageType) => {
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>, type: MessageType) => {
     const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
+    // Open a preview/confirm step instead of sending immediately.
+    setPendingMedia({ file, type });
+  }, []);
 
+  const confirmSendMedia = useCallback(async (caption: string) => {
+    if (!pendingMedia) return;
     setIsSending(true);
     try {
-      await sendMedia(contactId, file, type);
+      await sendMedia(contactId, pendingMedia.file, pendingMedia.type, caption ? applySignature(caption) : undefined);
+      setPendingMedia(null);
     } finally {
       setIsSending(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
-  }, [contactId, sendMedia]);
+  }, [contactId, sendMedia, pendingMedia]);
 
   const insertEmoji = (emoji: string) => {
     const textarea = textareaRef.current;
@@ -246,16 +280,10 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
     e.preventDefault();
     const ext = blob.type.split('/')[1] || 'png';
     const file = new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type });
-    setIsSending(true);
-    try {
-      const captionRaw = text.trim();
-      const caption = captionRaw ? applySignature(captionRaw) : undefined;
-      await sendMedia(contactId, file, 'image', caption);
-      setText('');
-    } finally {
-      setIsSending(false);
-    }
-  }, [contactId, noteMode, sendMedia, text]);
+    // Open the preview/confirm step, pre-filling the caption with the typed text.
+    setPendingMedia({ file, type: 'image', caption: text.trim() || undefined });
+    setText('');
+  }, [noteMode, text]);
 
   const handleQuickMessageSelect = (messageText: string) => {
     setText(messageText);
@@ -354,6 +382,32 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply }: ChatInpu
             <X className="h-4 w-4" />
           </Button>
         </div>
+      )}
+
+      {/* Edit indicator */}
+      {editingMessage && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-muted border-b border-l-2 border-l-amber-500">
+          <PenLine className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">Editando mensagem</p>
+            <p className="text-xs text-muted-foreground truncate">{editingMessage.text}</p>
+          </div>
+          <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0" onClick={() => { setText(''); onCancelEdit?.(); }}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Media preview before sending */}
+      {pendingMedia && (
+        <MediaPreviewDialog
+          file={pendingMedia.file}
+          type={pendingMedia.type}
+          initialCaption={pendingMedia.caption}
+          sending={isSending}
+          onConfirm={confirmSendMedia}
+          onCancel={() => setPendingMedia(null)}
+        />
       )}
 
       {/* Format toolbar (above input) */}
