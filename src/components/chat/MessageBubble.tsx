@@ -148,6 +148,29 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
     }
   };
 
+  const handleDocumentDownload = async () => {
+    if (mediaUrl && !isEncrypted(mediaUrl)) {
+      forceDownload(mediaUrl, message.file_name);
+      return;
+    }
+    if (!onDownload) return;
+    setIsLoading(true);
+    try {
+      const res = await onDownload();
+      if (res?.url) {
+        setMediaUrl(res.url);
+        setDownloadState('idle');
+        forceDownload(res.url, message.file_name);
+      } else if (res?.permanent) {
+        setDownloadState('permanent');
+      } else if (res?.transient) {
+        setDownloadState('transient');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Auto-fetch for image/video/audio/sticker on mount (WhatsApp Web behavior)
   useEffect(() => {
     if (!onDownload) return;
@@ -427,21 +450,16 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
               </p>
             )}
           </div>
-          {usable ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => forceDownload(mediaUrl!, message.file_name)}
-              aria-label="Baixar documento"
-            >
-              <Download className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleDownload} disabled={isLoading}>
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleDocumentDownload}
+            disabled={isLoading}
+            aria-label="Baixar documento"
+          >
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          </Button>
         </div>
       );
 
