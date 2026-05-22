@@ -8,14 +8,20 @@ Quando uma nova mensagem **inbound** (`fromMe = false`) chega via webhook de can
 
 1. Existe conversa `pending` ou `open` para (contact + client + queue + channel) → anexa.
 2. Existe conversa `resolved` (mais recente, mesmo `contact_id` + `client_id` + `channel`) → **reabre**:
-   - `status = 'open'`, `resolved_at = null`, `updated_at = now()`.
-   - **NÃO altera `assigned_to`** — mesmo agente que resolveu permanece responsável.
+   - `resolved_at = null`, `updated_at = now()`.
+   - **Status efetivo depende do `assigned_to` atual:**
+     - `assigned_to` preenchido → `status = 'open'` (mantém responsável original).
+     - `assigned_to` vazio (ex.: foi limpo por `auto_returned` antes do `resolved`) → `status = 'pending'` — volta para a fila aguardando atendimento.
+   - **NÃO reatribui** — apenas respeita o `assigned_to` corrente.
    - Se a `queue_id` da nova mensagem for diferente da antiga, atualiza `queue_id` (mensagem chegou em outra fila do mesmo canal).
    - Insere `chat_conversation_history` com `action = 'reopened'`.
    - **Importante**: o lookup do `resolved` IGNORA `queue_id` (só amarra por canal). Isso evita duplicar ticket quando a fila do contato muda.
 3. Não há ativa nem resolved (somente `closed` ou nenhuma) → **cria nova**:
    - `status = 'pending'`, `assigned_to = null` (volta para a fila pendente sem dono).
    - Insere `chat_conversation_history` com `action = 'opened'`.
+
+**Regra invariante para a lista de chat (defense-in-depth):**
+- `status = 'open'` exige `assigned_to` preenchido. Se algum ticket aparecer como `open` sem dono, a UI o reclassifica como `pending` na aba "Aguardando atendimento" (`ChatList.tsx` e `WhatsAppDataContext.tsx` aplicam essa regra). O frontend (`getOrCreateConversation` e o envio da primeira resposta) também garante atribuir o usuário ao promover `pending → open`.
 
 Mensagens **outbound** (ecos `fromMe = true`) apenas anexam à conversa ativa; nunca disparam reopen nem criação.
 
