@@ -4189,6 +4189,119 @@ export type Database = {
           },
         ]
       }
+      internal_notification_recipients: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          delivered_at: string
+          dismissed: boolean
+          id: string
+          notification_id: string
+          poll_choice: string | null
+          read_at: string | null
+          responded_at: string | null
+          response_text: string | null
+          user_id: string
+          user_name: string | null
+          user_role: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          delivered_at?: string
+          dismissed?: boolean
+          id?: string
+          notification_id: string
+          poll_choice?: string | null
+          read_at?: string | null
+          responded_at?: string | null
+          response_text?: string | null
+          user_id: string
+          user_name?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          delivered_at?: string
+          dismissed?: boolean
+          id?: string
+          notification_id?: string
+          poll_choice?: string | null
+          read_at?: string | null
+          responded_at?: string | null
+          response_text?: string | null
+          user_id?: string
+          user_name?: string | null
+          user_role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_notification_recipients_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "internal_notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_notifications: {
+        Row: {
+          audience: string
+          body: string | null
+          created_at: string
+          created_by: string
+          created_by_client_id: string | null
+          created_by_name: string | null
+          id: string
+          poll_options: Json | null
+          recipients_total: number
+          scheduled_for: string | null
+          scope: string
+          sent_at: string | null
+          status: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          audience?: string
+          body?: string | null
+          created_at?: string
+          created_by: string
+          created_by_client_id?: string | null
+          created_by_name?: string | null
+          id?: string
+          poll_options?: Json | null
+          recipients_total?: number
+          scheduled_for?: string | null
+          scope?: string
+          sent_at?: string | null
+          status?: string
+          title: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          audience?: string
+          body?: string | null
+          created_at?: string
+          created_by?: string
+          created_by_client_id?: string | null
+          created_by_name?: string | null
+          id?: string
+          poll_options?: Json | null
+          recipients_total?: number
+          scheduled_for?: string | null
+          scope?: string
+          sent_at?: string | null
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       julia_contract_template: {
         Row: {
           body_markdown: string
