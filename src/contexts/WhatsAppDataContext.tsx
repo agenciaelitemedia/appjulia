@@ -1203,9 +1203,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       team?: Array<{ id: number | string; name: string }>;
       byId?: string;
       noteType?: 'info' | 'question' | 'urgent';
+      extraMetadata?: Record<string, any>;
     }
   ) => {
     const noteType = options?.noteType || 'info';
+    const extraMetadata = options?.extraMetadata || {};
     if (!clientId) return;
 
     const noteId = crypto.randomUUID();
