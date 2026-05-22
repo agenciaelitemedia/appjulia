@@ -1538,13 +1538,28 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       });
 
       if (conversation && !conversation.first_response_at) {
+        const senderName = user?.name || (user?.id ? String(user.id) : null);
+        const needsAssign = !conversation.assigned_to || String(conversation.assigned_to).trim() === '';
+        const updates: Record<string, unknown> = {
+          first_response_at: new Date().toISOString(),
+          status: 'open',
+        };
+        if (needsAssign && senderName) {
+          updates.assigned_to = senderName;
+        }
         await supabase
           .from('chat_conversations')
-          .update({
-            first_response_at: new Date().toISOString(),
-            status: 'open',
-          })
+          .update(updates)
           .eq('id', conversation.id);
+        if (needsAssign && senderName) {
+          await supabase.from('chat_conversation_history').insert({
+            conversation_id: conversation.id,
+            action: 'assigned',
+            actor_name: senderName,
+            to_value: senderName,
+            notes: 'Atribuído automaticamente ao enviar a primeira resposta',
+          });
+        }
       }
 
       await supabase
