@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRightLeft, CheckCircle2, XCircle, MessageSquare, RefreshCw, UserCheck, StickyNote, Flag, Pencil, Trophy } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle2, XCircle, MessageSquare, RefreshCw, UserCheck, StickyNote, Flag, Pencil, Trophy, RotateCcw } from 'lucide-react';
 import { parseDbTimestamp } from '@/lib/dateUtils';
 import type { ConversationHistoryEntry } from '@/types/conversation';
 const ACTION_LABELS: Record<string, string> = {
@@ -16,6 +16,7 @@ const ACTION_LABELS: Record<string, string> = {
   won: 'marcou como ganho',
   lost: 'marcou como perdido',
   moved: 'movimentou o card',
+  auto_returned: 'devolveu a conversa à fila automaticamente',
 };
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
@@ -26,7 +27,30 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
   priority_updated: <Flag className="h-3 w-3" />,
   won: <Trophy className="h-3 w-3" />,
   lost: <XCircle className="h-3 w-3" />,
+  auto_returned: <RotateCcw className="h-3 w-3" />,
 };
+
+/** Lista canônica de eventos exibidos na timeline do chat (para tela de configurações). */
+export const CONVERSATION_EVENT_ACTIONS: Array<{ action: string; sampleLabel: string }> = [
+  { action: 'opened', sampleLabel: 'abriu a conversa' },
+  { action: 'closed', sampleLabel: 'encerrou a conversa' },
+  { action: 'resolved', sampleLabel: 'resolveu a conversa' },
+  { action: 'reopened', sampleLabel: 'reabriu a conversa' },
+  { action: 'assigned', sampleLabel: 'assumiu a conversa' },
+  { action: 'auto_returned', sampleLabel: 'devolveu a conversa à fila automaticamente' },
+  { action: 'note_added', sampleLabel: 'adicionou uma nota' },
+  { action: 'note_updated', sampleLabel: 'editou uma nota' },
+  { action: 'note_deleted', sampleLabel: 'removeu uma nota' },
+  { action: 'priority_changed', sampleLabel: 'alterou a prioridade' },
+  { action: 'tag_added', sampleLabel: 'adicionou uma etiqueta' },
+  { action: 'tag_removed', sampleLabel: 'removeu uma etiqueta' },
+  { action: 'won', sampleLabel: 'marcou como ganho' },
+  { action: 'lost', sampleLabel: 'marcou como perdido' },
+  { action: 'moved', sampleLabel: 'movimentou o card' },
+  { action: 'created', sampleLabel: 'criou a conversa' },
+  { action: 'updated', sampleLabel: 'atualizou a conversa' },
+  { action: 'archived', sampleLabel: 'arquivou a conversa' },
+];
 
 
 interface ConversationEventProps {
@@ -54,7 +78,7 @@ interface RenderedConfig {
   color: string;
 }
 
-function getEventConfig(entry: ConversationHistoryEntry): RenderedConfig | null {
+export function getEventConfig(entry: ConversationHistoryEntry): RenderedConfig | null {
   const actor = entry.actor_name || 'Sistema';
 
   switch (entry.action) {
@@ -102,6 +126,12 @@ function getEventConfig(entry: ConversationHistoryEntry): RenderedConfig | null 
         color: 'text-purple-600 bg-purple-500/10 border-purple-500/20',
       };
     }
+    case 'auto_returned':
+      return {
+        icon: <RotateCcw className="h-3 w-3" />,
+        label: `Sistema devolveu a conversa à fila automaticamente`,
+        color: 'text-amber-600 bg-amber-500/10 border-amber-500/20',
+      };
     default:
       if (ACTION_LABELS[entry.action]) {
         return {
