@@ -1750,7 +1750,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
         }
         const mediaProxyData = data?.data || {};
-        externalMessageId = mediaProxyData?.key?.id || mediaProxyData?.id || mediaProxyData?.messageId;
+        const waStanzaId = mediaProxyData?.key?.id;
+        const uazInternalId = mediaProxyData?.id || mediaProxyData?.messageId || mediaProxyData?.messageid;
+        externalMessageId = waStanzaId || uazInternalId;
+        (tempMessage as any).__wa_id = waStanzaId || externalMessageId;
+        (tempMessage as any).__uaz_id = uazInternalId || externalMessageId;
       }
 
       setMessages(prev => ({
@@ -1770,8 +1774,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         type,
         from_me: true,
         status: 'sent',
-        message_id: externalMessageId,
-        external_id: externalMessageId,
+        message_id: (tempMessage as any).__wa_id ?? externalMessageId,
+        external_id: (tempMessage as any).__uaz_id ?? externalMessageId,
         media_url: persistedUrl,
         file_name: file.name,
         caption,
