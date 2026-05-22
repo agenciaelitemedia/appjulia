@@ -974,6 +974,36 @@ Deno.serve(async (req) => {
         const messageId = msg.id || msg.messageId || msg.message_id || msg.key?.id || msg.wa_messageid;
         if (!messageId) { skipped.no_id++; console.log('[uazapi-chat-webhook] no messageId, sample:', JSON.stringify(msg).slice(0, 400)); continue; }
 
+        // ── EDIT DETECTION: provider may re-deliver edits as a fresh upsert
+        //    (with a new key.id) wrapping a protocolMessage.editedMessage.
+        //    Detect, UPDATE the original row, and skip the insert.
+        const protoEdited = msg.message?.protocolMessage?.editedMessage
+          || msg.message?.editedMessage?.message
+          || msg.editedMessage?.message
+          || null;
+        const originalEditedId: string | undefined =
+          msg.message?.protocolMessage?.key?.id
+          || msg.message?.editedMessage?.message?.protocolMessage?.key?.id
+          || msg.editedMessageId
+          || msg.edited?.id;
+        const editedText: string | undefined =
+          protoEdited?.conversation
+          || protoEdited?.extendedTextMessage?.text
+          || (typeof msg.edited === 'string' ? msg.edited : undefined);
+        if (originalEditedId && editedText && String(editedText).trim()) {
+          const { data: upd, error: updErr } = await supabase
+            .from('chat_messages')
+            .update({ text: String(editedText), edited_at: new Date().toISOString() })
+            .eq('client_id', queue.client_id)
+            .or(`message_id.eq.${originalEditedId},external_id.eq.${originalEditedId}`)
+            .select('id');
+          console.log('[uazapi-chat-webhook] edit-detected via upsert', {
+            originalEditedId, affected: upd?.length ?? 0, err: updErr?.message,
+          });
+          processed++;
+          continue; // do NOT insert as a new message
+        }
+
         const { data: existingMessage } = await supabase
           .from('chat_messages')
           .select('id')
