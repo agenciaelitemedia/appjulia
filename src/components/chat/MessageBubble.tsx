@@ -685,6 +685,9 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
                   {format(new Date(message.timestamp), 'HH:mm')}
                 </span>
                 {message.from_me && <StatusIcon status={message.status} />}
+                {!message.from_me && (
+                  <CheckCheck className="h-3 w-3 text-sky-500" />
+                )}
               </div>
             </div>
 
