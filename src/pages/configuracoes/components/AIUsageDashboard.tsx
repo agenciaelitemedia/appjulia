@@ -551,14 +551,21 @@ export function AIUsageDashboard() {
 
 const LINE_COLORS = ['hsl(var(--primary))', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-function KpiCard({ icon, label, value, loading }: { icon: React.ReactNode; label: string; value: string; loading?: boolean }) {
+function KpiCard({ icon, label, value, subValue, loading }: { icon: React.ReactNode; label: string; value: string; subValue?: string; loading?: boolean }) {
   return (
     <Card>
       <CardContent className="p-4 space-y-1">
         <div className="flex items-center gap-2 text-muted-foreground text-xs">
           {icon} <span>{label}</span>
         </div>
-        {loading ? <Skeleton className="h-7 w-24" /> : <p className="text-2xl font-semibold">{value}</p>}
+        {loading ? (
+          <Skeleton className="h-7 w-24" />
+        ) : (
+          <>
+            <p className="text-2xl font-semibold leading-tight">{value}</p>
+            {subValue && <p className="text-xs text-muted-foreground">{subValue}</p>}
+          </>
+        )}
       </CardContent>
     </Card>
   );
