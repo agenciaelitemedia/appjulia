@@ -142,7 +142,13 @@ function collectMessageIds(src: any): string[] {
 }
 function buildIdOrFilter(ids: string[]): string {
   return ids
-    .flatMap((id) => [`message_id.eq.${id}`, `external_id.eq.${id}`])
+    .flatMap((id) => {
+      const filters = [`message_id.eq.${id}`, `external_id.eq.${id}`];
+      if (!id.includes(':')) {
+        filters.push(`message_id.ilike.*:${id}`, `external_id.ilike.*:${id}`);
+      }
+      return filters;
+    })
     .join(',');
 }
 
