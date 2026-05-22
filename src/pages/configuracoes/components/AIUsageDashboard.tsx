@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { externalDb } from '@/lib/externalDb';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, Activity, Coins, Clock, CheckCircle2, AlertTriangle, DollarSign, Timer } from 'lucide-react';
+import { RefreshCcw, Activity, Coins, Clock, CheckCircle2, AlertTriangle, DollarSign, Timer, Check, ChevronsUpDown } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
@@ -113,6 +117,36 @@ export function AIUsageDashboard() {
     },
     staleTime: 60_000,
   });
+
+  const { data: clientsInfo } = useQuery({
+    queryKey: ['ai_usage_logs_clients_info', distinctClients],
+    enabled: !!distinctClients && distinctClients.length > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const ids = distinctClients ?? [];
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          const numId = Number(id);
+          if (!Number.isFinite(numId)) return { id, name: id, business_name: null as string | null };
+          try {
+            const c: any = await externalDb.getClient(numId);
+            return {
+              id,
+              name: c?.name ?? `Cliente ${id}`,
+              business_name: (c?.business_name as string | null) ?? null,
+            };
+          } catch {
+            return { id, name: `Cliente ${id}`, business_name: null as string | null };
+          }
+        }),
+      );
+      return results.sort((a, z) => a.name.localeCompare(z.name, 'pt-BR'));
+    },
+  });
+
+  const clientOptions = clientsInfo ?? (distinctClients ?? []).map((id) => ({ id, name: id, business_name: null as string | null }));
+  const selectedClient = clientFilter === 'all' ? null : clientOptions.find((c) => c.id === clientFilter);
+  const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
 
   const rows = data ?? [];
 
@@ -224,15 +258,65 @@ export function AIUsageDashboard() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Cliente</Label>
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="w-56"><SelectValue placeholder="Todos os clientes" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os clientes</SelectItem>
-                {(distinctClients ?? []).map((c) => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={clientPopoverOpen}
+                  className={cn(
+                    'w-72 justify-between font-normal h-10',
+                    !selectedClient && 'text-muted-foreground',
+                  )}
+                >
+                  <span className="truncate text-left">
+                    {selectedClient ? (
+                      <span className="flex flex-col leading-tight">
+                        <span className="text-sm truncate">{selectedClient.name}</span>
+                        {selectedClient.business_name && (
+                          <span className="text-xs text-muted-foreground truncate">{selectedClient.business_name}</span>
+                        )}
+                      </span>
+                    ) : (
+                      'Todos os clientes'
+                    )}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[320px] p-0 bg-popover border border-border shadow-lg z-50" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar por nome ou escritório..." className="h-10" />
+                  <CommandList className="max-h-[320px]">
+                    <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="todos os clientes"
+                        onSelect={() => { setClientFilter('all'); setClientPopoverOpen(false); }}
+                      >
+                        <Check className={cn('mr-2 h-4 w-4', clientFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        <span className="font-medium">Todos os clientes</span>
+                      </CommandItem>
+                      {clientOptions.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={`${c.name} ${c.business_name ?? ''} ${c.id}`}
+                          onSelect={() => { setClientFilter(c.id); setClientPopoverOpen(false); }}
+                        >
+                          <Check className={cn('mr-2 h-4 w-4', clientFilter === c.id ? 'opacity-100' : 'opacity-0')} />
+                          <div className="flex flex-col gap-0.5 overflow-hidden">
+                            <span className="font-medium truncate">{c.name}</span>
+                            {c.business_name && (
+                              <span className="text-xs text-muted-foreground truncate">{c.business_name}</span>
+                            )}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Agente</Label>
