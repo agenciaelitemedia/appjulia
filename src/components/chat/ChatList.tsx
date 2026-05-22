@@ -1510,15 +1510,15 @@ export function ChatList() {
             key={tab.value}
             onClick={() => setConversationStatusFilter(tab.value)}
             className={cn(
-              'py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5',
+              'py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border-b-2',
               tab.iconOnly ? 'shrink-0 px-3' : 'flex-1',
               conversationStatusFilter === tab.value
                 ? tab.value === 'pending'
-                  ? 'bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-50'
+                  ? 'border-amber-500 text-amber-600 dark:text-amber-400'
                   : tab.value === 'open'
-                    ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-50'
-                    : 'bg-muted text-foreground'
-                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                    : 'border-foreground text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             {tab.iconOnly ? tab.icon : tab.label}
