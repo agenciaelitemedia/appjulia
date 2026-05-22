@@ -79,9 +79,11 @@ Deno.serve(async (req) => {
     }
 
     if (n.audience === "owners") {
-      where.push("u.client_id IS NOT NULL");
+      // Owners são contas-raiz do escritório: não possuem client_id (eles "são" o cliente).
+      where.push("u.client_id IS NULL");
     } else if (n.audience === "teams") {
-      where.push("u.role NOT IN ('admin','user','colaborador')");
+      // Times = membros vinculados a um owner (têm client_id).
+      where.push("u.client_id IS NOT NULL");
     } // 'all' → no extra filter
 
     const sql = `SELECT u.id, u.name, u.role, u.client_id FROM users u WHERE ${where.join(" AND ")}`;
