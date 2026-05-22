@@ -281,6 +281,9 @@ interface WhatsAppDataProviderProps {
 export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const { user } = useAuth();
 
+  // Sincroniza relógio do servidor (BRT) para timestamps de envio
+  useEffect(() => { ensureServerClock(); }, []);
+
   // Max number of contact message lists kept in memory.
   // When exceeded, the oldest accessed entries (excluding the selected contact)
   // are evicted to prevent unbounded RAM growth during long sessions.
