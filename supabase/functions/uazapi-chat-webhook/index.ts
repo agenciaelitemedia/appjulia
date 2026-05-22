@@ -7,6 +7,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
+import { logDroppedMessage } from "../_shared/droppedLogger.ts";
 
 declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
@@ -1097,12 +1098,24 @@ Deno.serve(async (req) => {
           const allowGroups = await getAllowGroupsForClient(String(queue.client_id));
           if (!allowGroups) {
             skipped.group++;
+            void logDroppedMessage(supabase, {
+              client_id: queue.client_id, queue_id: queue.id, queue_name: queue.name,
+              source: 'uazapi', reason: 'group_blocked', event, chat_id: String(chatId), msg,
+            });
             continue;
           }
         }
 
         const messageId = msg.id || msg.messageId || msg.message_id || msg.key?.id || msg.wa_messageid;
-        if (!messageId) { skipped.no_id++; console.log('[uazapi-chat-webhook] no messageId, sample:', JSON.stringify(msg).slice(0, 400)); continue; }
+        if (!messageId) {
+          skipped.no_id++;
+          console.log('[uazapi-chat-webhook] no messageId, sample:', JSON.stringify(msg).slice(0, 400));
+          void logDroppedMessage(supabase, {
+            client_id: queue.client_id, queue_id: queue.id, queue_name: queue.name,
+            source: 'uazapi', reason: 'no_id', event, chat_id: String(chatId), msg,
+          });
+          continue;
+        }
 
         // ── EDIT DETECTION: provider may re-deliver edits as a fresh upsert
         //    (with a new key.id) wrapping a protocolMessage.editedMessage.
@@ -1174,6 +1187,10 @@ Deno.serve(async (req) => {
           if (!rawGroupId) {
             skipped.no_phone++;
             console.log('[uazapi-chat-webhook] group without id, sample:', JSON.stringify(msg).slice(0, 300));
+            void logDroppedMessage(supabase, {
+              client_id: queue.client_id, queue_id: queue.id, queue_name: queue.name,
+              source: 'uazapi', reason: 'group_no_id', event, chat_id: String(chatId), from_me: fromMe, msg,
+            });
             continue;
           }
           senderPhone = rawGroupId;
@@ -1209,6 +1226,10 @@ Deno.serve(async (req) => {
           if (!senderPhone) {
             skipped.no_phone++;
             console.log('[uazapi-chat-webhook] no valid peer phone, fromMe=', fromMe, 'sample:', JSON.stringify({ chatid: msg.chatid, sender: msg.sender, sender_pn: msg.sender_pn, from: msg.from }).slice(0, 300));
+            void logDroppedMessage(supabase, {
+              client_id: queue.client_id, queue_id: queue.id, queue_name: queue.name,
+              source: 'uazapi', reason: 'no_phone', event, chat_id: String(chatId), from_me: fromMe, msg,
+            });
             continue;
           }
         }

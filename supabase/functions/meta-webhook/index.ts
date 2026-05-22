@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveQueueByWabaNumberId, resolveQueueId } from "../_shared/resolve-queue.ts";
+import { logDroppedMessage } from "../_shared/droppedLogger.ts";
 import { fetchWhatsappProfile, fetchWabaProfileWithUazapiFallback, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 
 const corsHeaders = {
@@ -620,6 +621,15 @@ serve(async (req) => {
             if (agentInfo) {
               persistToChat(agentInfo, from, contactName, message, msgType, phoneNumberId, queueInfo)
                 .catch(err => console.error('[persistToChat] background error:', err));
+            } else {
+              // No agent/queue resolved for this phone_number_id → message never
+              // reaches the chat. Record it for auditing in Dropped MSG's.
+              void logDroppedMessage(supabase, {
+                client_id: queueInfo?.client_id ?? null,
+                queue_id: queueInfo?.id ?? null,
+                source: 'waba', reason: 'no_agent',
+                event: 'messages', chat_id: from, msg: message,
+              });
             }
           }
 

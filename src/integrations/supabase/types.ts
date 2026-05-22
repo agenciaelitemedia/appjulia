@@ -1925,6 +1925,51 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_dropped_messages: {
+        Row: {
+          chat_id: string | null
+          client_id: string | null
+          created_at: string | null
+          event: string | null
+          from_me: boolean | null
+          id: string
+          preview: string | null
+          queue_id: string | null
+          queue_name: string | null
+          raw_payload: Json | null
+          reason: string
+          source: string
+        }
+        Insert: {
+          chat_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          event?: string | null
+          from_me?: boolean | null
+          id?: string
+          preview?: string | null
+          queue_id?: string | null
+          queue_name?: string | null
+          raw_payload?: Json | null
+          reason: string
+          source?: string
+        }
+        Update: {
+          chat_id?: string | null
+          client_id?: string | null
+          created_at?: string | null
+          event?: string | null
+          from_me?: boolean | null
+          id?: string
+          preview?: string | null
+          queue_id?: string | null
+          queue_name?: string | null
+          raw_payload?: Json | null
+          reason?: string
+          source?: string
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           caption: string | null

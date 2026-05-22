@@ -1,10 +1,11 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bot, History, Activity, Wrench, BarChart3 } from 'lucide-react';
+import { Bot, History, Activity, Wrench, BarChart3, MailX } from 'lucide-react';
 import { AIModelsConfig } from './components/AIModelsConfig';
 import { UazapiHistoryTab } from './components/UazapiHistoryTab';
 import { UazapiMonitorTab } from './components/UazapiMonitorTab';
 import { QueueMaintenanceTab } from './components/QueueMaintenanceTab';
 import { AIUsageDashboard } from './components/AIUsageDashboard';
+import { DroppedMessagesTab } from './components/DroppedMessagesTab';
 
 export default function ConfiguracoesPage() {
   return (
@@ -35,6 +36,10 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="maintenance" className="gap-2">
             <Wrench className="w-4 h-4" />
             Manutenção de Filas
+          </TabsTrigger>
+          <TabsTrigger value="dropped" className="gap-2">
+            <MailX className="w-4 h-4" />
+            Dropped MSG's
           </TabsTrigger>
         </TabsList>
 
@@ -68,6 +73,10 @@ export default function ConfiguracoesPage() {
 
         <TabsContent value="maintenance" className="mt-6">
           <QueueMaintenanceTab />
+        </TabsContent>
+
+        <TabsContent value="dropped" className="mt-6">
+          <DroppedMessagesTab />
         </TabsContent>
       </Tabs>
     </div>
