@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,6 +52,7 @@ serve(async (req) => {
       throw new Error("IA não configurada (sem chave)");
     }
 
+    const aiStarted = Date.now();
     const aiResponse = await fetch(ai.endpoint, {
       method: "POST",
       headers: {
@@ -66,8 +68,19 @@ serve(async (req) => {
         ],
       }),
     });
+    const aiDurationMs = Date.now() - aiStarted;
 
     if (!aiResponse.ok) {
+      await logAIUsage(supabase, {
+        feature: "script_generation",
+        provider: ai.provider,
+        endpoint: ai.endpoint,
+        model: ai.model,
+        status: "failed",
+        duration_ms: aiDurationMs,
+        error_reason: `ai_${aiResponse.status}`,
+        context: { case_name },
+      });
       if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit excedido. Tente novamente em alguns instantes." }), {
           status: 429,
@@ -87,6 +100,16 @@ serve(async (req) => {
 
     const aiData = await aiResponse.json();
     const fullContent = aiData.choices?.[0]?.message?.content || "";
+    await logAIUsage(supabase, {
+      feature: "script_generation",
+      provider: ai.provider,
+      endpoint: ai.endpoint,
+      model: ai.model,
+      status: "ok",
+      duration_ms: aiDurationMs,
+      usage: aiData?.usage,
+      context: { case_name, response_length: fullContent.length },
+    });
 
     // Parse 3 sections
     const parseSection = (start: string, end: string): string => {

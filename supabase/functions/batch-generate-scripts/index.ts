@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,6 +38,7 @@ serve(async (req) => {
 
   for (const c of allCases) {
     try {
+      const aiStarted = Date.now();
       const aiResponse = await fetch(ai.endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${ai.apiKey}`, "Content-Type": "application/json", ...providerHeaders(ai.provider) },
@@ -45,15 +47,48 @@ serve(async (req) => {
           messages: [{ role: "system", content: systemPrompt }, { role: "user", content: `Caso: ${c.case_name}` }],
         }),
       });
+      const aiDurationMs = Date.now() - aiStarted;
 
       if (aiResponse.status === 429) {
+        await logAIUsage(supabase, {
+          feature: "script_generation_batch",
+          provider: ai.provider,
+          endpoint: ai.endpoint,
+          model: ai.model,
+          status: "failed",
+          duration_ms: aiDurationMs,
+          error_reason: "ai_429",
+          context: { case_id: c.id, case_name: c.case_name },
+        });
         await new Promise(r => setTimeout(r, 30000));
         continue;
       }
-      if (!aiResponse.ok) { results.push({ id: c.id, name: c.case_name, status: "ai_error" }); continue; }
+      if (!aiResponse.ok) {
+        await logAIUsage(supabase, {
+          feature: "script_generation_batch",
+          provider: ai.provider,
+          endpoint: ai.endpoint,
+          model: ai.model,
+          status: "failed",
+          duration_ms: aiDurationMs,
+          error_reason: `ai_${aiResponse.status}`,
+          context: { case_id: c.id, case_name: c.case_name },
+        });
+        results.push({ id: c.id, name: c.case_name, status: "ai_error" }); continue;
+      }
 
       const aiData = await aiResponse.json();
       const fullContent = aiData.choices?.[0]?.message?.content || "";
+      await logAIUsage(supabase, {
+        feature: "script_generation_batch",
+        provider: ai.provider,
+        endpoint: ai.endpoint,
+        model: ai.model,
+        status: "ok",
+        duration_ms: aiDurationMs,
+        usage: aiData?.usage,
+        context: { case_id: c.id, case_name: c.case_name },
+      });
 
       const parseSection = (start: string, end: string): string => {
         const si = fullContent.indexOf(start);
