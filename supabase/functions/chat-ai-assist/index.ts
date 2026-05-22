@@ -3,6 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { fetchEffectiveQueueFlags } from "../_shared/agentSettings.ts";
 import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -150,6 +151,7 @@ Deno.serve(async (req) => {
         ? `RESUMOS ANTERIORES (contexto acumulado, não repetir):\n${previousBlock}\n\nCONVERSA ATUAL (novas mensagens a resumir):\n${transcript}`
         : `CONVERSA (resuma desde o início):\n${transcript}`;
 
+      const incStarted = Date.now();
       const resp = await fetch(resumeAI.endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${resumeAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(resumeAI.provider) },
@@ -161,16 +163,37 @@ Deno.serve(async (req) => {
           ],
         }),
       });
+      const incDurationMs = Date.now() - incStarted;
 
       if (resp.status === 429) return json({ error: "Limite de uso da IA atingido." }, 429);
       if (resp.status === 402) return json({ error: "Créditos da IA esgotados." }, 402);
       if (!resp.ok) {
         const t = await resp.text();
+        await logAIUsage(supabase, {
+          feature: "chat_resume",
+          provider: resumeAI.provider,
+          endpoint: resumeAI.endpoint,
+          model: resumeModel,
+          status: "failed",
+          duration_ms: incDurationMs,
+          error_reason: `ai_${resp.status}`,
+          context: { conversation_id, mode: "incremental_summary" },
+        });
         return json({ error: "AI error", detail: t }, 500);
       }
 
       const aiData = await resp.json();
       const summary = aiData?.choices?.[0]?.message?.content ?? "";
+      await logAIUsage(supabase, {
+        feature: "chat_resume",
+        provider: resumeAI.provider,
+        endpoint: resumeAI.endpoint,
+        model: resumeModel,
+        status: "ok",
+        duration_ms: incDurationMs,
+        usage: aiData?.usage,
+        context: { conversation_id, mode: "incremental_summary", message_count },
+      });
 
       // Persist summary + (optionally) post an internal note in the chat timeline.
       // Gating by agent automation flags (AUTO_SUMMARY_ON_RESOLVE / _ON_CLOSE)
@@ -321,6 +344,7 @@ Deno.serve(async (req) => {
 
       const userContent = `${contextPrefix}CONVERSA:\n${transcript}`;
 
+      const fsStarted = Date.now();
       const resp = await fetch(resumeAI.endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${resumeAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(resumeAI.provider) },
@@ -332,16 +356,37 @@ Deno.serve(async (req) => {
           ],
         }),
       });
+      const fsDurationMs = Date.now() - fsStarted;
 
       if (resp.status === 429) return json({ error: "Limite de uso da IA atingido." }, 429);
       if (resp.status === 402) return json({ error: "Créditos da IA esgotados." }, 402);
       if (!resp.ok) {
         const t = await resp.text();
+        await logAIUsage(supabase, {
+          feature: "chat_resume",
+          provider: resumeAI.provider,
+          endpoint: resumeAI.endpoint,
+          model: resumeModel,
+          status: "failed",
+          duration_ms: fsDurationMs,
+          error_reason: `ai_${resp.status}`,
+          context: { conversation_id, mode: "full_summary" },
+        });
         return json({ error: "AI error", detail: t }, 500);
       }
 
       const aiData = await resp.json();
       const raw = aiData?.choices?.[0]?.message?.content ?? "{}";
+      await logAIUsage(supabase, {
+        feature: "chat_resume",
+        provider: resumeAI.provider,
+        endpoint: resumeAI.endpoint,
+        model: resumeModel,
+        status: "ok",
+        duration_ms: fsDurationMs,
+        usage: aiData?.usage,
+        context: { conversation_id, mode: "full_summary", message_count },
+      });
       let parsed: Record<string, string> = {};
       try {
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -383,6 +428,7 @@ Deno.serve(async (req) => {
 
     const assistAI = await resolveAI(supabase, "chat_assist");
     if (!assistAI.apiKey) return json({ error: "IA não configurada (sem chave)." }, 500);
+    const assistStarted = Date.now();
     const resp = await fetch(assistAI.endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${assistAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(assistAI.provider) },
@@ -394,15 +440,36 @@ Deno.serve(async (req) => {
         ],
       }),
     });
+    const assistDurationMs = Date.now() - assistStarted;
 
     if (resp.status === 429) return json({ error: "Limite de uso da IA atingido. Tente em instantes." }, 429);
     if (resp.status === 402) return json({ error: "Créditos da IA esgotados. Adicione créditos no workspace." }, 402);
     if (!resp.ok) {
       const t = await resp.text();
+      await logAIUsage(supabase, {
+        feature: "chat_assist",
+        provider: assistAI.provider,
+        endpoint: assistAI.endpoint,
+        model: assistAI.model,
+        status: "failed",
+        duration_ms: assistDurationMs,
+        error_reason: `ai_${resp.status}`,
+        context: { conversation_id, mode },
+      });
       return json({ error: "AI error", detail: t }, 500);
     }
     const data = await resp.json();
     const result = data?.choices?.[0]?.message?.content ?? "";
+    await logAIUsage(supabase, {
+      feature: "chat_assist",
+      provider: assistAI.provider,
+      endpoint: assistAI.endpoint,
+      model: assistAI.model,
+      status: "ok",
+      duration_ms: assistDurationMs,
+      usage: data?.usage,
+      context: { conversation_id, mode },
+    });
     return json({ result, mode });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
