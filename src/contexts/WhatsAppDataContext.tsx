@@ -1617,7 +1617,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     contactId: string,
     file: File,
     type: MessageType,
-    caption?: string
+    caption?: string,
+    options?: { forward?: boolean }
   ) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
@@ -1761,6 +1762,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               fileName: outboundFile.name,
               docName: type === 'document' ? outboundFile.name : undefined,
               ptt: type === 'ptt' ? true : undefined,
+              forward: options?.forward === true ? true : undefined,
             },
           },
         });
