@@ -901,7 +901,11 @@ Deno.serve(async (req) => {
       for (const upd of updates) {
         const idCandidates = collectMessageIds(upd);
         if (idCandidates.length === 0) continue;
-        const orFilter = buildIdOrFilter(idCandidates);
+        const rowIds = await resolveChatMessageRowIds(supabase, idCandidates);
+        if (rowIds.length === 0) {
+          console.warn('[uazapi-chat-webhook] messages.update: no row matched', { idCandidates });
+          continue;
+        }
 
         // Inbound EDIT: provider resends the message with new content for an existing id.
         const editedText: string | undefined =
@@ -913,7 +917,7 @@ Deno.serve(async (req) => {
           const { data: updRows } = await supabase
             .from('chat_messages')
             .update({ text: String(editedText), edited_at: new Date().toISOString() })
-            .or(orFilter)
+            .in('id', rowIds)
             .select('id');
           if (!updRows?.length) {
             console.warn('[uazapi-chat-webhook] messages.update EDIT: no row matched', { idCandidates });
@@ -934,7 +938,7 @@ Deno.serve(async (req) => {
           let q = supabase
             .from('chat_messages')
             .update({ status: mapped })
-            .or(orFilter);
+            .in('id', rowIds);
           // Guard against downgrade (e.g. read → delivered). For 'failed' or
           // unknown statuses with no rank, allow unconditional update.
           if (lower.length > 0) q = q.in('status', lower);
