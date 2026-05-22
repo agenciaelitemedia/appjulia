@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
+import { getServerNowBRT, ensureServerClock } from '@/lib/serverClock';
 import { webmBlobToOggOpusStrict } from '@/lib/audio/webmToOgg';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 import { useAuth } from './AuthContext';
