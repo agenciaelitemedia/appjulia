@@ -218,6 +218,7 @@ interface ExtendedContextValue extends ChatContextValue {
       team?: Array<{ id: number | string; name: string }>;
       byId?: string;
       noteType?: 'info' | 'question' | 'urgent';
+      extraMetadata?: Record<string, any>;
     }
   ) => Promise<void>;
 
@@ -1202,9 +1203,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       team?: Array<{ id: number | string; name: string }>;
       byId?: string;
       noteType?: 'info' | 'question' | 'urgent';
+      extraMetadata?: Record<string, any>;
     }
   ) => {
     const noteType = options?.noteType || 'info';
+    const extraMetadata = options?.extraMetadata || {};
     if (!clientId) return;
 
     const noteId = crypto.randomUUID();
@@ -1236,6 +1239,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       note_type: noteType,
       sender_name: senderName,
       timestamp: noteMessage.timestamp,
+      metadata: { ...extraMetadata, internal_note: true, sender_name: senderName, note_type: noteType },
     } as any);
 
     // Persist @mentions if team list provided and we have a conversation
@@ -1257,7 +1261,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     const noteWithMeta = {
       ...noteMessage,
-      metadata: { ...noteMessage.metadata, internal_note: true, sender_name: senderName, note_type: noteType },
+      metadata: { ...noteMessage.metadata, ...extraMetadata, internal_note: true, sender_name: senderName, note_type: noteType },
     };
 
     knownMessageIds.current.add(noteId);
