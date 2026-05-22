@@ -91,6 +91,49 @@ function respond(body: Record<string, unknown>, status = 200) {
   });
 }
 
+// ── Status helpers (shared by messages.update and messages.upsert) ──
+const STATUS_MAP: Record<string, string> = {
+  '0': 'failed', '1': 'pending', '2': 'sent', '3': 'delivered', '4': 'read', '5': 'read',
+  'error': 'failed', 'failed': 'failed', 'canceled': 'failed', 'cancelled': 'failed',
+  'pending': 'pending', 'queued': 'pending',
+  'server_ack': 'sent', 'sent': 'sent',
+  'delivery_ack': 'delivered', 'delivered': 'delivered',
+  'read': 'read', 'read_ack': 'read', 'played': 'read',
+};
+const STATUS_RANK: Record<string, number> = {
+  pending: 0, sending: 0, received: 0,
+  sent: 1, delivered: 2, read: 3,
+};
+function mapStatus(raw: unknown): string | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const key = String(raw).toLowerCase();
+  return STATUS_MAP[key] || key;
+}
+/** Statuses that are strictly LOWER than the target — used as an `.in()` guard
+ *  so we never downgrade an already-acked message (e.g. read → delivered). */
+function lowerStatusesThan(target: string): string[] {
+  const rank = STATUS_RANK[target];
+  if (rank == null || rank < 0) return [];
+  return Object.entries(STATUS_RANK)
+    .filter(([, v]) => v < rank)
+    .map(([k]) => k);
+}
+function collectMessageIds(src: any): string[] {
+  return Array.from(new Set([
+    src?.messageid,
+    src?.id,
+    src?.message_id,
+    src?.wa_messageid,
+    src?.key?.id,
+    src?.update?.key?.id,
+  ].filter((x) => typeof x === 'string' && x.length > 0))) as string[];
+}
+function buildIdOrFilter(ids: string[]): string {
+  return ids
+    .flatMap((id) => [`message_id.eq.${id}`, `external_id.eq.${id}`])
+    .join(',');
+}
+
 function normalizePhone(raw: string): string {
   // Forma canônica BR: aplica regra do 9º dígito para celulares 55 + DDD + 8 díg.
   // Para demais países e fixos, preserva os dígitos como vieram.
@@ -783,32 +826,10 @@ Deno.serve(async (req) => {
     // ─── STATUS UPDATES (delivered, read, etc.) + EDITS ───
     if (event === 'messages.update') {
       const updates = Array.isArray(payload.data) ? payload.data : [payload.data || payload];
-      // Maps both Evolution (SERVER_ACK/numeric) and uazapi.com (Sent/Delivered/Read) statuses.
-      const statusMap: Record<string, string> = {
-        '0': 'failed', '1': 'pending', '2': 'sent', '3': 'delivered', '4': 'read', '5': 'read',
-        'error': 'failed', 'failed': 'failed', 'canceled': 'failed', 'cancelled': 'failed',
-        'pending': 'pending', 'queued': 'pending',
-        'server_ack': 'sent', 'sent': 'sent',
-        'delivery_ack': 'delivered', 'delivered': 'delivered',
-        'read': 'read', 'read_ack': 'read', 'played': 'read',
-      };
       for (const upd of updates) {
-        // Collect every candidate id the provider may use (uazapi internal id,
-        // WhatsApp stanza id, etc.) so status/edit updates always match the row
-        // we persisted at send time — regardless of which id we stored.
-        const idCandidates = Array.from(new Set([
-          upd.messageid,
-          upd.id,
-          upd.key?.id,
-          upd.update?.key?.id,
-          upd.wa_messageid,
-          upd.message_id,
-        ].filter((x) => typeof x === 'string' && x.length > 0))) as string[];
+        const idCandidates = collectMessageIds(upd);
         if (idCandidates.length === 0) continue;
-        const messageId = idCandidates[0];
-        const orFilter = idCandidates
-          .flatMap((id) => [`message_id.eq.${id}`, `external_id.eq.${id}`])
-          .join(',');
+        const orFilter = buildIdOrFilter(idCandidates);
 
         // Inbound EDIT: provider resends the message with new content for an existing id.
         const editedText: string | undefined =
@@ -827,19 +848,20 @@ Deno.serve(async (req) => {
           }
         }
 
-        const rawStatus = upd.status ?? upd.update?.status;
-        if (rawStatus !== undefined && rawStatus !== null && rawStatus !== '') {
-          const mapped = statusMap[String(rawStatus).toLowerCase()] || String(rawStatus).toLowerCase();
-          const { data: stRows } = await supabase
+        const mapped = mapStatus(upd.status ?? upd.update?.status);
+        if (mapped) {
+          const lower = lowerStatusesThan(mapped);
+          let q = supabase
             .from('chat_messages')
             .update({ status: mapped })
-            .or(orFilter)
-            .select('id');
-          if (!stRows?.length) {
-            console.warn('[uazapi-chat-webhook] messages.update STATUS: no row matched', {
-              status: mapped, idCandidates,
-            });
-          }
+            .or(orFilter);
+          // Guard against downgrade (e.g. read → delivered). For 'failed' or
+          // unknown statuses with no rank, allow unconditional update.
+          if (lower.length > 0) q = q.in('status', lower);
+          const { data: stRows } = await q.select('id');
+          console.log('[uazapi-chat-webhook] messages.update STATUS', {
+            status: mapped, affected: stRows?.length ?? 0, idCandidates,
+          });
         }
       }
       return respond({ ok: true, event: 'messages.update', count: updates.length });
@@ -1030,13 +1052,30 @@ Deno.serve(async (req) => {
 
         const { data: existingMessage } = await supabase
           .from('chat_messages')
-          .select('id')
+          .select('id, status')
           .eq('client_id', queue.client_id)
           .or(`message_id.eq.${messageId},external_id.eq.${messageId}`)
           .limit(1)
           .maybeSingle();
 
         if (existingMessage) {
+          // Some providers re-deliver the outbound echo of an already-sent
+          // message inside the upsert stream (instead of as messages.update),
+          // carrying a fresher status like Delivered/Read. Apply the status
+          // bump here too — otherwise outbound ticks stay stuck at 'sent'.
+          const upsertStatus = mapStatus(msg.status ?? msg.ack);
+          if (upsertStatus) {
+            const lower = lowerStatusesThan(upsertStatus);
+            if (lower.length === 0 || lower.includes(String(existingMessage.status))) {
+              await supabase
+                .from('chat_messages')
+                .update({ status: upsertStatus })
+                .eq('id', existingMessage.id);
+              console.log('[uazapi-chat-webhook] upsert STATUS bump', {
+                from: existingMessage.status, to: upsertStatus, messageId,
+              });
+            }
+          }
           processed++;
           continue;
         }
