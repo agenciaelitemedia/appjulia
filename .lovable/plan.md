@@ -1,62 +1,39 @@
-## Causa-raiz identificada
+# Forçar download de mídias no chat
 
-Nos logs do webhook aparece:
+## Problema
+Hoje os botões de "Download" no chat usam `<a href={url} download>` apontando diretamente para URLs cross-origin (UaZapi / storage). O atributo `download` é ignorado pelo browser quando a URL é de outra origem, então o link abre numa nova aba em vez de baixar o arquivo. Vídeos no preview não têm botão de download.
 
-```
-Event: [object Object] (isMessageUpsert=false), queue: MKT Natal
-```
+## Solução
 
-Ou seja, quando a UaZapi envia o evento `messages_update`, o campo `payload.event` chega como **objeto**, não como string. Hoje o código faz:
+Criar um helper `forceDownload(url, fileName)` que faz `fetch` da URL, converte para `Blob`, gera `URL.createObjectURL` e dispara um `<a>` virtual com `download={fileName}`. Isso garante download real (com fallback para nova aba se o fetch falhar por CORS).
 
-```ts
-const rawEvent = payload.event || 'messages';
-const event = EVENT_ALIAS[rawEvent] || rawEvent;
-```
+Aplicar nos 3 pontos onde a mídia é apresentada/baixada.
 
-- `EVENT_ALIAS[<objeto>]` é `undefined`
-- `event` continua sendo o objeto
-- não bate em `messages.update` nem em `messages.upsert`
-- a função sai sem atualizar o status → mensagem fica para sempre em 1 check
+## Arquivos a alterar
 
-Isso explica perfeitamente:
-- Por que adicionar `messages_update` na lista de eventos não resolveu (ele está chegando, só não é reconhecido).
-- Por que só a fila MKT Natal (que mandou pro 5534988860163) ficou travada em `sent`.
+### 1. `src/lib/forceDownload.ts` (novo)
+Função utilitária:
+- Recebe `url` + `fileName` opcional
+- `fetch(url) → blob → createObjectURL → click programático → revoke`
+- Inferir `fileName` da URL quando não fornecido
+- Em erro, fallback para abrir em nova aba
 
-## Plano de correção
+### 2. `src/components/chat/MediaLightbox.tsx`
+- Substituir `<a href download>` por `<Button onClick={() => forceDownload(url, fileName)}>`
 
-### 1. Normalizar `payload.event` quando vier como objeto
-No `uazapi-chat-webhook/index.ts`, extrair o nome do evento de forma resiliente:
-- se `payload.event` for string → usa direto
-- se for objeto → tenta `event.type`, `event.name`, `event.event`, ou a primeira chave do objeto
-- se ainda não der string → fallback para `payload.EventType` / `payload.type` / `'messages'`
+### 3. `src/components/chat/MessageBubble.tsx`
 
-### 2. Log de diagnóstico do payload bruto
-Logar `typeof payload.event`, as chaves quando for objeto, e o evento final resolvido. Assim a gente confirma o formato da UaZapi e nunca mais perde evento silenciosamente.
+**Imagem** (case `'image'`):
+- Adicionar botão flutuante de download no canto superior direito do preview (visível em hover), chamando `forceDownload(mediaUrl, file_name)`.
 
-### 3. Garantir que o alias inclui todas as variações
-Manter `messages_update`, `message_update`, `messages.update`, `message-update` no `EVENT_ALIAS` para cobrir todos os formatos.
+**Vídeo** (case `'video'`):
+- Adicionar botão de download abaixo/sobreposto ao `<video>`, chamando `forceDownload`.
 
-### 4. Validação ponta a ponta
-1. Reenviar mensagem para 5534988860163
-2. Conferir nos logs: `Event: messages.update (isMessageUpsert=false)`
-3. Conferir log novo `messages.update STATUS { status: 'delivered', affected: 1 }`
-4. Conferir bubble passando de 1 → 2 checks → 2 checks destacados
+**Documento** (case `'document'`):
+- Trocar `<a href={mediaUrl} target="_blank" download>` por `<Button onClick={() => forceDownload(mediaUrl, file_name)}>` — mantém o ícone `Download` atual.
 
-## Detalhes técnicos
-
-Arquivo único a alterar: `supabase/functions/uazapi-chat-webhook/index.ts`
-
-Trecho equivalente ao novo parser:
-
-```ts
-function resolveEventName(payload: any): string {
-  const raw = payload?.event ?? payload?.EventType ?? payload?.type;
-  if (typeof raw === 'string') return raw;
-  if (raw && typeof raw === 'object') {
-    return raw.type || raw.name || raw.event || Object.keys(raw)[0] || 'messages';
-  }
-  return 'messages';
-}
-```
-
-Sem alterações no frontend, no realtime ou no banco — o tratamento de status (`mapStatus`, guard anti-downgrade, `collectMessageIds`) já está correto, só não estava sendo executado por causa do parsing do evento.
+## Comportamento esperado
+- Imagem: ícone de download no preview, clique baixa o arquivo (não abre aba).
+- Vídeo: player com controles + botão de download que baixa o arquivo.
+- Documento: ícone de download já existente passa a baixar de fato.
+- Lightbox: botão de download força salvamento.

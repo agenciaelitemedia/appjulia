@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { forceDownload } from '@/lib/forceDownload';
 
 interface MediaLightboxProps {
   open: boolean;
@@ -43,11 +44,15 @@ export function MediaLightbox({ open, onOpenChange, url, caption, fileName }: Me
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
-          <a href={url} download={fileName || true} target="_blank" rel="noopener noreferrer">
-            <Button variant="secondary" size="icon" className="h-9 w-9 rounded-full shadow-lg" aria-label="Baixar">
-              <Download className="h-4 w-4" />
-            </Button>
-          </a>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="h-9 w-9 rounded-full shadow-lg"
+            aria-label="Baixar"
+            onClick={() => forceDownload(url, fileName)}
+          >
+            <Download className="h-4 w-4" />
+          </Button>
           <Button
             variant="secondary"
             size="icon"
