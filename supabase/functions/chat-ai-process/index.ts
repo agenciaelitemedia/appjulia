@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { resolveAI, providerHeaders } from '../_shared/aiGateway.ts';
+import { logAIUsage } from '../_shared/aiUsageLogger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -57,6 +58,7 @@ Deno.serve(async (req) => {
 
 Mensagem: "${body.messageText}"`;
 
+    const classifyStarted = Date.now();
     const classifyRes = await fetch(autoreplyAI.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${autoreplyAI.apiKey}`, ...providerHeaders(autoreplyAI.provider) },
@@ -69,6 +71,7 @@ Mensagem: "${body.messageText}"`;
         temperature: 0.1,
       }),
     });
+    const classifyDurationMs = Date.now() - classifyStarted;
 
     if (classifyRes.status === 429) {
       return new Response(JSON.stringify({ error: 'rate_limited' }), {
@@ -82,6 +85,18 @@ Mensagem: "${body.messageText}"`;
     }
 
     const classifyJson = await classifyRes.json();
+    await logAIUsage(supabase, {
+      client_id: conversation.client_id,
+      feature: 'chat_classify',
+      provider: autoreplyAI.provider,
+      endpoint: autoreplyAI.endpoint,
+      model: autoreplyAI.model,
+      status: classifyRes.ok ? 'ok' : 'failed',
+      duration_ms: classifyDurationMs,
+      usage: classifyJson?.usage,
+      error_reason: classifyRes.ok ? null : `ai_${classifyRes.status}`,
+      context: { conversation_id: conversation.id, kind: 'classify' },
+    });
     let classification: any = {};
     try {
       const raw = classifyJson.choices?.[0]?.message?.content || '{}';
@@ -171,6 +186,7 @@ Mensagem: "${body.messageText}"`;
         const replyEndpoint = matchedRule.model ? 'https://ai.gateway.lovable.dev/v1/chat/completions' : autoreplyAI.endpoint;
         const replyKey = matchedRule.model ? LOVABLE_API_KEY : autoreplyAI.apiKey;
         const replyProvider = matchedRule.model ? 'lovable' : autoreplyAI.provider;
+        const replyStarted = Date.now();
         const replyRes = await fetch(replyEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${replyKey}`, ...providerHeaders(replyProvider) },
@@ -183,11 +199,25 @@ Mensagem: "${body.messageText}"`;
             temperature: 0.6,
           }),
         });
+        const replyDurationMs = Date.now() - replyStarted;
 
+        let replyJson: any = null;
         if (replyRes.ok) {
-          const replyJson = await replyRes.json();
+          replyJson = await replyRes.json();
           aiReply = replyJson.choices?.[0]?.message?.content?.trim() || null;
         }
+        await logAIUsage(supabase, {
+          client_id: conversation.client_id,
+          feature: 'chat_autoreply',
+          provider: replyProvider,
+          endpoint: replyEndpoint,
+          model: matchedRule.model || autoreplyAI.model,
+          status: replyRes.ok ? 'ok' : 'failed',
+          duration_ms: replyDurationMs,
+          usage: replyJson?.usage,
+          error_reason: replyRes.ok ? null : `ai_${replyRes.status}`,
+          context: { conversation_id: conversation.id, rule_id: matchedRule.id, used_kb: usedKbIds.length },
+        });
 
         await supabase.from('chat_ai_autoreply_logs').insert({
           client_id: conversation.client_id,
