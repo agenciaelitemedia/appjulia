@@ -371,7 +371,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
           selectedConversation.contact_id,
           `🔒 Encerramento: ${trimmedNote}`,
           currentUserName || 'Sistema',
-          { noteType: 'info' }
+          { noteType: 'urgent' }
         );
       } catch (e) {
         console.warn('[close] failed to post closure internal note', e);
