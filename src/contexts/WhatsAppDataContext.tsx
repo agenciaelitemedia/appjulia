@@ -1261,7 +1261,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     const noteWithMeta = {
       ...noteMessage,
-      metadata: { ...noteMessage.metadata, internal_note: true, sender_name: senderName, note_type: noteType },
+      metadata: { ...noteMessage.metadata, ...extraMetadata, internal_note: true, sender_name: senderName, note_type: noteType },
     };
 
     knownMessageIds.current.add(noteId);
