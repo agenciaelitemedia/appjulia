@@ -118,6 +118,36 @@ export function AIUsageDashboard() {
     staleTime: 60_000,
   });
 
+  const { data: clientsInfo } = useQuery({
+    queryKey: ['ai_usage_logs_clients_info', distinctClients],
+    enabled: !!distinctClients && distinctClients.length > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const ids = distinctClients ?? [];
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          const numId = Number(id);
+          if (!Number.isFinite(numId)) return { id, name: id, business_name: null as string | null };
+          try {
+            const c: any = await externalDb.getClient(numId);
+            return {
+              id,
+              name: c?.name ?? `Cliente ${id}`,
+              business_name: (c?.business_name as string | null) ?? null,
+            };
+          } catch {
+            return { id, name: `Cliente ${id}`, business_name: null as string | null };
+          }
+        }),
+      );
+      return results.sort((a, z) => a.name.localeCompare(z.name, 'pt-BR'));
+    },
+  });
+
+  const clientOptions = clientsInfo ?? (distinctClients ?? []).map((id) => ({ id, name: id, business_name: null as string | null }));
+  const selectedClient = clientFilter === 'all' ? null : clientOptions.find((c) => c.id === clientFilter);
+  const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
+
   const rows = data ?? [];
 
   const kpis = useMemo(() => {
