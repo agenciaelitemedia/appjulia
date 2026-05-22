@@ -91,3 +91,9 @@ verify_jwt = false
 verify_jwt = false
 [functions.ai-provider-key-set]
 verify_jwt = false
+
+[functions.internal-notification-dispatch]
+verify_jwt = false
+
+[functions.internal-notification-scheduler]
+verify_jwt = false

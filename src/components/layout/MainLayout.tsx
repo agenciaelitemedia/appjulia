@@ -12,6 +12,7 @@ import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { AgentBlockedScreen } from './AgentBlockedScreen';
 import { DisconnectedAgentsAlert } from './DisconnectedAgentsAlert';
 import { DisconnectedQueuesAlert } from './DisconnectedQueuesAlert';
+import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { useGlobalPresence } from '@/hooks/useGlobalPresence';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 
@@ -112,6 +113,7 @@ export function MainLayout() {
           <CopilotWidget />
           <DisconnectedAgentsAlert />
           <DisconnectedQueuesAlert />
+          <NotificationCenter />
         </div>
       </SidebarProvider>
     </PhoneProvider>
