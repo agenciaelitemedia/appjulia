@@ -27,7 +27,15 @@ async function externalRaw(query: string, params: any[]): Promise<any[]> {
     body: { action: "raw", data: { query, params } },
   });
   if (error) throw new Error(`db-query failed: ${error.message}`);
-  return Array.isArray(data) ? data : [];
+
+  const payload = data && typeof data === "object" && "data" in data
+    ? (data as { data?: unknown; error?: string | null })
+    : null;
+
+  if (payload?.error) throw new Error(`db-query failed: ${payload.error}`);
+
+  const rows = payload?.data ?? data;
+  return Array.isArray(rows) ? rows : [];
 }
 
 Deno.serve(async (req) => {
