@@ -1812,6 +1812,28 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
+      // Auto-transcribe outgoing audio when AUTO_TRANSCRIBE_AUDIO is enabled
+      // for the client. The webhook only handles incoming/echoed audios, so
+      // optimistic outgoing audios need an explicit trigger here.
+      if (isAudioMessage) {
+        (async () => {
+          try {
+            const { data: cs } = await supabase
+              .from('chat_client_settings')
+              .select('settings')
+              .eq('client_id', clientId)
+              .maybeSingle();
+            const enabled = Boolean((cs?.settings as any)?.auto_transcribe_audio);
+            if (!enabled) return;
+            await supabase.functions.invoke('chat-transcribe-audio', {
+              body: { message_id: tempMessage.id },
+            });
+          } catch (e) {
+            console.warn('[sendMedia] auto-transcribe error:', e);
+          }
+        })();
+      }
+
       const mediaPreview = getMessagePreview({ type, caption, file_name: file.name });
       await supabase
         .from('chat_contacts')
