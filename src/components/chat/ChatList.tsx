@@ -1324,15 +1324,15 @@ export function ChatList() {
             </Popover>
           ) : <div />}
           <TeamMemberSelect
-            members={teamMembers}
+            members={(isAdmin || user?.role === 'user') ? teamMembers : []}
             valueKey="id"
             value={ownerFilter}
             onValueChange={(v) => setOwnerFilter(v ?? 'all')}
             allowUnassigned={false}
             extraOptions={[
-              { value: 'all', label: 'Todos atendentes', icon: Users },
+              { value: 'all', label: 'Todos Atendimentos', icon: Users },
               { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
-              { value: 'unassigned', label: 'Sem atendente', icon: UserX },
+              { value: 'unassigned', label: 'Aguardando Atendimento', icon: UserX },
             ]}
             placeholder="Atendente"
             size="sm"

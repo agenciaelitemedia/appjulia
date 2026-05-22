@@ -1,75 +1,35 @@
-## Objetivo
+## Alterações em `src/components/chat/ChatList.tsx`
 
-Substituir o uso do relógio do navegador (`new Date().toISOString()`) por timestamp do servidor Postgres, sempre expresso no fuso `America/Sao_Paulo` (UTC-3), em todas as mensagens enviadas pelo chat (texto, mídia e notas internas).
+### 1. Renomear abas de status (linha ~1504)
+- `'Em Abertos'` → **`'Aguardando Atendimento'`**
+- `'Em Atendimento'` → **`'Meus Atendimentos'`**
 
-## Por que
+### 2. Realce colorido por aba selecionada
+Substituir o estilo atual (`border-primary text-primary` + badge `bg-primary`) por cores específicas:
 
-Hoje o `timestamp` gravado em `chat_messages` vem do relógio do navegador do remetente. Isso causa:
-- Mensagens "no futuro" ou "no passado" quando o usuário tem hora/timezone errados na máquina.
-- Divergência com `created_at` (que já é `now()` do servidor).
-- Ordenação inconsistente entre clientes em fusos diferentes.
+- **Aguardando Atendimento (pending)** selecionada → borda + texto + badge em **amarelo** (`border-amber-500 text-amber-600`, badge `bg-amber-500 text-white`).
+- **Meus Atendimentos (open)** selecionada → borda + texto + badge em **verde** (`border-emerald-500 text-emerald-600`, badge `bg-emerald-500 text-white`).
+- **Resolvidas/Encerradas** mantém o estilo neutro atual.
 
-A solução padroniza tudo no relógio do servidor, formatado como `-03:00` (BRT).
+### 3. Fundo suave da lista de contatos conforme aba (linha ~1539)
+Aplicar uma cor de fundo bem suave ao container `<div ref={listRef} className="flex-1 overflow-y-auto">` de acordo com `conversationStatusFilter`:
+- `pending` → `bg-amber-50/40` (dark: `bg-amber-950/10`)
+- `open` → `bg-emerald-50/40` (dark: `bg-emerald-950/10`)
+- `resolved_closed` → sem tint (mantém `bg-background`)
 
-## Como funciona
+### 4. Renomear atalhos do select de atendente (linhas 1332–1336)
+- `'Todos atendentes'` → **`'Todos Atendimentos'`**
+- `'Sem atendente'` → **`'Aguardando Atendimento'`**
+- `'Meus atendimentos'` permanece.
 
-### 1. RPC de relógio do servidor (BRT)
+### 5. Esconder lista de membros da equipe para não-donos
+Apenas o "dono do escritório" pode ver a lista completa de atendentes no select; demais usuários só veem os 3 atalhos.
 
-Criar função SQL:
+Critério de dono: `isAdmin || user?.role === 'user'` (papel principal/proprietário da conta — mesmo critério já usado em outras partes do ChatList para diferenciar a conta dona).
 
-```sql
-create or replace function public.server_now_brt()
-returns text
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select to_char(
-    now() at time zone 'America/Sao_Paulo',
-    'YYYY-MM-DD"T"HH24:MI:SS.MS'
-  ) || '-03:00';
-$$;
-```
+Implementação: passar `members={isOwner ? teamMembers : []}` para `<TeamMemberSelect>`. Os `extraOptions` continuam aparecendo para todos.
 
-Retorna string ISO 8601 com offset fixo `-03:00`, ex.: `2026-05-22T11:43:07.812-03:00`. Postgres ainda armazena como `timestamptz` (UTC) na coluna; a string apenas garante que toda comparação/exibição parta do mesmo relógio canônico.
-
-### 2. Helper de skew no frontend
-
-Novo arquivo `src/lib/serverClock.ts`:
-
-- Na primeira chamada, invoca a RPC, calcula `skew = serverEpoch - Date.now()` e cacheia.
-- Re-sincroniza a cada 5 min ou sob demanda.
-- Exporta `getServerNowBRT(): string` que retorna a string ISO `-03:00` derivada de `Date.now() + skew` (sem round-trip por mensagem).
-- Fallback: se a RPC falhar, usa `new Date().toISOString()` (comportamento atual) para não bloquear envio.
-
-### 3. Substituições em `src/contexts/WhatsAppDataContext.tsx`
-
-Trocar as ocorrências de `new Date().toISOString()` usadas em envios por `getServerNowBRT()`:
-
-- Linha 1215 — `tempMessage.timestamp` da nota interna
-- Linha 1382 — `tempMessage.timestamp` de mensagem de texto
-- Linha 1645 — `tempMessage.timestamp` de mídia
-- Linha 2391 — fallback `p_last_at` do RPC
-
-E garantir que o mesmo valor seja propagado para:
-- `chat_messages.timestamp` no insert (já é `tempMessage.timestamp`)
-- `last_message_at` no update do contato (já usa `tempMessage.timestamp`)
-
-### 4. O que NÃO muda
-
-- `created_at` continua sendo `now()` default do Postgres (auditoria).
-- Webhooks de UaZapi/WABA continuam normalizando seu próprio `messageTimestamp` pela regra existente (`mem://technical/messaging/timestamp-normalization`). O servidor manda na hora do envio nosso; o provedor manda na hora da confirmação dele.
-- Exibição na UI continua usando os helpers atuais (`parseDbTimestamp`, etc.) — a string `-03:00` é parseada corretamente por `new Date()`.
-
-## Arquivos afetados
-
-- **Migration nova**: cria `public.server_now_brt()`.
-- **Novo**: `src/lib/serverClock.ts` (cache de skew + `getServerNowBRT`).
-- **Editado**: `src/contexts/WhatsAppDataContext.tsx` (4 substituições + import).
-
-## Riscos / mitigações
-
-- **Round-trip de sincronização**: feito 1x na carga do contexto + a cada 5 min, não a cada mensagem. Latência de envio inalterada.
-- **RPC indisponível**: fallback para `new Date().toISOString()` mantém o comportamento atual.
-- **Ordenação retroativa**: mensagens antigas mantêm o timestamp gravado anteriormente; só as novas seguem o relógio do servidor.
+## Observações
+- Mudanças puramente de UI/labels; nenhuma lógica de filtragem, permissões reais ou backend é alterada.
+- As cores usam classes Tailwind padrão (amber/emerald) coerentes com o restante do app (já usadas em `ContactDetailPanel`/`ChatHeader` para indicar status "em atendimento").
+- Nenhuma migração ou alteração de tipo necessária.
