@@ -937,6 +937,60 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       }
 
       const channel = resolvedChannelType === 'waba' ? 'whatsapp_waba' : 'whatsapp_uazapi';
+
+      // Try to reopen a recent `resolved` conversation first (mirrors webhook rule).
+      // Keep original assignee when present; otherwise reopen as pending so it goes
+      // back to the queue waiting for an attendant.
+      const { data: resolvedConv } = await supabase
+        .from('chat_conversations')
+        .select('id, queue_id, assigned_to')
+        .eq('contact_id', contactId)
+        .eq('client_id', clientId)
+        .eq('channel', channel)
+        .eq('status', 'resolved')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (resolvedConv) {
+        const hasAssignee = !!(resolvedConv.assigned_to && String(resolvedConv.assigned_to).trim() !== '');
+        const newStatus = hasAssignee ? 'open' : 'pending';
+        const update: Record<string, unknown> = {
+          status: newStatus,
+          resolved_at: null,
+          updated_at: new Date().toISOString(),
+        };
+        if (resolvedConv.queue_id !== resolvedQueueId) update.queue_id = resolvedQueueId;
+        const { data: reopened } = await supabase
+          .from('chat_conversations')
+          .update(update)
+          .eq('id', resolvedConv.id)
+          .select()
+          .single();
+        if (reopened) {
+          const conv = reopened as ChatConversation;
+          setConversations(prev => {
+            const idx = prev.findIndex(c => c.id === conv.id);
+            if (idx >= 0) {
+              const next = prev.slice();
+              next[idx] = { ...next[idx], ...conv };
+              return next;
+            }
+            return [conv, ...prev];
+          });
+          await supabase.from('chat_conversation_history').insert({
+            conversation_id: conv.id,
+            action: 'reopened',
+            actor_name: user?.name || 'Sistema',
+            to_value: newStatus,
+            notes: hasAssignee
+              ? 'Conversa reaberta pelo painel — atribuição mantida'
+              : 'Conversa reaberta pelo painel — sem responsável, devolvida à fila',
+          });
+          return conv;
+        }
+      }
+
       const { data: newConv, error } = await supabase
         .from('chat_conversations')
         .insert({
@@ -944,9 +998,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           client_id: clientId,
           queue_id: resolvedQueueId,
           channel,
-          status: 'open',
+          status: 'pending',
           priority: 'normal',
           protocol: '',
+          assigned_to: null,
         })
         .select()
         .single();
@@ -961,7 +1016,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           conversation_id: conv.id,
           action: 'opened',
           actor_name: user?.name || 'Sistema',
-          to_value: 'open',
+          to_value: 'pending',
         });
 
         // Fire-and-forget automation engine
