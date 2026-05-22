@@ -2414,10 +2414,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         },
         (payload) => {
           const updated = payload.new as ChatMessage;
+          // Merge instead of replace so we don't drop in-memory enrichments
+          // (decrypted media_url, transcription metadata, etc.) when the DB
+          // emits a partial UPDATE (e.g. status tick or edited_at).
           setMessages(prev => ({
             ...prev,
             [updated.contact_id]: (prev[updated.contact_id] || []).map(m =>
-              m.id === updated.id ? updated : m
+              m.id === updated.id
+                ? {
+                    ...m,
+                    ...updated,
+                    metadata: { ...(m.metadata || {}), ...((updated as any).metadata || {}) },
+                  }
+                : m
             ),
           }));
         }
