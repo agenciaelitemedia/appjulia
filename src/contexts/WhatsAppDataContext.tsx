@@ -1239,6 +1239,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       note_type: noteType,
       sender_name: senderName,
       timestamp: noteMessage.timestamp,
+      metadata: { ...extraMetadata, internal_note: true, sender_name: senderName, note_type: noteType },
     } as any);
 
     // Persist @mentions if team list provided and we have a conversation
