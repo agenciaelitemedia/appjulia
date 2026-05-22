@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, Activity, Coins, Clock, CheckCircle2, AlertTriangle, DollarSign, Timer, Check, ChevronsUpDown } from 'lucide-react';
+import { RefreshCcw, Activity, Coins, Clock, CheckCircle2, AlertTriangle, DollarSign, Timer, Check, ChevronsUpDown, TrendingUp } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
@@ -64,6 +64,14 @@ function fmtMinutes(seconds: number): string {
   const m = seconds / 60;
   if (m < 1) return `${Math.round(seconds)}s`;
   return `${m.toFixed(1)} min`;
+}
+
+function fmtBRL(n: number): string {
+  if (!Number.isFinite(n)) return 'R$ 0,00';
+  if (n > 0 && n < 0.01) {
+    return `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 6 })}`;
+  }
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
 const PRESETS: Array<{ label: string; days: number }> = [
@@ -147,6 +155,26 @@ export function AIUsageDashboard() {
   const clientOptions = clientsInfo ?? (distinctClients ?? []).map((id) => ({ id, name: id, business_name: null as string | null }));
   const selectedClient = clientFilter === 'all' ? null : clientOptions.find((c) => c.id === clientFilter);
   const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
+
+  // Cotação USD -> BRL (AwesomeAPI, sem chave, com CORS)
+  const { data: usdBrl } = useQuery({
+    queryKey: ['usd_brl_rate'],
+    queryFn: async () => {
+      const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+      if (!res.ok) throw new Error('Falha ao consultar cotação USD/BRL');
+      const json = await res.json();
+      const node = json?.USDBRL ?? json?.['USDBRL'];
+      const bid = Number(node?.bid);
+      const timestamp = Number(node?.timestamp);
+      return {
+        rate: Number.isFinite(bid) && bid > 0 ? bid : null,
+        updatedAt: Number.isFinite(timestamp) ? new Date(timestamp * 1000) : null,
+      };
+    },
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+  const usdRate = usdBrl?.rate ?? null;
 
   const rows = data ?? [];
 
@@ -256,7 +284,7 @@ export function AIUsageDashboard() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
+          <div className="flex flex-col gap-1">
             <Label className="text-xs text-muted-foreground">Cliente</Label>
             <Popover open={clientPopoverOpen} onOpenChange={setClientPopoverOpen}>
               <PopoverTrigger asChild>
@@ -269,17 +297,12 @@ export function AIUsageDashboard() {
                     !selectedClient && 'text-muted-foreground',
                   )}
                 >
-                  <span className="truncate text-left">
-                    {selectedClient ? (
-                      <span className="flex flex-col leading-tight">
-                        <span className="text-sm truncate">{selectedClient.name}</span>
-                        {selectedClient.business_name && (
-                          <span className="text-xs text-muted-foreground truncate">{selectedClient.business_name}</span>
-                        )}
-                      </span>
-                    ) : (
-                      'Todos os clientes'
-                    )}
+                  <span className="truncate text-left text-sm">
+                    {selectedClient
+                      ? selectedClient.business_name
+                        ? `${selectedClient.name} — ${selectedClient.business_name}`
+                        : selectedClient.name
+                      : 'Todos os clientes'}
                   </span>
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -346,11 +369,12 @@ export function AIUsageDashboard() {
       </div>
 
       {/* KPIs de custo */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
           icon={<DollarSign className="h-4 w-4 text-emerald-500" />}
-          label="Custo total (USD)"
-          value={fmtUSD(kpis.totalCost)}
+          label="Custo total"
+          value={usdRate ? fmtBRL(kpis.totalCost * usdRate) : '—'}
+          subValue={fmtUSD(kpis.totalCost)}
           loading={isLoading}
         />
         <KpiCard
@@ -361,9 +385,27 @@ export function AIUsageDashboard() {
         />
         <KpiCard
           icon={<DollarSign className="h-4 w-4 text-violet-500" />}
-          label="USD por minuto (transcrição)"
-          value={kpis.audioMinutes > 0 ? `${fmtUSD(kpis.usdPerMinute)}/min` : '—'}
+          label="Custo por minuto (transcrição)"
+          value={
+            kpis.audioMinutes > 0 && usdRate
+              ? `${fmtBRL(kpis.usdPerMinute * usdRate)}/min`
+              : kpis.audioMinutes > 0
+                ? '—'
+                : '—'
+          }
+          subValue={kpis.audioMinutes > 0 ? `${fmtUSD(kpis.usdPerMinute)}/min` : undefined}
           loading={isLoading}
+        />
+        <KpiCard
+          icon={<TrendingUp className="h-4 w-4 text-amber-500" />}
+          label="Cotação do dólar (USD → BRL)"
+          value={usdRate ? fmtBRL(usdRate) : '—'}
+          subValue={
+            usdBrl?.updatedAt
+              ? `Atualizado ${usdBrl.updatedAt.toLocaleString('pt-BR')}`
+              : 'AwesomeAPI'
+          }
+          loading={!usdBrl}
         />
       </div>
 
@@ -509,14 +551,21 @@ export function AIUsageDashboard() {
 
 const LINE_COLORS = ['hsl(var(--primary))', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
-function KpiCard({ icon, label, value, loading }: { icon: React.ReactNode; label: string; value: string; loading?: boolean }) {
+function KpiCard({ icon, label, value, subValue, loading }: { icon: React.ReactNode; label: string; value: string; subValue?: string; loading?: boolean }) {
   return (
     <Card>
       <CardContent className="p-4 space-y-1">
         <div className="flex items-center gap-2 text-muted-foreground text-xs">
           {icon} <span>{label}</span>
         </div>
-        {loading ? <Skeleton className="h-7 w-24" /> : <p className="text-2xl font-semibold">{value}</p>}
+        {loading ? (
+          <Skeleton className="h-7 w-24" />
+        ) : (
+          <>
+            <p className="text-2xl font-semibold leading-tight">{value}</p>
+            {subValue && <p className="text-xs text-muted-foreground">{subValue}</p>}
+          </>
+        )}
       </CardContent>
     </Card>
   );
