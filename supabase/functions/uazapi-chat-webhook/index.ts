@@ -1397,8 +1397,10 @@ Deno.serve(async (req) => {
 
           if (resolvedConv) {
             if (!fromMe) {
+              const hasAssignee = !!(resolvedConv.assigned_to && String(resolvedConv.assigned_to).trim() !== '');
+              const newStatus = hasAssignee ? 'open' : 'pending';
               const update: Record<string, unknown> = {
-                status: 'open',
+                status: newStatus,
                 resolved_at: null,
                 updated_at: new Date().toISOString(),
               };
@@ -1409,9 +1411,13 @@ Deno.serve(async (req) => {
                 conversation_id: resolvedConv.id,
                 action: 'reopened',
                 actor_name: 'Sistema (webhook)',
-                notes: queueChanged
-                  ? 'Cliente respondeu após resolução — atribuição mantida; fila atualizada'
-                  : 'Cliente respondeu após resolução — atribuição mantida',
+                notes: hasAssignee
+                  ? (queueChanged
+                      ? 'Cliente respondeu após resolução — atribuição mantida; fila atualizada'
+                      : 'Cliente respondeu após resolução — atribuição mantida')
+                  : (queueChanged
+                      ? 'Cliente respondeu após resolução — sem responsável, devolvida à fila; fila atualizada'
+                      : 'Cliente respondeu após resolução — sem responsável, devolvida à fila'),
               });
             }
             conversationId = resolvedConv.id;

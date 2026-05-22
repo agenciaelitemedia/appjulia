@@ -134,7 +134,7 @@ async function insertMessage(
     // Reabertura: mantém atribuição existente; atualiza queue_id se mudou.
     const { data: resolvedConv } = await supabase
       .from('chat_conversations')
-      .select('id, queue_id')
+      .select('id, queue_id, assigned_to')
       .eq('contact_id', contactId)
       .eq('client_id', agentInfo.client_id)
       .eq('channel', 'instagram')
@@ -144,8 +144,10 @@ async function insertMessage(
       .maybeSingle();
 
     if (resolvedConv) {
+      const hasAssignee = !!((resolvedConv as any).assigned_to && String((resolvedConv as any).assigned_to).trim() !== '');
+      const newStatus = hasAssignee ? 'open' : 'pending';
       const update: Record<string, unknown> = {
-        status: 'open',
+        status: newStatus,
         resolved_at: null,
         updated_at: new Date().toISOString(),
       };
@@ -156,9 +158,13 @@ async function insertMessage(
         conversation_id: resolvedConv.id,
         action: 'reopened',
         actor_name: 'Sistema (webhook)',
-        notes: queueChanged
-          ? 'Cliente respondeu após resolução — atribuição mantida; fila atualizada'
-          : 'Cliente respondeu após resolução — atribuição mantida',
+        notes: hasAssignee
+          ? (queueChanged
+              ? 'Cliente respondeu após resolução — atribuição mantida; fila atualizada'
+              : 'Cliente respondeu após resolução — atribuição mantida')
+          : (queueChanged
+              ? 'Cliente respondeu após resolução — sem responsável, devolvida à fila; fila atualizada'
+              : 'Cliente respondeu após resolução — sem responsável, devolvida à fila'),
       });
       conv = { id: resolvedConv.id };
     } else {

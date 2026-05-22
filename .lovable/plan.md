@@ -1,73 +1,90 @@
-## Objetivo
+## Diagnóstico
 
-Adicionar em `/chat/configuracoes` (aba **Geral**) um novo card que permita habilitar/desabilitar a exibição dos eventos do sistema (badges como "Ana Luiza assumiu a conversa", "reabriu", "adicionou etiqueta", "auto_returned" etc.) na timeline do chat. Os eventos continuam sendo registrados no banco — apenas a visualização passa a respeitar a configuração.
+Investiguei os 2 exemplos (`5584994043110` e `5527988540598`) no banco. Em ambos o histórico mostra exatamente o mesmo padrão:
 
-## Comportamento
+```
+assigned       → Ana Luiza / Raquel Souza
+reopened       → open
+auto_returned  → status=pending, assigned_to=NULL  (NRT vencido)
+resolved       → VICTORIA / ADRIELE resolveu
+reopened       → status=open (webhook)             ← BUG aqui
+```
 
-1. **Card "Eventos da Conversa"** abaixo do card "Retornar Chat automaticamente" em `ChatGeneralSettings.tsx`.
-2. **Switch master** "Mostrar eventos no chat":
-   - **Desligado** → nenhum evento (`ConversationEvent`) é renderizado na timeline.
-   - **Ligado** → abre a lista de eventos individuais (cada um com seu próprio switch).
-3. **Lista de eventos individuais** renderizada exatamente como aparece no chat (mesmo componente visual usado em `ConversationEvent` — ícone + label + cor de borda/fundo), cada item com um Switch ao lado.
-4. **Tradução de `auto_returned`** → "Sistema devolveu a conversa à fila" (precisa ser adicionado ao mapa `ACTION_LABELS` em `ConversationEvent.tsx`, hoje cai no fallback genérico).
-5. **Persistência** no `chat_client_settings.settings` como `event_visibility` (objeto `{ [action]: boolean }`) + `events_enabled` (boolean master). Default: tudo ligado para manter o comportamento atual.
+A conversa fica `status=open` **com `assigned_to=NULL`** porque o `auto_returned` zerou o responsável antes do `resolved`, e quando o cliente respondeu o webhook reabriu como `open` sem reavaliar.
 
-## Eventos suportados (extraídos de `ConversationEvent.tsx`)
+### Causas-raiz encontradas
 
-| Chave         | Label                       | Cor          |
-|---------------|-----------------------------|--------------|
-| opened        | abriu a conversa            | emerald      |
-| closed        | encerrou a conversa         | muted        |
-| resolved      | resolveu a conversa         | blue         |
-| reopened      | reabriu a conversa          | amber        |
-| assigned      | assumiu / transferiu        | purple       |
-| auto_returned | devolveu à fila (novo)      | amber/muted  |
-| note_added    | adicionou uma nota          | muted        |
-| note_updated  | editou uma nota             | muted        |
-| note_deleted  | removeu uma nota            | muted        |
-| priority_changed | alterou prioridade       | muted        |
-| tag_added     | adicionou etiqueta          | muted        |
-| tag_removed   | removeu etiqueta            | muted        |
-| won           | marcou como ganho           | muted        |
-| lost          | marcou como perdido         | muted        |
-| moved         | movimentou o card           | muted        |
-| created/updated/archived | demais ações       | muted        |
+1. **Reabertura no webhook (UaZapi, Meta/WABA, Instagram)** — sempre seta `status='open'` na reabertura, ignorando o caso em que `assigned_to` está vazio. O comentário "atribuição mantida" é verdadeiro, mas se a atribuição já era `NULL` (por causa do `auto_returned`) a conversa volta como "Em atendimento" sem dono. **Correto:** se `assigned_to` está vazio, reabrir como `pending` (Aguardando atendimento).
 
-## Arquivos a alterar
+2. **`getOrCreateConversation` no front (`WhatsAppDataContext.tsx` ~L940)** — quando o atendente abre um contato sem conversa ativa, cria nova com `status='open'` e **sem** `assigned_to`. Também não tenta reabrir uma `resolved` existente. Gera "Em atendimento" fantasma sem dono.
 
-### 1. `src/components/chat/ConversationEvent.tsx`
-- Adicionar `auto_returned` em `ACTION_LABELS` ("devolveu a conversa à fila automaticamente") e em `ACTION_ICONS` (ex.: `RotateCcw`).
-- Exportar a lista de eventos suportados + um helper `getEventConfigByAction(action)` (sem precisar de uma entry) para que o card de configurações reuse o mesmo render do badge (mesmo ícone, mesma classe de cor, mesma forma). Isso garante "mostre exatamente como aparece no chat".
+3. **Primeira resposta do agente (`WhatsAppDataContext.tsx` ~L1485)** — promove `pending → open` ao gravar `first_response_at`, mas **não** seta `assigned_to`. Resultado: conversa "Em atendimento" sem responsável.
 
-### 2. `src/hooks/useChatClientSettings.ts`
-- Estender a interface com:
-  ```ts
-  events_enabled: boolean; // master
-  event_visibility: Record<string, boolean>; // por ação
+4. **Classificação na lista (`ChatList.tsx` + `WhatsAppDataContext.tsx`)** — hoje só faz upgrade `pending+assignee → open`, mas não faz o downgrade simétrico `open sem assignee → pending`. Sem defesa em profundidade, qualquer ressíduo histórico continua na aba errada.
+
+### Sobre "resolvidos aparecendo em Meus Atendimentos"
+
+O dedupe por contato (`useContactLatestConversation`) usa o ticket-líder pelo `updated_at`. Hoje o líder pode ser `open` (o bugado) enquanto a UI do `ChatContactItem` lê um `resolved_at` antigo para o badge de status. A correção da causa-raiz (1) elimina a maioria desses casos; a correção (4) garante isolamento por aba mesmo com dados antigos.
+
+---
+
+## Plano de correção
+
+### Backend (edge functions)
+
+**`supabase/functions/uazapi-chat-webhook/index.ts`** (~L1398-1416)
+- Ao reabrir conversa `resolved`: ler também `assigned_to`. Definir
+  `newStatus = (assigned_to && assigned_to.trim()) ? 'open' : 'pending'`.
+- Ajustar `notes` do `chat_conversation_history` quando voltar como `pending` ("Cliente respondeu após resolução — sem responsável, devolvida à fila").
+
+**`supabase/functions/meta-webhook/index.ts`** (~L240-267) — mesma alteração.
+
+**`supabase/functions/instagram-webhook/index.ts`** (~L135-162) — mesma alteração.
+
+### Frontend
+
+**`src/contexts/WhatsAppDataContext.tsx`**
+
+1. `getOrCreateConversation` (~L846-980):
+   - Antes de criar nova conversa, procurar `resolved` mais recente do mesmo `(contact, client, channel)` e reabrir (status conforme regra: `open` se já tinha dono, senão `pending`).
+   - Se de fato criar nova: usar `status: 'pending'` e `assigned_to: null` (alinhar com regra de webhook). Promover para `open` só quando o atendente realmente assumir.
+
+2. Envio de primeira mensagem (~L1485-1493):
+   - Quando promover `first_response_at`, também setar `assigned_to = user.name` **se** a conversa não tem responsável ainda. Registrar `assigned` em `chat_conversation_history`.
+
+**`src/components/chat/ChatList.tsx`** (badges ~L786 e lista visível ~L840) e **`src/contexts/WhatsAppDataContext.tsx`** (`convCounts` ~L838 e `filteredContacts` ~L2232):
+- Trocar a regra de status efetivo para:
   ```
-- Defaults: `events_enabled: true`, `event_visibility: {}` (vazio = todos visíveis).
+  hasAssignee = !!assigned_to?.trim()
+  effective =
+    status === 'pending' && hasAssignee ? 'open' :
+    status === 'open'    && !hasAssignee ? 'pending' :
+    status
+  ```
+- Garante coerência visual mesmo para tickets antigos: `open` sem dono passa a aparecer em **Aguardando atendimento**; `resolved`/`closed` continuam isolados na aba Resolvidos/Encerrados.
 
-### 3. `src/pages/chat/components/ChatGeneralSettings.tsx`
-- Novo card `<ConversationEventsSettingsCard />` abaixo do bloco "Retornar Chat".
-- UI:
-  - Header com ícone + título "Eventos da Conversa" + Switch master + Badge Ativo/Inativo.
-  - Quando ligado, body lista os eventos como mini-cards: badge renderizado exatamente como em `ConversationEvent` (label de exemplo, ex.: "Ana Luiza assumiu a conversa") + Switch à direita.
-  - Ações em massa: "Habilitar todos" / "Desabilitar todos".
-  - Footer com "Salvar alterações" no mesmo padrão dos outros cards (dirty/saved + botão).
+### Migração de dados (one-shot)
 
-### 4. `src/components/chat/ChatMessages.tsx`
-- Antes de mapear `item.kind === 'event'`, consultar `useChatClientSettings`:
-  - Se `!settings.events_enabled` → não renderiza nenhum evento.
-  - Se ligado → renderiza apenas quando `event_visibility[item.data.action] !== false` (ausência = visível por default).
-- Eventos suprimidos não afetam o agrupamento por data (data já vem das mensagens).
+Migration para normalizar o passivo:
 
-## Detalhes técnicos
+```sql
+UPDATE chat_conversations
+SET status = 'pending', updated_at = now()
+WHERE status = 'open'
+  AND (assigned_to IS NULL OR btrim(assigned_to) = '');
+```
 
-- Não é necessária migration: tudo persiste em `chat_client_settings.settings` (jsonb).
-- A função `getEventConfig` em `ConversationEvent.tsx` precisa ser exportada (ou um helper equivalente) para reuso na tela de configurações — assim os badges renderizam idênticos (mesmo `text-*-600 bg-*-500/10 border-*-500/20`).
-- Para o item da lista de eventos no settings, montar `entry` sintético com `actor_name` placeholder (ex.: "Ana Luiza") só para visualização, sem timestamp.
-- Filtro no `ChatMessages` é puramente client-side; o backend continua gravando todos os eventos em `chat_conversation_history`.
+Registrar uma entrada em `chat_conversation_history` (`action='normalized'`, `notes='Backfill: open sem responsável reclassificado como pending'`) para auditoria das linhas afetadas.
 
-## Pontos abertos
+### Regra documentada (memo)
 
-Nenhum bloqueante. Default = todos os eventos visíveis (preserva comportamento atual).
+Atualizar `mem/features/chat/conversation-reopen-rules.md` cobrindo o novo caso: quando a conversa `resolved` foi reaberta após `auto_returned`, ela volta como **`pending`** (não `open`), pois o dono original já tinha sido removido pelo monitor de NRT.
+
+---
+
+## Resultado esperado
+
+- "Em atendimento" mostra somente conversas com responsável.
+- "Aguardando atendimento" recebe automaticamente o que ficou sem dono (inclui reaberturas pós-`auto_returned`).
+- Resolvidos/Encerrados continuam isolados na sua aba.
+- Reabrir conversa que ainda tinha dono → permanece com o mesmo dono (regra original preservada).

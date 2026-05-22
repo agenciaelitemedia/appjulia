@@ -836,7 +836,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     for (const leader of leaderByContact.values()) {
       if (leaderGroup(leader) !== 'active') continue;
       const hasAssignee = !!(leader.assigned_to && String(leader.assigned_to).trim() !== '');
-      const effective = leader.status === 'pending' && hasAssignee ? 'open' : leader.status;
+      const effective =
+        leader.status === 'pending' && hasAssignee ? 'open' :
+        leader.status === 'open' && !hasAssignee ? 'pending' :
+        leader.status;
       if (effective === 'pending') pending++;
       else if (effective === 'open') open++;
     }
@@ -937,6 +940,60 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       }
 
       const channel = resolvedChannelType === 'waba' ? 'whatsapp_waba' : 'whatsapp_uazapi';
+
+      // Try to reopen a recent `resolved` conversation first (mirrors webhook rule).
+      // Keep original assignee when present; otherwise reopen as pending so it goes
+      // back to the queue waiting for an attendant.
+      const { data: resolvedConv } = await supabase
+        .from('chat_conversations')
+        .select('id, queue_id, assigned_to')
+        .eq('contact_id', contactId)
+        .eq('client_id', clientId)
+        .eq('channel', channel)
+        .eq('status', 'resolved')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (resolvedConv) {
+        const hasAssignee = !!(resolvedConv.assigned_to && String(resolvedConv.assigned_to).trim() !== '');
+        const newStatus = hasAssignee ? 'open' : 'pending';
+        const update: Record<string, unknown> = {
+          status: newStatus,
+          resolved_at: null,
+          updated_at: new Date().toISOString(),
+        };
+        if (resolvedConv.queue_id !== resolvedQueueId) update.queue_id = resolvedQueueId;
+        const { data: reopened } = await supabase
+          .from('chat_conversations')
+          .update(update)
+          .eq('id', resolvedConv.id)
+          .select()
+          .single();
+        if (reopened) {
+          const conv = reopened as ChatConversation;
+          setConversations(prev => {
+            const idx = prev.findIndex(c => c.id === conv.id);
+            if (idx >= 0) {
+              const next = prev.slice();
+              next[idx] = { ...next[idx], ...conv };
+              return next;
+            }
+            return [conv, ...prev];
+          });
+          await supabase.from('chat_conversation_history').insert({
+            conversation_id: conv.id,
+            action: 'reopened',
+            actor_name: user?.name || 'Sistema',
+            to_value: newStatus,
+            notes: hasAssignee
+              ? 'Conversa reaberta pelo painel — atribuição mantida'
+              : 'Conversa reaberta pelo painel — sem responsável, devolvida à fila',
+          });
+          return conv;
+        }
+      }
+
       const { data: newConv, error } = await supabase
         .from('chat_conversations')
         .insert({
@@ -944,9 +1001,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           client_id: clientId,
           queue_id: resolvedQueueId,
           channel,
-          status: 'open',
+          status: 'pending',
           priority: 'normal',
           protocol: '',
+          assigned_to: null,
         })
         .select()
         .single();
@@ -961,7 +1019,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           conversation_id: conv.id,
           action: 'opened',
           actor_name: user?.name || 'Sistema',
-          to_value: 'open',
+          to_value: 'pending',
         });
 
         // Fire-and-forget automation engine
@@ -1483,13 +1541,28 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       });
 
       if (conversation && !conversation.first_response_at) {
+        const senderName = user?.name || (user?.id ? String(user.id) : null);
+        const needsAssign = !conversation.assigned_to || String(conversation.assigned_to).trim() === '';
+        const updates: Record<string, unknown> = {
+          first_response_at: new Date().toISOString(),
+          status: 'open',
+        };
+        if (needsAssign && senderName) {
+          updates.assigned_to = senderName;
+        }
         await supabase
           .from('chat_conversations')
-          .update({
-            first_response_at: new Date().toISOString(),
-            status: 'open',
-          })
+          .update(updates)
           .eq('id', conversation.id);
+        if (needsAssign && senderName) {
+          await supabase.from('chat_conversation_history').insert({
+            conversation_id: conversation.id,
+            action: 'assigned',
+            actor_name: senderName,
+            to_value: senderName,
+            notes: 'Atribuído automaticamente ao enviar a primeira resposta',
+          });
+        }
       }
 
       await supabase
@@ -2230,7 +2303,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         if (conversationStatusFilter === 'pending' || conversationStatusFilter === 'open') {
           if (group !== 'active') return false;
           const hasAssignee = !!(leader.assigned_to && String(leader.assigned_to).trim() !== '');
-          const effective = leader.status === 'pending' && hasAssignee ? 'open' : leader.status;
+          const effective =
+            leader.status === 'pending' && hasAssignee ? 'open' :
+            leader.status === 'open' && !hasAssignee ? 'pending' :
+            leader.status;
           return effective === conversationStatusFilter;
         }
         return group === conversationStatusFilter;
