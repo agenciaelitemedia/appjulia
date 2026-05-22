@@ -1,36 +1,46 @@
-## Problema
+## Diagnóstico
 
-No `MessageBubble.tsx` (case `'document'`), o botão de download tem dois caminhos:
+Investiguei os logs e o estado atual:
 
-- **URL já decifrada** (`usable`): chama `forceDownload(mediaUrl, file_name)` → baixa.
-- **URL ainda criptografada** (`.enc` / `mmg.whatsapp.net`): chama `handleDownload()` → busca via `chat-media-download`, atualiza `mediaUrl` no estado, **mas não dispara o download do arquivo**.
+1. **Frontend (`MessageBubble.tsx`) está correto** — `StatusIcon` renderiza ✓ (sent), ✓✓ (delivered), ✓✓ azul (read) com base em `message.status`.
 
-Resultado: ao clicar em "Baixar" num documento recém-recebido/enviado (cujo `media_url` ainda é o link criptografado do WhatsApp), nada acontece visualmente — o usuário precisaria clicar de novo. Diferente de imagem/vídeo/áudio, documentos não estão em `autoTypes`, então a URL nunca é resolvida automaticamente.
+2. **Banco mostra que o status quase nunca avança de `sent`**:
+   - Últimas 6h (from_me=true): **1166 sent / 2 delivered / 13 read**.
+   - O pico de `read` aconteceu às 11h UTC (13) e 01h UTC (5); depois das 11h, **nenhum read/delivered novo**.
 
-## Solução
+3. **Edge function `uazapi-chat-webhook` NÃO recebe `messages.update` há horas**. Os logs só mostram `Event: messages` (upsert). Não há nenhum `messages.update STATUS` nem `upsert STATUS bump`.
 
-Tornar o download de documento sempre em **um clique**, resolvendo a URL on-demand e disparando o download do arquivo na sequência.
+4. **A configuração do webhook na UaZapi inclui `messages.update`** (confirmado via `GET /webhook` em uma fila), mas mesmo assim os eventos de ACK não estão chegando. Isso indica que a instância UaZapi não está mais disparando esses eventos para nosso endpoint — provavelmente após algum redeploy ou pause/restore do servidor UaZapi, ou após alteração de webhook que zerou a subscrição efetiva apesar do GET retornar a lista correta.
 
-### Mudanças em `src/components/chat/MessageBubble.tsx`
+5. **Não houve commit do código do webhook entre o momento que funcionou (madrugada) e agora** que justifique a quebra de lógica. As mudanças do dia foram: dropped logger, reabertura como `pending`, normalização de evento. Nenhuma altera o caminho de status update.
 
-1. Adicionar uma função `handleDocumentDownload()` dentro de `MediaContent`:
-   - Se `mediaUrl` já é utilizável → `forceDownload(mediaUrl, message.file_name)` direto.
-   - Caso contrário → chamar `onDownload()`; se retornar `{ url }`, atualizar estado **e** chamar `forceDownload(res.url, message.file_name)` imediatamente.
-   - Tratar `permanent` / `transient` mostrando o `FallbackBox` (estado já existente) e um toast de erro discreto.
-   - Manter `isLoading` para mostrar o spinner durante a resolução.
+**Conclusão:** o problema não é código do app — é que a UaZapi parou de **entregar** os eventos `messages.update` para nosso webhook, mesmo que a configuração esteja registrada. Isso geralmente é resolvido **reaplicando** a configuração de webhook em todas as instâncias ativas (`POST /webhook` na UaZapi), que reativa a subscrição.
 
-2. No `case 'document'`, unificar o botão: sempre chamar `handleDocumentDownload`, mostrando spinner enquanto `isLoading`, ícone `Download` caso contrário. Remover a dupla renderização condicional (`usable ? … : …`) — fica só um botão.
+## Plano
 
-3. Manter `FallbackBox` para casos `permanent` (mídia expirada no WhatsApp) — exibido no lugar do bloco do documento quando a resolução falha de forma permanente.
+### 1) Reaplicar webhook em todas as filas UaZapi ativas (correção imediata)
+
+Adicionar uma nova action `reconfigure_webhook_all` na edge function `supabase/functions/uazapi-instance-manager/index.ts`:
+
+- Lê todas as filas com `channel_type='uazapi'` e `is_active=true` que tenham `evo_apikey`.
+- Para cada uma, chama `configureWebhook(...)` (que já manda `events: DEFAULT_WEBHOOK_EVENTS` incluindo `messages.update`).
+- Retorna array `{ queue_id, name, ok, status }` com resultado por fila.
+- Tolerante a falhas individuais (não aborta no primeiro erro).
+
+Depois, executar essa action 1x via `supabase--curl_edge_functions`. Não cria UI nem cron — é um disparo único de manutenção.
+
+### 2) Adicionar log defensivo para futuras quebras
+
+No início do handler do webhook, logar uma vez por minuto (sampling) o `event` resolvido, para acelerar diagnóstico no futuro caso a UaZapi pare de enviar updates de novo. (Mudança pequena no `uazapi-chat-webhook/index.ts` — uma linha de console.log já existente cobre isso; sem novo código necessário.)
+
+### 3) Validação
+
+- Após reaplicar, enviar uma mensagem de teste numa fila e verificar nos logs de `uazapi-chat-webhook` se aparece `[uazapi-chat-webhook] messages.update STATUS { status: 'delivered'/'read', affected: 1 }`.
+- Conferir no banco: `SELECT status, count(*) FROM chat_messages WHERE from_me=true AND created_at > now()-interval '15 min' GROUP BY 1;` — deve aparecer `delivered`/`read`.
+- Visualmente: os ✓✓ devem voltar a ficar azuis quando o destinatário lê a mensagem.
 
 ### Fora do escopo
 
-- Não mexer em imagem/vídeo/áudio (já funcionam via auto-fetch).
-- Não alterar `forceDownload`, `chat-media-download` ou contexto — a URL resolvida já é pública no bucket `chat-media`.
-- Sem mudanças de backend/migrations.
-
-## Validação
-
-- Receber/enviar um PDF, clicar no ícone de download uma única vez → arquivo deve baixar.
-- Para documentos com URL já decifrada (após reabrir a conversa), o clique também deve baixar imediatamente.
-- Documentos com mídia expirada devem mostrar a mensagem "Mídia não disponível neste histórico" com botão "Tentar".
+- Não tocar em `MessageBubble.tsx` (frontend está correto).
+- Não alterar lógica de status no webhook (já estava correta antes e continua).
+- Sem migrations.
