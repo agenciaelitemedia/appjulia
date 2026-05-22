@@ -66,6 +66,14 @@ function fmtMinutes(seconds: number): string {
   return `${m.toFixed(1)} min`;
 }
 
+function fmtBRL(n: number): string {
+  if (!Number.isFinite(n)) return 'R$ 0,00';
+  if (n > 0 && n < 0.01) {
+    return `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 6 })}`;
+  }
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
 const PRESETS: Array<{ label: string; days: number }> = [
   { label: 'Últimas 24h', days: 1 },
   { label: 'Últimos 7 dias', days: 7 },
