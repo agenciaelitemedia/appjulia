@@ -6969,6 +6969,7 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: number
       }
+      server_now_brt: { Args: never; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       touch_user_presence: {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
+import { getServerNowBRT, ensureServerClock } from '@/lib/serverClock';
 import { webmBlobToOggOpusStrict } from '@/lib/audio/webmToOgg';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 import { useAuth } from './AuthContext';
@@ -279,6 +280,9 @@ interface WhatsAppDataProviderProps {
 
 export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const { user } = useAuth();
+
+  // Sincroniza relógio do servidor (BRT) para timestamps de envio
+  useEffect(() => { ensureServerClock(); }, []);
 
   // Max number of contact message lists kept in memory.
   // When exceeded, the oldest accessed entries (excluding the selected contact)
@@ -1212,8 +1216,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       type: 'text',
       from_me: true,
       status: 'sent',
-      timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString(),
+      timestamp: getServerNowBRT(),
+      created_at: getServerNowBRT(),
     };
 
     // Resolve current conversation for this contact (for mention persistence)
@@ -1379,8 +1383,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       type: 'text',
       from_me: true,
       status: 'sending',
-      timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString(),
+      timestamp: getServerNowBRT(),
+      created_at: getServerNowBRT(),
       ...(quotedMeta ? { metadata: quotedMeta } : {}),
     };
 
@@ -1642,8 +1646,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       media_url: previewUrl,
       file_name: file.name,
       caption,
-      timestamp: new Date().toISOString(),
-      created_at: new Date().toISOString(),
+      timestamp: getServerNowBRT(),
+      created_at: getServerNowBRT(),
     };
 
     knownMessageIds.current.add(tempMessage.id);
