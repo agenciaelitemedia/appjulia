@@ -119,19 +119,68 @@ function lowerStatusesThan(target: string): string[] {
     .map(([k]) => k);
 }
 function collectMessageIds(src: any): string[] {
-  return Array.from(new Set([
+  const candidates = [
     src?.messageid,
     src?.id,
     src?.message_id,
     src?.wa_messageid,
     src?.key?.id,
     src?.update?.key?.id,
-  ].filter((x) => typeof x === 'string' && x.length > 0))) as string[];
+    src?.MessageIDs,
+    src?.messageIds,
+    src?.message_ids,
+    src?.event?.MessageIDs,
+    src?.event?.messageIds,
+    src?.event?.message_ids,
+  ];
+
+  return Array.from(new Set(
+    candidates
+      .flatMap((value) => Array.isArray(value) ? value : [value])
+      .filter((x) => typeof x === 'string' && x.length > 0),
+  )) as string[];
 }
 function buildIdOrFilter(ids: string[]): string {
   return ids
-    .flatMap((id) => [`message_id.eq.${id}`, `external_id.eq.${id}`])
+    .flatMap((id) => {
+      const filters = [`message_id.eq.${id}`, `external_id.eq.${id}`];
+      if (!id.includes(':')) {
+        filters.push(`message_id.ilike.*:${id}`, `external_id.ilike.*:${id}`);
+      }
+      return filters;
+    })
     .join(',');
+}
+async function resolveChatMessageRowIds(supabase: ReturnType<typeof getSupabase>, ids: string[]): Promise<string[]> {
+  if (!ids.length) return [];
+
+  const directFilter = buildIdOrFilter(ids);
+  const resolved = new Set<string>();
+
+  if (directFilter) {
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .or(directFilter);
+    for (const row of data ?? []) {
+      const rowId = (row as { id?: string }).id;
+      if (rowId) resolved.add(rowId);
+    }
+  }
+
+  const shortIds = ids.filter((id) => !id.includes(':'));
+  for (const shortId of shortIds) {
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .or(`message_id.like.%:${shortId},external_id.like.%:${shortId}`);
+    for (const row of data ?? []) {
+      const rowId = (row as { id?: string }).id;
+      if (rowId) resolved.add(rowId);
+    }
+  }
+
+  return Array.from(resolved);
 }
 
 function normalizePhone(raw: string): string {
@@ -793,8 +842,10 @@ Deno.serve(async (req) => {
     // Resolve event name resilient to UaZapi sometimes sending `event` as an
     // object instead of string (observed for messages_update payloads).
     function resolveEventName(p: any): string {
-      const raw = p?.event ?? p?.EventType ?? p?.type;
-      if (typeof raw === 'string' && raw.trim()) return raw;
+      const direct = p?.EventType ?? p?.eventType ?? p?.type;
+      if (typeof direct === 'string' && direct.trim()) return direct;
+
+      const raw = p?.event;
       if (raw && typeof raw === 'object') {
         const candidate = raw.type || raw.name || raw.event;
         if (typeof candidate === 'string' && candidate.trim()) return candidate;
@@ -842,11 +893,19 @@ Deno.serve(async (req) => {
 
     // ─── STATUS UPDATES (delivered, read, etc.) + EDITS ───
     if (event === 'messages.update') {
-      const updates = Array.isArray(payload.data) ? payload.data : [payload.data || payload];
+      const updates = Array.isArray(payload.data)
+        ? payload.data
+        : Array.isArray(payload.event)
+          ? payload.event
+          : [payload.data || payload.event || payload];
       for (const upd of updates) {
         const idCandidates = collectMessageIds(upd);
         if (idCandidates.length === 0) continue;
-        const orFilter = buildIdOrFilter(idCandidates);
+        const rowIds = await resolveChatMessageRowIds(supabase, idCandidates);
+        if (rowIds.length === 0) {
+          console.warn('[uazapi-chat-webhook] messages.update: no row matched', { idCandidates });
+          continue;
+        }
 
         // Inbound EDIT: provider resends the message with new content for an existing id.
         const editedText: string | undefined =
@@ -858,20 +917,28 @@ Deno.serve(async (req) => {
           const { data: updRows } = await supabase
             .from('chat_messages')
             .update({ text: String(editedText), edited_at: new Date().toISOString() })
-            .or(orFilter)
+            .in('id', rowIds)
             .select('id');
           if (!updRows?.length) {
             console.warn('[uazapi-chat-webhook] messages.update EDIT: no row matched', { idCandidates });
           }
         }
 
-        const mapped = mapStatus(upd.status ?? upd.update?.status);
+        const mapped = mapStatus(
+          upd.status
+          ?? upd.update?.status
+          ?? upd.ack
+          ?? upd.Type
+          ?? upd.type
+          ?? upd.event?.status
+          ?? upd.event?.update?.status,
+        );
         if (mapped) {
           const lower = lowerStatusesThan(mapped);
           let q = supabase
             .from('chat_messages')
             .update({ status: mapped })
-            .or(orFilter);
+            .in('id', rowIds);
           // Guard against downgrade (e.g. read → delivered). For 'failed' or
           // unknown statuses with no rank, allow unconditional update.
           if (lower.length > 0) q = q.in('status', lower);
