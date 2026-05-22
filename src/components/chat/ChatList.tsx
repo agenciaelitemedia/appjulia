@@ -1546,8 +1546,8 @@ export function ChatList() {
       {/* Contact List */}
       <div ref={listRef} className={cn(
         "flex-1 overflow-y-auto transition-colors",
-        conversationStatusFilter === 'pending' && 'bg-amber-50 dark:bg-amber-950/20 [&_.bg-background]:bg-amber-50 [&_.bg-background]:dark:bg-amber-950/20 [&_.bg-muted\\/30]:bg-amber-100/70 [&_.bg-muted\\/30]:dark:bg-amber-900/20',
-        conversationStatusFilter === 'open' && 'bg-emerald-50 dark:bg-emerald-950/20 [&_.bg-background]:bg-emerald-50 [&_.bg-background]:dark:bg-emerald-950/20 [&_.bg-muted\\/30]:bg-emerald-100/70 [&_.bg-muted\\/30]:dark:bg-emerald-900/20',
+        conversationStatusFilter === 'pending' && 'bg-amber-50 dark:bg-amber-950/20 [&_.bg-background]:bg-amber-50 [&_.bg-background]:dark:bg-amber-950/20 [&_.bg-muted\\/30]:bg-amber-100 [&_.bg-muted\\/30]:dark:bg-amber-900/30',
+        conversationStatusFilter === 'open' && 'bg-emerald-50 dark:bg-emerald-950/20 [&_.bg-background]:bg-emerald-50 [&_.bg-background]:dark:bg-emerald-950/20 [&_.bg-muted\\/30]:bg-emerald-100 [&_.bg-muted\\/30]:dark:bg-emerald-900/30',
       )}>
         {/* Silent-refetch banner — shown when reloading but the list is
             already populated, so the user doesn't lose the current view. */}
