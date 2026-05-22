@@ -249,9 +249,9 @@ export interface ChatContextValue extends ChatState {
   // Actions
   loadContacts: (opts?: { reset?: boolean; append?: boolean }) => Promise<void>;
   loadMessages: (contactId: string, limit?: number, offset?: number) => Promise<{ messages: ChatMessage[]; hasMore: boolean }>;
-  sendMessage: (contactId: string, text: string, replyToMessage?: ChatMessage) => Promise<void>;
+  sendMessage: (contactId: string, text: string, replyToMessage?: ChatMessage, options?: { forward?: boolean }) => Promise<void>;
   editMessage: (contactId: string, message: ChatMessage, newText: string) => Promise<void>;
-  sendMedia: (contactId: string, file: File, type: MessageType, caption?: string) => Promise<void>;
+  sendMedia: (contactId: string, file: File, type: MessageType, caption?: string, options?: { forward?: boolean }) => Promise<void>;
   markAsRead: (contactId: string) => Promise<void>;
   syncContacts: (codAgent?: string) => Promise<void>;
   selectContact: (contactId: string | null) => void;
