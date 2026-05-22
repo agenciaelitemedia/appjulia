@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { RefreshCcw, Activity, Coins, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { RefreshCcw, Activity, Coins, Clock, CheckCircle2, AlertTriangle, DollarSign, Timer } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from 'recharts';
@@ -27,6 +27,8 @@ type Row = {
   prompt_tokens: number | null;
   completion_tokens: number | null;
   total_tokens: number | null;
+  cost_usd: number | null;
+  audio_seconds: number | null;
   error_reason: string | null;
   context: Record<string, any> | null;
 };
@@ -38,9 +40,27 @@ const FEATURE_LABELS: Record<string, string> = {
   copilot_crm: 'Copiloto CRM',
   copilot_chat: 'Copiloto chat',
   chat_autoreply: 'Auto-resposta',
+  chat_classify: 'Classificação de mensagem',
   support_transcription: 'Transcrição (suporte)',
+  support_image_describe: 'Descrição de imagem (suporte)',
   script_generation: 'Geração de prompt',
+  script_generation_batch: 'Geração de prompt (lote)',
 };
+
+const TRANSCRIPTION_FEATURES = new Set(['chat_transcription', 'support_transcription']);
+
+function fmtUSD(n: number): string {
+  if (!Number.isFinite(n) || n === 0) return '$0.00';
+  if (n < 0.01) return `$${n.toFixed(6)}`;
+  return `$${n.toFixed(4)}`;
+}
+
+function fmtMinutes(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0 min';
+  const m = seconds / 60;
+  if (m < 1) return `${Math.round(seconds)}s`;
+  return `${m.toFixed(1)} min`;
+}
 
 const PRESETS: Array<{ label: string; days: number }> = [
   { label: 'Últimas 24h', days: 1 },
@@ -107,7 +127,17 @@ export function AIUsageDashboard() {
       ? Math.round(rows.reduce((s, r) => s + (r.duration_ms ?? 0), 0) / total)
       : 0;
     const successRate = total ? Math.round((ok / total) * 100) : 0;
-    return { total, ok, failed, tokens, promptTokens, completionTokens, avgLatency, successRate };
+    const totalCost = rows.reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+    const audioSeconds = rows.reduce((s, r) => s + (Number(r.audio_seconds) || 0), 0);
+    const transcriptionCost = rows
+      .filter((r) => TRANSCRIPTION_FEATURES.has(r.feature))
+      .reduce((s, r) => s + (Number(r.cost_usd) || 0), 0);
+    const audioMinutes = audioSeconds / 60;
+    const usdPerMinute = audioMinutes > 0 ? transcriptionCost / audioMinutes : 0;
+    return {
+      total, ok, failed, tokens, promptTokens, completionTokens, avgLatency, successRate,
+      totalCost, audioSeconds, audioMinutes, transcriptionCost, usdPerMinute,
+    };
   }, [rows]);
 
   // Agregação por agente/feature
@@ -115,6 +145,7 @@ export function AIUsageDashboard() {
     const map = new Map<string, {
       feature: string; calls: number; promptTokens: number; completionTokens: number;
       totalTokens: number; latencySum: number; failed: number;
+      costUsd: number; audioSeconds: number;
       modelCounts: Map<string, number>; providers: Set<string>;
     }>();
     for (const r of rows) {
@@ -123,6 +154,7 @@ export function AIUsageDashboard() {
         bucket = {
           feature: r.feature, calls: 0, promptTokens: 0, completionTokens: 0,
           totalTokens: 0, latencySum: 0, failed: 0,
+          costUsd: 0, audioSeconds: 0,
           modelCounts: new Map(), providers: new Set(),
         };
         map.set(r.feature, bucket);
@@ -132,6 +164,8 @@ export function AIUsageDashboard() {
       bucket.completionTokens += r.completion_tokens ?? 0;
       bucket.totalTokens += r.total_tokens ?? 0;
       bucket.latencySum += r.duration_ms ?? 0;
+      bucket.costUsd += Number(r.cost_usd) || 0;
+      bucket.audioSeconds += Number(r.audio_seconds) || 0;
       if (r.status === 'failed') bucket.failed += 1;
       bucket.modelCounts.set(r.model, (bucket.modelCounts.get(r.model) ?? 0) + 1);
       bucket.providers.add(r.provider);
@@ -145,6 +179,9 @@ export function AIUsageDashboard() {
         totalTokens: b.totalTokens,
         avgLatency: b.calls ? Math.round(b.latencySum / b.calls) : 0,
         failRate: b.calls ? Math.round((b.failed / b.calls) * 100) : 0,
+        costUsd: b.costUsd,
+        audioSeconds: b.audioSeconds,
+        usdPerMinute: b.audioSeconds > 0 ? b.costUsd / (b.audioSeconds / 60) : null,
         topModel: Array.from(b.modelCounts.entries()).sort((a, z) => z[1] - a[1])[0]?.[0] ?? '-',
         providers: Array.from(b.providers).join(', '),
       }))
@@ -224,6 +261,28 @@ export function AIUsageDashboard() {
         <KpiCard icon={<AlertTriangle className="h-4 w-4 text-amber-500" />} label="Falhas" value={kpis.failed.toLocaleString('pt-BR')} loading={isLoading} />
       </div>
 
+      {/* KPIs de custo */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <KpiCard
+          icon={<DollarSign className="h-4 w-4 text-emerald-500" />}
+          label="Custo total (USD)"
+          value={fmtUSD(kpis.totalCost)}
+          loading={isLoading}
+        />
+        <KpiCard
+          icon={<Timer className="h-4 w-4 text-sky-500" />}
+          label="Minutos de áudio"
+          value={fmtMinutes(kpis.audioSeconds)}
+          loading={isLoading}
+        />
+        <KpiCard
+          icon={<DollarSign className="h-4 w-4 text-violet-500" />}
+          label="USD por minuto (transcrição)"
+          value={kpis.audioMinutes > 0 ? `${fmtUSD(kpis.usdPerMinute)}/min` : '—'}
+          loading={isLoading}
+        />
+      </div>
+
       {/* Tabela por agente */}
       <Card>
         <CardHeader>
@@ -243,6 +302,9 @@ export function AIUsageDashboard() {
                   <TableHead className="text-right">Prompt</TableHead>
                   <TableHead className="text-right">Completion</TableHead>
                   <TableHead className="text-right">Total tokens</TableHead>
+                  <TableHead className="text-right">Custo (USD)</TableHead>
+                  <TableHead className="text-right">Minutos</TableHead>
+                  <TableHead className="text-right">USD/min</TableHead>
                   <TableHead className="text-right">Latência</TableHead>
                   <TableHead className="text-right">% falha</TableHead>
                   <TableHead>Modelo principal</TableHead>
@@ -257,6 +319,9 @@ export function AIUsageDashboard() {
                     <TableCell className="text-right">{r.promptTokens.toLocaleString('pt-BR')}</TableCell>
                     <TableCell className="text-right">{r.completionTokens.toLocaleString('pt-BR')}</TableCell>
                     <TableCell className="text-right">{r.totalTokens.toLocaleString('pt-BR')}</TableCell>
+                    <TableCell className="text-right">{r.costUsd > 0 ? fmtUSD(r.costUsd) : '—'}</TableCell>
+                    <TableCell className="text-right">{r.audioSeconds > 0 ? fmtMinutes(r.audioSeconds) : '—'}</TableCell>
+                    <TableCell className="text-right">{r.usdPerMinute != null ? `${fmtUSD(r.usdPerMinute)}/min` : '—'}</TableCell>
                     <TableCell className="text-right">{r.avgLatency} ms</TableCell>
                     <TableCell className="text-right">
                       <Badge variant={r.failRate > 10 ? 'destructive' : 'secondary'}>{r.failRate}%</Badge>
@@ -324,6 +389,8 @@ export function AIUsageDashboard() {
                   <TableHead>Modelo</TableHead>
                   <TableHead>Provider</TableHead>
                   <TableHead className="text-right">Tokens</TableHead>
+                  <TableHead className="text-right">Custo</TableHead>
+                  <TableHead className="text-right">Áudio</TableHead>
                   <TableHead className="text-right">Latência</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -339,6 +406,8 @@ export function AIUsageDashboard() {
                     <TableCell className="text-xs font-mono">{r.model}</TableCell>
                     <TableCell className="text-xs">{r.provider}</TableCell>
                     <TableCell className="text-right text-xs">{r.total_tokens ?? '-'}</TableCell>
+                    <TableCell className="text-right text-xs">{r.cost_usd != null ? fmtUSD(Number(r.cost_usd)) : '—'}</TableCell>
+                    <TableCell className="text-right text-xs">{r.audio_seconds != null ? `${Number(r.audio_seconds).toFixed(1)}s` : '—'}</TableCell>
                     <TableCell className="text-right text-xs">{r.duration_ms ? `${r.duration_ms} ms` : '-'}</TableCell>
                     <TableCell>
                       <StatusBadge status={r.status} reason={r.error_reason} />
