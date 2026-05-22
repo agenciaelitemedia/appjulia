@@ -17,6 +17,7 @@ const DEFAULT_WEBHOOK_EVENTS = [
   'messages.set',
   'history',
   'messages.update',
+  'messages_update',
   'messages.delete',
   'chats.update',
   'chats.upsert',
