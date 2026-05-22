@@ -1927,6 +1927,7 @@ export type Database = {
           contact_id: string
           conversation_id: string | null
           created_at: string | null
+          edited_at: string | null
           external_id: string | null
           file_name: string | null
           forwarded_score: number | null
@@ -1953,6 +1954,7 @@ export type Database = {
           contact_id: string
           conversation_id?: string | null
           created_at?: string | null
+          edited_at?: string | null
           external_id?: string | null
           file_name?: string | null
           forwarded_score?: number | null
@@ -1979,6 +1981,7 @@ export type Database = {
           contact_id?: string
           conversation_id?: string | null
           created_at?: string | null
+          edited_at?: string | null
           external_id?: string | null
           file_name?: string | null
           forwarded_score?: number | null
