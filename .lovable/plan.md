@@ -1,88 +1,101 @@
+## Problemas reportados
 
-## Objetivo
+1. **Edição duplica a mensagem** — o texto é atualizado corretamente na bolha original, mas em seguida o provedor (UaZapi) reenvia a mensagem como um novo evento de upsert, e o webhook a insere como nova linha em `chat_messages` → realtime push → bolha duplicada.
+2. **Vistos/ticks não evoluem** — a bolha fica com 1 check (`sent`) e nunca migra para `delivered`/`read`, mesmo quando o destinatário lê.
 
-Hoje um mesmo contato (ex.: `5534988860163`) aparece simultaneamente em **Em aberto** e em **Resolvidos / Fechados** porque ele possui vários tickets ativos em filas diferentes. Cada aba filtra contatos olhando se *qualquer* conversa do contato bate com o status — então um contato com `pending` na fila MRA e `resolved` na fila MKT Natal aparece nas duas.
+---
 
-Queremos que cada contato apareça em **uma única aba**, decidida pelo estado da conversa mais recente (`updated_at` desc; em empate, `opened_at` desc) considerando a tupla `(contact + client + queue + channel)`.
+## Diagnóstico
 
-Importante: a estrutura de tickets por fila no banco **não muda** — todos os tickets continuam existindo. A mudança é apenas na visualização da lista do chat.
+### 1. Duplicação na edição
 
-## Regra de dedupe
-
-Para cada `contact_id` do cliente atual:
-
-1. Buscar **todas** as conversas do contato (todos os status, todas as filas/canais).
-2. Escolher a "conversa líder" = a com maior `updated_at` (desempate: `opened_at` desc, depois `created_at` desc).
-3. Calcular o "status efetivo" da líder com a mesma regra já existente:
-   - `pending` + `assigned_to` preenchido → tratado como `open`.
-   - Demais valores mantidos: `pending`, `open`, `resolved`, `closed`.
-4. Mapear status efetivo → grupo de aba:
-   - `pending`, `open` → aba **Em aberto** (`active`)
-   - `resolved` → aba **Resolvidos**
-   - `closed` → aba **Fechados**
-   - Aba combinada **Resolvidos/Fechados** recebe contatos cujo líder é `resolved` ou `closed`.
-5. O contato só entra na aba se o grupo da aba == grupo do líder.
-6. A `selectedConversation` (conversa exibida ao clicar no contato) passa a ser **a conversa líder**, e não mais "primeira pending/open encontrada". Assim o usuário vê o ticket mais atual ao abrir o chat — independente da fila.
-
-## Por que isso exige um mapa "todos os status"
-
-O estado `conversations` em `WhatsAppDataContext.tsx` é carregado por **grupo** (active, resolved, closed) de forma preguiçosa. Se o usuário está na aba "Em aberto", o grupo `closed` pode não estar em memória — então não dá para saber se a conversa mais recente do contato é, na verdade, `closed`. Precisamos de uma fonte enxuta com **uma linha por contato**, contendo só o necessário para decidir o grupo.
-
-## Implementação
-
-### 1. Hook novo: `useContactLatestConversation`
-Local: `src/hooks/useContactLatestConversation.ts` (novo).
-
-- Faz uma query enxuta a `chat_conversations` filtrada por `client_id` (e respeitando filas não-soft-deletadas, espelhando o filtro que já existe no contexto).
-- Colunas: `contact_id, status, assigned_to, queue_id, channel, updated_at, opened_at, snoozed_until, id, protocol`.
-- Agrupa por `contact_id` no frontend e retorna `Map<contact_id, LeaderConv>` onde `LeaderConv` é a conversa de maior `updated_at`.
-- Assina `postgres_changes` em `chat_conversations` (filtrado por `client_id`) para manter o mapa em tempo real (insert/update → recomputa líder daquele contato; delete → recomputa).
-- Expõe `{ leaderByContact, isLoading }`.
-
-Esse hook substitui — para fins de dedupe da lista — a necessidade de ter todos os grupos carregados em `conversations`.
-
-### 2. Integrar no `WhatsAppDataContext.tsx`
-
-- Chamar `useContactLatestConversation(clientId, allowedQueueIds)` dentro do provider.
-- Expor `leaderByContact` no value do contexto (novo campo opcional para futuros usos).
-- Alterar `filteredContacts` (linhas ~2047–2098):
-  - Substituir o filtro atual (`contactIdsWithStatus.includes(c.id)`) por:
-    ```ts
-    const leader = leaderByContact.get(c.id);
-    if (!leader) return false; // contato sem ticket fica fora das abas de status
-    const group = leaderGroup(leader); // 'active' | 'resolved' | 'closed'
-    if (filter === 'all')              return true;
-    if (filter === 'resolved_closed')  return group === 'resolved' || group === 'closed';
-    return group === filter || (filter === 'open' && group === 'active') || (filter === 'pending' && group === 'active');
-    ```
-  - Continuar respeitando snooze pelo líder (`leader.snoozed_until`).
-- Alterar `selectedConversation` (linhas ~2040–2045): em vez de "primeiro pending/open", usar a conversa líder do `selectedContactId` (buscando primeiro em `conversations` carregadas; se não estiver carregada — porque o grupo do líder ainda não foi carregado — usar `leaderByContact` para obter o `id` e carregar sob demanda via `loadConversationsPage`/select pontual).
-
-### 3. Contadores (`totalUnreadCount`, `individualUnreadCount`, `groupUnreadCount`)
-Permanecem somando `contacts.unread_count` (não mudam — unread é por contato no schema atual).
-
-Os contadores por aba que hoje vivem em `effectiveStatusCounts` (linhas ~823) devem passar a contar **contatos únicos** por grupo usando `leaderByContact`, para baterem com a nova listagem deduplicada.
-
-### 4. UI
-Sem mudança visual obrigatória. Opcional (fora deste escopo, perguntar depois): mostrar um pequeno badge "+N filas" no item do contato quando ele tiver mais de um ticket ativo, para o atendente saber que existem outros tickets do mesmo lead em outras filas.
-
-### 5. Memória do projeto
-Atualizar `mem://features/chat/conversation-reopen-rules.md` com nota: "Na UI da lista do chat, contatos são deduplicados pela conversa de maior `updated_at`; o ticket por fila continua existindo no banco". Adicionar entrada nova `mem://ui/patterns/chat-contact-deduplication`.
-
-## Arquivos tocados
+Fluxo atual:
 
 ```text
-src/hooks/useContactLatestConversation.ts        (novo)
-src/contexts/WhatsAppDataContext.tsx             (filteredContacts, selectedConversation, counts)
-mem://ui/patterns/chat-contact-deduplication     (novo)
-mem://features/chat/conversation-reopen-rules    (nota adicionada)
+ChatInput → editMessage (WhatsAppDataContext)
+  ├─ optimistic update local (text + edited_at) ✓
+  ├─ POST /message/edit (uazapi-proxy)            ✓
+  └─ UPDATE chat_messages SET text, edited_at     ✓
+
+UaZapi posteriormente envia DOIS eventos:
+  • messages.update  → webhook detecta `editedText` e faz UPDATE   ✓
+  • messages.upsert  → contém `protocolMessage.editedMessage` OU
+                        um envelope com o texto novo e um NOVO key.id
+                        → webhook (linha ~974) não acha duplicata pelo
+                          message_id e INSERE nova linha → duplica.
 ```
 
-Sem migrations. Sem mudanças em edge functions. Sem alteração no fluxo de criação/reabertura de tickets.
+O dedup do upsert (`uazapi-chat-webhook` linhas 977‑988) só compara `message_id` do envelope atual. Como o provedor gera um stanza-id novo para a edição, o teste passa e a linha é inserida.
 
-## Validação
+### 2. Ticks não atualizam
 
-1. Caso real `5534988860163`: ao aplicar, deve aparecer **apenas** na aba "Em aberto" (líder = `pending` MRA de 21/05 23:00), sumindo da aba "Resolvidos / Fechados".
-2. Resolver o ticket líder dele → contato migra para "Resolvidos" em tempo real (via subscription), e os tickets pending mais antigos em outras filas só voltam a "promover" o contato se receberem nova atividade que avance o `updated_at`.
-3. Contato com apenas tickets `closed` antigos aparece só em "Fechados".
-4. Contagens por aba batem com a contagem visível de itens listados.
+O bloco `messages.update` (linhas 783‑822) mapeia status corretamente, mas faz o UPDATE filtrando por `message_id.eq.X OR external_id.eq.X`. Hipóteses:
+
+- O id que o provedor envia nas atualizações de status é o `key.id` do WhatsApp (ex.: `3EB0…`), enquanto no envio salvamos `proxyData.key.id || proxyData.id || proxyData.messageId` (linha 1437). Quando o UaZapi retorna apenas `messageid` (id interno do uazapi), gravamos esse valor e o evento de status posterior chega com o `key.id` real → não bate → nenhum update.
+- Realtime UPDATE de `chat_messages` está ativo (migração já aplicada), então quando o UPDATE no DB roda, a UI atualiza. Logo o problema é o match do id, não o transporte.
+
+---
+
+## Plano de correção
+
+### A. Webhook `uazapi-chat-webhook` — tratar edição no upsert
+
+Antes do dedup por `message_id` (~linha 977), detectar se o evento é uma edição e fazer UPDATE na linha original em vez de inserir nova:
+
+1. Extrair o id original do envelope quando existir:
+   - `msg.message?.protocolMessage?.key?.id` (tipo 14 = MESSAGE_EDIT)
+   - `msg.message?.editedMessage?.message?.protocolMessage?.key?.id`
+   - `msg.edited?.id` / `msg.editedMessageId`
+2. Extrair o novo texto:
+   - `msg.message?.protocolMessage?.editedMessage?.conversation`
+   - `msg.message?.protocolMessage?.editedMessage?.extendedTextMessage?.text`
+   - `msg.message?.editedMessage?.message?.conversation`
+3. Se ambos existirem:
+   - `UPDATE chat_messages SET text = <novo>, edited_at = now() WHERE client_id = ? AND (message_id = <orig> OR external_id = <orig>)`
+   - `continue` (não inserir).
+4. Como **fallback de segurança** (provedores que omitem o protocolMessage e mandam apenas um upsert "puro" com texto novo): após o insert ter ocorrido, comparar com a última mensagem `from_me` do mesmo contato nos últimos N segundos; se o texto for igual ao novo e diferente do anterior, marcar como duplicata. Manter este fallback opcional — começar só pelos passos 1‑3, que cobrem o caso real do UaZapi.
+
+### B. Webhook — robustecer o match de status (ticks)
+
+No bloco `messages.update` (linhas 784‑822):
+
+1. Coletar candidatos de id: `messageid`, `id`, `key.id`, `wa_messageid`, `update.key.id`.
+2. Construir UPDATE com filtro `message_id IN (lista) OR external_id IN (lista)`.
+3. Logar quando nenhum id bateu (`affected rows = 0`) para diagnóstico.
+
+### C. Envio outbound — gravar todos os ids retornados pelo provedor
+
+Em `WhatsAppDataContext.sendMessage` (linhas 1414‑1465) e `sendMedia` (linhas ~1750):
+
+1. Capturar **ambos** os ids retornados pelo UaZapi: `proxyData.key?.id` (WA stanza id) e `proxyData.id || proxyData.messageid` (id interno).
+2. Persistir:
+   - `message_id` = WA stanza id (preferencial — é o que o provedor usa nos eventos de status/edit).
+   - `external_id` = id interno do UaZapi (fallback).
+3. Mesma alteração no `editMessage` para atualizar `message_id` se a resposta do `/message/edit` trouxer um novo stanza id.
+
+### D. Front — UPDATE realtime preservar campos não retornados
+
+No handler UPDATE de `chat_messages` (linhas 2391‑2408), fazer merge em vez de substituir, para não perder `metadata`/`media_url` enriquecidos em memória:
+
+```ts
+prev[updated.contact_id].map(m =>
+  m.id === updated.id ? { ...m, ...updated, metadata: { ...m.metadata, ...updated.metadata } } : m
+)
+```
+
+### E. Validação
+
+1. Editar uma mensagem outbound em conversa UaZapi → confirmar que **não** aparece bolha duplicada e o texto atualiza com indicador "editada".
+2. Enviar mensagem e aguardar leitura no celular → ticks devem evoluir `sent → delivered → read` (cor primary no duplo-check).
+3. Inspecionar logs do edge `uazapi-chat-webhook` para confirmar:
+   - Branch de edição no upsert ativado (`[edit-detected]`).
+   - `messages.update` aplicando status (`affected=1`).
+
+---
+
+## Arquivos a alterar
+
+- `supabase/functions/uazapi-chat-webhook/index.ts` — branches A e B.
+- `src/contexts/WhatsAppDataContext.tsx` — itens C e D (`sendMessage`, `sendMedia`, `editMessage`, handler realtime UPDATE).
+
+Nenhuma migration de banco é necessária (colunas `edited_at`, `message_id`, `external_id` já existem; realtime UPDATE já está habilitado).

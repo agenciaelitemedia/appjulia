@@ -1434,7 +1434,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
         }
         const proxyData = data?.data || {};
-        externalMessageId = proxyData?.key?.id || proxyData?.id || proxyData?.messageId || proxyData?.messageid;
+        // Prefer the WhatsApp stanza id (key.id) for message_id — that's the id
+        // the provider uses in status/edit events. Keep the uazapi internal id
+        // as external_id fallback so the webhook can still match either way.
+        const waStanzaId = proxyData?.key?.id;
+        const uazInternalId = proxyData?.id || proxyData?.messageId || proxyData?.messageid;
+        externalMessageId = waStanzaId || uazInternalId;
+        // Stash both ids on the closure scope for the insert below.
+        (tempMessage as any).__wa_id = waStanzaId || externalMessageId;
+        (tempMessage as any).__uaz_id = uazInternalId || externalMessageId;
       }
 
       setMessages(prev => ({
@@ -1454,8 +1462,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         type: tempMessage.type,
         from_me: tempMessage.from_me,
         status: 'sent',
-        message_id: externalMessageId,
-        external_id: externalMessageId,
+        message_id: (tempMessage as any).__wa_id ?? externalMessageId,
+        external_id: (tempMessage as any).__uaz_id ?? externalMessageId,
         reply_to: replyToMessage?.message_id || replyToMessage?.id || null,
         metadata: quotedMeta ?? null,
         timestamp: tempMessage.timestamp,
@@ -1564,6 +1572,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
       }
 
+      // Some providers return a new key.id for the edited envelope. If present,
+      // we keep the ORIGINAL message_id (the one already used for status
+      // tracking and for the webhook dedup logic in edit-detection), and
+      // simply persist the new text + edited_at.
       await supabase
         .from('chat_messages')
         .update({ text: trimmed, edited_at: editedAt })
@@ -1742,7 +1754,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
         }
         const mediaProxyData = data?.data || {};
-        externalMessageId = mediaProxyData?.key?.id || mediaProxyData?.id || mediaProxyData?.messageId;
+        const waStanzaId = mediaProxyData?.key?.id;
+        const uazInternalId = mediaProxyData?.id || mediaProxyData?.messageId || mediaProxyData?.messageid;
+        externalMessageId = waStanzaId || uazInternalId;
+        (tempMessage as any).__wa_id = waStanzaId || externalMessageId;
+        (tempMessage as any).__uaz_id = uazInternalId || externalMessageId;
       }
 
       setMessages(prev => ({
@@ -1762,8 +1778,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         type,
         from_me: true,
         status: 'sent',
-        message_id: externalMessageId,
-        external_id: externalMessageId,
+        message_id: (tempMessage as any).__wa_id ?? externalMessageId,
+        external_id: (tempMessage as any).__uaz_id ?? externalMessageId,
         media_url: persistedUrl,
         file_name: file.name,
         caption,
@@ -2398,10 +2414,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         },
         (payload) => {
           const updated = payload.new as ChatMessage;
+          // Merge instead of replace so we don't drop in-memory enrichments
+          // (decrypted media_url, transcription metadata, etc.) when the DB
+          // emits a partial UPDATE (e.g. status tick or edited_at).
           setMessages(prev => ({
             ...prev,
             [updated.contact_id]: (prev[updated.contact_id] || []).map(m =>
-              m.id === updated.id ? updated : m
+              m.id === updated.id
+                ? {
+                    ...m,
+                    ...updated,
+                    metadata: { ...(m.metadata || {}), ...((updated as any).metadata || {}) },
+                  }
+                : m
             ),
           }));
         }
