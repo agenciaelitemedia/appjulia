@@ -8,7 +8,7 @@ import { CONVERSATION_EVENT_ACTIONS, getEventConfig } from '@/components/chat/Co
 import type { ConversationHistoryEntry } from '@/types/conversation';
 import { cn } from '@/lib/utils';
 
-const SAMPLE_ACTOR = 'Ana Luiza';
+const SAMPLE_ACTOR = 'Fulano de Tal';
 
 function EventBadgePreview({ action }: { action: string }) {
   const entry = {
