@@ -72,7 +72,7 @@ export function MediaPreviewDialog({ file, type, initialCaption = '', sending = 
         />
 
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={sending}>
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancelar
           </Button>
           <Button type="button" onClick={handleConfirm} disabled={sending}>
