@@ -784,7 +784,10 @@ export function ChatList() {
       // mesmo quando o status físico ainda for 'pending' (camada de segurança
       // contra atrasos do trigger/realtime).
       const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
-      const effectiveStatus = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
+      const effectiveStatus =
+        conv.status === 'pending' && hasAssignee ? 'open' :
+        conv.status === 'open' && !hasAssignee ? 'pending' :
+        conv.status;
       if (effectiveStatus === 'pending') pending++;
       else if (effectiveStatus === 'open') open++;
       else if (effectiveStatus === 'resolved' || effectiveStatus === 'closed') closed++;
@@ -838,7 +841,10 @@ export function ChatList() {
 
       // Effective status (pending+assignee → open)
       const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
-      const effectiveStatus = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
+      const effectiveStatus =
+        conv.status === 'pending' && hasAssignee ? 'open' :
+        conv.status === 'open' && !hasAssignee ? 'pending' :
+        conv.status;
       if (effectiveStatus !== conversationStatusFilter) continue;
 
       // Snooze
