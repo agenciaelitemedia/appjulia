@@ -90,7 +90,7 @@ function StatusIcon({ status }: { status: MessageStatus }) {
     case 'sending': return <Clock className="h-3 w-3" />;
     case 'sent': return <Check className="h-3 w-3" />;
     case 'delivered': return <CheckCheck className="h-3 w-3" />;
-    case 'read': return <CheckCheck className="h-3 w-3 text-primary" />;
+    case 'read': return <CheckCheck className="h-3 w-3 text-sky-500" />;
     case 'failed': return <AlertCircle className="h-3 w-3 text-destructive" />;
     default: return null;
   }
