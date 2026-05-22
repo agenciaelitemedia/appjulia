@@ -151,6 +151,37 @@ function buildIdOrFilter(ids: string[]): string {
     })
     .join(',');
 }
+async function resolveChatMessageRowIds(supabase: ReturnType<typeof getSupabase>, ids: string[]): Promise<string[]> {
+  if (!ids.length) return [];
+
+  const directFilter = buildIdOrFilter(ids);
+  const resolved = new Set<string>();
+
+  if (directFilter) {
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .or(directFilter);
+    for (const row of data ?? []) {
+      const rowId = (row as { id?: string }).id;
+      if (rowId) resolved.add(rowId);
+    }
+  }
+
+  const shortIds = ids.filter((id) => !id.includes(':'));
+  for (const shortId of shortIds) {
+    const { data } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .or(`message_id.like.%:${shortId},external_id.like.%:${shortId}`);
+    for (const row of data ?? []) {
+      const rowId = (row as { id?: string }).id;
+      if (rowId) resolved.add(rowId);
+    }
+  }
+
+  return Array.from(resolved);
+}
 
 function normalizePhone(raw: string): string {
   // Forma canônica BR: aplica regra do 9º dígito para celulares 55 + DDD + 8 díg.
