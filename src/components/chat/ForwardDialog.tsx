@@ -60,9 +60,11 @@ export function ForwardDialog({ open, onOpenChange, message }: ForwardDialogProp
     let failCount = 0;
     for (const id of selected) {
       try {
-        // Encaminha como texto (preview). Mídias são re-enviadas como descrição.
-        // Upgrade futuro: re-upload do binário para grupos/individuais.
-        await sendMessage(id, previewText);
+        // Encaminha marcando a flag `forward: true` no provedor.
+        // Para mídia ainda enviamos o texto/preview — re-upload do binário
+        // fica fora do escopo deste fluxo.
+        const fwdText = message.text || message.caption || previewText;
+        await sendMessage(id, fwdText, undefined, { forward: true });
         okCount++;
       } catch {
         failCount++;

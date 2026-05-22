@@ -32,8 +32,13 @@ export function MediaPreviewDialog({ file, type, initialCaption = '', sending = 
   };
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open && !sending) onCancel(); }}>
-      <DialogContent className="max-w-lg">
+    <Dialog open onOpenChange={() => { /* close only via Cancel button or on success */ }}>
+      <DialogContent
+        className="max-w-lg [&>button.absolute]:hidden"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Enviar {type === 'image' ? 'imagem' : type === 'video' ? 'vídeo' : 'arquivo'}</DialogTitle>
         </DialogHeader>
@@ -67,7 +72,7 @@ export function MediaPreviewDialog({ file, type, initialCaption = '', sending = 
         />
 
         <DialogFooter className="gap-2 sm:gap-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={sending}>
+          <Button type="button" variant="outline" onClick={onCancel}>
             Cancelar
           </Button>
           <Button type="button" onClick={handleConfirm} disabled={sending}>

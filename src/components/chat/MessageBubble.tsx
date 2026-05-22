@@ -297,20 +297,26 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
 
     case 'video':
       return (
+        <>
         <div className="relative max-w-[280px]">
           {usable ? (
-            <div className="relative group">
+            <div className="relative group cursor-pointer" onClick={() => setLightboxOpen(true)}>
               <video
                 src={mediaUrl}
-                controls
-                className="rounded-lg max-w-full"
+                className="rounded-lg max-w-full pointer-events-none"
                 preload="metadata"
+                muted
               />
+              <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/20 group-hover:bg-black/30 transition-colors">
+                <div className="h-12 w-12 rounded-full bg-background/90 flex items-center justify-center shadow-lg">
+                  <Play className="h-6 w-6 text-foreground fill-foreground" />
+                </div>
+              </div>
               <Button
                 variant="secondary"
                 size="icon"
                 className="absolute top-2 right-2 h-8 w-8 rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => forceDownload(mediaUrl!, message.file_name)}
+                onClick={(e) => { e.stopPropagation(); forceDownload(mediaUrl!, message.file_name); }}
                 aria-label="Baixar vídeo"
               >
                 <Download className="h-4 w-4" />
@@ -329,6 +335,15 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
             <div className="mt-1"><ExpandableMessageText text={message.caption} formatter={formatWhatsAppText} /></div>
           )}
         </div>
+        <MediaLightbox
+          open={lightboxOpen}
+          onOpenChange={setLightboxOpen}
+          url={mediaUrl || null}
+          caption={message.caption}
+          fileName={message.file_name}
+          kind="video"
+        />
+        </>
       );
 
     case 'audio':
@@ -670,6 +685,9 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
                   {format(new Date(message.timestamp), 'HH:mm')}
                 </span>
                 {message.from_me && <StatusIcon status={message.status} />}
+                {!message.from_me && (
+                  <CheckCheck className="h-3 w-3 text-sky-500" />
+                )}
               </div>
             </div>
 

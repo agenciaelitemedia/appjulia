@@ -1,39 +1,62 @@
-# Forçar download de mídias no chat
+# Plano de mudanças no Chat
 
-## Problema
-Hoje os botões de "Download" no chat usam `<a href={url} download>` apontando diretamente para URLs cross-origin (UaZapi / storage). O atributo `download` é ignorado pelo browser quando a URL é de outra origem, então o link abre numa nova aba em vez de baixar o arquivo. Vídeos no preview não têm botão de download.
+## 1. Marcar mensagens recebidas como lidas (apenas visual, 2 checks azuis)
 
-## Solução
+**Sem chamada externa** — não dispara markRead na UaZapi/WABA. Apenas efeito visual no nosso chat.
 
-Criar um helper `forceDownload(url, fileName)` que faz `fetch` da URL, converte para `Blob`, gera `URL.createObjectURL` e dispara um `<a>` virtual com `download={fileName}`. Isso garante download real (com fallback para nova aba se o fetch falhar por CORS).
+**Onde:** `src/components/chat/MessageBubble.tsx`
 
-Aplicar nos 3 pontos onde a mídia é apresentada/baixada.
+- No `StatusIcon`, hoje só renderiza ícone quando `from_me=true`. Vamos manter o comportamento atual para enviadas e adicionar render de `CheckCheck` azul (`text-sky-500`) também para mensagens recebidas (`from_me=false`), independente de `status`.
+- Alternativa mais limpa: no `MessageBubble`, na linha de meta (timestamp), exibir o duplo check azul como elemento decorativo quando `!from_me`.
+- Nenhuma alteração no banco, no webhook ou no `markAsRead` do contexto.
 
-## Arquivos a alterar
+## 2. Parâmetros corretos de `replyid` e `forward`
 
-### 1. `src/lib/forceDownload.ts` (novo)
-Função utilitária:
-- Recebe `url` + `fileName` opcional
-- `fetch(url) → blob → createObjectURL → click programático → revoke`
-- Inferir `fileName` da URL quando não fornecido
-- Em erro, fallback para abrir em nova aba
+**Arquivo:** `src/contexts/WhatsAppDataContext.tsx` + `src/lib/uazapi/types.ts`
 
-### 2. `src/components/chat/MediaLightbox.tsx`
-- Substituir `<a href download>` por `<Button onClick={() => forceDownload(url, fileName)}>`
+a) `sendMessage(contactId, text, replyToMessage?, options?)`
+- Renomear payload UaZapi de `quotedMessageId` → **`replyid`** (linha ~1426).
+- Adicionar parâmetro opcional `options?: { forward?: boolean }`. Quando `forward=true`, incluir `forward: true` no body do `/send/text`.
+- Atualizar tipos em `ChatContextValue` e `SendTextRequest`.
 
-### 3. `src/components/chat/MessageBubble.tsx`
+b) `sendMedia(contactId, file, type, caption?, options?)`
+- Aceitar `replyid` e `forward` no payload do `/send/media` (para encaminhar mídia).
 
-**Imagem** (case `'image'`):
-- Adicionar botão flutuante de download no canto superior direito do preview (visível em hover), chamando `forceDownload(mediaUrl, file_name)`.
+c) `src/components/chat/ForwardDialog.tsx`
+- Quando origem for mídia com `media_url`, chamar `sendMedia` com `forward: true`.
+- Quando origem for texto, chamar `sendMessage(id, message.text ?? caption ?? '', undefined, { forward: true })`.
 
-**Vídeo** (case `'video'`):
-- Adicionar botão de download abaixo/sobreposto ao `<video>`, chamando `forceDownload`.
+## 3. Vídeo abre em popup (lightbox) com download
 
-**Documento** (case `'document'`):
-- Trocar `<a href={mediaUrl} target="_blank" download>` por `<Button onClick={() => forceDownload(mediaUrl, file_name)}>` — mantém o ícone `Download` atual.
+**Arquivos:** `src/components/chat/MediaLightbox.tsx` (estender) + `MessageBubble.tsx`
 
-## Comportamento esperado
-- Imagem: ícone de download no preview, clique baixa o arquivo (não abre aba).
-- Vídeo: player com controles + botão de download que baixa o arquivo.
-- Documento: ícone de download já existente passa a baixar de fato.
-- Lightbox: botão de download força salvamento.
+- Adicionar prop `kind: 'image' | 'video'` (default `image`) ao `MediaLightbox`. Quando `video`, renderizar `<video controls autoPlay>` no lugar de `<img>` (mantendo toolbar de download/fechar; remover botões de zoom).
+- Em `MessageBubble.tsx` (case `'video'`): substituir o `<video controls>` inline por um thumbnail clicável (`<video preload="metadata">` sem controls + overlay com ícone `Play`). Ao clicar, abrir `MediaLightbox` com `kind="video"`, `url=mediaUrl`, `fileName`. O botão de download flutuante atual é mantido.
+
+## 4. Modal de envio de mídia só fecha pelo botão Cancelar / após sucesso
+
+**Arquivo:** `src/components/chat/MediaPreviewDialog.tsx`
+
+- Remover auto-close via `onOpenChange` (passar `onOpenChange={() => {}}`).
+- No `<DialogContent>`:
+  - `onPointerDownOutside={(e) => e.preventDefault()}`
+  - `onEscapeKeyDown={(e) => e.preventDefault()}`
+  - `onInteractOutside={(e) => e.preventDefault()}`
+- Ocultar o "X" padrão do `DialogContent` (classe utilitária `[&>button.absolute]:hidden`).
+- Botão **Cancelar** sempre habilitado: aborta envio em andamento (limpa `pendingMedia` via `onCancel` em `ChatInput`).
+- Auto-close ao sucesso já ocorre via `setPendingMedia(null)` em `ChatInput.confirmSendMedia` — mantido.
+
+## Riscos & validação
+
+- `replyid`: precisa ser o stanza id real (`message_id` ou `external_id`) — código já tenta ambos, só renomear a chave.
+- Lightbox de vídeo: testar autoplay (browsers podem exigir `muted`); manter `controls` para destravar áudio.
+- Modal travado: em caso de erro de envio (`status=failed`), `sending` volta a `false` no `finally`, então Cancelar continua funcional.
+
+## Arquivos afetados
+
+- `src/components/chat/MessageBubble.tsx`
+- `src/contexts/WhatsAppDataContext.tsx`
+- `src/lib/uazapi/types.ts`
+- `src/components/chat/ForwardDialog.tsx`
+- `src/components/chat/MediaLightbox.tsx`
+- `src/components/chat/MediaPreviewDialog.tsx`

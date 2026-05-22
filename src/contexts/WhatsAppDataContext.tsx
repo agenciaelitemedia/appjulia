@@ -1348,7 +1348,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const sendMessage = useCallback(async (
     contactId: string,
     text: string,
-    replyToMessage?: ChatMessage
+    replyToMessage?: ChatMessage,
+    options?: { forward?: boolean }
   ) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
@@ -1423,7 +1424,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             body: {
               number: contact.phone,
               text,
-              quotedMessageId: replyToMessage?.message_id || replyToMessage?.external_id,
+              replyid: replyToMessage?.message_id || replyToMessage?.external_id || undefined,
+              forward: options?.forward === true ? true : undefined,
             },
           },
         });
@@ -1615,7 +1617,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     contactId: string,
     file: File,
     type: MessageType,
-    caption?: string
+    caption?: string,
+    options?: { forward?: boolean }
   ) => {
     const contact = contacts.find(c => c.id === contactId);
     if (!contact) return;
@@ -1759,6 +1762,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               fileName: outboundFile.name,
               docName: type === 'document' ? outboundFile.name : undefined,
               ptt: type === 'ptt' ? true : undefined,
+              forward: options?.forward === true ? true : undefined,
             },
           },
         });

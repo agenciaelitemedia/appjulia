@@ -10,9 +10,10 @@ interface MediaLightboxProps {
   url: string | null;
   caption?: string | null;
   fileName?: string | null;
+  kind?: 'image' | 'video';
 }
 
-export function MediaLightbox({ open, onOpenChange, url, caption, fileName }: MediaLightboxProps) {
+export function MediaLightbox({ open, onOpenChange, url, caption, fileName, kind = 'image' }: MediaLightboxProps) {
   const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export function MediaLightbox({ open, onOpenChange, url, caption, fileName }: Me
       <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 bg-background/95 border-0 flex flex-col">
         {/* Toolbar */}
         <div className="absolute top-3 right-3 z-50 flex gap-2">
-          <Button
+          {kind === 'image' && <Button
             variant="secondary"
             size="icon"
             className="h-9 w-9 rounded-full shadow-lg"
@@ -34,8 +35,8 @@ export function MediaLightbox({ open, onOpenChange, url, caption, fileName }: Me
             aria-label="Reduzir zoom"
           >
             <ZoomOut className="h-4 w-4" />
-          </Button>
-          <Button
+          </Button>}
+          {kind === 'image' && <Button
             variant="secondary"
             size="icon"
             className="h-9 w-9 rounded-full shadow-lg"
@@ -43,7 +44,7 @@ export function MediaLightbox({ open, onOpenChange, url, caption, fileName }: Me
             aria-label="Aumentar zoom"
           >
             <ZoomIn className="h-4 w-4" />
-          </Button>
+          </Button>}
           <Button
             variant="secondary"
             size="icon"
@@ -64,15 +65,24 @@ export function MediaLightbox({ open, onOpenChange, url, caption, fileName }: Me
           </Button>
         </div>
 
-        {/* Image */}
+        {/* Media */}
         <div className="flex-1 overflow-auto flex items-center justify-center p-6">
-          <img
-            src={url}
-            alt={caption || 'Mídia'}
-            style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s' }}
-            className="max-w-full max-h-full object-contain select-none"
-            draggable={false}
-          />
+          {kind === 'video' ? (
+            <video
+              src={url}
+              controls
+              autoPlay
+              className="max-w-full max-h-full object-contain"
+            />
+          ) : (
+            <img
+              src={url}
+              alt={caption || 'Mídia'}
+              style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s' }}
+              className="max-w-full max-h-full object-contain select-none"
+              draggable={false}
+            />
+          )}
         </div>
 
         {caption && (

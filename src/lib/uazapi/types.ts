@@ -310,6 +310,8 @@ export interface SendTextRequest {
   number: string;
   text: string;
   quotedMessageId?: string;
+  replyid?: string;
+  forward?: boolean;
 }
 
 export interface SendMediaRequest {
@@ -319,6 +321,8 @@ export interface SendMediaRequest {
   mimetype?: string;
   caption?: string;
   fileName?: string;
+  replyid?: string;
+  forward?: boolean;
 }
 
 export interface SendLocationRequest {
