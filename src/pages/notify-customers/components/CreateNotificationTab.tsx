@@ -10,20 +10,22 @@ import { toast } from '@/components/ui/sonner';
 import {
   useInternalNotifications, type NotificationType, type NotificationAudience,
 } from '@/hooks/useInternalNotifications';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function CreateNotificationTab({ onCreated }: { onCreated?: () => void }) {
   const { createAndSend } = useInternalNotifications();
+  const { isAdmin } = useAuth();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [type, setType] = useState<NotificationType>('message');
-  const [audience, setAudience] = useState<NotificationAudience>('all');
+  const [audience, setAudience] = useState<NotificationAudience>(isAdmin ? 'all' : 'teams');
   const [options, setOptions] = useState<string[]>(['', '']);
   const [when, setWhen] = useState<'now' | 'schedule'>('now');
   const [scheduledFor, setScheduledFor] = useState('');
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
-    setTitle(''); setBody(''); setType('message'); setAudience('all');
+    setTitle(''); setBody(''); setType('message'); setAudience(isAdmin ? 'all' : 'teams');
     setOptions(['', '']); setWhen('now'); setScheduledFor('');
   };
 
@@ -81,9 +83,9 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
             <Select value={audience} onValueChange={(v) => setAudience(v as NotificationAudience)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="owners">Donos de escritório</SelectItem>
-                <SelectItem value="teams">Equipes</SelectItem>
+                {isAdmin && <SelectItem value="all">Todos</SelectItem>}
+                {isAdmin && <SelectItem value="owners">Donos de escritório</SelectItem>}
+                <SelectItem value="teams">Equipe</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -16,12 +16,15 @@ export function useEnsureNotifyModule() {
         const existing = modules.find((m: any) => m.code === 'notify_customers');
 
         if (existing) {
+          const desiredName = 'Notificação Interna';
           if (
             existing.route !== '/notificar-clientes' ||
             !existing.is_menu_visible ||
-            existing.menu_group !== 'SISTEMA'
+            existing.menu_group !== 'SISTEMA' ||
+            existing.name !== desiredName
           ) {
             await externalDb.updateModule(existing.id, {
+              name: desiredName,
               route: '/notificar-clientes',
               is_menu_visible: true,
               menu_group: 'SISTEMA',
@@ -32,7 +35,7 @@ export function useEnsureNotifyModule() {
         }
 
         await externalDb.createModule({
-          name: 'Notificar Clientes',
+          name: 'Notificação Interna',
           code: 'notify_customers' as any,
           description: 'Notificações internas em tempo real (mensagem, enquete, pergunta)',
           icon: 'Bell',
