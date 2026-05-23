@@ -135,7 +135,7 @@ export function NotificationCenter() {
       {items.map((it) => {
         const n = it.notification;
         return (
-          <div key={it.recipientId} className="rounded-lg border bg-background shadow-lg overflow-hidden">
+          <div key={it.recipientId} className="rounded-lg border border-blue-200 bg-blue-50 shadow-lg overflow-hidden">
             <button
               type="button"
               className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
