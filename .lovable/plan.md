@@ -1,46 +1,63 @@
-## Diagnóstico
+## Objetivo
+Restringir os destinatários de `internal-notification-dispatch` apenas a usuários da plataforma **Nova Júlia**, usando a view `public.vw_equipe` (que já filtra clientes provisionados na nova plataforma e expõe `user_funcao`).
 
-Investiguei os logs e o estado atual:
+## Fonte de verdade
+View **`public.vw_equipe`** no banco externo, colunas:
+`id, name, email, role, parent_user_id, client_id, photo, client_business_name, user_funcao`
 
-1. **Frontend (`MessageBubble.tsx`) está correto** — `StatusIcon` renderiza ✓ (sent), ✓✓ (delivered), ✓✓ azul (read) com base em `message.status`.
+- `client_id IS NOT NULL` → pertence à Nova Júlia
+- `user_funcao = 'dono'` → dono do escritório
+- `user_funcao = 'equipe'` → membro da equipe
 
-2. **Banco mostra que o status quase nunca avança de `sent`**:
-   - Últimas 6h (from_me=true): **1166 sent / 2 delivered / 13 read**.
-   - O pico de `read` aconteceu às 11h UTC (13) e 01h UTC (5); depois das 11h, **nenhum read/delivered novo**.
+## Mudança única
+Arquivo: `supabase/functions/internal-notification-dispatch/index.ts`
 
-3. **Edge function `uazapi-chat-webhook` NÃO recebe `messages.update` há horas**. Os logs só mostram `Event: messages` (upsert). Não há nenhum `messages.update STATUS` nem `upsert STATUS bump`.
+Substituir o bloco de montagem da query externa (que hoje usa `FROM users u` com filtros de `client_id IS NULL/NOT NULL`) por:
 
-4. **A configuração do webhook na UaZapi inclui `messages.update`** (confirmado via `GET /webhook` em uma fila), mas mesmo assim os eventos de ACK não estão chegando. Isso indica que a instância UaZapi não está mais disparando esses eventos para nosso endpoint — provavelmente após algum redeploy ou pause/restore do servidor UaZapi, ou após alteração de webhook que zerou a subscrição efetiva apesar do GET retornar a lista correta.
+```ts
+const where: string[] = ["client_id IS NOT NULL"];
+const params: any[] = [];
 
-5. **Não houve commit do código do webhook entre o momento que funcionou (madrugada) e agora** que justifique a quebra de lógica. As mudanças do dia foram: dropped logger, reabertura como `pending`, normalização de evento. Nenhuma altera o caminho de status update.
+if (n.audience === "owners") {
+  where.push("user_funcao = 'dono'");
+} else if (n.audience === "teams") {
+  where.push("user_funcao = 'equipe'");
+} // 'all' → sem filtro adicional (dono + equipe da Nova Júlia)
 
-**Conclusão:** o problema não é código do app — é que a UaZapi parou de **entregar** os eventos `messages.update` para nosso webhook, mesmo que a configuração esteja registrada. Isso geralmente é resolvido **reaplicando** a configuração de webhook em todas as instâncias ativas (`POST /webhook` na UaZapi), que reativa a subscrição.
+if (n.scope === "office") {
+  // restringe ao escritório do criador
+  const creatorId = String(n.created_by);
+  const creatorRows = await externalRaw(
+    "SELECT client_id FROM public.vw_equipe WHERE id = $1 LIMIT 1",
+    [creatorId],
+  );
+  const clientId = creatorRows?.[0]?.client_id ?? n.created_by_client_id ?? null;
+  if (clientId != null) {
+    params.push(clientId);
+    where.push(`client_id = $${params.length}`);
+  } else {
+    params.push(creatorId);
+    where.push(`id = $${params.length}`);
+  }
+}
 
-## Plano
+const sql = `
+  SELECT id, name, role, client_id
+  FROM public.vw_equipe
+  WHERE ${where.join(" AND ")}
+`;
+const users = await externalRaw(sql, params);
+```
 
-### 1) Reaplicar webhook em todas as filas UaZapi ativas (correção imediata)
+Remover toda a lógica antiga de `u.is_active`, `u.user_id`, `u.client_id IS NULL/NOT NULL` — a view já encapsula essas regras.
 
-Adicionar uma nova action `reconfigure_webhook_all` na edge function `supabase/functions/uazapi-instance-manager/index.ts`:
+## Sem mudanças em
+- UI de criação (`/notificar-clientes`)
+- `NotificationCenter`
+- Schema do banco interno
 
-- Lê todas as filas com `channel_type='uazapi'` e `is_active=true` que tenham `evo_apikey`.
-- Para cada uma, chama `configureWebhook(...)` (que já manda `events: DEFAULT_WEBHOOK_EVENTS` incluindo `messages.update`).
-- Retorna array `{ queue_id, name, ok, status }` com resultado por fila.
-- Tolerante a falhas individuais (não aborta no primeiro erro).
-
-Depois, executar essa action 1x via `supabase--curl_edge_functions`. Não cria UI nem cron — é um disparo único de manutenção.
-
-### 2) Adicionar log defensivo para futuras quebras
-
-No início do handler do webhook, logar uma vez por minuto (sampling) o `event` resolvido, para acelerar diagnóstico no futuro caso a UaZapi pare de enviar updates de novo. (Mudança pequena no `uazapi-chat-webhook/index.ts` — uma linha de console.log já existente cobre isso; sem novo código necessário.)
-
-### 3) Validação
-
-- Após reaplicar, enviar uma mensagem de teste numa fila e verificar nos logs de `uazapi-chat-webhook` se aparece `[uazapi-chat-webhook] messages.update STATUS { status: 'delivered'/'read', affected: 1 }`.
-- Conferir no banco: `SELECT status, count(*) FROM chat_messages WHERE from_me=true AND created_at > now()-interval '15 min' GROUP BY 1;` — deve aparecer `delivered`/`read`.
-- Visualmente: os ✓✓ devem voltar a ficar azuis quando o destinatário lê a mensagem.
-
-### Fora do escopo
-
-- Não tocar em `MessageBubble.tsx` (frontend está correto).
-- Não alterar lógica de status no webhook (já estava correta antes e continua).
-- Sem migrations.
+## Validação
+1. Reprocessar a última notificação com `audience=owners` → `recipients_total` = nº de linhas com `user_funcao='dono'` em `vw_equipe`.
+2. Criar notificação `audience=teams` → recebe apenas `user_funcao='equipe'`.
+3. Criar `audience=all` → recebe todos da Nova Júlia (donos + equipes).
+4. Confirmar que usuários da plataforma antiga (ausentes da view) ficam fora.

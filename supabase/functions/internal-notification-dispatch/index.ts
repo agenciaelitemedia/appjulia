@@ -60,41 +60,37 @@ Deno.serve(async (req) => {
       .update({ status: "sending", updated_at: new Date().toISOString() })
       .eq("id", notificationId);
 
-    // ── Build the audience query against the external users table ──
-    const where: string[] = ["u.is_active = true"];
+    // ── Build the audience query against vw_equipe (Nova Júlia users only) ──
+    // vw_equipe já restringe a usuários provisionados na nova plataforma e
+    // expõe user_funcao ('dono' | 'equipe').
+    const where: string[] = ["client_id IS NOT NULL"];
     // deno-lint-ignore no-explicit-any
     const params: any[] = [];
 
+    if (n.audience === "owners") {
+      where.push("user_funcao = 'dono'");
+    } else if (n.audience === "teams") {
+      where.push("user_funcao = 'equipe'");
+    } // 'all' → sem filtro adicional (donos + equipes da Nova Júlia)
+
     if (n.scope === "office") {
-      // Resolve the creator's real client_id from the external DB (don't trust
-      // the inherited client_id from the frontend).
+      // Restringe ao escritório do criador.
       const creatorId = String(n.created_by);
       const creatorRows = await externalRaw(
-        "SELECT COALESCE(u.client_id, p.client_id) AS client_id FROM users u LEFT JOIN users p ON p.id = u.user_id WHERE u.id = $1 LIMIT 1",
+        "SELECT client_id FROM public.vw_equipe WHERE id = $1 LIMIT 1",
         [creatorId],
       );
       const clientId = creatorRows?.[0]?.client_id ?? n.created_by_client_id ?? null;
-      // office = creator + their direct subordinates + anyone sharing the client_id
-      params.push(creatorId);
-      const cidIdx = params.length;
-      let officeClause = `(u.id = $${cidIdx} OR u.user_id = $${cidIdx}`;
       if (clientId != null) {
         params.push(clientId);
-        officeClause += ` OR u.client_id = $${params.length}`;
+        where.push(`client_id = $${params.length}`);
+      } else {
+        params.push(creatorId);
+        where.push(`id = $${params.length}`);
       }
-      officeClause += ")";
-      where.push(officeClause);
     }
 
-    if (n.audience === "owners") {
-      // Owners são contas-raiz do escritório: não possuem client_id (eles "são" o cliente).
-      where.push("u.client_id IS NULL");
-    } else if (n.audience === "teams") {
-      // Times = membros vinculados a um owner (têm client_id).
-      where.push("u.client_id IS NOT NULL");
-    } // 'all' → no extra filter
-
-    const sql = `SELECT u.id, u.name, u.role, u.client_id FROM users u WHERE ${where.join(" AND ")}`;
+    const sql = `SELECT id, name, role, client_id FROM public.vw_equipe WHERE ${where.join(" AND ")}`;
     const users = await externalRaw(sql, params);
 
     if (!users || users.length === 0) {
