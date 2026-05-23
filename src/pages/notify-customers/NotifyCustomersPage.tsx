@@ -11,7 +11,7 @@ export default function NotifyCustomersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Bell className="w-6 h-6" /> Notificar Clientes
+          <Bell className="w-6 h-6" /> Notificação Interna
         </h1>
         <p className="text-muted-foreground">
           Envie mensagens, enquetes ou perguntas em tempo real para os usuários do sistema.
