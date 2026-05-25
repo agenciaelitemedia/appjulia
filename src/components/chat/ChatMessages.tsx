@@ -75,6 +75,36 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
     });
   }, [allContactMessages, selectedConversation?.id]);
 
+  // Index loaded messages by every id form, to resolve the quoted preview of
+  // replies that have `reply_to` but no `metadata.quoted_message` (e.g. received
+  // replies). Robust to provider id namespaces (message_id/external_id/id).
+  const messagesById = useMemo(() => {
+    const map = new Map<string, ChatMessage>();
+    for (const m of contactMessages) {
+      for (const k of [m.message_id, m.external_id, m.id]) if (k) map.set(k, m);
+    }
+    return map;
+  }, [contactMessages]);
+
+  const withDerivedQuote = useCallback((m: ChatMessage): ChatMessage => {
+    if (!m.reply_to || m.metadata?.quoted_message) return m;
+    const orig = messagesById.get(m.reply_to);
+    if (!orig) return m;
+    return {
+      ...m,
+      metadata: {
+        ...m.metadata,
+        quoted_message: {
+          id: orig.id,
+          text: orig.text,
+          from_me: orig.from_me,
+          sender_name: orig.metadata?.sender_name,
+          type: orig.type,
+        },
+      },
+    };
+  }, [messagesById]);
+
   // Keep refs in sync with state
   useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
   useEffect(() => { isLoadingMoreRef.current = isLoadingMore; }, [isLoadingMore]);
@@ -412,7 +442,7 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
                   return (
                     <MessageBubble
                       key={item.data.id}
-                      message={item.data}
+                      message={withDerivedQuote(item.data)}
                       reactions={reactionsByMsg[item.data.id]}
                       onReact={handleReact}
                       onForward={handleForward}

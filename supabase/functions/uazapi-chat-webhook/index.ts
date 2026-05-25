@@ -1517,7 +1517,8 @@ Deno.serve(async (req) => {
           continue; // do NOT insert reaction as a chat_messages row
         }
 
-        // Reply/forward context can live on any message subtype, not just text.
+        // Reply/forward context. uazapi.com sends a FLAT payload (msg.quoted =
+        // id da mensagem citada); Evolution/Baileys nest it under contextInfo.
         const ctxInfo = msg.message?.extendedTextMessage?.contextInfo
           || msg.message?.imageMessage?.contextInfo
           || msg.message?.videoMessage?.contextInfo
@@ -1525,7 +1526,7 @@ Deno.serve(async (req) => {
           || msg.message?.documentMessage?.contextInfo
           || msg.contextInfo
           || null;
-        const quotedId = ctxInfo?.stanzaId || null;
+        const quotedId = msg.quoted || msg.quotedMessageId || ctxInfo?.stanzaId || null;
         const qm = ctxInfo?.quotedMessage;
         const embeddedQuotedText = qm?.conversation
           || qm?.extendedTextMessage?.text
@@ -1558,8 +1559,8 @@ Deno.serve(async (req) => {
             channel_type: 'whatsapp_uazapi',
             conversation_id: conversationId,
             sender_name: fromMe ? null : pushName || null,
-            is_forwarded: ctxInfo?.isForwarded || false,
-            forwarded_score: ctxInfo?.forwardingScore ?? null,
+            is_forwarded: msg.forwarded ?? msg.isForwarded ?? ctxInfo?.isForwarded ?? false,
+            forwarded_score: msg.forwardingScore ?? ctxInfo?.forwardingScore ?? null,
             raw_payload: msg,
             metadata: {
               sender_id: msg.participant || null,
