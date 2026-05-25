@@ -43,6 +43,7 @@ export type ModuleCode =
   | 'admin_embeds'
   | 'chat_admin'
   | 'notify_customers'
+  | 'support_tickets'
   | string; // permite codes dinâmicos para embeds (ex: 'embed_bi_dashboard')
 
 export interface Module {

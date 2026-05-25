@@ -4,7 +4,7 @@ import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, AlarmClock, Keyboard, UserCheck, Scale, Eye, Phone, PhoneOff, ExternalLink, Bot, Loader2 } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, AlarmClock, Keyboard, UserCheck, Scale, Eye, Phone, PhoneOff, ExternalLink, Bot, Loader2, LifeBuoy } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -36,6 +36,7 @@ import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { ChatCrmButton } from './ChatCrmButton';
+import { NewTicketDialog } from '@/pages/tickets/components/NewTicketDialog';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from './SlaBadge';
@@ -261,6 +262,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showSnooze, setShowSnooze] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
+  const [showNewTicket, setShowNewTicket] = useState(false);
 
   const { data: queueLink } = useQueueAgentLink(selectedConversation?.queue_id);
   const queueId = selectedConversation?.queue_id || null;
@@ -653,6 +655,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                         <Calendar className="h-4 w-4 mr-2" />
                         Mensagens agendadas
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setShowNewTicket(true)}>
+                        <LifeBuoy className="h-4 w-4 mr-2" />
+                        Abrir ticket de suporte
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setShowHelp(true)}>
                         <Keyboard className="h-4 w-4 mr-2" />
                         Atalhos de teclado
@@ -737,6 +743,18 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         whatsappNumber={contact.phone}
         contactName={contact.name}
         codAgent={queueLink?.codAgent ?? ''}
+      />
+
+      {/* Abrir ticket de suporte a partir da conversa */}
+      <NewTicketDialog
+        open={showNewTicket}
+        onOpenChange={setShowNewTicket}
+        prefill={{
+          conversation_id: selectedConversation?.id ?? null,
+          contact_id: contact.id,
+          requester_name: contact.name,
+          requester_phone: contact.phone,
+        }}
       />
     </>
   );

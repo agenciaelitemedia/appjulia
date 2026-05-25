@@ -103,6 +103,8 @@ const PushNotificationsPage = lazy(() => import("./pages/admin/push-notification
 const ContatosPage = lazy(() => import("./pages/contatos/ContatosPage"));
 const TasksPage = lazy(() => import("./pages/tarefas/TasksPage"));
 const NotifyCustomersPage = lazy(() => import("./pages/notify-customers/NotifyCustomersPage"));
+const TicketsPage = lazy(() => import("./pages/tickets/TicketsPage"));
+const TicketDetailPage = lazy(() => import("./pages/tickets/TicketDetailPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -188,6 +190,8 @@ const App = () => (
                   <Route path="/contatos" element={<ProtectedRoute module="contacts"><ContatosPage /></ProtectedRoute>} />
                   <Route path="/tarefas" element={<ProtectedRoute module="tasks"><TasksPage /></ProtectedRoute>} />
                   <Route path="/notificar-clientes" element={<ProtectedRoute module="notify_customers"><NotifyCustomersPage /></ProtectedRoute>} />
+                  <Route path="/tickets" element={<ProtectedRoute module="support_tickets"><TicketsPage /></ProtectedRoute>} />
+                  <Route path="/tickets/:id" element={<ProtectedRoute module="support_tickets"><TicketDetailPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />

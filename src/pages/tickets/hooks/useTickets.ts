@@ -1,0 +1,339 @@
+import { useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import type {
+  SupportTicket, TicketMessage, SupportDepartment, SupportCategory, SupportSettings,
+  TicketStatus, TicketPriority, TicketRole,
+} from '../types';
+
+// Supabase types não incluem as tabelas de helpdesk; usamos cast (precedente do projeto).
+const db = supabase as any;
+
+// ── Papel do usuário no helpdesk ──
+export function useTicketRole(): TicketRole {
+  const { isAdmin, user } = useAuth();
+  if (isAdmin) return 'agent';                 // suporte Julia
+  if (user?.role === 'user') return 'manager'; // dono do escritório
+  return 'requester';                          // demais usuários do escritório
+}
+
+export interface TicketFilters {
+  status?: TicketStatus | 'all';
+  priority?: TicketPriority | 'all';
+  assigned?: string | 'all';
+  department_id?: string | 'all';
+  search?: string;
+  overdueOnly?: boolean;
+}
+
+// ── Lista de tickets (escopo por papel) ──
+export function useTickets(filters: TicketFilters = {}) {
+  const { user } = useAuth();
+  const role = useTicketRole();
+  const qc = useQueryClient();
+  const clientId = user?.client_id != null ? String(user.client_id) : null;
+  const userId = user?.id != null ? String(user.id) : null;
+
+  const query = useQuery({
+    queryKey: ['support-tickets', role, userId, clientId],
+    enabled: !!user,
+    queryFn: async () => {
+      let q = db.from('support_tickets').select('*').order('created_at', { ascending: false }).limit(500);
+      if (role === 'requester') q = q.eq('requester_user_id', userId);
+      else if (role === 'manager') q = q.eq('requester_client_id', clientId);
+      // agent (admin) → todos
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data || []) as SupportTicket[];
+    },
+  });
+
+  // Realtime
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('support-tickets-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, () => {
+        qc.invalidateQueries({ queryKey: ['support-tickets'] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, qc]);
+
+  // Filtros client-side
+  const f = filters;
+  const tickets = (query.data || []).filter((t) => {
+    if (f.status && f.status !== 'all' && t.status !== f.status) return false;
+    if (f.priority && f.priority !== 'all' && t.priority !== f.priority) return false;
+    if (f.assigned && f.assigned !== 'all' && t.assigned_to !== f.assigned) return false;
+    if (f.department_id && f.department_id !== 'all' && t.department_id !== f.department_id) return false;
+    if (f.overdueOnly && !isOverdue(t)) return false;
+    if (f.search) {
+      const s = f.search.toLowerCase();
+      const hay = `#${t.number ?? ''} ${t.subject} ${t.requester_name ?? ''} ${t.requester_email ?? ''}`.toLowerCase();
+      if (!hay.includes(s)) return false;
+    }
+    return true;
+  });
+
+  return { tickets, isLoading: query.isLoading, role };
+}
+
+// ── Um ticket + thread ──
+export function useTicket(id: string | undefined) {
+  const qc = useQueryClient();
+
+  const ticketQ = useQuery({
+    queryKey: ['support-ticket', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await db.from('support_tickets').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return data as SupportTicket | null;
+    },
+  });
+
+  const messagesQ = useQuery({
+    queryKey: ['support-ticket-messages', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await db.from('support_ticket_messages')
+        .select('*').eq('ticket_id', id).order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data || []) as TicketMessage[];
+    },
+  });
+
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`support-ticket-${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_ticket_messages', filter: `ticket_id=eq.${id}` },
+        () => qc.invalidateQueries({ queryKey: ['support-ticket-messages', id] }))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'support_tickets', filter: `id=eq.${id}` },
+        () => qc.invalidateQueries({ queryKey: ['support-ticket', id] }))
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, qc]);
+
+  return { ticket: ticketQ.data ?? null, messages: messagesQ.data || [], isLoading: ticketQ.isLoading };
+}
+
+// ── Configuração (departamentos / categorias / SLA / CSAT) ──
+export function useSupportConfig() {
+  const qc = useQueryClient();
+  const departments = useQuery({
+    queryKey: ['support-departments'],
+    queryFn: async () => {
+      const { data } = await db.from('support_departments').select('*').eq('is_active', true).order('sort_order');
+      return (data || []) as SupportDepartment[];
+    },
+  });
+  const categories = useQuery({
+    queryKey: ['support-categories'],
+    queryFn: async () => {
+      const { data } = await db.from('support_categories').select('*').eq('is_active', true).order('sort_order');
+      return (data || []) as SupportCategory[];
+    },
+  });
+  const settings = useQuery({
+    queryKey: ['support-settings'],
+    queryFn: async () => {
+      const { data } = await db.from('support_settings').select('*').eq('id', 'global').maybeSingle();
+      return data as SupportSettings | null;
+    },
+  });
+
+  return {
+    departments: departments.data || [],
+    categories: categories.data || [],
+    settings: settings.data ?? null,
+    isLoading: departments.isLoading || categories.isLoading || settings.isLoading,
+    invalidate: () => {
+      qc.invalidateQueries({ queryKey: ['support-departments'] });
+      qc.invalidateQueries({ queryKey: ['support-categories'] });
+      qc.invalidateQueries({ queryKey: ['support-settings'] });
+    },
+  };
+}
+
+// ── Mutations ──
+export interface CreateTicketInput {
+  subject: string;
+  description?: string;
+  priority: TicketPriority;
+  department_id?: string | null;
+  category_id?: string | null;
+  requester_name?: string;
+  requester_email?: string;
+  requester_phone?: string;
+  conversation_id?: string | null;
+  contact_id?: string | null;
+}
+
+export function useTicketMutations() {
+  const { user } = useAuth();
+  const role = useTicketRole();
+  const qc = useQueryClient();
+  const actor = { id: user?.id != null ? String(user.id) : null, name: user?.name ?? null };
+
+  const invalidate = (ticketId?: string) => {
+    qc.invalidateQueries({ queryKey: ['support-tickets'] });
+    if (ticketId) {
+      qc.invalidateQueries({ queryKey: ['support-ticket', ticketId] });
+      qc.invalidateQueries({ queryKey: ['support-ticket-messages', ticketId] });
+    }
+  };
+
+  const logEvent = async (ticketId: string, eventType: string, body: string) => {
+    await db.from('support_ticket_messages').insert({
+      ticket_id: ticketId, author_user_id: actor.id, author_name: actor.name,
+      author_role: 'system', kind: 'event', event_type: eventType, body,
+    });
+  };
+
+  const create = useMutation({
+    mutationFn: async (input: CreateTicketInput) => {
+      // SLA due dates from settings/priority
+      const { data: settings } = await db.from('support_settings').select('sla').eq('id', 'global').maybeSingle();
+      const sla = settings?.sla?.[input.priority];
+      const now = Date.now();
+      const payload = {
+        subject: input.subject,
+        description: input.description ?? null,
+        status: 'open',
+        priority: input.priority,
+        department_id: input.department_id ?? null,
+        category_id: input.category_id ?? null,
+        requester_user_id: actor.id,
+        requester_client_id: user?.client_id != null ? String(user.client_id) : null,
+        requester_name: input.requester_name ?? user?.name ?? null,
+        requester_email: input.requester_email ?? user?.email ?? null,
+        requester_phone: input.requester_phone ?? null,
+        conversation_id: input.conversation_id ?? null,
+        contact_id: input.contact_id ?? null,
+        sla_first_response_due_at: sla ? new Date(now + sla.firstResponseMins * 60000).toISOString() : null,
+        sla_resolution_due_at: sla ? new Date(now + sla.resolutionMins * 60000).toISOString() : null,
+      };
+      const { data, error } = await db.from('support_tickets').insert(payload).select('id').single();
+      if (error) throw error;
+      await logEvent(data.id, 'created', 'Chamado aberto');
+      return data.id as string;
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  const reply = useMutation({
+    mutationFn: async ({ ticketId, body, internal }: { ticketId: string; body: string; internal: boolean }) => {
+      await db.from('support_ticket_messages').insert({
+        ticket_id: ticketId, author_user_id: actor.id, author_name: actor.name,
+        author_role: role === 'agent' ? 'agent' : 'requester',
+        kind: internal ? 'internal' : 'public', body,
+      });
+      // Primeira resposta do agente → marca first_response_at
+      if (role === 'agent' && !internal) {
+        const { data: t } = await db.from('support_tickets').select('first_response_at').eq('id', ticketId).maybeSingle();
+        if (t && !t.first_response_at) {
+          await db.from('support_tickets').update({ first_response_at: new Date().toISOString() }).eq('id', ticketId);
+        }
+      }
+    },
+    onSuccess: (_d, v) => invalidate(v.ticketId),
+  });
+
+  const setStatus = useMutation({
+    mutationFn: async ({ ticketId, status }: { ticketId: string; status: TicketStatus }) => {
+      const patch: Record<string, unknown> = { status };
+      if (status === 'resolved') patch.resolved_at = new Date().toISOString();
+      if (status === 'closed') patch.closed_at = new Date().toISOString();
+      const { data: prev } = await db.from('support_tickets').select('status, reopened_count').eq('id', ticketId).maybeSingle();
+      const wasClosed = prev && ['resolved', 'closed'].includes(prev.status);
+      if (wasClosed && ['open', 'pending', 'in_progress', 'waiting_customer'].includes(status)) {
+        patch.reopened_count = (prev?.reopened_count ?? 0) + 1;
+        patch.resolved_at = null; patch.closed_at = null;
+      }
+      await db.from('support_tickets').update(patch).eq('id', ticketId);
+      await logEvent(ticketId, 'status_change', `Status: ${status}`);
+    },
+    onSuccess: (_d, v) => invalidate(v.ticketId),
+  });
+
+  const update = useMutation({
+    mutationFn: async ({ ticketId, patch, event }: { ticketId: string; patch: Record<string, unknown>; event?: string }) => {
+      await db.from('support_tickets').update(patch).eq('id', ticketId);
+      if (event) await logEvent(ticketId, 'updated', event);
+    },
+    onSuccess: (_d, v) => invalidate(v.ticketId),
+  });
+
+  const assign = useMutation({
+    mutationFn: async ({ ticketId, assignedTo, assignedToName }: { ticketId: string; assignedTo: string | null; assignedToName: string | null }) => {
+      await db.from('support_tickets').update({ assigned_to: assignedTo, assigned_to_name: assignedToName }).eq('id', ticketId);
+      await logEvent(ticketId, 'assigned', assignedToName ? `Atribuído a ${assignedToName}` : 'Atribuição removida');
+    },
+    onSuccess: (_d, v) => invalidate(v.ticketId),
+  });
+
+  const setCsat = useMutation({
+    mutationFn: async ({ ticketId, score, comment }: { ticketId: string; score: number; comment?: string }) => {
+      await db.from('support_tickets').update({ csat_score: score, csat_comment: comment ?? null, csat_at: new Date().toISOString() }).eq('id', ticketId);
+      await logEvent(ticketId, 'csat', `Avaliação: ${score}/5`);
+    },
+    onSuccess: (_d, v) => invalidate(v.ticketId),
+  });
+
+  return { create, reply, setStatus, update, assign, setCsat };
+}
+
+// ── Mutations de configuração (departamentos / categorias / SLA / CSAT) ──
+export function useSupportConfigMutations() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['support-departments'] });
+    qc.invalidateQueries({ queryKey: ['support-categories'] });
+    qc.invalidateQueries({ queryKey: ['support-settings'] });
+  };
+
+  const saveDepartment = useMutation({
+    mutationFn: async (d: Partial<SupportDepartment> & { name: string }) => {
+      if (d.id) await db.from('support_departments').update({ name: d.name, is_active: d.is_active ?? true }).eq('id', d.id);
+      else await db.from('support_departments').insert({ name: d.name });
+    },
+    onSuccess: invalidate,
+  });
+  const deleteDepartment = useMutation({
+    mutationFn: async (id: string) => { await db.from('support_departments').update({ is_active: false }).eq('id', id); },
+    onSuccess: invalidate,
+  });
+
+  const saveCategory = useMutation({
+    mutationFn: async (c: Partial<SupportCategory> & { name: string }) => {
+      if (c.id) await db.from('support_categories').update({ name: c.name, department_id: c.department_id ?? null, is_active: c.is_active ?? true }).eq('id', c.id);
+      else await db.from('support_categories').insert({ name: c.name, department_id: c.department_id ?? null });
+    },
+    onSuccess: invalidate,
+  });
+  const deleteCategory = useMutation({
+    mutationFn: async (id: string) => { await db.from('support_categories').update({ is_active: false }).eq('id', id); },
+    onSuccess: invalidate,
+  });
+
+  const saveSettings = useMutation({
+    mutationFn: async (patch: Partial<SupportSettings>) => {
+      await db.from('support_settings').update(patch).eq('id', 'global');
+    },
+    onSuccess: invalidate,
+  });
+
+  return { saveDepartment, deleteDepartment, saveCategory, deleteCategory, saveSettings };
+}
+
+// ── SLA helpers ──
+export function isOverdue(t: SupportTicket): boolean {
+  if (['resolved', 'closed'].includes(t.status)) return false;
+  const now = Date.now();
+  if (!t.first_response_at && t.sla_first_response_due_at && new Date(t.sla_first_response_due_at).getTime() < now) return true;
+  if (t.sla_resolution_due_at && new Date(t.sla_resolution_due_at).getTime() < now) return true;
+  return false;
+}
