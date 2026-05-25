@@ -15,11 +15,13 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export function CreateNotificationTab({ onCreated }: { onCreated?: () => void }) {
   const { createAndSend } = useInternalNotifications();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const canSendGlobal = isAdmin || user?.role === 'colaborador';
+  const defaultAudience: NotificationAudience = canSendGlobal ? 'all' : 'my_team';
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [type, setType] = useState<NotificationType>('message');
-  const [audience, setAudience] = useState<NotificationAudience>(isAdmin ? 'all' : 'teams');
+  const [audience, setAudience] = useState<NotificationAudience>(defaultAudience);
   const [alertLevel, setAlertLevel] = useState<AlertLevel>('info');
   const [options, setOptions] = useState<string[]>(['', '']);
   const [when, setWhen] = useState<'now' | 'schedule'>('now');
@@ -27,7 +29,7 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
-    setTitle(''); setBody(''); setType('message'); setAudience(isAdmin ? 'all' : 'teams');
+    setTitle(''); setBody(''); setType('message'); setAudience(defaultAudience);
     setOptions(['', '']); setWhen('now'); setScheduledFor(''); setAlertLevel('info');
   };
 
@@ -99,9 +101,10 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
             <Select value={audience} onValueChange={(v) => setAudience(v as NotificationAudience)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {isAdmin && <SelectItem value="all">Todos</SelectItem>}
-                {isAdmin && <SelectItem value="owners">Donos de escritório</SelectItem>}
-                <SelectItem value="teams">Equipe</SelectItem>
+                {canSendGlobal && <SelectItem value="all">Todos</SelectItem>}
+                {canSendGlobal && <SelectItem value="teams">Equipe</SelectItem>}
+                {canSendGlobal && <SelectItem value="owners">Donos de escritório</SelectItem>}
+                {!canSendGlobal && <SelectItem value="my_team">Minha Equipe</SelectItem>}
               </SelectContent>
             </Select>
           </div>
