@@ -1527,7 +1527,7 @@ Deno.serve(async (req) => {
           || (msg.content && typeof msg.content === 'object' ? (msg.content as any).contextInfo : null)
           || msg.contextInfo
           || null;
-        const quotedId = msg.quoted || msg.quotedMessageId || ctxInfo?.stanzaId || null;
+        const quotedId = msg.quoted || msg.quotedMessageId || ctxInfo?.stanzaId || ctxInfo?.stanzaID || null;
         const qm = ctxInfo?.quotedMessage;
         const embeddedQuotedText = qm?.conversation
           || qm?.extendedTextMessage?.text
