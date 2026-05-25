@@ -6,7 +6,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { Bell, X, ChevronDown } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
-import { renderWhatsAppMarkdown } from '@/lib/whatsappFormat';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface NotificationData {
   id: string;
@@ -199,11 +200,9 @@ export function NotificationCenter() {
             {it.expanded && (
               <div className="px-4 pb-4 space-y-3">
                 {n.body && (
-                  <div
-                    className="text-[15px] text-foreground/80 whitespace-pre-wrap break-words leading-relaxed"
-                    // eslint-disable-next-line react/no-danger
-                    dangerouslySetInnerHTML={{ __html: renderWhatsAppMarkdown(n.body) }}
-                  />
+                  <div className="text-[15px] text-foreground/80 break-words leading-relaxed prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-strong:font-semibold prose-a:text-primary prose-blockquote:border-l-2 prose-blockquote:border-primary/40 prose-blockquote:pl-2 prose-blockquote:italic prose-code:bg-muted/60 prose-code:rounded prose-code:px-1 prose-code:text-xs prose-pre:bg-muted/60 prose-pre:rounded prose-pre:p-2">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{n.body}</ReactMarkdown>
+                  </div>
                 )}
 
                 {n.type === 'message' && (
