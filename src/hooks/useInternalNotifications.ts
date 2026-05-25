@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 export type NotificationType = 'message' | 'poll' | 'question';
-export type NotificationAudience = 'owners' | 'teams' | 'all';
+export type NotificationAudience = 'owners' | 'teams' | 'all' | 'my_team';
 export type NotificationStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'canceled';
 export type AlertLevel = 'info' | 'notice' | 'alert';
 
@@ -39,6 +39,7 @@ export interface CreateNotificationInput {
 export function useInternalNotifications() {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const canSendGlobal = isAdmin || user?.role === 'colaborador';
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['internal-notifications', user?.id, isAdmin],
@@ -49,8 +50,8 @@ export function useInternalNotifications() {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(200);
-      // Admin vê todas; donos veem apenas as criadas por eles.
-      if (!isAdmin && user?.id != null) q = q.eq('created_by', String(user.id));
+      // Admin e colaborador veem todas; demais veem apenas as criadas por eles.
+      if (!canSendGlobal && user?.id != null) q = q.eq('created_by', String(user.id));
       const { data, error } = await q;
       if (error) throw error;
       return (data || []) as InternalNotification[];
@@ -67,7 +68,7 @@ export function useInternalNotifications() {
         type: input.type,
         poll_options: input.type === 'poll' ? (input.poll_options ?? []) : null,
         audience: input.audience,
-        scope: isAdmin ? 'global' : 'office',
+        scope: canSendGlobal ? 'global' : 'office',
         created_by: String(user.id),
         created_by_name: user.name ?? null,
         created_by_client_id: user.client_id != null ? String(user.client_id) : null,
@@ -96,5 +97,5 @@ export function useInternalNotifications() {
     },
   });
 
-  return { notifications, isLoading, createAndSend };
+  return { notifications, isLoading, createAndSend, canSendGlobal };
 }
