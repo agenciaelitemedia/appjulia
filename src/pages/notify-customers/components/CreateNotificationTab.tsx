@@ -104,7 +104,7 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
                 {canSendGlobal && <SelectItem value="all">Todos</SelectItem>}
                 {canSendGlobal && <SelectItem value="teams">Equipe</SelectItem>}
                 {canSendGlobal && <SelectItem value="owners">Donos de escritório</SelectItem>}
-                {!canSendGlobal && <SelectItem value="my_team">Minha Equipe</SelectItem>}
+                <SelectItem value="my_team">Minha Equipe</SelectItem>
               </SelectContent>
             </Select>
           </div>
