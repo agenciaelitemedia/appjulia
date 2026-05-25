@@ -101,7 +101,9 @@ export function ChatList() {
     setSortOrder,
   } = useWhatsAppData();
   const { data: queueLimits } = useAgentQueueLimits();
-  const showGroupsTab = !!(queueLimits?.allowGroups && queueLimits?.showGroupsTab);
+  // O ícone para alternar para Grupos depende apenas de ALLOW_GROUPS.
+  // SHOW_GROUPS_TAB é uma flag legada e não bloqueia mais a exibição do ícone.
+  const showGroupsTab = !!queueLimits?.allowGroups;
   const { hasMoreConversations, loadMoreConversations } = useWhatsAppData();
 
   useEffect(() => {
