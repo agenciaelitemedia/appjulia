@@ -84,7 +84,6 @@ export function ChatList() {
     setSearchQuery,
     syncContacts,
     totalUnreadCount,
-    individualUnreadCount,
     groupUnreadCount,
     selectedQueue,
     setSelectedQueue,
@@ -1214,6 +1213,22 @@ export function ChatList() {
                 </button>
               </PopoverContent>
             </Popover>
+            {showGroupsTab && (
+              <Button
+                variant={activeTab === 'groups' ? 'default' : 'ghost'}
+                size="icon"
+                className="h-9 w-9 flex-shrink-0 relative"
+                onClick={() => setActiveTab(activeTab === 'groups' ? 'individual' : 'groups')}
+                title={activeTab === 'groups' ? 'Ver individuais' : 'Ver grupos'}
+              >
+                <Users className="h-4 w-4" />
+                {activeTab !== 'groups' && groupUnreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 text-[9px] bg-primary text-primary-foreground rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-1">
+                    {groupUnreadCount}
+                  </span>
+                )}
+              </Button>
+            )}
             {(isAdmin || user?.role === 'user' || user?.role === 'colaborador') && (
               <>
                 <Button
@@ -1472,34 +1487,7 @@ export function ChatList() {
         </div>
 
 
-        {/* Individual / Groups toggle (Groups only when enabled) */}
-        {showGroupsTab && (
-        <div className="flex border-t">
-          {[
-            { value: 'individual' as const, label: 'Individual', icon: <MessageCircle className="h-3 w-3" />, count: individualUnreadCount },
-            { value: 'groups' as const, label: 'Grupos', icon: <Users className="h-3 w-3" />, count: groupUnreadCount },
-          ].map(tab => (
-            <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium border-b-2 transition-colors',
-                activeTab === tab.value
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {tab.icon}
-              {tab.label}
-              {tab.count > 0 && (
-                <span className="text-[9px] bg-primary text-primary-foreground rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-        )}
+        {/* Individual/Grupos é alternado pelo ícone "Grupos" no cabeçalho. */}
       </div>
 
       {/* Status tabs — Aguardando Atendimento / Em Atendimento */}

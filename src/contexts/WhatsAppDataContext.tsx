@@ -335,7 +335,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const [isHydratingContact, setIsHydratingContact] = useState(false);
   const [contactHydrationError, setContactHydrationError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ChatTab>('individual');
+  const [activeTab, setActiveTab] = useState<ChatTab>(() => {
+    if (typeof window === 'undefined') return 'individual';
+    const v = window.localStorage.getItem('chat:activeTab');
+    return v === 'groups' || v === 'individual' ? v : 'individual';
+  });
+  // Persist the last chat view (individual/groups) so it restores on reload.
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.localStorage.setItem('chat:activeTab', activeTab);
+  }, [activeTab]);
   const [searchQuery, setSearchQuery] = useState('');
   // Start as loading so the chat list shows skeleton from the very first
   // render until `loadContacts({ reset: true })` finishes (or there is no
@@ -1461,6 +1469,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     try {
       let externalMessageId: string | undefined;
 
+      // Groups: UaZapi expects the group JID (id@g.us); WABA (official) can't send to groups.
+      if (contact.is_group && queue.channel_type === 'waba') {
+        throw new Error('WhatsApp oficial (WABA) não suporta envio para grupos.');
+      }
+      const target = contact.is_group ? (contact.remote_jid || `${contact.phone}@g.us`) : contact.phone;
+
       if (queue.channel_type === 'waba') {
         // WABA send via edge function
         const { data, error } = await supabase.functions.invoke('waba-send', {
@@ -1489,7 +1503,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             token: queue.evo_apikey,
             baseUrl: queue.evo_url,
             body: {
-              number: contact.phone,
+              number: target,
               text,
               replyid: replyToMessage?.message_id || replyToMessage?.external_id || undefined,
               forward: options?.forward === true ? true : undefined,
@@ -1806,6 +1820,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
       let externalMessageId: string | undefined;
 
+      // Groups: UaZapi expects the group JID (id@g.us); WABA can't send to groups.
+      if (contact.is_group && queue.channel_type === 'waba') {
+        throw new Error('WhatsApp oficial (WABA) não suporta envio para grupos.');
+      }
+      const target = contact.is_group ? (contact.remote_jid || `${contact.phone}@g.us`) : contact.phone;
+
       if (queue.channel_type === 'waba') {
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: {
@@ -1836,7 +1856,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             token: queue.evo_apikey,
             baseUrl: queue.evo_url,
             body: {
-              number: contact.phone,
+              number: target,
               file: fileField,
               mediaUrl: persistedUrl,
               type: mediaType,
