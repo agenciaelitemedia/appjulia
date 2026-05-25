@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { Bell, X, ChevronDown } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
+import { renderWhatsAppMarkdown } from '@/lib/whatsappFormat';
 
 interface NotificationData {
   id: string;
@@ -154,7 +155,13 @@ export function NotificationCenter() {
 
             {it.expanded && (
               <div className="px-3 pb-3 space-y-3">
-                {n.body && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{n.body}</p>}
+                {n.body && (
+                  <div
+                    className="text-sm text-muted-foreground whitespace-pre-wrap break-words"
+                    // eslint-disable-next-line react/no-danger
+                    dangerouslySetInnerHTML={{ __html: renderWhatsAppMarkdown(n.body) }}
+                  />
+                )}
 
                 {n.type === 'message' && (
                   <Button size="sm" className="w-full" onClick={() => dismiss(it.recipientId)}>Lido</Button>
