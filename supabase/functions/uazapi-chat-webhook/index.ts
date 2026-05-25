@@ -1524,14 +1524,16 @@ Deno.serve(async (req) => {
           || msg.message?.videoMessage?.contextInfo
           || msg.message?.audioMessage?.contextInfo
           || msg.message?.documentMessage?.contextInfo
+          || (msg.content && typeof msg.content === 'object' ? (msg.content as any).contextInfo : null)
           || msg.contextInfo
           || null;
-        const quotedId = msg.quoted || msg.quotedMessageId || ctxInfo?.stanzaId || null;
+        const quotedId = msg.quoted || msg.quotedMessageId || ctxInfo?.stanzaId || ctxInfo?.stanzaID || null;
         const qm = ctxInfo?.quotedMessage;
         const embeddedQuotedText = qm?.conversation
           || qm?.extendedTextMessage?.text
           || qm?.imageMessage?.caption
           || qm?.videoMessage?.caption
+          || qm?.documentMessage?.caption
           || null;
         const embeddedQuotedType = qm
           ? (qm.imageMessage ? 'image' : qm.videoMessage ? 'video' : qm.audioMessage ? 'audio' : qm.documentMessage ? 'document' : 'text')
