@@ -4247,6 +4247,7 @@ export type Database = {
       }
       internal_notifications: {
         Row: {
+          alert_level: string
           audience: string
           body: string | null
           created_at: string
@@ -4265,6 +4266,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          alert_level?: string
           audience?: string
           body?: string | null
           created_at?: string
@@ -4283,6 +4285,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          alert_level?: string
           audience?: string
           body?: string | null
           created_at?: string
