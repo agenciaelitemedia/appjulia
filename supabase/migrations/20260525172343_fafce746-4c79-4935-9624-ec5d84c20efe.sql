@@ -1,0 +1,2 @@
+TRUNCATE TABLE public.internal_notification_recipients CASCADE;
+TRUNCATE TABLE public.internal_notifications CASCADE;
