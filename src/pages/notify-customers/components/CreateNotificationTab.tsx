@@ -9,6 +9,7 @@ import { Plus, Trash2, Send, Clock } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import {
   useInternalNotifications, type NotificationType, type NotificationAudience,
+  type AlertLevel,
 } from '@/hooks/useInternalNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -19,6 +20,7 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
   const [body, setBody] = useState('');
   const [type, setType] = useState<NotificationType>('message');
   const [audience, setAudience] = useState<NotificationAudience>(isAdmin ? 'all' : 'teams');
+  const [alertLevel, setAlertLevel] = useState<AlertLevel>('info');
   const [options, setOptions] = useState<string[]>(['', '']);
   const [when, setWhen] = useState<'now' | 'schedule'>('now');
   const [scheduledFor, setScheduledFor] = useState('');
@@ -26,7 +28,7 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
 
   const reset = () => {
     setTitle(''); setBody(''); setType('message'); setAudience(isAdmin ? 'all' : 'teams');
-    setOptions(['', '']); setWhen('now'); setScheduledFor('');
+    setOptions(['', '']); setWhen('now'); setScheduledFor(''); setAlertLevel('info');
   };
 
   const handleSubmit = async () => {
@@ -46,6 +48,7 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
         poll_options: type === 'poll' ? options.map((o) => o.trim()).filter(Boolean) : undefined,
         audience,
         scheduledFor: when === 'schedule' ? new Date(scheduledFor).toISOString() : null,
+        alert_level: alertLevel,
       });
       toast.success(when === 'schedule' ? 'Notificação agendada' : 'Notificação enviada');
       reset();
@@ -55,6 +58,19 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleTest = () => {
+    if (!title.trim()) { toast.error('Informe um título'); return; }
+    window.dispatchEvent(new CustomEvent('internal-notification:test', {
+      detail: {
+        title: title.trim(),
+        body: body.trim() || null,
+        type,
+        poll_options: type === 'poll' ? options.map((o) => o.trim()).filter(Boolean) : null,
+        alert_level: alertLevel,
+      },
+    }));
   };
 
   return (
@@ -89,6 +105,33 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label>Tipo de Alerta</Label>
+          <Select value={alertLevel} onValueChange={(v) => setAlertLevel(v as AlertLevel)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="info">
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-500" />
+                  Informativo
+                </span>
+              </SelectItem>
+              <SelectItem value="notice">
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500" />
+                  Notificação
+                </span>
+              </SelectItem>
+              <SelectItem value="alert">
+                <span className="inline-flex items-center gap-2">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
+                  Alerta
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-1">
@@ -132,7 +175,10 @@ export function CreateNotificationTab({ onCreated }: { onCreated?: () => void })
           )}
         </div>
 
-        <div className="flex justify-end pt-2">
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={handleTest} disabled={saving}>
+            Testar
+          </Button>
           <Button onClick={handleSubmit} disabled={saving}>
             {saving ? 'Enviando…' : when === 'schedule' ? 'Agendar' : 'Enviar agora'}
           </Button>
