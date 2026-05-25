@@ -71,9 +71,12 @@ Deno.serve(async (req) => {
       where.push("user_funcao = 'dono'");
     } else if (n.audience === "teams") {
       where.push("user_funcao = 'equipe'");
+    } else if (n.audience === "my_team") {
+      where.push("user_funcao = 'equipe'");
     } // 'all' → sem filtro adicional (donos + equipes da Nova Júlia)
 
-    if (n.scope === "office") {
+    // Restringe ao escritório do criador quando scope=office OU audience=my_team.
+    if (n.scope === "office" || n.audience === "my_team") {
       // Restringe ao escritório do criador.
       const creatorId = String(n.created_by);
       const creatorRows = await externalRaw(
