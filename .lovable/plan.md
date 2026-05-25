@@ -1,63 +1,47 @@
-## Objetivo
-Restringir os destinatários de `internal-notification-dispatch` apenas a usuários da plataforma **Nova Júlia**, usando a view `public.vw_equipe` (que já filtra clientes provisionados na nova plataforma e expõe `user_funcao`).
+## Problema
 
-## Fonte de verdade
-View **`public.vw_equipe`** no banco externo, colunas:
-`id, name, email, role, parent_user_id, client_id, photo, client_business_name, user_funcao`
+Mensagens recebidas que são respostas (quoted) ou encaminhadas não exibem o vínculo com a mensagem original no chat — somente as mensagens enviadas mostram esse bloco corretamente.
 
-- `client_id IS NOT NULL` → pertence à Nova Júlia
-- `user_funcao = 'dono'` → dono do escritório
-- `user_funcao = 'equipe'` → membro da equipe
+## Causa
 
-## Mudança única
-Arquivo: `supabase/functions/internal-notification-dispatch/index.ts`
+O webhook `uazapi-chat-webhook` extrai `contextInfo` apenas no formato Baileys aninhado (`msg.message.extendedTextMessage.contextInfo`, `imageMessage.contextInfo`, etc.).
 
-Substituir o bloco de montagem da query externa (que hoje usa `FROM users u` com filtros de `client_id IS NULL/NOT NULL`) por:
+Mas a uazapi.com envia o payload **flat**, com o `contextInfo` dentro de `msg.content.contextInfo` (quando `content` é objeto, casos de mídia ou texto estendido). Exemplo real do banco:
 
-```ts
-const where: string[] = ["client_id IS NOT NULL"];
-const params: any[] = [];
-
-if (n.audience === "owners") {
-  where.push("user_funcao = 'dono'");
-} else if (n.audience === "teams") {
-  where.push("user_funcao = 'equipe'");
-} // 'all' → sem filtro adicional (dono + equipe da Nova Júlia)
-
-if (n.scope === "office") {
-  // restringe ao escritório do criador
-  const creatorId = String(n.created_by);
-  const creatorRows = await externalRaw(
-    "SELECT client_id FROM public.vw_equipe WHERE id = $1 LIMIT 1",
-    [creatorId],
-  );
-  const clientId = creatorRows?.[0]?.client_id ?? n.created_by_client_id ?? null;
-  if (clientId != null) {
-    params.push(clientId);
-    where.push(`client_id = $${params.length}`);
-  } else {
-    params.push(creatorId);
-    where.push(`id = $${params.length}`);
+```
+msg.content = {
+  text: "Boom dia",
+  contextInfo: {
+    stanzaID: "3EB04483CC0639AC3C4E62",
+    quotedMessage: { conversation: "Olá, bom dia! ..." },
+    ...
   }
 }
-
-const sql = `
-  SELECT id, name, role, client_id
-  FROM public.vw_equipe
-  WHERE ${where.join(" AND ")}
-`;
-const users = await externalRaw(sql, params);
 ```
 
-Remover toda a lógica antiga de `u.is_active`, `u.user_id`, `u.client_id IS NULL/NOT NULL` — a view já encapsula essas regras.
+Como o `ctxInfo` resolve para `null`, `embeddedQuotedText` e `embeddedQuotedType` ficam nulos. O `quotedId` até é gravado em `reply_to` (vindo de `msg.quoted`), mas o `metadata.quoted_message` só é populado pelo fallback embutido — que nunca dispara. Resultado: a UI (`QuotedMessage`) não tem dados para renderizar.
 
-## Sem mudanças em
-- UI de criação (`/notificar-clientes`)
-- `NotificationCenter`
-- Schema do banco interno
+Forwarded segue o mesmo padrão: a flag pode vir em `msg.content.contextInfo.isForwarded` / `forwardingScore` e não está sendo lida.
+
+## Correção
+
+Em `supabase/functions/uazapi-chat-webhook/index.ts`, ampliar a resolução de `ctxInfo` para incluir o formato flat da uazapi:
+
+1. Adicionar `msg.content?.contextInfo` na cadeia de fallback do `ctxInfo` (antes do `msg.contextInfo`).
+2. Manter `msg.quoted` como fonte primária de `quotedId` (já está correto).
+3. Garantir que `embeddedQuotedText` cubra:
+   - `qm.conversation`
+   - `qm.extendedTextMessage?.text`
+   - `qm.imageMessage?.caption`
+   - `qm.videoMessage?.caption`
+   - `qm.documentMessage?.caption`
+4. `embeddedQuotedType` continua deduzindo image/video/audio/document/text a partir das chaves de `qm`.
+5. `is_forwarded` e `forwarded_score` passam a considerar também `msg.content?.contextInfo?.isForwarded` e `forwardingScore`.
+
+Nenhuma mudança de schema; nenhuma mudança no frontend (já renderiza via `metadata.quoted_message` em `QuotedMessage.tsx`).
 
 ## Validação
-1. Reprocessar a última notificação com `audience=owners` → `recipients_total` = nº de linhas com `user_funcao='dono'` em `vw_equipe`.
-2. Criar notificação `audience=teams` → recebe apenas `user_funcao='equipe'`.
-3. Criar `audience=all` → recebe todos da Nova Júlia (donos + equipes).
-4. Confirmar que usuários da plataforma antiga (ausentes da view) ficam fora.
+
+- Deploy da edge function.
+- Enviar uma resposta no WhatsApp para uma mensagem nossa e verificar que o card cita a mensagem original (igual ao print enviado).
+- Encaminhar uma mensagem para o número e verificar a marcação de encaminhada.
