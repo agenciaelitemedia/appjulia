@@ -16,7 +16,7 @@ export async function resolveQuotedMeta(
   supabase: any,
   clientId: string,
   quotedId: string | null | undefined,
-  embedded?: { text?: string | null; type?: string | null },
+  embedded?: { text?: string | null; type?: string | null; from_me?: boolean; sender_name?: string | null },
 ): Promise<QuotedMeta | null> {
   try {
     if (quotedId) {
@@ -42,7 +42,8 @@ export async function resolveQuotedMeta(
       return {
         id: quotedId ? String(quotedId) : "",
         text: embedded.text ?? undefined,
-        from_me: false,
+        from_me: !!embedded.from_me,
+        sender_name: embedded.sender_name ?? undefined,
         type: embedded.type ?? undefined,
       };
     }

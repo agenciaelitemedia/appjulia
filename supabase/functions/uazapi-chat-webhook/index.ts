@@ -1538,8 +1538,21 @@ Deno.serve(async (req) => {
         const embeddedQuotedType = qm
           ? (qm.imageMessage ? 'image' : qm.videoMessage ? 'video' : qm.audioMessage ? 'audio' : qm.documentMessage ? 'document' : 'text')
           : null;
+        // Determine who sent the quoted message. In an inbound reply (fromMe=false),
+        // if contextInfo.participant matches the contact's own JID, the quoted msg
+        // was the lead's own previous message; otherwise it's ours (from_me=true).
+        const ctxParticipant = ctxInfo?.participant || null;
+        const contactJids = [msg.sender_lid, msg.sender, msg.sender_pn, msg.chatid, msg.chatlid].filter(Boolean);
+        let embeddedFromMe: boolean;
+        if (fromMe) {
+          embeddedFromMe = !ctxParticipant || contactJids.includes(ctxParticipant) ? false : true;
+        } else {
+          embeddedFromMe = ctxParticipant && contactJids.includes(ctxParticipant) ? false : true;
+        }
+        const embeddedSenderName = embeddedFromMe ? null : (contact?.name || senderPhone || null);
         const quotedMeta = await resolveQuotedMeta(
-          supabase, queue.client_id, quotedId, { text: embeddedQuotedText, type: embeddedQuotedType },
+          supabase, queue.client_id, quotedId,
+          { text: embeddedQuotedText, type: embeddedQuotedType, from_me: embeddedFromMe, sender_name: embeddedSenderName },
         );
 
         const { data: insertedMsg, error: msgError } = await supabase
