@@ -5419,6 +5419,65 @@ export type Database = {
         }
         Relationships: []
       }
+      support_categories: {
+        Row: {
+          created_at: string | null
+          department_id: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string | null
+          department_id?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string | null
+          department_id?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_categories_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "support_departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_departments: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       support_group_messages: {
         Row: {
           created_at: string | null
@@ -5512,6 +5571,27 @@ export type Database = {
         }
         Relationships: []
       }
+      support_settings: {
+        Row: {
+          csat_enabled: boolean
+          id: string
+          sla: Json
+          updated_at: string | null
+        }
+        Insert: {
+          csat_enabled?: boolean
+          id?: string
+          sla?: Json
+          updated_at?: string | null
+        }
+        Update: {
+          csat_enabled?: boolean
+          id?: string
+          sla?: Json
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       support_team_members: {
         Row: {
           created_at: string | null
@@ -5541,6 +5621,185 @@ export type Database = {
           user_id?: number | null
         }
         Relationships: []
+      }
+      support_ticket_counters: {
+        Row: {
+          id: string
+          last_number: number
+        }
+        Insert: {
+          id?: string
+          last_number?: number
+        }
+        Update: {
+          id?: string
+          last_number?: number
+        }
+        Relationships: []
+      }
+      support_ticket_messages: {
+        Row: {
+          attachments: Json | null
+          author_name: string | null
+          author_role: string | null
+          author_user_id: string | null
+          body: string | null
+          created_at: string | null
+          event_type: string | null
+          id: string
+          kind: string
+          ticket_id: string
+        }
+        Insert: {
+          attachments?: Json | null
+          author_name?: string | null
+          author_role?: string | null
+          author_user_id?: string | null
+          body?: string | null
+          created_at?: string | null
+          event_type?: string | null
+          id?: string
+          kind?: string
+          ticket_id: string
+        }
+        Update: {
+          attachments?: Json | null
+          author_name?: string | null
+          author_role?: string | null
+          author_user_id?: string | null
+          body?: string | null
+          created_at?: string | null
+          event_type?: string | null
+          id?: string
+          kind?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          assigned_to: string | null
+          assigned_to_name: string | null
+          category_id: string | null
+          closed_at: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string | null
+          csat_at: string | null
+          csat_comment: string | null
+          csat_score: number | null
+          department_id: string | null
+          description: string | null
+          first_response_at: string | null
+          id: string
+          number: number | null
+          opened_at: string | null
+          priority: string
+          reopened_count: number
+          requester_client_id: string | null
+          requester_email: string | null
+          requester_name: string | null
+          requester_phone: string | null
+          requester_user_id: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          sla_first_response_due_at: string | null
+          sla_resolution_due_at: string | null
+          status: string
+          subject: string
+          tags: string[]
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          assigned_to_name?: string | null
+          category_id?: string | null
+          closed_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          csat_at?: string | null
+          csat_comment?: string | null
+          csat_score?: number | null
+          department_id?: string | null
+          description?: string | null
+          first_response_at?: string | null
+          id?: string
+          number?: number | null
+          opened_at?: string | null
+          priority?: string
+          reopened_count?: number
+          requester_client_id?: string | null
+          requester_email?: string | null
+          requester_name?: string | null
+          requester_phone?: string | null
+          requester_user_id?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          sla_first_response_due_at?: string | null
+          sla_resolution_due_at?: string | null
+          status?: string
+          subject: string
+          tags?: string[]
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          assigned_to_name?: string | null
+          category_id?: string | null
+          closed_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string | null
+          csat_at?: string | null
+          csat_comment?: string | null
+          csat_score?: number | null
+          department_id?: string | null
+          description?: string | null
+          first_response_at?: string | null
+          id?: string
+          number?: number | null
+          opened_at?: string | null
+          priority?: string
+          reopened_count?: number
+          requester_client_id?: string | null
+          requester_email?: string | null
+          requester_name?: string | null
+          requester_phone?: string | null
+          requester_user_id?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          sla_first_response_due_at?: string | null
+          sla_resolution_due_at?: string | null
+          status?: string
+          subject?: string
+          tags?: string[]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "support_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "support_departments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_categories: {
         Row: {
