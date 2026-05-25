@@ -8,6 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
 import { logDroppedMessage } from "../_shared/droppedLogger.ts";
+import { resolveQuotedMeta } from "../_shared/quotedMessage.ts";
 
 declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
@@ -1516,6 +1517,28 @@ Deno.serve(async (req) => {
           continue; // do NOT insert reaction as a chat_messages row
         }
 
+        // Reply/forward context can live on any message subtype, not just text.
+        const ctxInfo = msg.message?.extendedTextMessage?.contextInfo
+          || msg.message?.imageMessage?.contextInfo
+          || msg.message?.videoMessage?.contextInfo
+          || msg.message?.audioMessage?.contextInfo
+          || msg.message?.documentMessage?.contextInfo
+          || msg.contextInfo
+          || null;
+        const quotedId = ctxInfo?.stanzaId || null;
+        const qm = ctxInfo?.quotedMessage;
+        const embeddedQuotedText = qm?.conversation
+          || qm?.extendedTextMessage?.text
+          || qm?.imageMessage?.caption
+          || qm?.videoMessage?.caption
+          || null;
+        const embeddedQuotedType = qm
+          ? (qm.imageMessage ? 'image' : qm.videoMessage ? 'video' : qm.audioMessage ? 'audio' : qm.documentMessage ? 'document' : 'text')
+          : null;
+        const quotedMeta = await resolveQuotedMeta(
+          supabase, queue.client_id, quotedId, { text: embeddedQuotedText, type: embeddedQuotedType },
+        );
+
         const { data: insertedMsg, error: msgError } = await supabase
           .from('chat_messages')
           .insert({
@@ -1530,12 +1553,13 @@ Deno.serve(async (req) => {
             media_url: mediaUrl || null,
             file_name: msg.message?.documentMessage?.fileName || msg.fileName || null,
             caption: toSafeString(msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || msg.caption) || null,
-            reply_to: msg.message?.extendedTextMessage?.contextInfo?.stanzaId || null,
+            reply_to: quotedId || null,
             timestamp: isoTimestamp,
             channel_type: 'whatsapp_uazapi',
             conversation_id: conversationId,
             sender_name: fromMe ? null : pushName || null,
-            is_forwarded: msg.message?.extendedTextMessage?.contextInfo?.isForwarded || false,
+            is_forwarded: ctxInfo?.isForwarded || false,
+            forwarded_score: ctxInfo?.forwardingScore ?? null,
             raw_payload: msg,
             metadata: {
               sender_id: msg.participant || null,
@@ -1547,6 +1571,7 @@ Deno.serve(async (req) => {
                 || msg.message?.videoMessage?.mimetype
                 || msg.message?.documentMessage?.mimetype
                 || null,
+              ...(quotedMeta ? { quoted_message: quotedMeta } : {}),
             },
           })
           .select('id')

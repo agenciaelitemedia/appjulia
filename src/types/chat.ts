@@ -52,6 +52,7 @@ export interface ChatMessage {
   file_name?: string;
   caption?: string;
   reply_to?: string;
+  is_forwarded?: boolean;
   metadata?: MessageMetadata;
   internal_note?: boolean;
   conversation_id?: string;

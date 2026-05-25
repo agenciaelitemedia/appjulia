@@ -675,6 +675,14 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
                 </p>
               )}
 
+              {/* Forwarded label */}
+              {message.is_forwarded && (
+                <div className="flex items-center gap-1 mb-1 text-xs italic text-muted-foreground">
+                  <Forward className="h-3 w-3" />
+                  Encaminhada
+                </div>
+              )}
+
               {/* Quoted message */}
               {hasQuote && (
                 <QuotedMessage quoted={message.metadata!.quoted_message!} />

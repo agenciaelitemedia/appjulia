@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveQueueByWabaNumberId, resolveQueueId } from "../_shared/resolve-queue.ts";
 import { logDroppedMessage } from "../_shared/droppedLogger.ts";
+import { resolveQuotedMeta } from "../_shared/quotedMessage.ts";
 import { fetchWhatsappProfile, fetchWabaProfileWithUazapiFallback, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
 
 const corsHeaders = {
@@ -357,6 +358,12 @@ async function persistMessage(
     mediaUrl = message.sticker.id ? `waba_media:${message.sticker.id}` : null;
   }
 
+  // Reply/forward context (WABA only carries the quoted id, not its body).
+  const ctx = message.context;
+  const quotedId = ctx?.id ?? null;
+  const isForwarded = !!(ctx?.forwarded || ctx?.frequently_forwarded);
+  const quotedMeta = await resolveQuotedMeta(supabase, agentInfo.client_id, quotedId);
+
   const { error } = await supabase
     .from('chat_messages')
     .insert({
@@ -373,10 +380,13 @@ async function persistMessage(
       media_url: mediaUrl,
       file_name: fileName,
       caption: caption,
+      reply_to: quotedId,
+      is_forwarded: isForwarded,
       timestamp: message.timestamp
         ? new Date(parseInt(message.timestamp) * 1000).toISOString()
         : new Date().toISOString(),
       raw_payload: message,
+      metadata: quotedMeta ? { quoted_message: quotedMeta } : null,
     });
 
   if (error) {
