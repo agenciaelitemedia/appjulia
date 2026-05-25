@@ -14,6 +14,7 @@ interface NotificationData {
   body: string | null;
   type: 'message' | 'poll' | 'question';
   poll_options: string[] | null;
+  alert_level?: 'info' | 'notice' | 'alert';
 }
 
 interface Item {
@@ -35,7 +36,7 @@ export function NotificationCenter() {
     if (seen.current.has(recipientId)) return;
     const { data: n } = await supabase
       .from('internal_notifications')
-      .select('id, title, body, type, poll_options')
+      .select('id, title, body, type, poll_options, alert_level')
       .eq('id', notificationId)
       .maybeSingle();
     if (!n) return;
@@ -82,7 +83,28 @@ export function NotificationCenter() {
     };
   }, [userId, addRecipient]);
 
+  // Listener para "Testar" — injeta um item local, sem persistir.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as Partial<NotificationData> | undefined;
+      if (!detail || !detail.title) return;
+      const recipientId = `test-${crypto.randomUUID()}`;
+      const notification: NotificationData = {
+        id: recipientId,
+        title: detail.title,
+        body: detail.body ?? null,
+        type: (detail.type as NotificationData['type']) ?? 'message',
+        poll_options: detail.poll_options ?? null,
+        alert_level: detail.alert_level ?? 'info',
+      };
+      setItems((prev) => [{ recipientId, notification, expanded: true }, ...prev]);
+    };
+    window.addEventListener('internal-notification:test', handler as EventListener);
+    return () => window.removeEventListener('internal-notification:test', handler as EventListener);
+  }, []);
+
   const markRead = useCallback(async (recipientId: string) => {
+    if (recipientId.startsWith('test-')) return;
     await supabase
       .from('internal_notification_recipients')
       .update({ read_at: new Date().toISOString() })
@@ -100,6 +122,10 @@ export function NotificationCenter() {
   }, []);
 
   const dismiss = useCallback(async (recipientId: string) => {
+    if (recipientId.startsWith('test-')) {
+      remove(recipientId);
+      return;
+    }
     await supabase
       .from('internal_notification_recipients')
       .update({ dismissed: true })
@@ -110,6 +136,11 @@ export function NotificationCenter() {
   const confirmPoll = useCallback(async (it: Item) => {
     const choice = pollChoice[it.recipientId];
     if (!choice) { toast.error('Selecione uma opção'); return; }
+    if (it.recipientId.startsWith('test-')) {
+      toast.success('Teste: resposta registrada');
+      remove(it.recipientId);
+      return;
+    }
     await supabase
       .from('internal_notification_recipients')
       .update({ poll_choice: choice, responded_at: new Date().toISOString(), read_at: new Date().toISOString() })
@@ -121,6 +152,11 @@ export function NotificationCenter() {
   const confirmAnswer = useCallback(async (it: Item) => {
     const text = (answerText[it.recipientId] ?? '').trim();
     if (!text) { toast.error('Digite uma resposta'); return; }
+    if (it.recipientId.startsWith('test-')) {
+      toast.success('Teste: resposta enviada');
+      remove(it.recipientId);
+      return;
+    }
     await supabase
       .from('internal_notification_recipients')
       .update({ response_text: text, responded_at: new Date().toISOString(), read_at: new Date().toISOString() })
@@ -129,35 +165,42 @@ export function NotificationCenter() {
     remove(it.recipientId);
   }, [answerText, remove]);
 
-  if (!userId || items.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-[340px] max-w-[calc(100vw-2rem)]">
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-[510px] max-w-[calc(100vw-2rem)]">
       {items.map((it) => {
         const n = it.notification;
+        const level = n.alert_level ?? 'info';
+        const palette =
+          level === 'alert'
+            ? { card: 'border-red-300 bg-red-50', label: 'text-red-700', icon: 'text-red-600', tag: 'Alerta' }
+            : level === 'notice'
+            ? { card: 'border-yellow-300 bg-yellow-50', label: 'text-yellow-800', icon: 'text-yellow-700', tag: 'Notificação' }
+            : { card: 'border-blue-200 bg-blue-50', label: 'text-primary', icon: 'text-primary', tag: 'Nova mensagem' };
         return (
-          <div key={it.recipientId} className="rounded-lg border border-blue-200 bg-blue-50 shadow-lg overflow-hidden">
+          <div key={it.recipientId} className={cn('rounded-lg border shadow-lg overflow-hidden', palette.card)}>
             <button
               type="button"
-              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/50"
               onClick={() => expand(it)}
             >
-              <Bell className="h-4 w-4 text-primary flex-shrink-0" />
+              <Bell className={cn('h-5 w-5 flex-shrink-0', palette.icon)} />
               <div className="flex-1 min-w-0">
-                <p className="text-[11px] font-semibold text-primary leading-none">Nova mensagem</p>
-                <p className="text-sm font-medium truncate">{n.title}</p>
+                <p className={cn('text-[13px] font-semibold leading-none', palette.label)}>{palette.tag}</p>
+                <p className="text-base font-medium truncate mt-1">{n.title}</p>
               </div>
-              {!it.expanded && <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              {!it.expanded && <ChevronDown className="h-5 w-5 text-muted-foreground" />}
               {it.expanded && n.type === 'message' && (
-                <X className="h-4 w-4 text-muted-foreground" onClick={(e) => { e.stopPropagation(); dismiss(it.recipientId); }} />
+                <X className="h-5 w-5 text-muted-foreground" onClick={(e) => { e.stopPropagation(); dismiss(it.recipientId); }} />
               )}
             </button>
 
             {it.expanded && (
-              <div className="px-3 pb-3 space-y-3">
+              <div className="px-4 pb-4 space-y-3">
                 {n.body && (
                   <div
-                    className="text-sm text-muted-foreground whitespace-pre-wrap break-words"
+                    className="text-[15px] text-foreground/80 whitespace-pre-wrap break-words leading-relaxed"
                     // eslint-disable-next-line react/no-danger
                     dangerouslySetInnerHTML={{ __html: renderWhatsAppMarkdown(n.body) }}
                   />

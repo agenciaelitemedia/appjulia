@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export type NotificationType = 'message' | 'poll' | 'question';
 export type NotificationAudience = 'owners' | 'teams' | 'all';
 export type NotificationStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'canceled';
+export type AlertLevel = 'info' | 'notice' | 'alert';
 
 export interface InternalNotification {
   id: string;
@@ -22,6 +23,7 @@ export interface InternalNotification {
   sent_at: string | null;
   recipients_total: number;
   created_at: string;
+  alert_level: AlertLevel;
 }
 
 export interface CreateNotificationInput {
@@ -31,6 +33,7 @@ export interface CreateNotificationInput {
   poll_options?: string[];
   audience: NotificationAudience;
   scheduledFor?: string | null; // ISO; null/undefined = enviar agora
+  alert_level?: AlertLevel;
 }
 
 export function useInternalNotifications() {
@@ -70,6 +73,7 @@ export function useInternalNotifications() {
         created_by_client_id: user.client_id != null ? String(user.client_id) : null,
         status: scheduled ? 'scheduled' : 'draft',
         scheduled_for: input.scheduledFor ?? null,
+        alert_level: input.alert_level ?? 'info',
       };
       const { data, error } = await supabase
         .from('internal_notifications')
