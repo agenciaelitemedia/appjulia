@@ -153,11 +153,16 @@ export interface LogDeviceParams {
  */
 export async function logUserDevice(params: LogDeviceParams): Promise<void> {
   try {
-    await (supabase as any).from('user_device_log').insert({
-      user_id: params.userId,
-      user_name: params.userName ?? null,
-      client_id: params.clientId ?? null,
-      ...params.env,
+    await supabase.functions.invoke('telemetry', {
+      body: {
+        action: 'log_device',
+        data: {
+          user_id: params.userId,
+          user_name: params.userName ?? null,
+          client_id: params.clientId ?? null,
+          ...params.env,
+        },
+      },
     });
   } catch (err) {
     console.warn('[clientEnvironment] failed', err);
