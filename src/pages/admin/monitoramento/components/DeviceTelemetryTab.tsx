@@ -132,11 +132,41 @@ function TelemetryDetail({ user, device }: { user: UserWithPermissions; device: 
           <p className="text-sm text-muted-foreground">Sem amostras de performance ainda.</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <div><p className="text-xs text-muted-foreground">LCP</p><p className={cn('text-lg font-bold', ratingClass(stats.lcp, 2500, 4000))}>{fmtMs(stats.lcp)}</p></div>
-            <div><p className="text-xs text-muted-foreground">Carga total</p><p className={cn('text-lg font-bold', ratingClass(stats.load, 3000, 6000))}>{fmtMs(stats.load)}</p></div>
-            <div><p className="text-xs text-muted-foreground">TTFB</p><p className={cn('text-lg font-bold', ratingClass(stats.ttfb, 800, 1800))}>{fmtMs(stats.ttfb)}</p></div>
-            <div><p className="text-xs text-muted-foreground">FCP</p><p className={cn('text-lg font-bold', ratingClass(stats.fcp, 1800, 3000))}>{fmtMs(stats.fcp)}</p></div>
-            <div><p className="text-xs text-muted-foreground">Heap JS</p><p className="text-lg font-bold">{stats.heap != null ? `${stats.heap}MB` : '—'}</p></div>
+            <div>
+              <Tooltip>
+                <TooltipTrigger asChild><p className="text-xs text-muted-foreground cursor-help underline decoration-dotted">LCP</p></TooltipTrigger>
+                <TooltipContent side="top">Largest Contentful Paint — tempo até o maior elemento visível ser renderizado. Ideal: ≤ 2.5s.</TooltipContent>
+              </Tooltip>
+              <p className={cn('text-lg font-bold', ratingClass(stats.lcp, 2500, 4000))}>{fmtMs(stats.lcp)}</p>
+            </div>
+            <div>
+              <Tooltip>
+                <TooltipTrigger asChild><p className="text-xs text-muted-foreground cursor-help underline decoration-dotted">Carga total</p></TooltipTrigger>
+                <TooltipContent side="top">Tempo total desde o início da navegação até o evento load do navegador (JS, CSS, imagens, APIs).</TooltipContent>
+              </Tooltip>
+              <p className={cn('text-lg font-bold', ratingClass(stats.load, 3000, 6000))}>{fmtMs(stats.load)}</p>
+            </div>
+            <div>
+              <Tooltip>
+                <TooltipTrigger asChild><p className="text-xs text-muted-foreground cursor-help underline decoration-dotted">TTFB</p></TooltipTrigger>
+                <TooltipContent side="top">Time to First Byte — tempo até receber o primeiro byte de resposta do servidor. Ideal: ≤ 200ms.</TooltipContent>
+              </Tooltip>
+              <p className={cn('text-lg font-bold', ratingClass(stats.ttfb, 800, 1800))}>{fmtMs(stats.ttfb)}</p>
+            </div>
+            <div>
+              <Tooltip>
+                <TooltipTrigger asChild><p className="text-xs text-muted-foreground cursor-help underline decoration-dotted">FCP</p></TooltipTrigger>
+                <TooltipContent side="top">First Contentful Paint — tempo até o primeiro conteúdo significativo aparecer na tela. Ideal: ≤ 1.8s.</TooltipContent>
+              </Tooltip>
+              <p className={cn('text-lg font-bold', ratingClass(stats.fcp, 1800, 3000))}>{fmtMs(stats.fcp)}</p>
+            </div>
+            <div>
+              <Tooltip>
+                <TooltipTrigger asChild><p className="text-xs text-muted-foreground cursor-help underline decoration-dotted">Heap JS</p></TooltipTrigger>
+                <TooltipContent side="top">Memória RAM usada pelo JavaScript da aplicação no momento da medição.</TooltipContent>
+              </Tooltip>
+              <p className="text-lg font-bold">{stats.heap != null ? `${stats.heap}MB` : '—'}</p>
+            </div>
           </div>
         )}
       </Card>
