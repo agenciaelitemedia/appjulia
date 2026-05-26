@@ -1,61 +1,45 @@
-## Objetivo
+## Otimização da busca no chat (nome / telefone)
 
-1. Permitir que `colaborador` use a Notificação Interna como `admin`.
-2. Adicionar público **"Minha Equipe"** (donos enviam só para a própria equipe).
-3. Na aba **Acompanhar**, clicar na linha dispara um preview via toast (igual ao botão "Testar"), sem salvar nem logar.
+### Diagnóstico
 
-## Regras de público por perfil
-
-| Perfil | Públicos disponíveis | Escopo |
-|---|---|---|
-| admin | Todos, Equipe, Donos de escritório | global |
-| colaborador | Todos, Equipe, Donos de escritório | global |
-| dono (demais roles) | **Minha Equipe** (somente) | office (filtra por `client_id` do criador) |
-
-"Minha Equipe" = membros com `user_funcao = 'equipe'` cujo `client_id` é o mesmo do dono que criou a notificação.
-
-## Mudanças
-
-### 1. `src/hooks/useInternalNotifications.ts`
-- Adicionar `'my_team'` em `NotificationAudience`.
-- Helper `canSendGlobal = isAdmin || user?.role === 'colaborador'`.
-- No `createAndSend`: `scope = canSendGlobal ? 'global' : 'office'`.
-- Listagem: admin e colaborador veem todas; demais veem só as próprias (`created_by`).
-
-### 2. `src/pages/notify-customers/components/CreateNotificationTab.tsx`
-- Substituir uso direto de `isAdmin` por `canSendGlobal`.
-- Opções do Select "Público":
-  - `canSendGlobal`: `all` (Todos), `teams` (Equipe), `owners` (Donos de escritório).
-  - Caso contrário (dono): apenas `my_team` (Minha Equipe), default já selecionado.
-- Default e reset seguem a mesma regra.
-
-### 3. `src/pages/notify-customers/components/NotificationsListTab.tsx`
-- Tornar cada linha clicável (`cursor-pointer`, hover destacado, `role="button"`).
-- Ao clicar: disparar `window.dispatchEvent(new CustomEvent('internal-notification:test', { detail: { title, body, type, poll_options, alert_level } }))` — exatamente o mesmo evento já consumido pelo `NotificationCenter`, que injeta um item com prefixo `test-` (não persiste, não loga).
-- Evitar disparo quando o clique vier de um botão de ação interna da linha (usar `event.stopPropagation()` nesses botões, se houver).
-
-### 4. `supabase/functions/internal-notification-dispatch/index.ts`
-- Aceitar `n.audience === 'my_team'`:
-  - Filtro `user_funcao = 'equipe'` + restrição ao `client_id` do criador (mesma lógica do `scope = 'office'`, aplicada independentemente do `scope`).
-- Demais audiences (`all`, `teams`, `owners`) permanecem inalterados.
-
-### 5. Migration
-- Atualizar o `CHECK` da coluna `audience` em `internal_notifications` para permitir `'my_team'`.
-
-```sql
-ALTER TABLE public.internal_notifications
-  DROP CONSTRAINT IF EXISTS internal_notifications_audience_check;
-ALTER TABLE public.internal_notifications
-  ADD CONSTRAINT internal_notifications_audience_check
-  CHECK (audience IN ('all','owners','teams','my_team'));
+A busca da lista de conversas (`ChatList`) filtra `chat_contacts` com:
+```
+client_id = X AND (name ILIKE '%term%' OR phone ILIKE '%digits%')
 ```
 
-## Fora de escopo
-- Visual do toast, markdown e `alert_level` (já implementados).
-- Nenhuma escrita em DB ao clicar para preview.
+Hoje a tabela tem índices btree em `phone`, `client_id`, `last_message_at`, etc., mas **nenhum índice serve para `ILIKE '%...%'` (wildcard à esquerda)**. Resultado: cada busca faz seq scan na `chat_contacts` inteira do cliente.
 
-## Verificação
-- `colaborador`: 3 opções globais e disparo OK.
-- `dono`: apenas "Minha Equipe"; disparo atinge somente `equipe` com mesmo `client_id`.
-- `admin`: comportamento inalterado.
-- Aba Acompanhar: clicar em qualquer linha exibe o toast de preview sem persistir nada.
+Em contrapartida, `chat_messages` já tem `gin_trgm_ops` em `text` e `caption` — ou seja, a extensão `pg_trgm` já está habilitada e o padrão a seguir está validado no projeto.
+
+### O que vou fazer
+
+Criar uma migration adicionando índices GIN trigram em `chat_contacts`, replicando o padrão já usado em `chat_messages`:
+
+1. `idx_chat_contacts_name_trgm` — GIN em `name gin_trgm_ops` (acelera `name ILIKE '%...%'`).
+2. `idx_chat_contacts_phone_trgm` — GIN em `phone gin_trgm_ops` (acelera `phone ILIKE '%digits%'`).
+3. Índice composto `idx_chat_contacts_client_lastmsg_isgroup` em `(client_id, is_group, last_message_at DESC NULLS LAST)` — cobre o caso de listagem por aba Individual/Grupos sem busca, evitando dois passos (já existe `client_lastmsg`, mas sem o `is_group` que o `useContactsList` filtra).
+
+Todos `CREATE INDEX IF NOT EXISTS` para serem seguros / reexecutáveis. Sem `CONCURRENTLY` porque a migration roda em transação no Supabase.
+
+### Por que não mexer em mais nada
+
+- `chat_messages` já tem trigram em `text`/`caption` (usado pelo `ChatSearchDialog`).
+- `chat_conversations` já tem índices para `client_id + status + updated_at` (paginação) e `protocol`.
+- A query da busca já filtra por `client_id` primeiro, então o GIN trigram entra como filtro adicional rápido — não precisa de índice parcial por cliente.
+
+### Detalhes técnicos
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX IF NOT EXISTS idx_chat_contacts_name_trgm
+  ON public.chat_contacts USING gin (name gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_chat_contacts_phone_trgm
+  ON public.chat_contacts USING gin (phone gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_chat_contacts_client_isgroup_lastmsg
+  ON public.chat_contacts (client_id, is_group, last_message_at DESC NULLS LAST);
+```
+
+Sem alteração de código frontend — a query atual passa a usar os novos índices automaticamente.
