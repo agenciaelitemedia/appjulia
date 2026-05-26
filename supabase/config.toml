@@ -78,6 +78,9 @@ verify_jwt = false
 [functions.uazapi-history-dispatcher]
 verify_jwt = false
 
+[functions.telemetry]
+verify_jwt = false
+
 [functions.uazapi-history-dispatcher-heartbeat]
 verify_jwt = false
 
