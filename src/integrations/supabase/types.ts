@@ -6485,6 +6485,138 @@ export type Database = {
         }
         Relationships: []
       }
+      user_device_log: {
+        Row: {
+          browser: string | null
+          browser_version: string | null
+          client_id: number | null
+          cpu_cores: number | null
+          device_memory_gb: number | null
+          device_type: string | null
+          dpr: number | null
+          gpu_renderer: string | null
+          id: string
+          language: string | null
+          net_downlink_mbps: number | null
+          net_effective_type: string | null
+          net_rtt_ms: number | null
+          occurred_at: string
+          os: string | null
+          os_version: string | null
+          save_data: boolean | null
+          screen_h: number | null
+          screen_w: number | null
+          timezone: string | null
+          user_agent: string | null
+          user_id: number
+          user_name: string | null
+          viewport_h: number | null
+          viewport_w: number | null
+        }
+        Insert: {
+          browser?: string | null
+          browser_version?: string | null
+          client_id?: number | null
+          cpu_cores?: number | null
+          device_memory_gb?: number | null
+          device_type?: string | null
+          dpr?: number | null
+          gpu_renderer?: string | null
+          id?: string
+          language?: string | null
+          net_downlink_mbps?: number | null
+          net_effective_type?: string | null
+          net_rtt_ms?: number | null
+          occurred_at?: string
+          os?: string | null
+          os_version?: string | null
+          save_data?: boolean | null
+          screen_h?: number | null
+          screen_w?: number | null
+          timezone?: string | null
+          user_agent?: string | null
+          user_id: number
+          user_name?: string | null
+          viewport_h?: number | null
+          viewport_w?: number | null
+        }
+        Update: {
+          browser?: string | null
+          browser_version?: string | null
+          client_id?: number | null
+          cpu_cores?: number | null
+          device_memory_gb?: number | null
+          device_type?: string | null
+          dpr?: number | null
+          gpu_renderer?: string | null
+          id?: string
+          language?: string | null
+          net_downlink_mbps?: number | null
+          net_effective_type?: string | null
+          net_rtt_ms?: number | null
+          occurred_at?: string
+          os?: string | null
+          os_version?: string | null
+          save_data?: boolean | null
+          screen_h?: number | null
+          screen_w?: number | null
+          timezone?: string | null
+          user_agent?: string | null
+          user_id?: number
+          user_name?: string | null
+          viewport_h?: number | null
+          viewport_w?: number | null
+        }
+        Relationships: []
+      }
+      user_performance_log: {
+        Row: {
+          client_id: number | null
+          cls: number | null
+          dom_interactive_ms: number | null
+          fcp_ms: number | null
+          id: string
+          js_heap_used_mb: number | null
+          lcp_ms: number | null
+          load_ms: number | null
+          net_effective_type: string | null
+          occurred_at: string
+          route: string | null
+          ttfb_ms: number | null
+          user_id: number
+        }
+        Insert: {
+          client_id?: number | null
+          cls?: number | null
+          dom_interactive_ms?: number | null
+          fcp_ms?: number | null
+          id?: string
+          js_heap_used_mb?: number | null
+          lcp_ms?: number | null
+          load_ms?: number | null
+          net_effective_type?: string | null
+          occurred_at?: string
+          route?: string | null
+          ttfb_ms?: number | null
+          user_id: number
+        }
+        Update: {
+          client_id?: number | null
+          cls?: number | null
+          dom_interactive_ms?: number | null
+          fcp_ms?: number | null
+          id?: string
+          js_heap_used_mb?: number | null
+          lcp_ms?: number | null
+          load_ms?: number | null
+          net_effective_type?: string | null
+          occurred_at?: string
+          route?: string | null
+          ttfb_ms?: number | null
+          user_id?: number
+        }
+        Relationships: []
+      }
       user_presence: {
         Row: {
           client_id: number
@@ -7273,6 +7405,36 @@ export type Database = {
           client_name: string | null
           oldest_pending_at: string | null
           pending_count: number | null
+        }
+        Relationships: []
+      }
+      user_device_latest: {
+        Row: {
+          browser: string | null
+          browser_version: string | null
+          client_id: number | null
+          cpu_cores: number | null
+          device_memory_gb: number | null
+          device_type: string | null
+          dpr: number | null
+          gpu_renderer: string | null
+          id: string | null
+          language: string | null
+          net_downlink_mbps: number | null
+          net_effective_type: string | null
+          net_rtt_ms: number | null
+          occurred_at: string | null
+          os: string | null
+          os_version: string | null
+          save_data: boolean | null
+          screen_h: number | null
+          screen_w: number | null
+          timezone: string | null
+          user_agent: string | null
+          user_id: number | null
+          user_name: string | null
+          viewport_h: number | null
+          viewport_w: number | null
         }
         Relationships: []
       }
