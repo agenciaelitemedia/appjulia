@@ -98,11 +98,16 @@ export interface LogPerfParams {
  */
 export async function logPagePerformance(params: LogPerfParams): Promise<void> {
   try {
-    await (supabase as any).from('user_performance_log').insert({
-      user_id: params.userId,
-      client_id: params.clientId ?? null,
-      route: params.route,
-      ...params.perf,
+    await supabase.functions.invoke('telemetry', {
+      body: {
+        action: 'log_performance',
+        data: {
+          user_id: params.userId,
+          client_id: params.clientId ?? null,
+          route: params.route,
+          ...params.perf,
+        },
+      },
     });
   } catch (err) {
     console.warn('[clientPerformance] failed', err);
