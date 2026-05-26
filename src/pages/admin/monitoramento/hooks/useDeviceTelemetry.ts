@@ -78,6 +78,71 @@ export function useUserPerformance(userId: number | null) {
   });
 }
 
+// ── Dashboard agregado ──
+export interface DashboardData {
+  generatedAt: string;
+  kpis: {
+    activeNow: number;
+    sessions: number;
+    samples: number;
+    lcpP75: number | null;
+    lcpAvg: number | null;
+    loadP75: number | null;
+    loadAvg: number | null;
+    ttfbAvg: number | null;
+    goodRate: number | null;
+    weakCount: number;
+    avgDownlink: number | null;
+    avgRtt: number | null;
+    avgHeap: number | null;
+  };
+  timeseries: Array<{ t: number; lcpP75: number | null; loadAvg: number | null; heapAvg: number | null; samples: number }>;
+  byBrowser: Array<{ name: string; count: number }>;
+  byOs: Array<{ name: string; count: number }>;
+  byDevice: Array<{ name: string; count: number }>;
+  byNetwork: Array<{ name: string; count: number }>;
+  vitals: { good: number; ni: number; poor: number };
+  slowRoutes: Array<{ route: string; lcpAvg: number; samples: number }>;
+  byClient: Array<{ client_id: number; samples: number; lcpP75: number; weak: number }>;
+  recentSlow: Array<{ route: string | null; client_id: number | null; lcp_ms: number | null; occurred_at: string }>;
+}
+
+export type DashboardPeriod = '15m' | '1h' | '24h' | '7d' | '30d';
+
+export const PERIODS: Record<DashboardPeriod, { label: string; ms: number; bucketMs: number }> = {
+  '15m': { label: '15 min', ms: 15 * 60000, bucketMs: 60000 },
+  '1h': { label: '1 hora', ms: 60 * 60000, bucketMs: 5 * 60000 },
+  '24h': { label: '24 horas', ms: 24 * 3600000, bucketMs: 3600000 },
+  '7d': { label: '7 dias', ms: 7 * 86400000, bucketMs: 6 * 3600000 },
+  '30d': { label: '30 dias', ms: 30 * 86400000, bucketMs: 86400000 },
+};
+
+const EMPTY_DASHBOARD: DashboardData = {
+  generatedAt: new Date(0).toISOString(),
+  kpis: { activeNow: 0, sessions: 0, samples: 0, lcpP75: null, lcpAvg: null, loadP75: null, loadAvg: null, ttfbAvg: null, goodRate: null, weakCount: 0, avgDownlink: null, avgRtt: null, avgHeap: null },
+  timeseries: [], byBrowser: [], byOs: [], byDevice: [], byNetwork: [],
+  vitals: { good: 0, ni: 0, poor: 0 }, slowRoutes: [], byClient: [], recentSlow: [],
+};
+
+/** Dados agregados do dashboard para um período, com auto-refresh opcional. */
+export function useTelemetryDashboard(period: DashboardPeriod, realtime: boolean) {
+  const cfg = PERIODS[period];
+  return useQuery<DashboardData>({
+    queryKey: ['telemetry-dashboard', period],
+    refetchInterval: realtime ? 10_000 : false,
+    staleTime: 5_000,
+    queryFn: async () => {
+      const fromISO = new Date(Date.now() - cfg.ms).toISOString();
+      const { data: resp, error } = await supabase.functions.invoke('telemetry', {
+        body: { action: 'get_dashboard', data: { fromISO, bucketMs: cfg.bucketMs } },
+      });
+      // Degrada para vazio se a função ainda não foi redeployada (unknown_action).
+      if (error || !(resp as any)?.data) return EMPTY_DASHBOARD;
+      return (resp as any).data as DashboardData;
+    },
+  });
+}
+
 // ── Heurística de risco de lentidão ──
 export function deviceIsWeak(d: DeviceInfo | undefined): boolean {
   if (!d) return false;
