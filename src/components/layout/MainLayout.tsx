@@ -15,6 +15,7 @@ import { DisconnectedQueuesAlert } from './DisconnectedQueuesAlert';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { useGlobalPresence } from '@/hooks/useGlobalPresence';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
+import { usePerformanceReporter } from '@/hooks/usePerformanceReporter';
 
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
@@ -57,6 +58,8 @@ export function MainLayout() {
   // Anuncia presença global para o dashboard de equipe
   useGlobalPresence();
   useHeartbeat();
+  // Telemetria de performance (Web Vitals + tempos de carga)
+  usePerformanceReporter();
 
   if (isLoading) {
     return (

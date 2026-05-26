@@ -4,6 +4,7 @@ import type { UserPermission, PermissionMap, ModuleCode, AppRole } from '@/types
 import { createPermissionMap } from '@/types/permissions';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { logUserActivity } from '@/lib/userActivityLog';
+import { collectClientEnvironment, logUserDevice } from '@/lib/clientEnvironment';
 import { supabase } from '@/integrations/supabase/client';
 
 /** Remove a presença do usuário no painel da equipe imediatamente. */
@@ -335,6 +336,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clientId: authenticatedUser.client_id ?? null,
         eventType: 'login',
       });
+
+      // Snapshot de ambiente do dispositivo (não-bloqueante; falha silenciosa)
+      collectClientEnvironment()
+        .then((env) => logUserDevice({
+          userId: Number(authenticatedUser.id),
+          userName: authenticatedUser.name,
+          clientId: authenticatedUser.client_id ?? null,
+          env,
+        }))
+        .catch(() => { /* telemetria nunca quebra o login */ });
 
       // Checa nova versão a cada login — se houver, força reload
       await checkVersionAndReloadIfNeeded();
