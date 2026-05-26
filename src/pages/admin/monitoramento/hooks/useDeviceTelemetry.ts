@@ -62,6 +62,25 @@ export function useUserDeviceLatest(userIds: number[]) {
   });
 }
 
+/** Lista de user_ids que possuem dados de telemetria (com último acesso). */
+export function useUsersWithTelemetry() {
+  return useQuery<Map<number, string>>({
+    queryKey: ['users-with-telemetry'],
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: resp, error } = await supabase.functions.invoke('telemetry', {
+        body: { action: 'get_users_with_telemetry' },
+      });
+      if (error) throw error;
+      const map = new Map<number, string>();
+      for (const row of (((resp as any)?.data ?? []) as Array<{ user_id: number | string; occurred_at: string }>)) {
+        map.set(Number(row.user_id), row.occurred_at);
+      }
+      return map;
+    },
+  });
+}
+
 /** Histórico recente de performance de um usuário. */
 export function useUserPerformance(userId: number | null) {
   return useQuery<PerfRow[]>({
