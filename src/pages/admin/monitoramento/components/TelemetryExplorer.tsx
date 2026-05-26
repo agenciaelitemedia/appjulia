@@ -255,10 +255,10 @@ export function TelemetryExplorer() {
 
   // Auto-seleciona o primeiro usuário (mais recente) quando nada estiver selecionado
   useEffect(() => {
-    if (selectedId == null && filtered.length > 0) setSelectedId(filtered[0].id);
+    if (selectedId == null && filtered.length > 0) setSelectedId(Number(filtered[0].id));
   }, [filtered, selectedId]);
 
-  const selectedUser = usersWithData.find((u) => u.id === selectedId) ?? null;
+  const selectedUser = usersWithData.find((u) => Number(u.id) === selectedId) ?? null;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 320px)' }}>
