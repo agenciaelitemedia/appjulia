@@ -237,15 +237,15 @@ export function TelemetryExplorer() {
   const usersWithData = useMemo(() => {
     if (!telemetryMap) return [];
     return users
-      .filter((u) => telemetryMap.has(u.id))
+      .filter((u) => telemetryMap.has(Number(u.id)))
       .sort((a, b) => {
-        const ta = new Date(telemetryMap.get(a.id) ?? 0).getTime();
-        const tb = new Date(telemetryMap.get(b.id) ?? 0).getTime();
+        const ta = new Date(telemetryMap.get(Number(a.id)) ?? 0).getTime();
+        const tb = new Date(telemetryMap.get(Number(b.id)) ?? 0).getTime();
         return tb - ta;
       });
   }, [users, telemetryMap]);
 
-  const userIds = useMemo(() => usersWithData.map((u) => u.id), [usersWithData]);
+  const userIds = useMemo(() => usersWithData.map((u) => Number(u.id)), [usersWithData]);
   const { data: devices = {} } = useUserDeviceLatest(userIds);
 
   const filtered = useMemo(() => {
@@ -286,7 +286,7 @@ export function TelemetryExplorer() {
             <p className="text-sm text-muted-foreground text-center py-8">Nenhum usuário com dados de telemetria.</p>
           ) : (
             filtered.map((u) => (
-              <UserRow key={u.id} user={u} device={devices[u.id]} lastSeen={telemetryMap?.get(u.id)} selected={u.id === selectedId} onSelect={() => setSelectedId(u.id)} />
+              <UserRow key={u.id} user={u} device={devices[Number(u.id)]} lastSeen={telemetryMap?.get(Number(u.id))} selected={Number(u.id) === selectedId} onSelect={() => setSelectedId(Number(u.id))} />
             ))
           )}
         </div>
@@ -294,7 +294,7 @@ export function TelemetryExplorer() {
 
       <div className="lg:col-span-2">
         {selectedUser ? (
-          <TelemetryDetail key={selectedUser.id} user={selectedUser} device={devices[selectedUser.id]} />
+          <TelemetryDetail key={selectedUser.id} user={selectedUser} device={devices[Number(selectedUser.id)]} />
         ) : (
           <Card className="h-full flex items-center justify-center">
             <div className="text-center p-8">
