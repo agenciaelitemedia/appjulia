@@ -230,6 +230,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     restoreSession();
   }, [loadPermissions, hydrateClientPhoto]);
 
+  // Snapshot de ambiente 1x por sessão de navegador (cobre usuários que já
+  // estavam logados antes da telemetria existir). O disparo no `login()`
+  // continua existindo para login novo.
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      if (sessionStorage.getItem('telemetry_device_sent') === '1') return;
+      sessionStorage.setItem('telemetry_device_sent', '1');
+    } catch { /* sessionStorage indisponível — segue assim mesmo */ }
+    collectClientEnvironment()
+      .then((env) => logUserDevice({
+        userId: Number(user.id),
+        userName: user.name,
+        clientId: user.client_id ?? null,
+        env,
+      }))
+      .catch(() => { /* telemetria nunca quebra o app */ });
+  }, [user?.id, user?.name, user?.client_id]);
+
   // Logout por inatividade (1h) — rastreia atividade e sincroniza entre abas
   useEffect(() => {
     if (!user) return;
