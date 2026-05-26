@@ -1,34 +1,39 @@
 ## Diagnóstico
-A causa raiz está confirmada:
-- As tabelas `user_device_log` e `user_performance_log` existem, mas estão com `0` linhas.
-- O app faz login por `externalDb.login` (auth própria), então o client `supabase` no navegador continua sem sessão autenticada do backend.
-- As gravações de telemetria estão saindo como `anon` e sendo barradas pelas regras atuais.
-- Evidência atual: `POST /user_performance_log` retorna `new row violates row-level security policy`.
-- Isso explica por que `user_activity_log` funciona e a telemetria não: `user_activity_log` está aberto para `public`, enquanto as tabelas novas exigem usuário autenticado do backend.
 
-## Plano de correção
-1. **Mover a escrita da telemetria para o backend interno**
-   - Adicionar ações no `db-query` para gravar `user_device_log` e `user_performance_log`.
-   - As gravações passarão pelo backend já usado no projeto, sem depender de sessão do `supabase-js` no browser.
+A telemetria **já está gravando** dados normalmente:
+- `user_device_log`: 2 linhas
+- `user_performance_log`: 7 linhas (rotas `/chat`, `/dashboard`, `/admin/monitoramento`, etc.)
 
-2. **Mover a leitura da tela de monitoramento para o mesmo backend**
-   - Adaptar `useDeviceTelemetry.ts` para buscar `user_device_latest` e `user_performance_log` via `db-query`.
-   - Isso evita leituras vazias por falta de sessão/autorização no client atual.
+Tudo do `user_id = 2` (usuário logado agora). Os demais usuários (ex.: Mario Castro) aparecem "sem dados" porque:
 
-3. **Atualizar os pontos de envio no frontend**
-   - Trocar `logUserDevice` e `logPagePerformance` para usar o novo caminho seguro.
-   - Manter comportamento silencioso para o usuário final, mas com logs técnicos úteis para depuração.
+1. O snapshot de **ambiente** (`logUserDevice`) só é disparado **dentro de `login()`** no `AuthContext`. Quem já estava logado quando o recurso entrou no ar nunca passa por esse ponto.
+2. **Performance** só é registrada quando o próprio usuário navega — não tem como o admin "ver" dados de um usuário que não está online.
 
-4. **Validar ponta a ponta**
-   - Fazer login e navegar em rotas para gerar telemetria.
-   - Confirmar que surgem linhas nas tabelas e que `/admin/monitoramento` passa a exibir Ambiente & Performance.
+Portanto não há bug de captura; falta apenas cobrir usuários com sessão persistida.
 
-## Detalhes técnicos
-- Não vou abrir essas tabelas para `anon`, porque isso enfraqueceria a segurança.
-- A correção preserva o modelo atual do projeto: autenticação própria + backend interno para operações protegidas.
-- Se necessário, também ajusto os acessos de leitura para manter a visualização restrita ao fluxo administrativo já existente.
+## Ajuste proposto
 
-## Resultado esperado
-- Login gera snapshot de ambiente.
-- Navegação gera métricas de performance.
-- A aba **Ambiente & Performance** começa a mostrar dados reais sem depender de sessão nativa do backend.
+Adicionar um disparo **uma vez por sessão de navegador** (além do login) que envia o snapshot de ambiente assim que o app carrega com um usuário já autenticado.
+
+### Onde
+
+`src/contexts/AuthContext.tsx` — efeito que roda quando `user` deixa de ser nulo na hidratação inicial.
+
+### Lógica
+
+- `useEffect([user?.id])`: se `user` existe e `sessionStorage.getItem('telemetry_device_sent')` está vazio, chama `collectClientEnvironment() → logUserDevice(...)` e marca o flag.
+- `sessionStorage` (não `localStorage`) garante: 1x por aba/sessão, e re-coleta quando abrirem o navegador novamente (capturando mudança de rede/dispositivo).
+- Mantém o disparo atual dentro de `login()` (cobre login novo).
+- Falha silenciosa, igual hoje.
+
+### Resultado esperado
+
+- Próxima vez que cada usuário ativo abrir o app, surge a linha em `user_device_log`.
+- A aba **Ambiente** do `/admin/monitoramento` começa a popular para esses usuários sem precisar pedir logout.
+- Performance continua dependendo do usuário navegar (comportamento correto — não dá pra coletar Web Vitals de quem não está usando).
+
+## Fora do escopo
+
+- Não mexer no edge function `telemetry` (já validado funcionando).
+- Não mexer na UI da aba (`DeviceTelemetryTab`) nem nos hooks de leitura.
+- Não criar nova migration.
