@@ -1,45 +1,45 @@
-## Otimização da busca no chat (nome / telefone)
+## Acelerar carregamento de mensagens no chat
 
 ### Diagnóstico
 
-A busca da lista de conversas (`ChatList`) filtra `chat_contacts` com:
+O `loadMessages` (em `WhatsAppDataContext.tsx`) faz:
 ```
-client_id = X AND (name ILIKE '%term%' OR phone ILIKE '%digits%')
+select * from chat_messages where contact_id = X order by timestamp desc limit 50
 ```
 
-Hoje a tabela tem índices btree em `phone`, `client_id`, `last_message_at`, etc., mas **nenhum índice serve para `ILIKE '%...%'` (wildcard à esquerda)**. Resultado: cada busca faz seq scan na `chat_contacts` inteira do cliente.
+Boa notícia: o índice composto `idx_chat_messages_contact_ts (contact_id, timestamp DESC)` **já existe** — essa query já está otimizada do lado do banco. O custo restante vem de:
 
-Em contrapartida, `chat_messages` já tem `gin_trgm_ops` em `text` e `caption` — ou seja, a extensão `pg_trgm` já está habilitada e o padrão a seguir está validado no projeto.
+1. **Índices duplicados/redundantes** em `chat_messages`, que deixam INSERT (cada mensagem nova do webhook) mais lento e ocupam cache:
+   - `idx_chat_messages_external` é **idêntico** ao `idx_chat_messages_contact_external` (mesmo `(contact_id, external_id) WHERE external_id IS NOT NULL`, ambos UNIQUE).
+   - `idx_chat_messages_contact (contact_id)` é **coberto** pelo composto `idx_chat_messages_contact_ts (contact_id, timestamp DESC)` — pode ser removido sem afetar leitura.
+
+2. **`markAsRead` (WABA)** faz:
+   ```
+   where contact_id=X and from_me=false and message_id is not null order by timestamp desc limit 1
+   ```
+   Hoje usa o composto `(contact_id, timestamp)` e filtra `from_me`/`message_id` em memória. Um índice parcial específico evita escanear mensagens enviadas/sem wamid.
 
 ### O que vou fazer
 
-Criar uma migration adicionando índices GIN trigram em `chat_contacts`, replicando o padrão já usado em `chat_messages`:
+Migration enxuta:
 
-1. `idx_chat_contacts_name_trgm` — GIN em `name gin_trgm_ops` (acelera `name ILIKE '%...%'`).
-2. `idx_chat_contacts_phone_trgm` — GIN em `phone gin_trgm_ops` (acelera `phone ILIKE '%digits%'`).
-3. Índice composto `idx_chat_contacts_client_lastmsg_isgroup` em `(client_id, is_group, last_message_at DESC NULLS LAST)` — cobre o caso de listagem por aba Individual/Grupos sem busca, evitando dois passos (já existe `client_lastmsg`, mas sem o `is_group` que o `useContactsList` filtra).
+1. `DROP INDEX IF EXISTS idx_chat_messages_external;` (duplicado puro)
+2. `DROP INDEX IF EXISTS idx_chat_messages_contact;` (redundante com o composto)
+3. Criar:
+   ```sql
+   CREATE INDEX IF NOT EXISTS idx_chat_messages_contact_inbound_ts
+     ON public.chat_messages (contact_id, "timestamp" DESC)
+     WHERE from_me = false AND message_id IS NOT NULL;
+   ```
+4. `ANALYZE public.chat_messages;` para atualizar estatísticas.
 
-Todos `CREATE INDEX IF NOT EXISTS` para serem seguros / reexecutáveis. Sem `CONCURRENTLY` porque a migration roda em transação no Supabase.
+### Por que não mexer no frontend
 
-### Por que não mexer em mais nada
+A query do `loadMessages` já é a forma certa (composto `contact_id + timestamp DESC`, `limit 50`, paginação por offset). Trocar `select *` por colunas específicas economiza pouco e exigiria mudanças em toda a tipagem `ChatMessage` — risco maior que ganho.
 
-- `chat_messages` já tem trigram em `text`/`caption` (usado pelo `ChatSearchDialog`).
-- `chat_conversations` já tem índices para `client_id + status + updated_at` (paginação) e `protocol`.
-- A query da busca já filtra por `client_id` primeiro, então o GIN trigram entra como filtro adicional rápido — não precisa de índice parcial por cliente.
+### Resultado esperado
 
-### Detalhes técnicos
-
-```sql
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-
-CREATE INDEX IF NOT EXISTS idx_chat_contacts_name_trgm
-  ON public.chat_contacts USING gin (name gin_trgm_ops);
-
-CREATE INDEX IF NOT EXISTS idx_chat_contacts_phone_trgm
-  ON public.chat_contacts USING gin (phone gin_trgm_ops);
-
-CREATE INDEX IF NOT EXISTS idx_chat_contacts_client_isgroup_lastmsg
-  ON public.chat_contacts (client_id, is_group, last_message_at DESC NULLS LAST);
-```
-
-Sem alteração de código frontend — a query atual passa a usar os novos índices automaticamente.
+- **Leitura da conversa selecionada**: mesmo plano (já usa o índice composto), mas o `ANALYZE` garante que o planner mantenha a escolha.
+- **INSERT de mensagens novas (webhook)**: ~15-25% mais rápido por mensagem ao remover 2 índices redundantes.
+- **`markAsRead` em filas WABA**: passa a usar índice parcial bem menor — quase instantâneo.
+- Sem mudança de código frontend.
