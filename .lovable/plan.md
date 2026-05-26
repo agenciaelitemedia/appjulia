@@ -1,39 +1,57 @@
 ## Diagnóstico
 
-A telemetria **já está gravando** dados normalmente:
-- `user_device_log`: 2 linhas
-- `user_performance_log`: 7 linhas (rotas `/chat`, `/dashboard`, `/admin/monitoramento`, etc.)
+Verifiquei a aba **Ambiente & Performance → Dados** (`TelemetryExplorer.tsx`) e os dados no banco:
 
-Tudo do `user_id = 2` (usuário logado agora). Os demais usuários (ex.: Mario Castro) aparecem "sem dados" porque:
+- Existem **23 usuários** com registros em `user_device_log` (e 315 amostras em `user_performance_log`).
+- A view `user_device_latest` está populada corretamente (Mario Castro, Romilda, Ana Carolina, etc.).
+- A edge function `telemetry/get_device_latest` está OK.
 
-1. O snapshot de **ambiente** (`logUserDevice`) só é disparado **dentro de `login()`** no `AuthContext`. Quem já estava logado quando o recurso entrou no ar nunca passa por esse ponto.
-2. **Performance** só é registrada quando o próprio usuário navega — não tem como o admin "ver" dados de um usuário que não está online.
+**O que está acontecendo hoje**: o `TelemetryExplorer` lista **todos os usuários da permissão** (centenas, vindos do CRM externo via `useUsersWithPermissions`). A grande maioria nunca abriu o app depois que a coleta foi ligada, então:
 
-Portanto não há bug de captura; falta apenas cobrir usuários com sessão persistida.
+- A lista mostra muita gente sem dado (mostra "Sem dados de acesso ainda" embaixo do nome).
+- Ao clicar nos primeiros usuários (que geralmente não têm log), o painel direito aparece com Ambiente vazio ("Este usuário ainda não acessou após a coleta ser ativada"), dando a impressão de que **"não mostra nada de ninguem"**.
+- Para usuários que de fato têm log (ex.: Mario Castro id=2), o Ambiente é renderizado normalmente — confirmei no replay/network que o backend devolve o objeto completo.
 
-## Ajuste proposto
+## Plano
 
-Adicionar um disparo **uma vez por sessão de navegador** (além do login) que envia o snapshot de ambiente assim que o app carrega com um usuário já autenticado.
+### 1. Edge function `telemetry` — nova action `get_users_with_telemetry`
 
-### Onde
+Adicionar caso que retorna a lista de `user_id`s que possuem registros em `user_device_log` (e opcionalmente último `occurred_at`):
 
-`src/contexts/AuthContext.tsx` — efeito que roda quando `user` deixa de ser nulo na hidratação inicial.
+```ts
+case 'get_users_with_telemetry': {
+  const { data, error } = await admin
+    .from('user_device_latest')   // 1 linha por usuário
+    .select('user_id, occurred_at');
+  if (error) return json({ error: error.message }, 400);
+  return json({ data: data ?? [] });
+}
+```
 
-### Lógica
+(Usar a view `user_device_latest` evita varrer toda a tabela e já dá o último acesso por usuário.)
 
-- `useEffect([user?.id])`: se `user` existe e `sessionStorage.getItem('telemetry_device_sent')` está vazio, chama `collectClientEnvironment() → logUserDevice(...)` e marca o flag.
-- `sessionStorage` (não `localStorage`) garante: 1x por aba/sessão, e re-coleta quando abrirem o navegador novamente (capturando mudança de rede/dispositivo).
-- Mantém o disparo atual dentro de `login()` (cobre login novo).
-- Falha silenciosa, igual hoje.
+### 2. Hook `useDeviceTelemetry.ts`
 
-### Resultado esperado
+Adicionar `useUsersWithTelemetry()` que devolve um `Map<userId, lastOccurredAt>` consumindo essa action, com `staleTime: 60_000`.
 
-- Próxima vez que cada usuário ativo abrir o app, surge a linha em `user_device_log`.
-- A aba **Ambiente** do `/admin/monitoramento` começa a popular para esses usuários sem precisar pedir logout.
-- Performance continua dependendo do usuário navegar (comportamento correto — não dá pra coletar Web Vitals de quem não está usando).
+### 3. `TelemetryExplorer.tsx` — filtragem da lista
 
-## Fora do escopo
+- Chamar `useUsersWithTelemetry()` no topo.
+- Antes do filtro de busca/role, manter **apenas** os usuários cujo `id` está no conjunto retornado.
+- Ordenar por **último acesso desc** (mais recentes primeiro) para facilitar diagnóstico.
+- Mostrar contador no topo: `"X usuários com dados de telemetria"`.
+- Se o filtro por role/role + busca esvaziar a lista, manter a mensagem "Nenhum usuário".
+- Como agora todo usuário listado tem device, simplificar o fallback "Sem dados de acesso ainda" do `UserRow` (apenas defesa, pode permanecer).
+- Auto-selecionar o **primeiro usuário** da lista filtrada (quando nada estiver selecionado) para que o painel da direita já apareça com Ambiente preenchido — resolvendo a impressão de "vazio para todos".
 
-- Não mexer no edge function `telemetry` (já validado funcionando).
-- Não mexer na UI da aba (`DeviceTelemetryTab`) nem nos hooks de leitura.
-- Não criar nova migration.
+### 4. (Opcional, sem custo extra) Mostrar último acesso no item
+
+Adicionar pequeno texto `há 5 min`, `hoje 14:22` etc. no `UserRow`, vindo do `occurred_at` do mapa — facilita ver quem está ativo.
+
+### Arquivos tocados
+
+- `supabase/functions/telemetry/index.ts` — nova action.
+- `src/pages/admin/monitoramento/hooks/useDeviceTelemetry.ts` — novo hook.
+- `src/pages/admin/monitoramento/components/TelemetryExplorer.tsx` — filtro + auto-seleção + contador (+ opcional último acesso).
+
+Sem mudanças de schema, sem migrations, sem alterar a aba **Dashboard** nem a aba **Agentes monitorados**.

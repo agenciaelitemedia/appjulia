@@ -54,6 +54,13 @@ Deno.serve(async (req) => {
         if (error) return json({ error: error.message }, 400);
         return json({ data: rows ?? [] });
       }
+      case 'get_users_with_telemetry': {
+        const { data: rows, error } = await admin
+          .from('user_device_latest')
+          .select('user_id, occurred_at');
+        if (error) return json({ error: error.message }, 400);
+        return json({ data: rows ?? [] });
+      }
       case 'get_dashboard': {
         const fromISO: string = data?.fromISO ?? new Date(Date.now() - 86400000).toISOString();
         const bucketMs: number = Number(data?.bucketMs) || 3600000;

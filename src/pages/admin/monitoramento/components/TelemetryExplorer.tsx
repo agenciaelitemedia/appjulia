@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,12 +9,13 @@ import {
   Monitor, Smartphone, Tablet, Cpu, MemoryStick, Wifi, AlertTriangle,
   Chrome, Globe, Search, Gauge, Info,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { useUsersWithPermissions } from '../../permissoes/hooks/usePermissionsAdmin';
 import { roleLabels } from '../../permissoes/types';
 import type { UserWithPermissions } from '../../permissoes/types';
 import {
-  useUserDeviceLatest, useUserPerformance, deviceIsWeak, avg,
+  useUserDeviceLatest, useUserPerformance, useUsersWithTelemetry, deviceIsWeak, avg,
   type DeviceInfo,
 } from '../hooks/useDeviceTelemetry';
 
@@ -42,8 +43,8 @@ function fmtMs(ms: number | null): string {
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
 }
 
-function UserRow({ user, device, selected, onSelect }: {
-  user: UserWithPermissions; device: DeviceInfo | undefined; selected: boolean; onSelect: () => void;
+function UserRow({ user, device, lastSeen, selected, onSelect }: {
+  user: UserWithPermissions; device: DeviceInfo | undefined; lastSeen: string | undefined; selected: boolean; onSelect: () => void;
 }) {
   const weak = deviceIsWeak(device);
   return (
@@ -56,7 +57,14 @@ function UserRow({ user, device, selected, onSelect }: {
     >
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-sm truncate">{user.name}</span>
-        {weak && <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {weak && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+          {lastSeen && (
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+              {formatDistanceToNow(new Date(lastSeen), { locale: ptBR, addSuffix: false })}
+            </span>
+          )}
+        </div>
       </div>
       {device ? (
         <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[11px] text-muted-foreground">
@@ -223,15 +231,34 @@ export function TelemetryExplorer() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const { data: users = [], isLoading } = useUsersWithPermissions(roleFilter === 'all' ? undefined : roleFilter);
-  const userIds = useMemo(() => users.map((u) => u.id), [users]);
+  const { data: telemetryMap } = useUsersWithTelemetry();
+
+  // Mantém apenas usuários que possuem dados de telemetria
+  const usersWithData = useMemo(() => {
+    if (!telemetryMap) return [];
+    return users
+      .filter((u) => telemetryMap.has(u.id))
+      .sort((a, b) => {
+        const ta = new Date(telemetryMap.get(a.id) ?? 0).getTime();
+        const tb = new Date(telemetryMap.get(b.id) ?? 0).getTime();
+        return tb - ta;
+      });
+  }, [users, telemetryMap]);
+
+  const userIds = useMemo(() => usersWithData.map((u) => u.id), [usersWithData]);
   const { data: devices = {} } = useUserDeviceLatest(userIds);
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
-    return users.filter((u) => !s || u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s));
-  }, [users, search]);
+    return usersWithData.filter((u) => !s || u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s));
+  }, [usersWithData, search]);
 
-  const selectedUser = users.find((u) => u.id === selectedId) ?? null;
+  // Auto-seleciona o primeiro usuário (mais recente) quando nada estiver selecionado
+  useEffect(() => {
+    if (selectedId == null && filtered.length > 0) setSelectedId(filtered[0].id);
+  }, [filtered, selectedId]);
+
+  const selectedUser = usersWithData.find((u) => u.id === selectedId) ?? null;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ minHeight: 'calc(100vh - 320px)' }}>
@@ -249,14 +276,17 @@ export function TelemetryExplorer() {
             </SelectContent>
           </Select>
         </div>
+        <p className="text-[11px] text-muted-foreground px-1">
+          {usersWithData.length} usuário{usersWithData.length === 1 ? '' : 's'} com telemetria · ordenados pelo último acesso
+        </p>
         <div className="space-y-1.5 overflow-y-auto flex-1">
           {isLoading ? (
             [1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full" />)
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Nenhum usuário.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">Nenhum usuário com dados de telemetria.</p>
           ) : (
             filtered.map((u) => (
-              <UserRow key={u.id} user={u} device={devices[u.id]} selected={u.id === selectedId} onSelect={() => setSelectedId(u.id)} />
+              <UserRow key={u.id} user={u} device={devices[u.id]} lastSeen={telemetryMap?.get(u.id)} selected={u.id === selectedId} onSelect={() => setSelectedId(u.id)} />
             ))
           )}
         </div>
