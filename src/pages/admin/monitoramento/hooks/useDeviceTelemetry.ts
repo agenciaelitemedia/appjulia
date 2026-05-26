@@ -51,13 +51,12 @@ export function useUserDeviceLatest(userIds: number[]) {
     enabled: ids.length > 0,
     staleTime: 30_000,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('user_device_latest')
-        .select('*')
-        .in('user_id', ids);
+      const { data: resp, error } = await supabase.functions.invoke('telemetry', {
+        body: { action: 'get_device_latest', data: { userIds: ids } },
+      });
       if (error) throw error;
       const map: Record<number, DeviceInfo> = {};
-      for (const row of ((data ?? []) as DeviceInfo[])) map[Number(row.user_id)] = row;
+      for (const row of (((resp as any)?.data ?? []) as DeviceInfo[])) map[Number(row.user_id)] = row;
       return map;
     },
   });
@@ -70,14 +69,11 @@ export function useUserPerformance(userId: number | null) {
     enabled: !!userId,
     staleTime: 30_000,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from('user_performance_log')
-        .select('*')
-        .eq('user_id', userId)
-        .order('occurred_at', { ascending: false })
-        .limit(100);
+      const { data: resp, error } = await supabase.functions.invoke('telemetry', {
+        body: { action: 'get_user_performance', data: { userId } },
+      });
       if (error) throw error;
-      return (data ?? []) as PerfRow[];
+      return (((resp as any)?.data ?? []) as PerfRow[]);
     },
   });
 }
