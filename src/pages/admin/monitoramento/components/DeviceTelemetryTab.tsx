@@ -4,10 +4,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import {
   Monitor, Smartphone, Tablet, Cpu, MemoryStick, Wifi, AlertTriangle,
-  Chrome, Globe, Search, Gauge,
+  Chrome, Globe, Search, Gauge, Info,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useUsersWithPermissions } from '../../permissoes/hooks/usePermissionsAdmin';
@@ -112,7 +113,18 @@ function TelemetryDetail({ user, device }: { user: UserWithPermissions; device: 
       <Card className="p-4">
         <div className="flex items-center gap-2 mb-3">
           <Gauge className="h-4 w-4 text-primary" />
-          <h4 className="font-medium">Performance {stats.samples > 0 && <span className="text-xs text-muted-foreground">(média de {stats.samples} amostras)</span>}</h4>
+          <h4 className="font-medium flex items-center gap-1">
+            Performance
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                Métricas de performance do navegador do usuário. A média é calculada a partir das últimas 9 amostras coletadas em navegações recentes.
+              </TooltipContent>
+            </Tooltip>
+            {stats.samples > 0 && <span className="text-xs text-muted-foreground">(média de {stats.samples} amostras)</span>}
+          </h4>
         </div>
         {isLoading ? (
           <Skeleton className="h-16 w-full" />
