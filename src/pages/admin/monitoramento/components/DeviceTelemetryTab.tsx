@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import {
   Monitor, Smartphone, Tablet, Cpu, MemoryStick, Wifi, AlertTriangle,
-  Chrome, Globe, Search, Gauge,
+  Chrome, Globe, Search, Gauge, Info,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useUsersWithPermissions } from '../../permissoes/hooks/usePermissionsAdmin';
