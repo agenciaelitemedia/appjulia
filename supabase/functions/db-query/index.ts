@@ -177,6 +177,9 @@ function createConnection(caCerts: string[]) {
         max_lifetime: 60 * 30,
         max: 2,
         prepare: false,
+        onconnect: async (conn: any) => {
+          try { await conn.unsafe("SET statement_timeout = 30000"); } catch (_) {}
+        },
       })
     : postgres({
         host: Deno.env.get('EXTERNAL_DB_HOST'),
@@ -190,6 +193,9 @@ function createConnection(caCerts: string[]) {
         max_lifetime: 60 * 30,
         max: 2,
         prepare: false,
+        onconnect: async (conn: any) => {
+          try { await conn.unsafe("SET statement_timeout = 30000"); } catch (_) {}
+        },
       });
 }
 
