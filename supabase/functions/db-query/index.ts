@@ -177,11 +177,6 @@ function createConnection(caCerts: string[]) {
         max_lifetime: 60 * 30,
         max: 2,
         prepare: false,
-        connection: {
-          // Cancel any single query after 30s on the DB side so the edge
-          // function never hits the 150s IDLE_TIMEOUT waiting on Postgres.
-          statement_timeout: '30000',
-        },
       })
     : postgres({
         host: Deno.env.get('EXTERNAL_DB_HOST'),
@@ -195,9 +190,6 @@ function createConnection(caCerts: string[]) {
         max_lifetime: 60 * 30,
         max: 2,
         prepare: false,
-        connection: {
-          statement_timeout: '30000',
-        },
       });
 }
 
