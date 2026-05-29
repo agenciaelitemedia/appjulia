@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import JSZip from "npm:jszip@3.10.1";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -84,60 +85,89 @@ serve(async (req) => {
       );
     }
 
-    // Select the appropriate file URL
-    let fileUrl: string | null = null;
-    
-    if (file === 'signed') {
-      fileUrl = docData.signed_file || docData.original_file;
-      if (!docData.signed_file && docData.original_file) {
-        console.log('signed_file not available, falling back to original_file');
-      }
-    } else {
-      fileUrl = docData.original_file;
-    }
+    // Build the list of files to deliver: main doc + extra_docs
+    const sanitize = (s: string) =>
+      (s || '').replace(/[^a-zA-Z0-9_\-. ]/g, '').substring(0, 100) || 'contrato';
 
-    if (!fileUrl) {
+    const pickUrl = (d: any): string | null => {
+      if (file === 'signed') return d?.signed_file || d?.original_file || null;
+      return d?.original_file || null;
+    };
+
+    const safeFileName = sanitize(docName);
+    const extras: any[] = Array.isArray(docData.extra_docs) ? docData.extra_docs : [];
+
+    const entries: { name: string; url: string }[] = [];
+    const mainUrl = pickUrl(docData);
+    if (mainUrl) entries.push({ name: sanitize(docData.name || 'contrato'), url: mainUrl });
+    extras.forEach((ed, idx) => {
+      const u = pickUrl(ed);
+      if (u) entries.push({ name: sanitize(ed?.name || `anexo-${idx + 1}`), url: u });
+    });
+
+    if (entries.length === 0) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: file === 'signed' 
+        JSON.stringify({
+          success: false,
+          error: file === 'signed'
             ? 'Documento ainda não foi assinado ou não possui arquivo disponível'
-            : 'Arquivo original não disponível'
+            : 'Arquivo original não disponível',
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Fetch the actual file from S3 and stream it
-    console.log(`Fetching file from: ${fileUrl.substring(0, 50)}...`);
-    
-    const fileResponse = await fetch(fileUrl);
-    
-    if (!fileResponse.ok) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Erro ao baixar arquivo: ${fileResponse.status}` 
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Single file → stream the PDF directly (preserves current behavior)
+    if (entries.length === 1) {
+      const only = entries[0];
+      console.log(`Fetching single file from: ${only.url.substring(0, 60)}...`);
+      const fileResponse = await fetch(only.url);
+      if (!fileResponse.ok) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Erro ao baixar arquivo: ${fileResponse.status}` }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      const contentType = fileResponse.headers.get('Content-Type') || 'application/pdf';
+      return new Response(fileResponse.body, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': contentType,
+          'Content-Disposition': `attachment; filename="${safeFileName}.pdf"`,
+        },
+      });
     }
 
-    // Get content type from S3 response, default to PDF
-    const contentType = fileResponse.headers.get('Content-Type') || 'application/pdf';
-    
-    // Sanitize filename
-    const safeFileName = docName
-      .replace(/[^a-zA-Z0-9_\-. ]/g, '')
-      .substring(0, 100) || 'contrato';
-    
-    // Stream the response back
-    return new Response(fileResponse.body, {
+    // Multiple files (main + extras) → build a ZIP
+    console.log(`Bundling ${entries.length} files (1 main + ${entries.length - 1} extras) into a ZIP`);
+    const zip = new JSZip();
+    const used = new Map<string, number>();
+
+    const downloads = await Promise.all(
+      entries.map(async (e, idx) => {
+        const r = await fetch(e.url);
+        if (!r.ok) throw new Error(`Falha ao baixar "${e.name}" (HTTP ${r.status})`);
+        const buf = new Uint8Array(await r.arrayBuffer());
+        let base = `${String(idx + 1).padStart(2, '0')} - ${e.name}`;
+        if (!/\.pdf$/i.test(base)) base += '.pdf';
+        const count = (used.get(base) || 0) + 1;
+        used.set(base, count);
+        const finalName = count === 1 ? base : base.replace(/\.pdf$/i, ` (${count}).pdf`);
+        return { name: finalName, data: buf };
+      })
+    );
+
+    for (const f of downloads) zip.file(f.name, f.data);
+    const zipBuffer = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+    console.log(`ZIP generated: ${zipBuffer.byteLength} bytes`);
+
+    return new Response(zipBuffer, {
       status: 200,
       headers: {
         ...corsHeaders,
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${safeFileName}.pdf"`,
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="${safeFileName}.zip"`,
       },
     });
 
