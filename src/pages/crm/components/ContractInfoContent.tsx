@@ -58,7 +58,8 @@ export const ContractInfoContent: React.FC<ContractInfoContentProps> = ({ contra
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       const disposition = response.headers.get('Content-Disposition');
-      let fileName = `${contractInfo.signer_name || contactName || 'contrato'}.pdf`;
+      const ext = (response.headers.get('Content-Type') || '').includes('zip') ? 'zip' : 'pdf';
+      let fileName = `${contractInfo.signer_name || contactName || 'contrato'}.${ext}`;
       if (disposition) {
         const match = disposition.match(/filename="?([^";\n]+)"?/);
         if (match?.[1]) fileName = match[1];
