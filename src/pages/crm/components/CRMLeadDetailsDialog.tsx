@@ -220,7 +220,8 @@ export function CRMLeadDetailsDialog({
       const blobUrl = URL.createObjectURL(blob);
       
       const disposition = response.headers.get('Content-Disposition');
-      let fileName = `${contractInfo.signer_name || card?.contact_name || 'contrato'}.pdf`;
+      const ext = (response.headers.get('Content-Type') || '').includes('zip') ? 'zip' : 'pdf';
+      let fileName = `${contractInfo.signer_name || card?.contact_name || 'contrato'}.${ext}`;
       if (disposition) {
         const match = disposition.match(/filename="?([^";\n]+)"?/);
         if (match?.[1]) {

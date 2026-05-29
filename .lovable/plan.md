@@ -1,57 +1,55 @@
-## Diagnóstico
+## Problema
 
-Verifiquei a aba **Ambiente & Performance → Dados** (`TelemetryExplorer.tsx`) e os dados no banco:
+A edge function `zapsign-file` baixa apenas o arquivo principal (`signed_file` / `original_file`) retornado pela API do ZapSign. Quando o contrato tem **documentos complementares** (campo `extra_docs` na resposta da API `GET /api/v1/docs/{doc_token}/`), eles são ignorados e o usuário recebe só o PDF principal.
 
-- Existem **23 usuários** com registros em `user_device_log` (e 315 amostras em `user_performance_log`).
-- A view `user_device_latest` está populada corretamente (Mario Castro, Romilda, Ana Carolina, etc.).
-- A edge function `telemetry/get_device_latest` está OK.
-
-**O que está acontecendo hoje**: o `TelemetryExplorer` lista **todos os usuários da permissão** (centenas, vindos do CRM externo via `useUsersWithPermissions`). A grande maioria nunca abriu o app depois que a coleta foi ligada, então:
-
-- A lista mostra muita gente sem dado (mostra "Sem dados de acesso ainda" embaixo do nome).
-- Ao clicar nos primeiros usuários (que geralmente não têm log), o painel direito aparece com Ambiente vazio ("Este usuário ainda não acessou após a coleta ser ativada"), dando a impressão de que **"não mostra nada de ninguem"**.
-- Para usuários que de fato têm log (ex.: Mario Castro id=2), o Ambiente é renderizado normalmente — confirmei no replay/network que o backend devolve o objeto completo.
-
-## Plano
-
-### 1. Edge function `telemetry` — nova action `get_users_with_telemetry`
-
-Adicionar caso que retorna a lista de `user_id`s que possuem registros em `user_device_log` (e opcionalmente último `occurred_at`):
-
-```ts
-case 'get_users_with_telemetry': {
-  const { data, error } = await admin
-    .from('user_device_latest')   // 1 linha por usuário
-    .select('user_id, occurred_at');
-  if (error) return json({ error: error.message }, 400);
-  return json({ data: data ?? [] });
+A API do ZapSign expõe os anexos assim:
+```json
+{
+  "token": "...",
+  "name": "Contrato Principal",
+  "signed_file": "https://.../main_signed.pdf",
+  "original_file": "https://.../main.pdf",
+  "extra_docs": [
+    { "token": "...", "name": "Procuração", "signed_file": "...", "original_file": "..." },
+    { "token": "...", "name": "RG",          "signed_file": "...", "original_file": "..." }
+  ]
 }
 ```
 
-(Usar a view `user_device_latest` evita varrer toda a tabela e já dá o último acesso por usuário.)
+## Solução
 
-### 2. Hook `useDeviceTelemetry.ts`
+Empacotar o documento principal + todos os `extra_docs` em um único **ZIP** no servidor e devolver ao frontend. Mantém compatibilidade: se não houver extras, segue baixando apenas o PDF (comportamento atual).
 
-Adicionar `useUsersWithTelemetry()` que devolve um `Map<userId, lastOccurredAt>` consumindo essa action, com `staleTime: 60_000`.
+### 1. `supabase/functions/zapsign-file/index.ts`
+- Após resolver `docData`, montar lista de arquivos: principal + cada item de `docData.extra_docs ?? []`.
+- Para cada arquivo, escolher `signed_file` (fallback para `original_file`) conforme o parâmetro `file`.
+- Se a lista tiver **1 só item** → manter o comportamento atual (stream do PDF direto, mesmo header `Content-Disposition`).
+- Se tiver **2+ itens**:
+  - Baixar todos em paralelo (`Promise.all` com `fetch`).
+  - Usar a lib `jszip` via `npm:jszip@3` para gerar o ZIP em memória.
+  - Nomear cada entrada como `${index+1} - ${nome_sanitizado}.pdf` (deduplicar nomes iguais com sufixo).
+  - Retornar com `Content-Type: application/zip` e `Content-Disposition: attachment; filename="<docName>.zip"`.
+- Manter o envelope JSON de erro atual (status 200 + `{success:false,error}`) para falhas de validação/credencial.
+- Logar quantidade de extras e tamanho final do zip.
 
-### 3. `TelemetryExplorer.tsx` — filtragem da lista
+### 2. Frontend — nenhum ajuste obrigatório
+Os três call-sites (`ContractInfoContent.tsx`, `CRMLeadDetailsDialog.tsx`, `ContratosTable.tsx`, `ContratoDetailsDialog.tsx`) já fazem:
+```ts
+const blob = await response.blob();
+// usa Content-Disposition do header pra nomear
+```
+Como o backend continuará setando `Content-Disposition` correto (`.pdf` ou `.zip`), o download funciona automaticamente. Apenas vou ajustar o fallback de nome local em cada um para respeitar a extensão devolvida (não forçar `.pdf` quando o header trouxer `.zip`), evitando salvar `contrato.pdf` contendo um zip.
 
-- Chamar `useUsersWithTelemetry()` no topo.
-- Antes do filtro de busca/role, manter **apenas** os usuários cujo `id` está no conjunto retornado.
-- Ordenar por **último acesso desc** (mais recentes primeiro) para facilitar diagnóstico.
-- Mostrar contador no topo: `"X usuários com dados de telemetria"`.
-- Se o filtro por role/role + busca esvaziar a lista, manter a mensagem "Nenhum usuário".
-- Como agora todo usuário listado tem device, simplificar o fallback "Sem dados de acesso ainda" do `UserRow` (apenas defesa, pode permanecer).
-- Auto-selecionar o **primeiro usuário** da lista filtrada (quando nada estiver selecionado) para que o painel da direita já apareça com Ambiente preenchido — resolvendo a impressão de "vazio para todos".
+### 3. Deploy
+Redeploy de `zapsign-file` após a edição.
 
-### 4. (Opcional, sem custo extra) Mostrar último acesso no item
+## Arquivos a alterar
+- `supabase/functions/zapsign-file/index.ts` (lógica principal)
+- `src/pages/crm/components/ContractInfoContent.tsx` (fallback de extensão)
+- `src/pages/crm/components/CRMLeadDetailsDialog.tsx` (fallback de extensão)
+- `src/pages/estrategico/contratos/components/ContratosTable.tsx` (fallback de extensão)
+- `src/pages/estrategico/contratos/components/ContratoDetailsDialog.tsx` (fallback de extensão)
 
-Adicionar pequeno texto `há 5 min`, `hoje 14:22` etc. no `UserRow`, vindo do `occurred_at` do mapa — facilita ver quem está ativo.
-
-### Arquivos tocados
-
-- `supabase/functions/telemetry/index.ts` — nova action.
-- `src/pages/admin/monitoramento/hooks/useDeviceTelemetry.ts` — novo hook.
-- `src/pages/admin/monitoramento/components/TelemetryExplorer.tsx` — filtro + auto-seleção + contador (+ opcional último acesso).
-
-Sem mudanças de schema, sem migrations, sem alterar a aba **Dashboard** nem a aba **Agentes monitorados**.
+## Fora de escopo
+- Mudar UI para listar arquivos individualmente (pode ser feito depois se preferir baixar 1 a 1 em vez de zip).
+- Cache do zip / armazenamento em storage.
