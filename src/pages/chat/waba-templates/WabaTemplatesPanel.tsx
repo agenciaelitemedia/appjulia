@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Loader2, Plus, RefreshCw, Search, Trash2, AlertCircle, MessageSquare } from "lucide-react";
 import { useWabaQueues, useWabaTemplatesCache, useSyncTemplates, useDeleteTemplate } from "./useWabaTemplates";
 import { TemplateBuilderDialog } from "./TemplateBuilderDialog";
+import { HeaderTypesReferenceDialog } from "./HeaderTypesReferenceDialog";
 import type { WabaStatus, WabaTemplateRow } from "./types";
 
 const STATUS_VARIANT: Record<WabaStatus, { label: string; cls: string }> = {
@@ -166,6 +167,7 @@ export function WabaTemplatesPanel() {
         <Button onClick={() => setShowBuilder(true)} disabled={!queueId}>
           <Plus className="h-4 w-4 mr-1" /> Criar modelo
         </Button>
+        <HeaderTypesReferenceDialog />
       </div>
 
       {/* Tabela */}
