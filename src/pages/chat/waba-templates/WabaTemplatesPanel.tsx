@@ -204,13 +204,15 @@ export function WabaTemplatesPanel() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></TableCell></TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 {(templates || []).length === 0 ? "Nenhum template cadastrado nesta fila." : "Nenhum resultado para os filtros."}
               </TableCell></TableRow>
             ) : filtered.map((t) => {
               const sv = STATUS_VARIANT[t.status] || STATUS_VARIANT.PENDING;
+              const hb = getHeaderInfo(t);
+              const HeaderIcon = hb.icon;
               return (
                 <TableRow key={t.id}>
                   <TableCell>
@@ -220,6 +222,12 @@ export function WabaTemplatesPanel() {
                     )}
                   </TableCell>
                   <TableCell className="capitalize">{t.category.toLowerCase()}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`gap-1 font-medium ${hb.cls}`}>
+                      <HeaderIcon className="h-3 w-3" />
+                      {hb.label}
+                    </Badge>
+                  </TableCell>
                   <TableCell>{t.language}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={sv.cls}>{sv.label}</Badge>
