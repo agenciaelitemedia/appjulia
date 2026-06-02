@@ -651,14 +651,12 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                         <Search className="h-4 w-4 mr-2" />
                         Buscar nesta conversa
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setShowScheduledList(true)}>
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Mensagens agendadas
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setShowNewTicket(true)}>
-                        <LifeBuoy className="h-4 w-4 mr-2" />
-                        Abrir ticket de suporte
-                      </DropdownMenuItem>
+                      {(user?.role === 'admin' || user?.role === 'colaborador') && (
+                        <DropdownMenuItem onClick={() => setShowNewTicket(true)}>
+                          <LifeBuoy className="h-4 w-4 mr-2" />
+                          Abrir ticket de suporte
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={() => setShowHelp(true)}>
                         <Keyboard className="h-4 w-4 mr-2" />
                         Atalhos de teclado
