@@ -213,7 +213,7 @@ export function WabaTemplatesPanel() {
             ) : filtered.map((t) => {
               const sv = STATUS_VARIANT[t.status] || STATUS_VARIANT.PENDING;
               const hb = getHeaderInfo(t);
-              const HeaderIcon = hb.icon;
+              const HeaderIcon = hb?.icon;
               return (
                 <TableRow key={t.id}>
                   <TableCell>
