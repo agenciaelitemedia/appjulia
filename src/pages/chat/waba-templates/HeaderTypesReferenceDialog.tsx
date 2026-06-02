@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, FileText, Image, Video, MapPin, Type, Ban } from "lucide-react";
 import { WhatsappPreview } from "./WhatsappPreview";
 import type { WabaTemplateComponent } from "./types";
 
@@ -63,6 +63,23 @@ const HEADERS: HeaderSpec[] = [
   },
 ];
 
+function getHeaderStyle(type: HeaderType) {
+  switch (type) {
+    case "NONE":
+      return { icon: Ban, className: "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200", label: "Sem cabeçalho" };
+    case "TEXT":
+      return { icon: Type, className: "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200", label: "Texto" };
+    case "IMAGE":
+      return { icon: Image, className: "bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200", label: "Imagem" };
+    case "VIDEO":
+      return { icon: Video, className: "bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-200", label: "Vídeo" };
+    case "DOCUMENT":
+      return { icon: FileText, className: "bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200", label: "Documento" };
+    case "LOCATION":
+      return { icon: MapPin, className: "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200", label: "Localização" };
+  }
+}
+
 function buildComponents(h: HeaderSpec): WabaTemplateComponent[] {
   const list: WabaTemplateComponent[] = [];
   if (h.type !== "NONE") {
@@ -94,21 +111,29 @@ export function HeaderTypesReferenceDialog() {
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-          {HEADERS.map((h) => (
-            <Card key={h.type} className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="font-mono">{h.type}</Badge>
+          {HEADERS.map((h) => {
+            const style = getHeaderStyle(h.type);
+            const Icon = style.icon;
+            return (
+              <Card key={h.type} className="p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={`gap-1 font-medium ${style.className}`}>
+                    <Icon className="h-3 w-3" />
+                    {style.label}
+                  </Badge>
+                  <span className="text-xs font-mono text-muted-foreground">{h.type}</span>
+                </div>
                 <h3 className="font-semibold text-sm">{h.title}</h3>
-              </div>
-              <p className="text-sm text-muted-foreground">{h.description}</p>
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Limites:</span> {h.limits}
-              </p>
-              <div className="pt-1">
-                <WhatsappPreview components={buildComponents(h)} />
-              </div>
-            </Card>
-          ))}
+                <p className="text-sm text-muted-foreground">{h.description}</p>
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Limites:</span> {h.limits}
+                </p>
+                <div className="pt-1">
+                  <WhatsappPreview components={buildComponents(h)} />
+                </div>
+              </Card>
+            );
+          })}
         </div>
       </DialogContent>
     </Dialog>
