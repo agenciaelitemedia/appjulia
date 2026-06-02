@@ -35,9 +35,10 @@ const HEADER_BADGE: Record<HeaderFormat | "NONE", { label: string; cls: string; 
 
 function getHeaderInfo(t: WabaTemplateRow) {
   const header = (t.components || []).find((c: any) => c.type === "HEADER");
-  if (!header) return HEADER_BADGE.NONE;
+  if (!header) return null;
   const format = (header.format || "TEXT") as HeaderFormat | "NONE";
-  return HEADER_BADGE[format] || HEADER_BADGE.NONE;
+  if (format === "NONE") return null;
+  return HEADER_BADGE[format] || null;
 }
 
 export function WabaTemplatesPanel() {
@@ -223,10 +224,12 @@ export function WabaTemplatesPanel() {
                   </TableCell>
                   <TableCell className="capitalize">{t.category.toLowerCase()}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`gap-1 font-medium ${hb.cls}`}>
-                      <HeaderIcon className="h-3 w-3" />
-                      {hb.label}
-                    </Badge>
+                    {hb && (
+                      <Badge variant="outline" className={`gap-1 font-medium ${hb.cls}`}>
+                        <HeaderIcon className="h-3 w-3" />
+                        {hb.label}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>{t.language}</TableCell>
                   <TableCell>
