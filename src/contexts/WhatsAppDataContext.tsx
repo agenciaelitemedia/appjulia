@@ -2279,20 +2279,36 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const selectedConversation = useMemo(() => {
     if (!selectedContactId) return null;
-     // Leader = most recent conversation for this contact across all queues/statuses.
-     // Prefer the loaded copy from `conversations` (carries any local mutations);
-     // fall back to the leader map (which may include conversations whose group
-     // hasn't been auto-loaded yet, e.g. closed tickets while on the active tab).
+     // Aligns the opened conversation with the card shown in ChatList. On the
+     // active tabs (pending/open) the list picks `convsByContact[0]` from the
+     // active-only `conversations` slice, so the detail panel must pick the same
+     // active conversation — never a closed/resolved one that happens to have a
+     // newer updated_at. For resolved/closed tabs we keep the leader behavior.
+     const onActiveTab =
+       conversationStatusFilter === 'open' ||
+       conversationStatusFilter === 'pending' ||
+       conversationStatusFilter === 'all';
+
+     if (onActiveTab) {
+       const activeForContact = conversations
+         .filter(c => c.contact_id === selectedContactId && ['pending', 'open'].includes(c.status))
+         .sort((a, b) => {
+           const ta = Date.parse(a.updated_at || a.created_at || '') || 0;
+           const tb = Date.parse(b.updated_at || b.created_at || '') || 0;
+           return tb - ta;
+         });
+       if (activeForContact[0]) return activeForContact[0];
+     }
+
      const leader = leaderByContact.get(selectedContactId);
      if (leader) {
        const loaded = conversations.find(c => c.id === leader.id);
        return loaded || leader;
      }
-     // Defensive fallback to legacy behavior if the leader map is still cold.
      return conversations.find(c => c.contact_id === selectedContactId && ['pending', 'open'].includes(c.status))
        || conversations.find(c => c.contact_id === selectedContactId && ['resolved', 'closed'].includes(c.status))
        || null;
-   }, [conversations, selectedContactId, leaderByContact]);
+   }, [conversations, selectedContactId, leaderByContact, conversationStatusFilter]);
 
   const filteredContacts = useMemo(() => {
     let filtered = contacts;
