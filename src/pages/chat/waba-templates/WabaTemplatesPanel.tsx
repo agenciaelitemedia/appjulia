@@ -195,6 +195,7 @@ export function WabaTemplatesPanel() {
             <TableRow>
               <TableHead>Nome do modelo</TableHead>
               <TableHead>Categoria</TableHead>
+              <TableHead>Cabeçalho</TableHead>
               <TableHead>Idioma</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Última edição</TableHead>
