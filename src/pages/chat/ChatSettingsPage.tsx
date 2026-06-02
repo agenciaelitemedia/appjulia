@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Settings, Timer, Tag as TagIcon, Cog, Radio, Zap, Activity } from 'lucide-react';
+import { ArrowLeft, Settings, Timer, Tag as TagIcon, Cog, Radio, Zap, Activity, FileText } from 'lucide-react';
 import { TagsManagerContent } from '@/components/chat/TagsManagerDialog';
 import { ChatSlaConfigContent } from './ChatSlaConfigPage';
 import { WhatsAppDataProvider } from '@/contexts/WhatsAppDataContext';
@@ -10,6 +10,7 @@ import ChatChannelsPage from './ChatChannelsPage';
 import ChatAutomationsPage from './ChatAutomationsPage';
 import { ChatGeneralSettings } from './components/ChatGeneralSettings';
 import { ChatReturnChatMonitor } from './components/ChatReturnChatMonitor';
+import { WabaTemplatesPanel } from './waba-templates/WabaTemplatesPanel';
 
 function ChatSettingsContent() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ function ChatSettingsContent() {
       </div>
 
       <Tabs defaultValue="geral" className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'max-w-4xl grid-cols-6' : 'max-w-xl grid-cols-3'}`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'max-w-5xl grid-cols-7' : 'max-w-xl grid-cols-3'}`}>
           <TabsTrigger value="geral" className="gap-1.5">
             <Cog className="h-3.5 w-3.5" /> Geral
           </TabsTrigger>
@@ -54,6 +55,11 @@ function ChatSettingsContent() {
           {isAdmin && (
             <TabsTrigger value="automacoes" className="gap-1.5">
               <Zap className="h-3.5 w-3.5" /> Automações
+            </TabsTrigger>
+          )}
+          {isAdmin && (
+            <TabsTrigger value="waba-templates" className="gap-1.5">
+              <FileText className="h-3.5 w-3.5" /> Templates WABA
             </TabsTrigger>
           )}
         </TabsList>
@@ -85,6 +91,12 @@ function ChatSettingsContent() {
         {isAdmin && (
           <TabsContent value="automacoes" className="mt-6">
             <ChatAutomationsPage embedded />
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="waba-templates" className="mt-6">
+            <WabaTemplatesPanel />
           </TabsContent>
         )}
       </Tabs>
