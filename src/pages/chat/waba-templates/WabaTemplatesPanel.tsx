@@ -233,7 +233,7 @@ export function WabaTemplatesPanel() {
                   <TableCell>{t.language}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={sv.cls}>{sv.label}</Badge>
-                    {t.rejection_reason && (
+                    {t.rejection_reason && t.rejection_reason !== "NONE" && (
                       <div className="text-xs text-red-600 mt-1">{t.rejection_reason}</div>
                     )}
                   </TableCell>
