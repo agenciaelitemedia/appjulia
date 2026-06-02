@@ -35,9 +35,10 @@ const HEADER_BADGE: Record<HeaderFormat | "NONE", { label: string; cls: string; 
 
 function getHeaderInfo(t: WabaTemplateRow) {
   const header = (t.components || []).find((c: any) => c.type === "HEADER");
-  if (!header) return HEADER_BADGE.NONE;
+  if (!header) return null;
   const format = (header.format || "TEXT") as HeaderFormat | "NONE";
-  return HEADER_BADGE[format] || HEADER_BADGE.NONE;
+  if (format === "NONE") return null;
+  return HEADER_BADGE[format] || null;
 }
 
 export function WabaTemplatesPanel() {
