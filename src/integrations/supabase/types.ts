@@ -7038,6 +7038,78 @@ export type Database = {
           },
         ]
       }
+      waba_templates: {
+        Row: {
+          category: string
+          client_id: string
+          components: Json
+          created_at: string
+          id: string
+          language: string
+          last_edited_at: string | null
+          meta_template_id: string
+          name: string
+          quality_score: Json | null
+          queue_id: string
+          rejection_reason: string | null
+          status: string
+          sub_category: string | null
+          synced_at: string
+          waba_id: string
+        }
+        Insert: {
+          category: string
+          client_id: string
+          components: Json
+          created_at?: string
+          id?: string
+          language: string
+          last_edited_at?: string | null
+          meta_template_id: string
+          name: string
+          quality_score?: Json | null
+          queue_id: string
+          rejection_reason?: string | null
+          status: string
+          sub_category?: string | null
+          synced_at?: string
+          waba_id: string
+        }
+        Update: {
+          category?: string
+          client_id?: string
+          components?: Json
+          created_at?: string
+          id?: string
+          language?: string
+          last_edited_at?: string | null
+          meta_template_id?: string
+          name?: string
+          quality_score?: Json | null
+          queue_id?: string
+          rejection_reason?: string | null
+          status?: string
+          sub_category?: string | null
+          synced_at?: string
+          waba_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waba_templates_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "active_queues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waba_templates_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "queues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webchat_config: {
         Row: {
           allowed_domains: string[] | null
