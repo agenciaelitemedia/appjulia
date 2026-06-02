@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, RefreshCw, Search, Trash2, AlertCircle, MessageSquare } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Search, Trash2, AlertCircle, MessageSquare, FileText, Image, Video, MapPin, Type, Ban } from "lucide-react";
 import { useWabaQueues, useWabaTemplatesCache, useSyncTemplates, useDeleteTemplate } from "./useWabaTemplates";
 import { TemplateBuilderDialog } from "./TemplateBuilderDialog";
 import { HeaderTypesReferenceDialog } from "./HeaderTypesReferenceDialog";
@@ -21,6 +21,24 @@ const STATUS_VARIANT: Record<WabaStatus, { label: string; cls: string }> = {
   DISABLED: { label: "Desativado", cls: "bg-gray-100 text-gray-800 border-gray-300" },
   IN_APPEAL: { label: "Em apelação", cls: "bg-blue-100 text-blue-800 border-blue-300" },
 };
+
+type HeaderFormat = "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT" | "LOCATION";
+
+const HEADER_BADGE: Record<HeaderFormat | "NONE", { label: string; cls: string; icon: React.ElementType }> = {
+  NONE: { label: "Sem cabeçalho", cls: "bg-slate-100 text-slate-700 border-slate-200", icon: Ban },
+  TEXT: { label: "Texto", cls: "bg-blue-100 text-blue-700 border-blue-200", icon: Type },
+  IMAGE: { label: "Imagem", cls: "bg-purple-100 text-purple-700 border-purple-200", icon: Image },
+  VIDEO: { label: "Vídeo", cls: "bg-rose-100 text-rose-700 border-rose-200", icon: Video },
+  DOCUMENT: { label: "Documento", cls: "bg-amber-100 text-amber-700 border-amber-200", icon: FileText },
+  LOCATION: { label: "Localização", cls: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: MapPin },
+};
+
+function getHeaderInfo(t: WabaTemplateRow) {
+  const header = (t.components || []).find((c: any) => c.type === "HEADER");
+  if (!header) return HEADER_BADGE.NONE;
+  const format = (header.format || "TEXT") as HeaderFormat | "NONE";
+  return HEADER_BADGE[format] || HEADER_BADGE.NONE;
+}
 
 export function WabaTemplatesPanel() {
   const { data: queues, isLoading: loadingQueues } = useWabaQueues();
@@ -177,6 +195,7 @@ export function WabaTemplatesPanel() {
             <TableRow>
               <TableHead>Nome do modelo</TableHead>
               <TableHead>Categoria</TableHead>
+              <TableHead>Cabeçalho</TableHead>
               <TableHead>Idioma</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Última edição</TableHead>
@@ -185,13 +204,15 @@ export function WabaTemplatesPanel() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></TableCell></TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                 {(templates || []).length === 0 ? "Nenhum template cadastrado nesta fila." : "Nenhum resultado para os filtros."}
               </TableCell></TableRow>
             ) : filtered.map((t) => {
               const sv = STATUS_VARIANT[t.status] || STATUS_VARIANT.PENDING;
+              const hb = getHeaderInfo(t);
+              const HeaderIcon = hb.icon;
               return (
                 <TableRow key={t.id}>
                   <TableCell>
@@ -201,6 +222,12 @@ export function WabaTemplatesPanel() {
                     )}
                   </TableCell>
                   <TableCell className="capitalize">{t.category.toLowerCase()}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`gap-1 font-medium ${hb.cls}`}>
+                      <HeaderIcon className="h-3 w-3" />
+                      {hb.label}
+                    </Badge>
+                  </TableCell>
                   <TableCell>{t.language}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={sv.cls}>{sv.label}</Badge>
