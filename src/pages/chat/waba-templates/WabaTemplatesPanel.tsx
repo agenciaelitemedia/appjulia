@@ -224,10 +224,12 @@ export function WabaTemplatesPanel() {
                   </TableCell>
                   <TableCell className="capitalize">{t.category.toLowerCase()}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`gap-1 font-medium ${hb.cls}`}>
-                      <HeaderIcon className="h-3 w-3" />
-                      {hb.label}
-                    </Badge>
+                    {hb && (
+                      <Badge variant="outline" className={`gap-1 font-medium ${hb.cls}`}>
+                        <HeaderIcon className="h-3 w-3" />
+                        {hb.label}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>{t.language}</TableCell>
                   <TableCell>
