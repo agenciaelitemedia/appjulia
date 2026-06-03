@@ -3,6 +3,8 @@ import type { WabaTemplateComponent } from "./types";
 
 interface Props {
   components: WabaTemplateComponent[];
+  headerMediaPreview?: string | null;
+  headerMediaType?: string | null;
 }
 
 function renderWaText(text: string) {
@@ -15,7 +17,7 @@ function renderWaText(text: string) {
     .replace(/\n/g, "<br/>");
 }
 
-export function WhatsappPreview({ components }: Props) {
+export function WhatsappPreview({ components, headerMediaPreview, headerMediaType }: Props) {
   const header = components.find((c) => c.type === "HEADER");
   const body = components.find((c) => c.type === "BODY");
   const footer = components.find((c) => c.type === "FOOTER");
@@ -25,11 +27,21 @@ export function WhatsappPreview({ components }: Props) {
     <div className="rounded-lg border bg-[#e5ddd5] p-3 min-h-[400px]">
       <div className="bg-white rounded-lg shadow-sm max-w-sm overflow-hidden">
         {header && header.format && header.format !== "TEXT" && (
-          <div className="bg-muted aspect-video flex items-center justify-center text-muted-foreground">
-            {header.format === "IMAGE" && <ImageIcon className="h-10 w-10" />}
-            {header.format === "VIDEO" && <Video className="h-10 w-10" />}
-            {header.format === "DOCUMENT" && <FileText className="h-10 w-10" />}
-            {header.format === "LOCATION" && <MapPin className="h-10 w-10" />}
+          <div className="bg-muted aspect-video flex items-center justify-center text-muted-foreground overflow-hidden">
+            {header.format === "IMAGE" && headerMediaPreview ? (
+              <img src={headerMediaPreview} alt="Prévia" className="w-full h-full object-cover" />
+            ) : header.format === "VIDEO" && headerMediaPreview ? (
+              <video src={headerMediaPreview} className="w-full h-full object-cover" controls />
+            ) : header.format === "DOCUMENT" && headerMediaPreview ? (
+              <iframe src={headerMediaPreview} className="w-full h-full" title="Prévia do documento" />
+            ) : (
+              <>
+                {header.format === "IMAGE" && <ImageIcon className="h-10 w-10" />}
+                {header.format === "VIDEO" && <Video className="h-10 w-10" />}
+                {header.format === "DOCUMENT" && <FileText className="h-10 w-10" />}
+                {header.format === "LOCATION" && <MapPin className="h-10 w-10" />}
+              </>
+            )}
           </div>
         )}
         <div className="p-3 space-y-2">
