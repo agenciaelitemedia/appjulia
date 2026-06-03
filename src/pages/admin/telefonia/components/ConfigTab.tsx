@@ -431,8 +431,13 @@ export function ConfigTab() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={cfg.provider === '3cplus' ? 'default' : 'secondary'} className="text-xs">
-                        {PROVIDER_LABELS[cfg.provider] || cfg.provider}
+                        {(cfg as any).provider_name || PROVIDER_LABELS[cfg.provider] || cfg.provider}
                       </Badge>
+                      {(cfg as any).provider_name && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {PROVIDER_LABELS[cfg.provider]}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs max-w-[200px] truncate">{getDisplayDomain(cfg)}</TableCell>
                     <TableCell>
