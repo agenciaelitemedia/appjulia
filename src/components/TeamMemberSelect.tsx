@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTeamHeartbeat } from '@/hooks/useTeamHeartbeat';
 
 export interface TeamMemberOption {
   id: number | string;
@@ -127,12 +128,21 @@ export function TeamMemberSelect({
 }: TeamMemberSelectProps) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
+  const { isOnline, isAway } = useTeamHeartbeat();
 
   const meName = user?.name || null;
-  const sortedMembers = useMemo(
-    () => [...members].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR')),
-    [members],
-  );
+  const sortedMembers = useMemo(() => {
+    const statusRank = (m: TeamMemberOption): 0 | 1 | 2 => {
+      const id = Number(m.id);
+      if (Number.isFinite(id) && isOnline(id)) return 0;
+      if (Number.isFinite(id) && isAway(id)) return 1;
+      return 2;
+    };
+    return [...members]
+      .map((m) => ({ m, rank: statusRank(m) }))
+      .sort((a, b) => a.rank - b.rank || (a.m.name || '').localeCompare(b.m.name || '', 'pt-BR'))
+      .map((x) => x.m);
+  }, [members, isOnline, isAway]);
 
   // Find selected entry across all sources
   const selectedExtra = extraOptions.find((o) => o.value === value);
@@ -271,10 +281,24 @@ export function TeamMemberSelect({
                   const role = (m.role || '').toLowerCase();
                   const roleLabel = ROLE_LABEL[role];
                   const roleClass = ROLE_BADGE_CLASS[role] || 'bg-muted text-muted-foreground';
+                  const mid = Number(m.id);
+                  const online = Number.isFinite(mid) && isOnline(mid);
+                  const away = !online && Number.isFinite(mid) && isAway(mid);
+                  const statusLabel = online ? 'Online' : away ? 'Ausente' : 'Offline';
+                  const dotClass = online
+                    ? 'bg-emerald-500'
+                    : away
+                    ? 'bg-amber-500'
+                    : 'bg-muted-foreground/40';
+                  const statusBadgeClass = online
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                    : away
+                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                    : 'bg-muted text-muted-foreground border-border';
                   return (
                     <CommandItem
                       key={m.id}
-                      value={`${m.name} ${m.email || ''} ${roleLabel || role}`}
+                      value={`${m.name} ${m.email || ''} ${roleLabel || role} ${statusLabel}`}
                       onSelect={() => {
                         onValueChange(v);
                         setOpen(false);
@@ -282,13 +306,24 @@ export function TeamMemberSelect({
                       className="cursor-pointer gap-2"
                     >
                       <Check className={cn('h-4 w-4 flex-shrink-0', isSel ? 'opacity-100' : 'opacity-0')} />
-                      <MemberAvatar name={m.name} photo={m.photo} size="sm" />
+                      <div className="relative flex-shrink-0">
+                        <MemberAvatar name={m.name} photo={m.photo} size="sm" />
+                        <span
+                          className={cn(
+                            'absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-popover',
+                            dotClass,
+                          )}
+                        />
+                      </div>
                       <div className="flex flex-col gap-0 min-w-0 flex-1">
                         <span className="font-medium text-sm truncate">{m.name}</span>
                         {m.email && (
                           <span className="text-[11px] text-muted-foreground truncate">{m.email}</span>
                         )}
                       </div>
+                      <Badge variant="outline" className={cn('text-[10px] h-5 px-1.5', statusBadgeClass)}>
+                        {statusLabel}
+                      </Badge>
                       {!hideRoleBadge && roleLabel && (
                         <Badge variant="outline" className={cn('text-[10px] h-5 px-1.5', roleClass)}>
                           {roleLabel}
