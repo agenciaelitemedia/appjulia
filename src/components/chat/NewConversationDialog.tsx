@@ -239,6 +239,7 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
           status: 'open',
           assigned_to: currentUser.codAgent,
           opened_at: new Date().toISOString(),
+          protocol: '', // trigger generate_conversation_protocol preenche
         })
         .select('id, contact_id, queue_id')
         .single();
