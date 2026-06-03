@@ -297,15 +297,27 @@ export function ConfigTab() {
 
                 <div>
                   <Label>Provedor</Label>
-                    <Select value={provider} onValueChange={(v) => setProvider(v as ProviderType)}>
+                    <Select value={selectedProviderId ?? ''} onValueChange={handleSelectProvider}>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Selecione um provedor cadastrado..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="api4com">Api4Com</SelectItem>
-                        <SelectItem value="3cplus">3C+</SelectItem>
+                        {providerOptions.length === 0 ? (
+                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                            Nenhum provedor cadastrado. Adicione um na aba "Provedores".
+                          </div>
+                        ) : (
+                          providerOptions.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name} <span className="text-xs text-muted-foreground">· {PROVIDER_LABELS[p.provider]}</span>
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Os campos abaixo são pré-preenchidos a partir do provedor selecionado. Você pode editá-los para criar overrides por cliente.
+                    </p>
                 </div>
 
                 {/* Api4Com fields */}
