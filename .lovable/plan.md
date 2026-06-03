@@ -1,31 +1,62 @@
 ## Objetivo
-Criar uma referência visual no painel de Templates WABA (`/chat/configuracoes` → aba Templates WABA) que liste todos os 6 tipos de HEADER suportados pela Meta, com descrição e exemplo visual de cada um.
 
-## Onde
-- `src/pages/chat/waba-templates/WabaTemplatesPanel.tsx` — adicionar um botão "Tipos de cabeçalho" no header do painel (ao lado de "Sincronizar" / "Novo template") que abre um Dialog.
-- Novo arquivo: `src/pages/chat/waba-templates/HeaderTypesReferenceDialog.tsx` — conteúdo da referência.
+Na aba **Configurações** de `/admin/telefonia`, ao criar/editar uma configuração de cliente:
 
-## Conteúdo do Dialog
-Grid responsivo (2 colunas em desktop, 1 em mobile) com 6 cards, um por tipo:
+1. Trocar o seletor "Provedor" (que hoje é só **api4com / 3C+**) por um seletor com a **lista dos provedores cadastrados na aba Provedores** (ex: `TePABX`, `JuPABX_00`).
+2. Ao selecionar um provedor, **auto-preencher** todos os campos (token, domínio API, SIP, WSS, base URL etc.) com os dados daquele provedor — usuário só edita se quiser override.
+3. Na **listagem** da aba Configurações, exibir o **nome do provedor** (TePABX, JuPABX_00) no lugar do badge "Api4Com"/"3C+".
 
-1. **NONE** — Sem cabeçalho. O template começa direto pelo BODY. Útil para mensagens curtas/transacionais. Exemplo: confirmação de agendamento.
-2. **TEXT** — Cabeçalho de texto (até 60 caracteres). Suporta 1 variável `{{1}}`. Exemplo: "Olá, {{1}}! 👋".
-3. **IMAGE** — Imagem no topo (JPG/PNG, até 5 MB). Exemplo: banner de promoção.
-4. **VIDEO** — Vídeo no topo (MP4, até 16 MB). Exemplo: vídeo curto de boas-vindas.
-5. **DOCUMENT** — Documento PDF (até 100 MB). Exemplo: envio de contrato ou boleto.
-6. **LOCATION** — Localização (latitude/longitude). Exemplo: endereço do escritório para audiência.
+Sem alterar nada do que já funciona (webhooks, save, delete, fluxo de busca de cliente, máscaras de token, etc.).
 
-Cada card terá:
-- Badge com o nome do tipo (NONE, TEXT, etc.)
-- Título amigável + descrição em PT-BR
-- Limites/formatos aceitos
-- Mini preview WhatsApp reaproveitando o componente existente `WhatsappPreview` (passando `components` mockados, com BODY genérico fixo).
+## Mudanças
 
-## Detalhes técnicos
-- Reuso de `WhatsappPreview` de `./WhatsappPreview.tsx` (já renderiza ícones para IMAGE/VIDEO/DOCUMENT/LOCATION e texto para TEXT).
-- Dialog padrão shadcn (`@/components/ui/dialog`) com `max-w-4xl` e `max-h-[85vh] overflow-y-auto`.
-- Ícone do botão: `HelpCircle` do lucide-react, variant `outline`, label "Tipos de cabeçalho".
-- Sem alteração de lógica de negócio; somente UI informativa.
+### 1. Banco — nova coluna `provider_id` em `phone_config`
 
-## Validação
-- Abrir `/chat/configuracoes` → aba Templates WABA → clicar no novo botão → verificar que os 6 cards aparecem com seus previews renderizados corretamente.
+Migration:
+- `ALTER TABLE public.phone_config ADD COLUMN provider_id uuid REFERENCES public.telephony_providers(id) ON DELETE SET NULL;`
+- Index `idx_phone_config_provider_id`.
+
+Nada destrutivo: coluna nullable, configurações existentes continuam funcionando (fallback para `provider` + campos inline).
+
+### 2. Hook `useTelefoniaAdmin` (configs)
+
+- Adicionar `provider_id` no tipo `PhoneConfig` (em `types.ts`).
+- No `saveConfig`, persistir `provider_id` junto com os demais campos.
+- Na query de listagem das configs, fazer um lookup batch em `telephony_providers` (id, name, provider) e anexar `provider_name` ao objeto retornado (igual ao que já faz com `client_name`).
+
+### 3. `ConfigTab.tsx` — formulário Novo/Editar
+
+- Importar `useTelephonyProviders`.
+- Substituir o `<Select>` "Provedor" (que hoje tem só "Api4Com" e "3C+") por um Select com `providers.map(p => <SelectItem value={p.id}>{p.name} <Badge>{tipo}</Badge></SelectItem>)`.
+- Estado novo: `selectedProviderId`.
+- Ao escolher um provider:
+  - Setar `provider` ← `p.provider` (api4com|3cplus) — mantém compatibilidade dos campos atuais.
+  - Pré-popular: `domain`, `sipDomain`, `token`, `threecToken`, `threecBaseUrl`, `threecWsUrl` a partir do provider.
+- Manter os campos editáveis (override por cliente continua possível, exatamente como hoje).
+- No `openEdit(cfg)`, inicializar `selectedProviderId = cfg.provider_id`.
+- No `handleSave`, incluir `provider_id: selectedProviderId` no payload.
+- `isFormValid()`: passa a exigir `selectedProviderId` (em vez de checar token/domain manualmente — mas mantém check para garantir que os campos derivados não estão vazios).
+
+### 4. `ConfigTab.tsx` — Tabela de configurações
+
+- Renomear coluna "Provedor" para mostrar:
+  - `cfg.provider_name` (do provider vinculado) — ex: **TePABX**, **JuPABX_00**.
+  - Fallback: `PROVIDER_LABELS[cfg.provider]` quando `provider_id` for nulo (configs legadas).
+- Badge variant continua diferenciando por tipo (`api4com` vs `3cplus`).
+
+### 5. Não mexer
+
+- `ProvidersTab`, `ProviderDialog`, `useTelephonyProviders`: ficam intactos.
+- Webhooks, deleção, busca de cliente: intactos.
+- Edge functions de discagem (que leem `phone_config` por `cod_agent`/`client_id`): intactas — continuam lendo os mesmos campos inline.
+
+## Pós-implementação
+
+Após o merge, o usuário fará a **edição manual** das configurações já cadastradas para vincular cada uma ao provedor correspondente (TePABX, JuPABX_00, etc.), conforme combinado.
+
+## Arquivos tocados
+
+- `supabase/migrations/<novo>.sql` (add column)
+- `src/pages/admin/telefonia/types.ts` (campo `provider_id` no `PhoneConfig`)
+- `src/pages/admin/telefonia/hooks/useTelefoniaAdmin.ts` (persistir + enriquecer com `provider_name`)
+- `src/pages/admin/telefonia/components/ConfigTab.tsx` (seletor, auto-fill, badge com nome)
