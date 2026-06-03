@@ -8,6 +8,7 @@ import { usePhone } from '@/contexts/PhoneContext';
 import { DiscadorPad } from './DiscadorPad';
 import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { formatPhoneForDialing } from '@/lib/phoneFormat';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
   codAgent?: string;
@@ -29,6 +30,14 @@ export function DiscadorTab({ codAgent, clientId }: Props) {
   const { plan, planLoading } = useTelefoniaData(codAgent, 'api4com', clientId);
   const [number, setNumber] = useState('');
   const planDeactivated = !plan && !planLoading;
+  const { isAdmin } = useAuth();
+  const maskValue = (v?: string | null) => {
+    if (!v) return '—';
+    if (isAdmin) return v;
+    const s = String(v);
+    if (s.length <= 4) return '••••';
+    return `${s.slice(0, 2)}••••${s.slice(-2)}`;
+  };
 
   const phoneInfo = useMemo(() => {
     if (!number || number.replace(/\D/g, '').length < 8) return null;
@@ -97,7 +106,7 @@ export function DiscadorTab({ codAgent, clientId }: Props) {
                 </div>
                 {myExtension.api4com_ramal && (
                   <Badge variant="outline" className="text-[10px] h-5">
-                    {myExtension.api4com_ramal}
+                    {isAdmin ? myExtension.api4com_ramal : '••••'}
                   </Badge>
                 )}
               </div>
@@ -135,15 +144,15 @@ export function DiscadorTab({ codAgent, clientId }: Props) {
                   <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-2 text-xs font-mono">
                     <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
                       <span className="text-muted-foreground">Domínio SIP:</span>
-                      <span className="truncate">{sip.diagnostics.domain || '—'}</span>
+                      <span className="truncate">{maskValue(sip.diagnostics.domain)}</span>
                       <span className="text-muted-foreground">Origem:</span>
-                      <span className="truncate text-muted-foreground">{sip.diagnostics.domainSource || '—'}</span>
+                      <span className="truncate text-muted-foreground">{isAdmin ? (sip.diagnostics.domainSource || '—') : '—'}</span>
                       <span className="text-muted-foreground">WebSocket:</span>
-                      <span className="truncate">{sip.diagnostics.wsUrl || '—'}</span>
+                      <span className="truncate">{maskValue(sip.diagnostics.wsUrl)}</span>
                       <span className="text-muted-foreground">Origem WS:</span>
-                      <span className="truncate text-muted-foreground">{sip.diagnostics.wsUrlSource || '—'}</span>
+                      <span className="truncate text-muted-foreground">{isAdmin ? (sip.diagnostics.wsUrlSource || '—') : '—'}</span>
                       <span className="text-muted-foreground">Usuário:</span>
-                      <span>{sip.diagnostics.username || '—'}</span>
+                      <span>{maskValue(sip.diagnostics.username)}</span>
                       <span className="text-muted-foreground">WS Estado:</span>
                       <Badge variant="outline" className="w-fit text-[10px] h-5">
                         {sip.diagnostics.wsState}
@@ -165,15 +174,21 @@ export function DiscadorTab({ codAgent, clientId }: Props) {
                     {sip.diagnostics.lastError && (
                       <p className="text-destructive flex items-center gap-1">
                         <AlertCircle className="h-3 w-3 shrink-0" />
-                        {sip.diagnostics.lastError}
+                        {isAdmin ? sip.diagnostics.lastError : 'Erro de conexão'}
                       </p>
                     )}
                     {sip.diagnostics.events.length > 0 && (
                       <div className="border-t pt-2 mt-1 space-y-0.5 max-h-32 overflow-y-auto">
                         <p className="text-muted-foreground mb-1">Eventos:</p>
-                        {sip.diagnostics.events.map((e, i) => (
-                          <p key={i} className="text-[10px] leading-tight text-muted-foreground">{e}</p>
-                        ))}
+                        {isAdmin
+                          ? sip.diagnostics.events.map((e, i) => (
+                              <p key={i} className="text-[10px] leading-tight text-muted-foreground">{e}</p>
+                            ))
+                          : (
+                            <p className="text-[10px] leading-tight text-muted-foreground">
+                              {sip.diagnostics.events.length} evento(s) registrados
+                            </p>
+                          )}
                       </div>
                     )}
                   </div>
