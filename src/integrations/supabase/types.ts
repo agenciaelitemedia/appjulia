@@ -4633,6 +4633,7 @@ export type Database = {
           id: number
           is_active: boolean
           provider: string
+          provider_id: string | null
           sip_domain: string | null
           threecplus_base_url: string | null
           threecplus_token: string | null
@@ -4648,6 +4649,7 @@ export type Database = {
           id?: number
           is_active?: boolean
           provider?: string
+          provider_id?: string | null
           sip_domain?: string | null
           threecplus_base_url?: string | null
           threecplus_token?: string | null
@@ -4663,13 +4665,22 @@ export type Database = {
           id?: number
           is_active?: boolean
           provider?: string
+          provider_id?: string | null
           sip_domain?: string | null
           threecplus_base_url?: string | null
           threecplus_token?: string | null
           threecplus_ws_url?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "phone_config_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "telephony_providers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       phone_extension_plans: {
         Row: {

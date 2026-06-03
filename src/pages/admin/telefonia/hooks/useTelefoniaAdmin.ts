@@ -255,12 +255,26 @@ export function useTelefoniaAdmin() {
         new Set(rows.map((r) => r.client_id).filter((x): x is number => x != null)),
       );
       const names = await fetchClientNames(ids);
+      const providerIds = Array.from(
+        new Set(rows.map((r) => r.provider_id).filter((x): x is string => !!x)),
+      );
+      let providerMap: Record<string, { name: string; provider: string }> = {};
+      if (providerIds.length > 0) {
+        const { data: provs } = await (supabase as any)
+          .from('telephony_providers')
+          .select('id,name,provider')
+          .in('id', providerIds);
+        for (const p of (provs ?? []) as any[]) {
+          providerMap[p.id] = { name: p.name, provider: p.provider };
+        }
+      }
       return rows.map((r) => ({
         ...r,
         client_name:
           r.client_id != null ? names[Number(r.client_id)]?.name ?? null : null,
         business_name:
           r.client_id != null ? names[Number(r.client_id)]?.business_name ?? null : null,
+        provider_name: r.provider_id ? providerMap[r.provider_id]?.name ?? null : null,
       })) as unknown as PhoneConfig[];
     },
   });
