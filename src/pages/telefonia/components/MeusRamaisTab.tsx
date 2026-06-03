@@ -212,7 +212,7 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
                         <div className="flex items-center gap-1">
                           {providerNumber || <span className="text-muted-foreground">—</span>}
                           <Badge variant="outline" className="text-[10px] px-1 py-0 hidden sm:inline-flex">
-                            {PROVIDER_LABELS[extProvider] || extProvider}
+                            {providerDisplayName || PROVIDER_LABELS[extProvider] || extProvider}
                           </Badge>
                         </div>
                       </TableCell>
