@@ -53,6 +53,22 @@ export function MeusRamaisTab({ codAgent, clientId }: Props) {
   });
   const provider: ProviderType = ((configData as any)?.provider as ProviderType) || 'api4com';
 
+  const providerId: string | null = (configData as any)?.provider_id ?? null;
+  const { data: providerInfo } = useQuery({
+    queryKey: ['telephony-provider-name', providerId],
+    queryFn: async () => {
+      if (!providerId) return null;
+      const { data } = await (supabase as any)
+        .from('telephony_providers')
+        .select('name')
+        .eq('id', providerId)
+        .maybeSingle();
+      return data as { name: string } | null;
+    },
+    enabled: !!providerId,
+  });
+  const providerDisplayName = providerInfo?.name || null;
+
   const { extensions, extensionsLoading, maxExtensions, usedExtensions, canCreateExtension, plan, createExtension, updateExtension, deleteExtension, syncExtensions } = useTelefoniaData(codAgent, provider, clientId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PhoneExtension | null>(null);
