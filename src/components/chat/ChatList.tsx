@@ -1347,7 +1347,7 @@ export function ChatList() {
             </Popover>
           ) : <div />}
           <TeamMemberSelect
-            members={(isAdmin || user?.role === 'user') ? teamMembers : []}
+            members={(isAdmin || user?.role === 'user' || user?.role === 'colaborador') ? teamMembers : []}
             valueKey="id"
             value={ownerFilter}
             onValueChange={(v) => setOwnerFilter(v ?? 'all')}
