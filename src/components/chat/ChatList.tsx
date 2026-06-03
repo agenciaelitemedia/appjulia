@@ -1765,6 +1765,8 @@ export function ChatList() {
         onOpenChange={(v) => { setNewConvOpen(v); if (!v) setFooterPhone(''); }}
         queues={activeQueues.filter(q => q.channel_type === 'uazapi')}
         initialPhone={footerCountry + footerPhone.replace(/\D/g,'')}
+        clientId={clientId || undefined}
+        currentUser={user?.cod_agent ? { codAgent: String(user.cod_agent), name: user?.name || '' } : undefined}
       />
     </div>
   );
