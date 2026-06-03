@@ -79,6 +79,7 @@ export interface PhoneConfig {
   cod_agent: string | null;
   client_id: number | null;
   provider: ProviderType;
+  provider_id: string | null;
   // Api4Com fields
   api4com_domain: string;
   api4com_token: string;
