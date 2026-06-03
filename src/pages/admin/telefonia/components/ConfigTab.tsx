@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useTelefoniaAdmin } from '../hooks/useTelefoniaAdmin';
 import { useClientSearch, type SearchedClient } from '../hooks/useClientSearch';
+import { useTelephonyProviders, type TelephonyProvider } from '../hooks/useTelephonyProviders';
 import { toast } from 'sonner';
 import type { PhoneConfig, ProviderType } from '../types';
 import { PROVIDER_LABELS } from '../types';
@@ -25,12 +26,14 @@ function getWebhookUrl(provider: ProviderType) {
 export function ConfigTab() {
   const { configs, configsLoading, saveConfig, deleteConfig } = useTelefoniaAdmin();
   const { searchTerm, setSearchTerm, results: clientResults, isLoading: clientSearching } = useClientSearch();
+  const { data: providerOptions = [] } = useTelephonyProviders();
 
   const [editing, setEditing] = useState<PhoneConfig | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   // Form state
   const [selectedClient, setSelectedClient] = useState<SearchedClient | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [provider, setProvider] = useState<ProviderType>('api4com');
   // api4com fields
   const [domain, setDomain] = useState('');
@@ -54,6 +57,7 @@ export function ConfigTab() {
   const resetForm = () => {
     setSelectedClient(null);
     setSearchTerm('');
+    setSelectedProviderId(null);
     setProvider('api4com');
     setDomain('');
     setSipDomain('');
@@ -84,6 +88,7 @@ export function ConfigTab() {
     } else {
       setSelectedClient(null);
     }
+    setSelectedProviderId(cfg.provider_id ?? null);
     setProvider(cfg.provider || 'api4com');
     setDomain(cfg.api4com_domain || '');
     setSipDomain(cfg.sip_domain || '');
@@ -96,8 +101,26 @@ export function ConfigTab() {
     setIsAdding(true);
   };
 
+  const handleSelectProvider = (id: string) => {
+    const p = providerOptions.find((x) => x.id === id);
+    if (!p) return;
+    setSelectedProviderId(id);
+    setProvider(p.provider);
+    if (p.provider === '3cplus') {
+      setThreecToken(p.threecplus_token || '');
+      setThreecBaseUrl(p.threecplus_base_url || 'https://app.3c.fluxoti.com/api/v1');
+      setThreecWsUrl(p.threecplus_ws_url || '');
+      setSipDomain(p.sip_domain || '');
+    } else {
+      setDomain(p.api4com_domain || '');
+      setToken(p.api4com_token || '');
+      setSipDomain(p.sip_domain || '');
+    }
+  };
+
   const isFormValid = () => {
     if (!selectedClient) return false;
+    if (!selectedProviderId) return false;
     if (provider === '3cplus') return !!threecToken;
     return !!(domain && token);
   };
@@ -108,6 +131,7 @@ export function ConfigTab() {
       ...(editing ? { id: editing.id } : {}),
       client_id: selectedClient.id,
       provider,
+      provider_id: selectedProviderId,
     };
     if (provider === '3cplus') {
       payload.threecplus_token = threecToken;
