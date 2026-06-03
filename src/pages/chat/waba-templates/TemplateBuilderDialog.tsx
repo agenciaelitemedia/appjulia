@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,8 @@ export function TemplateBuilderDialog({ open, onOpenChange, queueId }: Props) {
   const [headerType, setHeaderType] = useState<HeaderType>("NONE");
   const [headerText, setHeaderText] = useState("");
   const [headerHandle, setHeaderHandle] = useState<string | null>(null);
+  const [headerMediaPreview, setHeaderMediaPreview] = useState<string | null>(null);
+  const [headerMediaType, setHeaderMediaType] = useState<string | null>(null);
   const [bodyText, setBodyText] = useState("");
   const [bodyExamples, setBodyExamples] = useState<string[]>([]);
   const [footerText, setFooterText] = useState("");
@@ -52,6 +54,8 @@ export function TemplateBuilderDialog({ open, onOpenChange, queueId }: Props) {
     setHeaderType("NONE");
     setHeaderText("");
     setHeaderHandle(null);
+    setHeaderMediaPreview(null);
+    setHeaderMediaType(null);
     setBodyText("");
     setBodyExamples([]);
     setFooterText("");
@@ -153,6 +157,12 @@ export function TemplateBuilderDialog({ open, onOpenChange, queueId }: Props) {
 
   const onUpload = async (file: File) => {
     try {
+      const url = URL.createObjectURL(file);
+      setHeaderMediaPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return url;
+      });
+      setHeaderMediaType(file.type);
       const h = await upload.mutateAsync({ queue_id: queueId, file });
       setHeaderHandle(h);
       toast.success("Amostra enviada");
@@ -160,6 +170,12 @@ export function TemplateBuilderDialog({ open, onOpenChange, queueId }: Props) {
       toast.error(e.message || "Erro no upload");
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (headerMediaPreview) URL.revokeObjectURL(headerMediaPreview);
+    };
+  }, [headerMediaPreview]);
 
   const onSubmit = async () => {
     const err = validateStep2();
@@ -450,7 +466,11 @@ export function TemplateBuilderDialog({ open, onOpenChange, queueId }: Props) {
           {/* Preview */}
           <div className="space-y-2">
             <Label className="text-xs uppercase">Prévia do modelo</Label>
-            <WhatsappPreview components={components} />
+            <WhatsappPreview
+              components={components}
+              headerMediaPreview={headerMediaPreview}
+              headerMediaType={headerMediaType}
+            />
           </div>
         </div>
 
