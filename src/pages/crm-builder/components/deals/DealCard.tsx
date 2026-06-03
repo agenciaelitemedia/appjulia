@@ -53,6 +53,7 @@ import { useChatContactConversationStatus } from '../../hooks/useChatContactConv
 import { useDealJuliaContext } from '../../hooks/useDealJuliaContext';
 import { NewConversationDialog } from '@/components/chat/NewConversationDialog';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DealCardProps {
   deal: CRMDeal;
@@ -85,6 +86,7 @@ export function DealCard({
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
   const { isAvailable: isPhoneAvailable } = usePhone();
+  const { user } = useAuth();
   const {
     attributes,
     listeners,
@@ -584,6 +586,8 @@ export function DealCard({
           initialPhone={(deal.contact_phone || '').replace(/\D/g, '')}
           initialName={deal.contact_name || ''}
           lockContact
+          clientId={user?.client_id ? String(user.client_id) : undefined}
+          currentUser={user?.cod_agent ? { codAgent: String(user.cod_agent), name: user?.name || '' } : undefined}
         />
       )}
     </Card>
