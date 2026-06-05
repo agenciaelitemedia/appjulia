@@ -74,14 +74,38 @@ export default function TicketDetailPage() {
     toast.success('Obrigado pela avaliação!');
   };
 
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await deleteTicket.mutateAsync(id);
+      toast.success('Chamado excluído com sucesso');
+      navigate('/tickets');
+    } catch {
+      toast.error('Erro ao excluir chamado');
+    } finally {
+      setShowDeleteConfirm(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={() => navigate('/tickets')}><ArrowLeft className="h-4 w-4" /></Button>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-lg font-bold truncate">#{ticket.number} · {ticket.subject}</h1>
           <p className="text-xs text-muted-foreground">Aberto em {ticket.opened_at ? format(new Date(ticket.opened_at), 'dd/MM/yyyy HH:mm') : '—'}</p>
         </div>
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setShowDeleteConfirm(true)}
+            title="Excluir chamado"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
