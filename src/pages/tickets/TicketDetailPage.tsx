@@ -37,9 +37,10 @@ function SlaBadge({ overdue }: { overdue: boolean }) {
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const role = useTicketRole();
   const { ticket, messages, isLoading } = useTicket(id);
-  const { reply, setStatus, update, setCsat } = useTicketMutations();
+  const { reply, setStatus, update, setCsat, deleteTicket } = useTicketMutations();
   const { departments, categories } = useSupportConfig();
 
   const [draft, setDraft] = useState('');
@@ -47,6 +48,7 @@ export default function TicketDetailPage() {
   const [sending, setSending] = useState(false);
   const [csat, setCsatScore] = useState(0);
   const [csatComment, setCsatComment] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const isAgent = role === 'agent';
 
