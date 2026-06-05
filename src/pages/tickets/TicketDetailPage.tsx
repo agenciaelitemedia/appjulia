@@ -251,6 +251,28 @@ export default function TicketDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dupla confirmação de exclusão */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir chamado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o chamado <strong>#{ticket.number} · {ticket.subject}</strong>? Esta ação não pode ser desfeita e todas as mensagens associadas serão permanentemente removidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteTicket.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteTicket.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteTicket.isPending ? 'Excluindo…' : 'Sim, excluir chamado'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
