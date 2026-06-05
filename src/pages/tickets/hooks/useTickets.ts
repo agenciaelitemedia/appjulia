@@ -283,7 +283,14 @@ export function useTicketMutations() {
     onSuccess: (_d, v) => invalidate(v.ticketId),
   });
 
-  return { create, reply, setStatus, update, assign, setCsat };
+  const deleteTicket = useMutation({
+    mutationFn: async (ticketId: string) => {
+      await db.from('support_tickets').delete().eq('id', ticketId);
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  return { create, reply, setStatus, update, assign, setCsat, deleteTicket };
 }
 
 // ── Mutations de configuração (departamentos / categorias / SLA / CSAT) ──

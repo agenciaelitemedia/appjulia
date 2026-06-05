@@ -7,10 +7,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Clock, AlertTriangle } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Clock, AlertTriangle, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from '@/components/ui/sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTicket, useTicketMutations, useTicketRole, useSupportConfig, isOverdue } from './hooks/useTickets';
 import {
   STATUS_LABEL, STATUS_BADGE, STATUS_ORDER, PRIORITY_LABEL, PRIORITY_BADGE,
@@ -26,9 +37,10 @@ function SlaBadge({ overdue }: { overdue: boolean }) {
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const role = useTicketRole();
   const { ticket, messages, isLoading } = useTicket(id);
-  const { reply, setStatus, update, setCsat } = useTicketMutations();
+  const { reply, setStatus, update, setCsat, deleteTicket } = useTicketMutations();
   const { departments, categories } = useSupportConfig();
 
   const [draft, setDraft] = useState('');
@@ -36,6 +48,7 @@ export default function TicketDetailPage() {
   const [sending, setSending] = useState(false);
   const [csat, setCsatScore] = useState(0);
   const [csatComment, setCsatComment] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const isAgent = role === 'agent';
 
@@ -61,14 +74,38 @@ export default function TicketDetailPage() {
     toast.success('Obrigado pela avaliação!');
   };
 
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await deleteTicket.mutateAsync(id);
+      toast.success('Chamado excluído com sucesso');
+      navigate('/tickets');
+    } catch {
+      toast.error('Erro ao excluir chamado');
+    } finally {
+      setShowDeleteConfirm(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={() => navigate('/tickets')}><ArrowLeft className="h-4 w-4" /></Button>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-lg font-bold truncate">#{ticket.number} · {ticket.subject}</h1>
           <p className="text-xs text-muted-foreground">Aberto em {ticket.opened_at ? format(new Date(ticket.opened_at), 'dd/MM/yyyy HH:mm') : '—'}</p>
         </div>
+        {isAdmin && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setShowDeleteConfirm(true)}
+            title="Excluir chamado"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -214,6 +251,28 @@ export default function TicketDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dupla confirmação de exclusão */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir chamado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o chamado <strong>#{ticket.number} · {ticket.subject}</strong>? Esta ação não pode ser desfeita e todas as mensagens associadas serão permanentemente removidas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteTicket.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteTicket.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteTicket.isPending ? 'Excluindo…' : 'Sim, excluir chamado'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
