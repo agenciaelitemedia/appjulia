@@ -655,6 +655,17 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                    onClick={() => setShowReturnDialog(true)}
+                    disabled={!isActive || !selectedConversation?.assigned_to}
+                    title="Devolver para fila de atendimento"
+                  >
+                    <Undo2 className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
                     onClick={handleResolve}
                     disabled={!isActive}
