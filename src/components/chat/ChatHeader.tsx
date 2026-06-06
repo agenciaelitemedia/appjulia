@@ -4,7 +4,7 @@ import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, AlarmClock, Keyboard, UserCheck, Scale, Eye, Phone, PhoneOff, ExternalLink, Bot, Loader2, LifeBuoy } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, AlarmClock, Keyboard, UserCheck, Scale, Eye, Phone, PhoneOff, ExternalLink, Bot, Loader2, LifeBuoy, Undo2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -29,6 +29,7 @@ import { useAutoSummaryOnStatusChange } from '@/hooks/useAutoSummaryOnStatusChan
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
 import { TransferDialog } from './TransferDialog';
+import { ReturnToQueueDialog } from './ReturnToQueueDialog';
 import { CSATDialog } from './CSATDialog';
 import { PresenceIndicator } from './PresenceIndicator';
 import { ChatSearchDialog } from './ChatSearchDialog';
