@@ -258,6 +258,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   }, [selectedConversation, slaConfigs, getLastMsgMeta]);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showReturnDialog, setShowReturnDialog] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
