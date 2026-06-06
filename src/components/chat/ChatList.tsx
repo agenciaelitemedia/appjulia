@@ -619,7 +619,6 @@ export function ChatList() {
   const isGroupByContactId = React.useMemo(() => {
     const map = new Map<string, boolean>();
     contacts.forEach((c) => map.set(c.id, !!c.is_group));
-    return map;
     hydratedConvContacts.forEach((c) => {
       if (!map.has(c.id)) map.set(c.id, !!c.is_group);
     });
