@@ -15,6 +15,8 @@ import { ChatInputTagButton } from './ChatInputTagButton';
 import { FormatToolbar } from './FormatToolbar';
 import { MessagePreview } from './MessagePreview';
 import { MediaPreviewDialog } from './MediaPreviewDialog';
+import { LinkPreviewCard } from './LinkPreviewCard';
+import { extractFirstUrl } from '@/lib/chat/linkPreview';
 import { applyFormat, type FormatToken } from '@/lib/whatsappFormat';
 import { externalDb } from '@/lib/externalDb';
 import { interpolateVariables } from '@/lib/messageVariables';
@@ -47,6 +49,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
   const [showFormatBar, setShowFormatBar] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<{ file: File; type: MessageType; caption?: string } | null>(null);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  // Link preview while typing
+  const [debouncedUrl, setDebouncedUrl] = useState<string | null>(null);
+  const [dismissedUrls, setDismissedUrls] = useState<Set<string>>(new Set());
   // Signature toggle — prepends "*Nome do Usuário:*\n" to outgoing messages.
   // Persisted per-user via localStorage; default ON.
   const signatureKey = user?.id ? `chat:signature:enabled:${user.id}` : null;
