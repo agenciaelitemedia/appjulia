@@ -13,6 +13,7 @@ import type { LastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from '@/components/chat/SlaBadge';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
 import { PriorityBadge } from '@/components/chat/PriorityBadge';
+import { ConversationQuickActions } from '@/components/chat/ConversationQuickActions';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 import type { CrmBuilderLink } from '@/hooks/useCRMBuilderLinkedConversations';
 
@@ -166,7 +167,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         }
       }}
       className={cn(
-        'w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] border-b border-border/50 min-w-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'group w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] border-b border-border/50 min-w-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         isSelected
           ? 'bg-primary/15 border-l-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.3)] ring-1 ring-primary/20'
           : cn(
@@ -340,12 +341,13 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             )}
           </div>
           {conversation && (
-            <div className="ml-auto flex-shrink-0">
+            <div className="ml-auto flex-shrink-0 flex items-center gap-1">
               <PriorityBadge
                 conversationId={conversation.id}
                 currentPriority={conversation.priority}
                 compact
               />
+              <ConversationQuickActions conversation={conversation} />
             </div>
           )}
         </div>
