@@ -439,6 +439,17 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
         <MessagePreview text={text} />
       )}
 
+      {/* Link preview while typing */}
+      {!noteMode && debouncedUrl && !dismissedUrls.has(debouncedUrl) && (
+        <div className="px-3 pt-2">
+          <LinkPreviewCard
+            url={debouncedUrl}
+            variant="composer"
+            onDismiss={() => setDismissedUrls((s) => new Set(s).add(debouncedUrl))}
+          />
+        </div>
+      )}
+
       <div className="p-3">
         <div className="flex items-end gap-2">
           {/* Emoji picker */}
