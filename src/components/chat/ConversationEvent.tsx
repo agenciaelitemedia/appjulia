@@ -135,6 +135,12 @@ export function getEventConfig(entry: ConversationHistoryEntry): RenderedConfig 
         label: `Sistema devolveu a conversa à fila automaticamente`,
         color: 'text-amber-600 bg-amber-500/10 border-amber-500/20',
       };
+    case 'returned_to_queue':
+      return {
+        icon: <Undo2 className="h-3 w-3" />,
+        label: `${actor} devolveu a conversa para a fila de atendimento`,
+        color: 'text-amber-600 bg-amber-500/10 border-amber-500/20',
+      };
     default:
       if (ACTION_LABELS[entry.action]) {
         return {
