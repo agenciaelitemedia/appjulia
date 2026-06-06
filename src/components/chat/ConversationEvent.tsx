@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRightLeft, CheckCircle2, XCircle, MessageSquare, RefreshCw, UserCheck, StickyNote, Flag, Pencil, Trophy, RotateCcw } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle2, XCircle, MessageSquare, RefreshCw, UserCheck, StickyNote, Flag, Pencil, Trophy, RotateCcw, Undo2 } from 'lucide-react';
 import { parseDbTimestamp } from '@/lib/dateUtils';
 import type { ConversationHistoryEntry } from '@/types/conversation';
 const ACTION_LABELS: Record<string, string> = {
@@ -17,6 +17,7 @@ const ACTION_LABELS: Record<string, string> = {
   lost: 'marcou como perdido',
   moved: 'movimentou o card',
   auto_returned: 'devolveu a conversa à fila automaticamente',
+  returned_to_queue: 'devolveu a conversa para a fila de atendimento',
 };
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
@@ -28,6 +29,7 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
   won: <Trophy className="h-3 w-3" />,
   lost: <XCircle className="h-3 w-3" />,
   auto_returned: <RotateCcw className="h-3 w-3" />,
+  returned_to_queue: <Undo2 className="h-3 w-3" />,
 };
 
 /** Lista canônica de eventos exibidos na timeline do chat (para tela de configurações). */
@@ -38,6 +40,7 @@ export const CONVERSATION_EVENT_ACTIONS: Array<{ action: string; sampleLabel: st
   { action: 'reopened', sampleLabel: 'reabriu a conversa' },
   { action: 'assigned', sampleLabel: 'assumiu a conversa' },
   { action: 'auto_returned', sampleLabel: 'devolveu a conversa à fila automaticamente' },
+  { action: 'returned_to_queue', sampleLabel: 'devolveu a conversa para a fila de atendimento' },
   { action: 'note_added', sampleLabel: 'adicionou uma nota' },
   { action: 'note_updated', sampleLabel: 'editou uma nota' },
   { action: 'note_deleted', sampleLabel: 'removeu uma nota' },
