@@ -1,55 +1,53 @@
-## Objetivo
-Mostrar prévia de links (estilo WhatsApp) com título, descrição, imagem e domínio:
-1. Nas bolhas de mensagens recebidas e enviadas no histórico do `/chat`.
-2. No input enquanto o usuário digita uma URL.
+# Plano: Devolver conversa para a fila de aguardando atendimento
 
-## Estratégia de dados (em ordem)
-1. **Metadados nativos do WhatsApp**: quando o payload UaZapi/WABA traz `extendedTextMessage.matchedText` + `title` + `description` + `jpegThumbnail` (Open Graph já resolvido pelo provedor), persistir em `message.metadata.link_preview` no momento do upsert da mensagem.
-2. **Fallback**: se a mensagem contém URL mas não tem preview salvo, chamar uma Edge Function própria `link-preview` que faz fetch do HTML, extrai OG/Twitter tags e devolve `{ url, title, description, image, site_name, domain }`. Cacheia em tabela `link_preview_cache` (chave = hash da URL canônica, TTL 30 dias).
+## Objetivo
+Logo após o botão **Transferir** (no header da conversa), incluir um novo botão **Devolver para fila** que:
+1. Abre um modal com campo opcional de **nota de atenção** + botão de confirmação.
+2. Remove a atribuição (`assigned_to = null`) e volta o status para `pending`.
+3. Registra um evento no histórico (`chat_conversation_history`) que aparece como badge na timeline da conversa (ex.: *"Fulano devolveu a conversa para a fila de atendimento — 06/06 08:19"*).
+4. O badge é controlável pelo painel de configurações de eventos do chat (mesma lógica dos demais).
 
 ## Mudanças
 
-### Backend
-- **Migration** `link_preview_cache`: `url_hash text PK`, `url text`, `title`, `description`, `image_url`, `site_name`, `domain`, `fetched_at`, `expires_at`. GRANTs para `authenticated` + `service_role`, RLS permitindo SELECT/INSERT para `authenticated`.
-- **Edge Function `link-preview`** (`supabase/functions/link-preview/index.ts`):
-  - `POST { url }` → valida URL, normaliza, busca no cache; se vazio/expirado faz `fetch` com `User-Agent` de bot, limite 1MB, timeout 5s, parse via regex de `<meta property="og:*">` / `<meta name="twitter:*">` / `<title>`, resolve URLs relativas, grava no cache e retorna JSON.
-  - CORS padrão Lovable. `verify_jwt = true` (default).
+### 1. Novo componente `ReturnToQueueDialog.tsx`
+`src/components/chat/ReturnToQueueDialog.tsx` — espelha o `TransferDialog`:
+- Textarea opcional "Nota de atenção" (placeholder: "Motivo do retorno à fila...").
+- Aviso: "A atribuição atual será removida e a conversa voltará para Aguardando atendimento."
+- Botões **Cancelar** / **Devolver para fila** (variant destructive/amber).
 
-### Frontend
-- **Tipo** `MessageMetadata.link_preview?: { url; title?; description?; image?; site_name?; domain? }` em `src/types/chat.ts`.
-- **Persistência de metadados nativos**: em `WhatsAppDataContext` / mapeador de mensagens UaZapi (onde lemos `extendedTextMessage`), copiar `title`, `description`, `canonicalUrl`/`matchedText`, `jpegThumbnail` (base64) para `metadata.link_preview` quando presentes.
-- **Hook `useLinkPreview(url)`** (`src/hooks/useLinkPreview.ts`):
-  - React Query com chave `['link-preview', url]`, `staleTime` 24h.
-  - Chama edge function `link-preview` via `supabase.functions.invoke`.
-  - Cache LRU em memória (Map) por sessão para evitar refetch.
-- **Util `extractFirstUrl(text)`** em `src/lib/chat/linkPreview.ts` (regex única, ignora URLs dentro de markdown de código).
-- **Componente `LinkPreviewCard`** (`src/components/chat/LinkPreviewCard.tsx`):
-  - Card compacto estilo WhatsApp: borda esquerda colorida, imagem (se houver) no topo ou à direita, título bold 2 linhas, descrição 2 linhas muted, domínio pequeno.
-  - Estados: skeleton enquanto carrega; se erro/sem dados, não renderiza nada.
-  - Usa tokens do design system (sem cores hardcoded).
-  - Clique abre `window.open(url, '_blank', 'noopener')`.
-- **MessageBubble**: depois do texto e antes do timestamp, renderizar `LinkPreviewCard`:
-  - Se `message.metadata?.link_preview` existir → usar direto.
-  - Senão, se `extractFirstUrl(message.text)` retornar URL → chamar `useLinkPreview`.
-  - Apenas para mensagens `type === 'text'` (não em mídia).
-- **ChatInput**: ao digitar, debounce 600ms sobre `extractFirstUrl(input)`; quando URL muda, render `LinkPreviewCard` acima do textarea. Botão "X" para descartar (suprime para essa URL durante o ciclo de digitação).
+### 2. `ChatHeader.tsx`
+- Importar `ReturnToQueueDialog` e ícone `Undo2` (lucide).
+- Adicionar `showReturnDialog` state.
+- Inserir novo botão logo após o botão de Transferir (linha ~607), cor âmbar, `title="Devolver para fila"`, desabilitado quando `!isActive` ou quando `!selectedConversation?.assigned_to`.
+- Implementar `handleReturnToQueue(note?: string)`:
+  1. Capturar `removedAgent = selectedConversation.assigned_to`.
+  2. `UPDATE chat_conversations SET assigned_to = null, status = 'pending' WHERE id = ...` (via supabase client).
+  3. Se `note` informada → `sendInternalNote(contact_id, note, currentUserName, { noteType: 'urgent' })`.
+  4. `INSERT INTO chat_conversation_history` com:
+     - `action: 'returned_to_queue'`
+     - `actor_name: currentUserName`
+     - `from_value: removedAgent`
+     - `to_value: 'pending'`
+     - `notes: note || null`
+  5. Invalidar query da conversa/histórico; toast "Conversa devolvida à fila".
+- Renderizar o `<ReturnToQueueDialog />` junto dos outros dialogs.
+
+### 3. `ConversationEvent.tsx`
+Adicionar suporte ao novo evento na timeline (badge):
+- `ACTION_LABELS['returned_to_queue'] = 'devolveu a conversa para a fila de atendimento'`
+- `ACTION_ICONS['returned_to_queue'] = <Undo2 className="h-3 w-3" />` (importar)
+- Em `CONVERSATION_EVENT_ACTIONS` (lista canônica usada pela configuração): adicionar `{ action: 'returned_to_queue', sampleLabel: 'devolveu a conversa para a fila de atendimento' }`.
+- Em `getEventConfig`, novo `case 'returned_to_queue'` retornando label *"{actor} devolveu a conversa para a fila de atendimento"*, ícone `Undo2`, cor âmbar (`text-amber-600 bg-amber-500/10 border-amber-500/20`).
+
+A visibilidade já é controlada pelo mecanismo existente (`event_visibility` em `chat_client_settings.settings`), pois a lista canônica é a única fonte usada na tela de Configurações → Eventos. Nada novo precisa ser feito ali.
 
 ## Detalhes técnicos
-- Normalização de URL: lowercase host, remove fragmento `#`, mantém query.
-- Hash da URL para `url_hash`: `sha256(url_normalizada)`.
-- Limite: máx 1 preview por mensagem (primeiro link).
-- Segurança: edge function bloqueia esquemas != http/https, IPs privados (SSRF), respeita Content-Type `text/html`.
-- Sem alteração em `last_message_text` da ChatList (escopo definido).
+- Schema: nenhuma migration necessária. `chat_conversation_history.action` é texto livre; `chat_conversations.assigned_to` aceita null; status `pending` já existe.
+- Auto-open trigger: `auto_open_on_assignment` só dispara quando `assigned_to` passa a NÃO nulo, então setar `null + pending` não será revertido.
+- Trigger `sync_conversation_to_deal` espelhará `assigned_to=null` no CRM — comportamento desejado.
+- Permissão: mesmo gate visual usado pelo Transferir (`isActive`). Desabilita também quando não há `assigned_to`.
 
-## Arquivos novos
-- `supabase/migrations/<ts>_link_preview_cache.sql`
-- `supabase/functions/link-preview/index.ts`
-- `src/lib/chat/linkPreview.ts`
-- `src/hooks/useLinkPreview.ts`
-- `src/components/chat/LinkPreviewCard.tsx`
-
-## Arquivos editados
-- `src/types/chat.ts` (campo `link_preview` em `MessageMetadata`)
-- `src/components/chat/MessageBubble.tsx` (render do card no texto)
-- `src/components/chat/ChatInput.tsx` (render do card sobre o input)
-- `src/contexts/WhatsAppDataContext.tsx` (capturar metadados nativos do WhatsApp para `link_preview`)
+## Diagrama da barra de ações
+```text
+[ Info ] [ Snooze ] [ Transferir ] [ Devolver p/ fila ] [ Resolver ] [ Encerrar ] [ ⋮ ]
+```
