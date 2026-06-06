@@ -90,8 +90,9 @@ async function fetchHtml(url: URL): Promise<string | null> {
       redirect: 'follow',
       signal: ctrl.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; LinkPreviewBot/1.0; +https://atendejulia.com.br)',
-        'Accept': 'text/html,application/xhtml+xml',
+        // Use a real-browser UA — muitos sites/CDNs bloqueiam bots identificáveis
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.6',
       },
     });
