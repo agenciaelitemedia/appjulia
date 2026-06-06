@@ -617,7 +617,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {conversationHistory.map(entry => (
+                    {[...conversationHistory].reverse().map(entry => (
                       <div key={entry.id} className="flex gap-3 text-xs">
                         <div className="flex-shrink-0 w-[96px] text-muted-foreground text-right leading-tight whitespace-nowrap">
                           {format(new Date(entry.created_at), 'dd/MM/yy HH:mm', { locale: ptBR })}
