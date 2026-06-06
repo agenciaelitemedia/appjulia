@@ -8,8 +8,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { TransferDialog } from './TransferDialog';
+import { CSATDialog } from './CSATDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useAutoSummaryOnStatusChange } from '@/hooks/useAutoSummaryOnStatusChange';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ChatConversation } from '@/types/conversation';
@@ -20,9 +22,11 @@ interface Props {
 
 export function ConversationQuickActions({ conversation }: Props) {
   const { user } = useAuth();
-  const { assignConversation, updateConversationStatus } = useWhatsAppData();
+  const { assignConversation, updateConversationStatus, sendInternalNote } = useWhatsAppData();
+  const { triggerAutoSummary } = useAutoSummaryOnStatusChange();
   const [open, setOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const currentUserName = user?.name || (user?.id ? String(user.id) : '');
@@ -51,16 +55,27 @@ export function ConversationQuickActions({ conversation }: Props) {
     }
   };
 
-  const handleClose = async (e: React.MouseEvent) => {
-    stop(e);
-    setBusy(true);
+  const handleConfirmClose = async (closeNote: string, _sendSurvey: boolean) => {
+    const trimmedNote = (closeNote || '').trim();
+    if (trimmedNote) {
+      try {
+        await sendInternalNote(
+          conversation.contact_id,
+          trimmedNote,
+          currentUserName || 'Sistema',
+          { noteType: 'urgent', extraMetadata: { closure_note: true } },
+        );
+      } catch (e) {
+        console.warn('[close] failed to post closure internal note', e);
+      }
+    }
     try {
-      await updateConversationStatus(conversation.id, 'closed');
+      await updateConversationStatus(conversation.id, 'closed', closeNote || undefined);
+      triggerAutoSummary(conversation.id, 'auto_close');
       toast.success('Conversa encerrada');
     } catch (err: any) {
       toast.error(`Não foi possível encerrar: ${err?.message || err}`);
-    } finally {
-      setBusy(false);
+      throw err;
     }
   };
 
@@ -118,7 +133,12 @@ export function ConversationQuickActions({ conversation }: Props) {
             <ArrowRightLeft className="h-4 w-4 mr-2" />
             Transferir conversa
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleClose}>
+          <DropdownMenuItem
+            onClick={(e) => {
+              stop(e);
+              setCloseOpen(true);
+            }}
+          >
             <CheckCircle2 className="h-4 w-4 mr-2" />
             Encerrar conversa
           </DropdownMenuItem>
@@ -129,6 +149,16 @@ export function ConversationQuickActions({ conversation }: Props) {
         open={transferOpen}
         onOpenChange={setTransferOpen}
         onTransfer={handleTransferConfirm}
+      />
+
+      <CSATDialog
+        open={closeOpen}
+        onOpenChange={setCloseOpen}
+        conversationId={conversation.id}
+        contactId={conversation.contact_id}
+        clientId={conversation.client_id}
+        codAgent={conversation.cod_agent}
+        onConfirm={handleConfirmClose}
       />
     </>
   );
