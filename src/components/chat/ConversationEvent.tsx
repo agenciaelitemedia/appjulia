@@ -1,23 +1,24 @@
 import React from 'react';
-import { ArrowRightLeft, CheckCircle2, XCircle, MessageSquare, RefreshCw, UserCheck, StickyNote, Flag, Pencil, Trophy, RotateCcw, Undo2 } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle2, XCircle, MessageSquare, RefreshCw, UserCheck, StickyNote, Flag, Pencil, Trophy, RotateCcw, Undo2, Repeat } from 'lucide-react';
 import { parseDbTimestamp } from '@/lib/dateUtils';
 import type { ConversationHistoryEntry } from '@/types/conversation';
 const ACTION_LABELS: Record<string, string> = {
   note_added: 'adicionou uma nota',
   note_updated: 'editou uma nota',
   note_deleted: 'removeu uma nota',
-  priority_changed: 'alterou a prioridade',
-  priority_updated: 'alterou a prioridade',
+  priority_changed: 'mudou a prioridade',
+  priority_updated: 'mudou a prioridade',
   tag_added: 'adicionou uma etiqueta',
   tag_removed: 'removeu uma etiqueta',
   updated: 'atualizou a conversa',
-  created: 'criou a conversa',
+  created: 'iniciou a conversa',
   archived: 'arquivou a conversa',
   won: 'marcou como ganho',
   lost: 'marcou como perdido',
-  moved: 'movimentou o card',
-  auto_returned: 'devolveu a conversa à fila automaticamente',
-  returned_to_queue: 'devolveu a conversa para a fila de atendimento',
+  moved: 'moveu o card',
+  auto_returned: 'devolveu para a fila automaticamente',
+  returned_to_queue: 'devolveu para a fila',
+  auto_resolved_queue_switch: 'encerrou conversa anterior (mudou de fila)',
 };
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
@@ -30,6 +31,7 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
   lost: <XCircle className="h-3 w-3" />,
   auto_returned: <RotateCcw className="h-3 w-3" />,
   returned_to_queue: <Undo2 className="h-3 w-3" />,
+  auto_resolved_queue_switch: <Repeat className="h-3 w-3" />,
 };
 
 /** Lista canônica de eventos exibidos na timeline do chat (para tela de configurações). */
@@ -41,6 +43,7 @@ export const CONVERSATION_EVENT_ACTIONS: Array<{ action: string; sampleLabel: st
   { action: 'assigned', sampleLabel: 'assumiu a conversa' },
   { action: 'auto_returned', sampleLabel: 'devolveu a conversa à fila automaticamente' },
   { action: 'returned_to_queue', sampleLabel: 'devolveu a conversa para a fila de atendimento' },
+  { action: 'auto_resolved_queue_switch', sampleLabel: 'encerrou conversa anterior (mudou de fila)' },
   { action: 'note_added', sampleLabel: 'adicionou uma nota' },
   { action: 'note_updated', sampleLabel: 'editou uma nota' },
   { action: 'note_deleted', sampleLabel: 'removeu uma nota' },
@@ -132,14 +135,20 @@ export function getEventConfig(entry: ConversationHistoryEntry): RenderedConfig 
     case 'auto_returned':
       return {
         icon: <RotateCcw className="h-3 w-3" />,
-        label: `Sistema devolveu a conversa à fila automaticamente`,
+        label: `Sistema devolveu a conversa para a fila automaticamente`,
         color: 'text-amber-600 bg-amber-500/10 border-amber-500/20',
       };
     case 'returned_to_queue':
       return {
         icon: <Undo2 className="h-3 w-3" />,
-        label: `${actor} devolveu a conversa para a fila de atendimento`,
+        label: `${actor} devolveu a conversa para a fila`,
         color: 'text-amber-600 bg-amber-500/10 border-amber-500/20',
+      };
+    case 'auto_resolved_queue_switch':
+      return {
+        icon: <Repeat className="h-3 w-3" />,
+        label: `Conversa anterior encerrada (contato mudou de fila)`,
+        color: 'text-blue-600 bg-blue-500/10 border-blue-500/20',
       };
     default:
       if (ACTION_LABELS[entry.action]) {
