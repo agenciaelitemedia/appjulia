@@ -619,15 +619,27 @@ export function ChatList() {
   const isGroupByContactId = React.useMemo(() => {
     const map = new Map<string, boolean>();
     contacts.forEach((c) => map.set(c.id, !!c.is_group));
+    hydratedConvContacts.forEach((c) => {
+      if (!map.has(c.id)) map.set(c.id, !!c.is_group);
+    });
     return map;
-  }, [contacts]);
+  }, [contacts, hydratedConvContacts]);
 
   const matchesActiveTab = React.useCallback(
     (contactId: string) => {
-      if (!showGroupsTab) return !isGroupByContactId.get(contactId);
-      const isGroup = !!isGroupByContactId.get(contactId);
-      if (activeTab === 'individual') return !isGroup;
-      if (activeTab === 'groups') return isGroup;
+      const known = isGroupByContactId.get(contactId);
+      if (!showGroupsTab) {
+        // Esconder até hidratar para não vazar grupos na lista individual.
+        if (known === undefined) return false;
+        return known === false;
+      }
+      if (activeTab === 'individual') {
+        if (known === undefined) return false;
+        return known === false;
+      }
+      if (activeTab === 'groups') {
+        return known === true;
+      }
       return true;
     },
     [isGroupByContactId, activeTab, showGroupsTab]
