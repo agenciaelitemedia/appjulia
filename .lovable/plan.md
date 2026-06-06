@@ -1,37 +1,55 @@
-## Causa
+## Objetivo
+Mostrar prévia de links (estilo WhatsApp) com título, descrição, imagem e domínio:
+1. Nas bolhas de mensagens recebidas e enviadas no histórico do `/chat`.
+2. No input enquanto o usuário digita uma URL.
 
-Em `/chat`, a aba "Individuais" decide se um contato é grupo com base no mapa `isGroupByContactId` (`src/components/chat/ChatList.tsx`, linhas 619–623), que é construído **apenas** a partir de `contacts` (paginação local de `WhatsAppDataContext`).
+## Estratégia de dados (em ordem)
+1. **Metadados nativos do WhatsApp**: quando o payload UaZapi/WABA traz `extendedTextMessage.matchedText` + `title` + `description` + `jpegThumbnail` (Open Graph já resolvido pelo provedor), persistir em `message.metadata.link_preview` no momento do upsert da mensagem.
+2. **Fallback**: se a mensagem contém URL mas não tem preview salvo, chamar uma Edge Function própria `link-preview` que faz fetch do HTML, extrai OG/Twitter tags e devolve `{ url, title, description, image, site_name, domain }`. Cacheia em tabela `link_preview_cache` (chave = hash da URL canônica, TTL 30 dias).
 
-Quando uma conversa pertence a um contato que ainda **não foi carregado** pela paginação local (caso comum: o cliente 30 tem 91 grupos e ~1.000 contatos, e os grupos costumam ficar fora das primeiras páginas), o lookup retorna `undefined`. No filtro:
+## Mudanças
 
-```ts
-if (activeTab === 'individual') return !isGroup;  // !undefined === true
-```
+### Backend
+- **Migration** `link_preview_cache`: `url_hash text PK`, `url text`, `title`, `description`, `image_url`, `site_name`, `domain`, `fetched_at`, `expires_at`. GRANTs para `authenticated` + `service_role`, RLS permitindo SELECT/INSERT para `authenticated`.
+- **Edge Function `link-preview`** (`supabase/functions/link-preview/index.ts`):
+  - `POST { url }` → valida URL, normaliza, busca no cache; se vazio/expirado faz `fetch` com `User-Agent` de bot, limite 1MB, timeout 5s, parse via regex de `<meta property="og:*">` / `<meta name="twitter:*">` / `<title>`, resolve URLs relativas, grava no cache e retorna JSON.
+  - CORS padrão Lovable. `verify_jwt = true` (default).
 
-Logo o contato é tratado como individual, entra em `missingContactIds`, é hidratado por `useChatContactsByIds` (linha 924) e aparece na lista — mesmo sendo um grupo (`is_group=true` no banco).
-
-A mesma falha ocorre na linha 627 quando `showGroupsTab=false` (cliente sem permissão de grupos): grupos não loadados ainda passam pelo filtro e aparecem misturados.
-
-## Correção
-
-Em `src/components/chat/ChatList.tsx`:
-
-1. Construir `isGroupByContactId` a partir da **união** de `contacts` + `hydratedConvContacts` (já disponível na linha 369) + `fetchedMissing` (linha 924), assim todo `contact_id` referenciado por uma conversa tem seu `is_group` real conhecido antes do filtro decidir.
-
-2. Ajustar `matchesActiveTab` para tratar `undefined` (contato ainda não hidratado) de forma conservadora:
-   - Se `activeTab === 'individual'` ou `showGroupsTab === false`: **excluir** contatos com `is_group` desconhecido até que a hidratação chegue (evita o flash de grupo na aba errada).
-   - Se `activeTab === 'groups'`: manter a regra atual (`is_group === true`).
-
-3. Aplicar o mesmo critério no bloco `visibleContacts` (linhas 816–913), que já chama `matchesActiveTab` — nenhuma mudança extra ali, basta o mapa estar completo.
+### Frontend
+- **Tipo** `MessageMetadata.link_preview?: { url; title?; description?; image?; site_name?; domain? }` em `src/types/chat.ts`.
+- **Persistência de metadados nativos**: em `WhatsAppDataContext` / mapeador de mensagens UaZapi (onde lemos `extendedTextMessage`), copiar `title`, `description`, `canonicalUrl`/`matchedText`, `jpegThumbnail` (base64) para `metadata.link_preview` quando presentes.
+- **Hook `useLinkPreview(url)`** (`src/hooks/useLinkPreview.ts`):
+  - React Query com chave `['link-preview', url]`, `staleTime` 24h.
+  - Chama edge function `link-preview` via `supabase.functions.invoke`.
+  - Cache LRU em memória (Map) por sessão para evitar refetch.
+- **Util `extractFirstUrl(text)`** em `src/lib/chat/linkPreview.ts` (regex única, ignora URLs dentro de markdown de código).
+- **Componente `LinkPreviewCard`** (`src/components/chat/LinkPreviewCard.tsx`):
+  - Card compacto estilo WhatsApp: borda esquerda colorida, imagem (se houver) no topo ou à direita, título bold 2 linhas, descrição 2 linhas muted, domínio pequeno.
+  - Estados: skeleton enquanto carrega; se erro/sem dados, não renderiza nada.
+  - Usa tokens do design system (sem cores hardcoded).
+  - Clique abre `window.open(url, '_blank', 'noopener')`.
+- **MessageBubble**: depois do texto e antes do timestamp, renderizar `LinkPreviewCard`:
+  - Se `message.metadata?.link_preview` existir → usar direto.
+  - Senão, se `extractFirstUrl(message.text)` retornar URL → chamar `useLinkPreview`.
+  - Apenas para mensagens `type === 'text'` (não em mídia).
+- **ChatInput**: ao digitar, debounce 600ms sobre `extractFirstUrl(input)`; quando URL muda, render `LinkPreviewCard` acima do textarea. Botão "X" para descartar (suprime para essa URL durante o ciclo de digitação).
 
 ## Detalhes técnicos
+- Normalização de URL: lowercase host, remove fragmento `#`, mantém query.
+- Hash da URL para `url_hash`: `sha256(url_normalizada)`.
+- Limite: máx 1 preview por mensagem (primeiro link).
+- Segurança: edge function bloqueia esquemas != http/https, IPs privados (SSRF), respeita Content-Type `text/html`.
+- Sem alteração em `last_message_text` da ChatList (escopo definido).
 
-- Dependências do `useMemo` de `isGroupByContactId` passam a incluir `hydratedConvContacts` e `fetchedMissing`.
-- Como `fetchedMissing` é derivado de `missingContactIds` (que por sua vez depende de `visibleContacts`), há um ciclo de hidratação esperado: 1º render esconde grupos desconhecidos da aba individual, 2º render (após hidratação) confirma e mantém só individuais. Sem loops infinitos porque o mapa só cresce.
-- Nenhuma mudança no backend, no schema, nem na sincronização UaZapi — `is_group` continua sendo a fonte de verdade.
-- Nenhuma alteração visual além da lista deixar de exibir grupos na aba "Individuais".
+## Arquivos novos
+- `supabase/migrations/<ts>_link_preview_cache.sql`
+- `supabase/functions/link-preview/index.ts`
+- `src/lib/chat/linkPreview.ts`
+- `src/hooks/useLinkPreview.ts`
+- `src/components/chat/LinkPreviewCard.tsx`
 
-## Verificação
-
-- Abrir `/chat` no cliente 30 (que tem 91 grupos), aba "Individuais": nenhum contato com `is_group=true` deve aparecer; aba "Grupos": todos os 91 devem aparecer normalmente.
-- Cliente sem `allowGroups`: lista mostra somente individuais mesmo durante a paginação inicial.
+## Arquivos editados
+- `src/types/chat.ts` (campo `link_preview` em `MessageMetadata`)
+- `src/components/chat/MessageBubble.tsx` (render do card no texto)
+- `src/components/chat/ChatInput.tsx` (render do card sobre o input)
+- `src/contexts/WhatsAppDataContext.tsx` (capturar metadados nativos do WhatsApp para `link_preview`)

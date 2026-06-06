@@ -114,6 +114,16 @@ export interface MessageMetadata {
   note_type?: 'info' | 'question' | 'urgent';
   conversation_id?: string;
 
+  // Link preview (Open Graph) — native from WhatsApp or fetched by edge function
+  link_preview?: {
+    url: string;
+    title?: string | null;
+    description?: string | null;
+    image?: string | null;
+    site_name?: string | null;
+    domain?: string | null;
+  };
+
   // Any extra fields
   [key: string]: unknown;
 }

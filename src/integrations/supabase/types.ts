@@ -4506,6 +4506,42 @@ export type Database = {
         }
         Relationships: []
       }
+      link_preview_cache: {
+        Row: {
+          description: string | null
+          domain: string | null
+          expires_at: string
+          fetched_at: string
+          image_url: string | null
+          site_name: string | null
+          title: string | null
+          url: string
+          url_hash: string
+        }
+        Insert: {
+          description?: string | null
+          domain?: string | null
+          expires_at?: string
+          fetched_at?: string
+          image_url?: string | null
+          site_name?: string | null
+          title?: string | null
+          url: string
+          url_hash: string
+        }
+        Update: {
+          description?: string | null
+          domain?: string | null
+          expires_at?: string
+          fetched_at?: string
+          image_url?: string | null
+          site_name?: string | null
+          title?: string | null
+          url?: string
+          url_hash?: string
+        }
+        Relationships: []
+      }
       module_embeds: {
         Row: {
           allowed_origins: string[] | null
