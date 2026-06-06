@@ -7,6 +7,8 @@ import { QuotedMessage } from './QuotedMessage';
 import { ReactionPicker } from './ReactionPicker';
 import { ExpandableMessageText } from './ExpandableMessageText';
 import { TranscriptionBlock } from './messages/TranscriptionBlock';
+import { LinkPreviewCard } from './LinkPreviewCard';
+import { extractFirstUrl } from '@/lib/chat/linkPreview';
 import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
 import type { MessageReaction } from '@/hooks/useMessageReactions';
@@ -700,6 +702,14 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
               {message.text && message.type === 'text' && (
                 <ExpandableMessageText text={message.text} formatter={formatWhatsAppText} />
               )}
+
+              {/* Link preview (WhatsApp-style OG card) */}
+              {message.type === 'text' && (() => {
+                const preset = message.metadata?.link_preview;
+                const url = preset?.url || extractFirstUrl(message.text);
+                if (!url) return null;
+                return <LinkPreviewCard url={url} preset={preset} variant="bubble" />;
+              })()}
 
               {/* Timestamp and status */}
               <div className={cn(
