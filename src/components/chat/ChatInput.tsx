@@ -65,6 +65,15 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
     window.localStorage.setItem(signatureKey, signEnabled ? '1' : '0');
   }, [signEnabled, signatureKey]);
 
+  // Debounce link extraction from textarea to drive preview
+  useEffect(() => {
+    if (noteMode) { setDebouncedUrl(null); return; }
+    const handle = setTimeout(() => {
+      setDebouncedUrl(extractFirstUrl(text));
+    }, 600);
+    return () => clearTimeout(handle);
+  }, [text, noteMode]);
+
   // Enter "edit mode": prefill the composer with the message text and focus.
   useEffect(() => {
     if (editingMessage) {
