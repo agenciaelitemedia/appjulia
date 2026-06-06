@@ -419,6 +419,50 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     await assignConversation(selectedConversation.id, assignedTo);
   };
 
+  const handleReturnToQueue = async (note?: string) => {
+    if (!selectedConversation) return;
+    const removedAgent = (selectedConversation.assigned_to || '').trim() || null;
+    const actor = currentUserName || 'Sistema';
+    try {
+      const { error: updErr } = await supabase
+        .from('chat_conversations')
+        .update({ assigned_to: null, status: 'pending' })
+        .eq('id', selectedConversation.id);
+      if (updErr) throw updErr;
+
+      if (note && note.trim()) {
+        try {
+          await sendInternalNote(
+            selectedConversation.contact_id,
+            note.trim(),
+            actor,
+            { noteType: 'urgent', extraMetadata: { returned_to_queue: true } },
+          );
+        } catch (e) {
+          console.warn('[return-to-queue] failed to post internal note', e);
+        }
+      }
+
+      const { error: histErr } = await supabase
+        .from('chat_conversation_history')
+        .insert({
+          conversation_id: selectedConversation.id,
+          action: 'returned_to_queue',
+          actor_name: actor,
+          from_value: removedAgent,
+          to_value: 'pending',
+          notes: note?.trim() || null,
+        });
+      if (histErr) throw histErr;
+
+      toast.success('Conversa devolvida para a fila de atendimento');
+    } catch (e: any) {
+      console.error('[return-to-queue] failed', e);
+      toast.error(`Erro ao devolver: ${e?.message || e}`);
+      throw e;
+    }
+  };
+
   return (
     <>
       <div className="border-b bg-background">
