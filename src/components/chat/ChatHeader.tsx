@@ -4,7 +4,7 @@ import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, AlarmClock, Keyboard, UserCheck, Scale, Eye, Phone, PhoneOff, ExternalLink, Bot, Loader2, LifeBuoy } from 'lucide-react';
+import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Clock, MessageSquare, MessageCircle, Globe, Instagram, Search, Calendar, AlarmClock, Keyboard, UserCheck, Scale, Eye, Phone, PhoneOff, ExternalLink, Bot, Loader2, LifeBuoy, Undo2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -29,6 +29,7 @@ import { useAutoSummaryOnStatusChange } from '@/hooks/useAutoSummaryOnStatusChan
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
 import { TransferDialog } from './TransferDialog';
+import { ReturnToQueueDialog } from './ReturnToQueueDialog';
 import { CSATDialog } from './CSATDialog';
 import { PresenceIndicator } from './PresenceIndicator';
 import { ChatSearchDialog } from './ChatSearchDialog';
@@ -257,6 +258,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   }, [selectedConversation, slaConfigs, getLastMsgMeta]);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showReturnDialog, setShowReturnDialog] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
@@ -415,6 +417,50 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const handleTransfer = async (assignedTo: string, note?: string) => {
     if (!selectedConversation) return;
     await assignConversation(selectedConversation.id, assignedTo);
+  };
+
+  const handleReturnToQueue = async (note?: string) => {
+    if (!selectedConversation) return;
+    const removedAgent = (selectedConversation.assigned_to || '').trim() || null;
+    const actor = currentUserName || 'Sistema';
+    try {
+      const { error: updErr } = await supabase
+        .from('chat_conversations')
+        .update({ assigned_to: null, status: 'pending' })
+        .eq('id', selectedConversation.id);
+      if (updErr) throw updErr;
+
+      if (note && note.trim()) {
+        try {
+          await sendInternalNote(
+            selectedConversation.contact_id,
+            note.trim(),
+            actor,
+            { noteType: 'urgent', extraMetadata: { returned_to_queue: true } },
+          );
+        } catch (e) {
+          console.warn('[return-to-queue] failed to post internal note', e);
+        }
+      }
+
+      const { error: histErr } = await supabase
+        .from('chat_conversation_history')
+        .insert({
+          conversation_id: selectedConversation.id,
+          action: 'returned_to_queue',
+          actor_name: actor,
+          from_value: removedAgent,
+          to_value: 'pending',
+          notes: note?.trim() || null,
+        });
+      if (histErr) throw histErr;
+
+      toast.success('Conversa devolvida para a fila de atendimento');
+    } catch (e: any) {
+      console.error('[return-to-queue] failed', e);
+      toast.error(`Erro ao devolver: ${e?.message || e}`);
+      throw e;
+    }
   };
 
   return (
@@ -609,6 +655,17 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                    onClick={() => setShowReturnDialog(true)}
+                    disabled={!isActive || !selectedConversation?.assigned_to}
+                    title="Devolver para fila de atendimento"
+                  >
+                    <Undo2 className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
                     onClick={handleResolve}
                     disabled={!isActive}
@@ -707,6 +764,14 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         open={showTransferDialog}
         onOpenChange={setShowTransferDialog}
         onTransfer={handleTransfer}
+      />
+
+      {/* Return to queue dialog */}
+      <ReturnToQueueDialog
+        open={showReturnDialog}
+        onOpenChange={setShowReturnDialog}
+        onConfirm={handleReturnToQueue}
+        currentAssignee={selectedConversation?.assigned_to}
       />
 
       {/* Conversation search */}
