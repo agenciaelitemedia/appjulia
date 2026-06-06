@@ -436,7 +436,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             selectedConversation.contact_id,
             note.trim(),
             actor,
-            { noteType: 'urgent', extraMetadata: { returned_to_queue: true } },
+            { noteType: 'info', extraMetadata: { returned_to_queue: true } },
           );
         } catch (e) {
           console.warn('[return-to-queue] failed to post internal note', e);
