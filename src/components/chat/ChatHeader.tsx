@@ -766,6 +766,14 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         onTransfer={handleTransfer}
       />
 
+      {/* Return to queue dialog */}
+      <ReturnToQueueDialog
+        open={showReturnDialog}
+        onOpenChange={setShowReturnDialog}
+        onConfirm={handleReturnToQueue}
+        currentAssignee={selectedConversation?.assigned_to}
+      />
+
       {/* Conversation search */}
       <ChatSearchDialog
         open={showSearch}
