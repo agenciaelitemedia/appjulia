@@ -455,10 +455,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         });
       if (histErr) throw histErr;
 
-      toast.success('Conversa devolvida para a fila de atendimento');
+      toast.success('Conversa devolvida para a fila');
     } catch (e: any) {
       console.error('[return-to-queue] failed', e);
-      toast.error(`Erro ao devolver: ${e?.message || e}`);
+      toast.error(`Não foi possível devolver: ${e?.message || e}`);
       throw e;
     }
   };
