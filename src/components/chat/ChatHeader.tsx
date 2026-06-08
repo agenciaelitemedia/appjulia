@@ -37,7 +37,7 @@ import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { ChatCrmButton } from './ChatCrmButton';
-import { NewTicketDialog } from '@/pages/tickets/components/NewTicketDialog';
+import { ChatTicketSidePanel } from './ChatTicketSidePanel';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from './SlaBadge';
@@ -809,15 +809,11 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
       />
 
       {/* Abrir ticket de suporte a partir da conversa */}
-      <NewTicketDialog
+      <ChatTicketSidePanel
         open={showNewTicket}
-        onOpenChange={setShowNewTicket}
-        prefill={{
-          conversation_id: selectedConversation?.id ?? null,
-          contact_id: contact.id,
-          requester_name: contact.name,
-          requester_phone: contact.phone,
-        }}
+        onClose={() => setShowNewTicket(false)}
+        contact={contact}
+        conversation={selectedConversation ?? null}
       />
     </>
   );
