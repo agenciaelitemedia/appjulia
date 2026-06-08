@@ -350,3 +350,40 @@ export function isOverdue(t: SupportTicket): boolean {
   if (t.sla_resolution_due_at && new Date(t.sla_resolution_due_at).getTime() < now) return true;
   return false;
 }
+
+export type TicketSlaStatus = 'on_track' | 'at_risk' | 'breached' | 'unknown';
+export type TicketSlaType = 'frt' | 'ttr';
+
+export interface TicketSlaEvaluation {
+  status: TicketSlaStatus;
+  slaType: TicketSlaType;
+  slaTypeLabel: string;
+  remainingMinutes: number;
+  targetMinutes: number;
+}
+
+export function evaluateTicketSla(t: SupportTicket): TicketSlaEvaluation {
+  if (['resolved', 'closed'].includes(t.status)) {
+    return { status: 'on_track', slaType: 'ttr', slaTypeLabel: 'Resolução', remainingMinutes: 0, targetMinutes: 0 };
+  }
+  const now = Date.now();
+  const openedAt = t.opened_at ? new Date(t.opened_at).getTime() : (t.created_at ? new Date(t.created_at).getTime() : now);
+
+  const classify = (dueIso: string, slaType: TicketSlaType, slaTypeLabel: string): TicketSlaEvaluation => {
+    const due = new Date(dueIso).getTime();
+    const targetMinutes = Math.max(1, Math.round((due - openedAt) / 60000));
+    const remainingMinutes = Math.round((due - now) / 60000);
+    let status: TicketSlaStatus = 'on_track';
+    if (remainingMinutes < 0) status = 'breached';
+    else if (remainingMinutes <= targetMinutes * 0.25) status = 'at_risk';
+    return { status, slaType, slaTypeLabel, remainingMinutes, targetMinutes };
+  };
+
+  if (!t.first_response_at && t.sla_first_response_due_at) {
+    return classify(t.sla_first_response_due_at, 'frt', '1ª Resposta');
+  }
+  if (t.sla_resolution_due_at) {
+    return classify(t.sla_resolution_due_at, 'ttr', 'Resolução');
+  }
+  return { status: 'unknown', slaType: 'ttr', slaTypeLabel: '', remainingMinutes: 0, targetMinutes: 0 };
+}
