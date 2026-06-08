@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
+import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
 import { useSupportConfig, useTicketMutations } from '@/pages/tickets/hooks/useTickets';
 import { PRIORITY_LABEL, type TicketPriority } from '@/pages/tickets/types';
 import type { ChatContact } from '@/types/chat';
@@ -77,6 +78,10 @@ function ChatTicketForm({
   const { departments, categories } = useSupportConfig();
   const { create } = useTicketMutations();
   const { data: team = [] } = useTeamByClient();
+  const memberOptions: TeamMemberOption[] = useMemo(
+    () => (team || []).map((m) => ({ id: m.id, name: m.name, email: m.email, role: m.role, photo: m.photo })),
+    [team],
+  );
 
   const isGroup = !!contact.is_group || (contact.remote_jid?.endsWith('@g.us') ?? false);
 
@@ -90,21 +95,21 @@ function ChatTicketForm({
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Default "responsável" = usuário logado, se aparecer na lista da equipe
-  const defaultAssigned = useMemo(() => {
-    if (!user) return '';
+  // Default "responsável" (por nome, igual ao TransferDialog) = usuário logado
+  const defaultAssignedName = useMemo(() => {
+    if (!user) return null;
     const userIdStr = String(user.id ?? '');
     const byId = team.find((m) => String(m.id) === userIdStr);
-    if (byId) return String(byId.id);
+    if (byId) return byId.name;
     const byName = team.find((m) => (m.name || '').trim() === (user.name || '').trim());
-    if (byName) return String(byName.id);
-    return '';
+    if (byName) return byName.name;
+    return null;
   }, [team, user]);
 
-  const [assignedTo, setAssignedTo] = useState<string>('');
+  const [assignedName, setAssignedName] = useState<string | null>(null);
   useEffect(() => {
-    if (!assignedTo && defaultAssigned) setAssignedTo(defaultAssigned);
-  }, [defaultAssigned, assignedTo]);
+    if (!assignedName && defaultAssignedName) setAssignedName(defaultAssignedName);
+  }, [defaultAssignedName, assignedName]);
 
   const deptCategories = useMemo(
     () => categories.filter((c) => !c.department_id || c.department_id === departmentId),
@@ -118,7 +123,9 @@ function ChatTicketForm({
     }
     setSaving(true);
     try {
-      const assignedMember = team.find((m) => String(m.id) === assignedTo) || null;
+      const assignedMember = assignedName
+        ? team.find((m) => (m.name || '').trim() === assignedName.trim()) || null
+        : null;
       const id = await create.mutateAsync({
         subject: subject.trim(),
         description: description.trim() || undefined,
@@ -174,14 +181,16 @@ function ChatTicketForm({
 
       <div className="space-y-1">
         <Label>Responsável pelo atendimento</Label>
-        <Select value={assignedTo} onValueChange={setAssignedTo}>
-          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-          <SelectContent>
-            {team.map((m) => (
-              <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <TeamMemberSelect
+          members={memberOptions}
+          value={assignedName}
+          onValueChange={setAssignedName}
+          valueKey="name"
+          allowUnassigned={false}
+          showCurrentUserShortcut
+          placeholder="Selecione um membro da equipe…"
+          className="w-full"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
