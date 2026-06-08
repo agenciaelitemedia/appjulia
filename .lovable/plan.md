@@ -1,72 +1,89 @@
 ## Objetivo
 
-Substituir o popup de "Abrir chamado" disparado no chat por um painel lateral à direita que:
-- Convive com a área de mensagens (sem bloquear cópia/edição/envio);
-- Só fecha pelo botão "Fechar" (sem clique-fora/ESC);
-- Sempre carrega os dados do contato/conversa que acionou (sem resíduo);
-- Permite escolher o "Responsável pelo atendimento" reaproveitando a lista de membros da equipe já usada nos filtros de atendimento, com o usuário logado pré-selecionado;
-- Preserva o vínculo direto com `contact_id` (e sinaliza grupo quando aplicável) para que o detalhe do chamado consiga abrir a conversa correta no mesmo painel lateral usado pelos cards do CRM.
+Reformular o painel lateral esquerdo de `/tickets/:id` em abas (**Detalhes** e **Histórico**) e introduzir badges de SLA ricos (no estilo `/chat`), aplicando a configuração de SLA já existente em "Configurações" do módulo de tickets.
 
-Nada do fluxo atual do `/tickets` (página, kanban, dashboard, criação fora do chat) muda.
+---
 
-## Mudanças
+## 1. Abas no painel lateral esquerdo
 
-### 1. Novo componente `ChatTicketSidePanel` (em `src/components/chat/`)
-- Render como `Sheet` lateral direito, `modal={false}` e bloqueando `onPointerDownOutside`/`onEscapeKeyDown` (`e.preventDefault()`), de forma que o usuário continue interagindo com `ChatMessages`/`ChatInput`.
-- Cabeçalho próprio com título "Abrir chamado" e botão X que é o **único** caminho de fechamento.
-- Largura ~`w-[440px]`/`sm:w-[480px]`, sem overlay escuro.
-- Reaproveita o formulário do `NewTicketDialog` (mover o corpo para um `<ChatTicketForm>` interno), com o seguinte ajuste de estado:
-  - `key={contact.id + '|' + (conversation?.id ?? '')}` para resetar o formulário sempre que mudar o contato/conversa de origem (corrige "dados antigos").
-  - Novo campo **Responsável pelo atendimento** (`assigned_to`) usando `useTeamByClient()` (mesma fonte do filtro de atendimentos / `TransferDialog`). Default = usuário logado (`user.id` se aparecer na lista, senão `user.name`).
-  - Detectar grupo via `contact.is_group` (ou `remote_jid` terminando em `@g.us`) e, ao submeter, enviar `metadata: { is_group: true, group_jid: contact.remote_jid }` para `support_tickets`.
-  - Sempre enviar `contact_id: contact.id` e `conversation_id: selectedConversation?.id ?? null` (vindo do `prefill`).
+Substituir o `Card` único atual por um `Tabs` com duas abas, mantendo a mesma largura (`lg:col-span-1`).
 
-### 2. Integração no chat
-Em `src/components/chat/ChatHeader.tsx`:
-- Trocar `<NewTicketDialog ... />` (linhas 811-821) por `<ChatTicketSidePanel open={showNewTicket} onClose={() => setShowNewTicket(false)} contact={contact} conversation={selectedConversation} />`.
-- Manter o item do menu "Abrir ticket de suporte" como está.
+### Aba "Detalhes"
+Contém exatamente o que hoje aparece no card lateral:
+- Badges (status, prioridade, SLA — agora rico, ver §3)
+- Selects de Status / Prioridade / Departamento / Categoria / Responsável (para agente)
+- Bloco "Solicitante" (nome, e-mail, telefone)
+- Botão "Abrir conversa" (quando há `contact_id`)
+- Bloco CSAT (avaliação ou formulário)
 
-Como o painel não é modal, a área de mensagens (`ChatMessages`/`ChatInput`) continua clicável. Não precisa redimensionar o `ChatContainer`: o painel passa a coexistir sobre o lado direito da viewport e, em viewports menores, o usuário pode rolar/usar normalmente — mesmo padrão visual do `ChatSidePanel` já usado pelo CRM.
+Nenhuma alteração funcional — apenas reembrulhado em `<TabsContent value="detalhes">`.
 
-### 3. Persistência do "responsável" e do "grupo"
-No `useTicketMutations().create` (em `src/pages/tickets/hooks/useTickets.ts`):
-- Aceitar e gravar `assigned_to` (+ `assigned_to_name` resolvido pelo nome do membro selecionado) na criação.
-- Aceitar e mesclar `metadata` (jsonb) ao insert do ticket. Se o schema atual não contiver coluna `metadata`/`assigned_to_name`, ajustar para usar as colunas já existentes (`assigned_to` já existe em `support_tickets`; `assigned_to_name` também). A flag `is_group` vai em `metadata` (criar a coluna se ainda não existir via migration adicionando `metadata jsonb default '{}'::jsonb`).
+### Aba "Histórico"
+Lista cronológica reversa (mais novo primeiro) de **todos** os eventos do ticket, derivados de `support_ticket_messages` filtrando `kind = 'event'` **mais** entradas sintéticas para mensagens públicas/internas (envio de resposta / nota interna).
 
-### 4. `TicketDetailPage` — abrir conversa no painel lateral igual ao do CRM
-Em `src/pages/tickets/TicketDetailPage.tsx`:
-- Substituir o botão atual "Abrir conversa no WhatsApp" (que faz `navigate('/chat')`) por um botão que abre o componente reusável `ChatSidePanel` (`src/components/chat/ChatSidePanel.tsx`).
-- Montar o `target` a partir do ticket:
-  - `contactId = ticket.contact_id`
-  - `conversationId = ticket.conversation_id`
-  - `queueId`: resolver via consulta `chat_conversations.queue_id` quando houver `conversation_id`; senão, buscar a conversa mais recente do contato (`chat_conversations` por `contact_id` ordenado por `updated_at desc`) para obter `queue_id`. Encapsular num hook local `useTicketChatTarget(ticket)`.
-- Botão fica desabilitado quando `ticket.contact_id` é nulo.
+Cada item exibe:
+- Ícone por tipo de evento (criação, mudança de status, prioridade, departamento, categoria, responsável, resposta enviada, nota interna, CSAT)
+- Texto descritivo (já gravado em `body` pelo `logEvent`)
+- Autor (`author_name`) e timestamp formatado (`dd/MM/yyyy HH:mm`)
 
-### 5. Limpeza
-- `NewTicketDialog` continua existindo e sendo usado apenas em `TicketsPage` (botão global "Abrir chamado"). Nenhuma mudança visual ali.
+Eventos já registrados hoje pelas mutations: `created`, `status_change`, `updated` (com `event` opcional), `assigned`, `csat`. O `update` para prioridade já passa `event: "Prioridade: …"`. **Acrescentar** chamadas a `logEvent` para mudanças de **departamento** e **categoria** (hoje passam sem `event`) para que apareçam no histórico de forma consistente.
 
-## Detalhes técnicos
+Também serão exibidas, intercaladas pelo `created_at`, as mensagens `public` e `internal` como "Resposta enviada por X" / "Nota interna por X" — derivadas do mesmo array `messages` já carregado em `useTicket`. Sem nova query.
 
-- **Sheet não-modal**: `radix-ui/react-dialog` (base do `Sheet`) aceita `modal={false}`. Vamos passar a prop direto no `SheetPrimitive.Root` via um wrapper local (ou usar `Popover`/`<div className="fixed">` se a propriedade não estiver exposta no `Sheet` atual). Implementação preferida: `Sheet open ... modal={false}` + `SheetContent onInteractOutside={(e)=>e.preventDefault()} onEscapeKeyDown={(e)=>e.preventDefault()}`.
-- **Resetar estado entre aberturas**: usar `key` no `<ChatTicketForm>` derivado de `contact.id + conversation.id`, garantindo `useState` zerado em cada novo alvo.
-- **Lista de equipe**: `useTeamByClient()` retorna o mesmo array usado em `ChatList`/`TransferDialog`, garantindo paridade com o filtro de atendimentos. Pré-seleção: procurar item cujo `id === user.id` (ou `name === user.name` como fallback).
-- **Vínculo com grupo**: além de `metadata.is_group`, manter `contact_id` (já é a chave usada por `ChatSidePanel`) — o painel do CRM resolve o contato/queue sem depender do tipo individual vs grupo.
-- **Sem regressões**: nenhuma mudança em `TicketsPage`, kanban, dashboard, lista, settings, edge functions ou triggers de `support_tickets`.
+---
+
+## 2. Badges de SLA com nome do responsável nas listas
+
+Sem mudança — a feature já está implementada nas listagens/kanban via badge de responsável. (Não tocar.)
+
+---
+
+## 3. Avaliador de SLA do ticket (estilo `/chat`)
+
+### Diagnóstico atual
+- `useTicketMutations.create` já calcula `sla_first_response_due_at` e `sla_resolution_due_at` a partir de `support_settings.sla[priority]` na criação. ✅
+- Mutations de `reply` já gravam `first_response_at` na primeira resposta do agente. ✅
+- O badge atual é binário (atrasado / no prazo), sem indicar qual SLA está em jogo nem o tempo restante.
+
+### Novo componente `TicketSlaBadge`
+Arquivo: `src/pages/tickets/components/TicketSlaBadge.tsx`.
+
+Reaproveita visual/UX do `src/components/chat/SlaBadge.tsx`:
+- Estados: `on_track` (verde), `at_risk` (âmbar, quando restam ≤ 25% do prazo), `breached` (vermelho), `unknown`.
+- Tipos: **FRT** ("1ª Resposta") quando `first_response_at` ainda é nulo; **TTR** ("Resolução") caso contrário. (Tickets não têm equivalente a NRT do chat.)
+- Tooltip com tipo, descrição curta e tempo restante/atrasado (`formatRemaining` — reaproveitar de `useChatSlaConfigs`).
+- Variante `compact` para listagem/kanban e padrão para o detalhe.
+
+### Função de avaliação
+Adicionar em `src/pages/tickets/hooks/useTickets.ts` (ao lado de `isOverdue`) uma função `evaluateTicketSla(ticket)` que retorna `{ status, slaType, slaTypeLabel, remainingMinutes, targetMinutes }`.
+
+Lógica:
+1. Se `status ∈ {resolved, closed}` → `on_track`, label "Concluído".
+2. Se `!first_response_at` e `sla_first_response_due_at` existe → calcula restante até o due; classifica em on_track / at_risk / breached. SLA type = FRT.
+3. Caso contrário, se `sla_resolution_due_at` existe → calcula restante até o due; classifica idem. SLA type = TTR.
+4. Sem due dates → `unknown` (não renderiza badge).
+
+`isOverdue` permanece para retrocompatibilidade (filtro "apenas atrasados").
+
+### Aplicação
+- Substituir o `SlaBadge` local em `TicketDetailPage.tsx` pelo novo `TicketSlaBadge`.
+- Em `TicketsListTab.tsx` e `TicketsKanban.tsx`: substituir o uso atual de `isOverdue` → badge binário, pelo `TicketSlaBadge` em modo `compact`.
+
+### Validação da configuração
+Verificar que `useSupportConfig().settings.sla` carrega corretamente e que `create` está lendo a coluna `sla` de `support_settings` (já está — sem mudança).
+
+---
 
 ## Arquivos afetados
 
-- `src/components/chat/ChatTicketSidePanel.tsx` (novo)
-- `src/components/chat/ChatHeader.tsx` (troca do dialog pelo side panel)
-- `src/pages/tickets/hooks/useTickets.ts` (aceitar `assigned_to`, `assigned_to_name`, `metadata` no `create`)
-- `src/pages/tickets/TicketDetailPage.tsx` (botão "Abrir conversa" → `ChatSidePanel`)
-- `src/components/chat/index.ts` (export do novo componente, se aplicável)
-- Migration opcional adicionando `metadata jsonb` em `support_tickets` se ainda não existir.
+```text
+src/pages/tickets/TicketDetailPage.tsx        (abas + novo SlaBadge)
+src/pages/tickets/components/TicketSlaBadge.tsx   (novo)
+src/pages/tickets/components/TicketHistoryTab.tsx (novo)
+src/pages/tickets/components/TicketDetailsTab.tsx (novo — refactor do bloco existente)
+src/pages/tickets/components/TicketsListTab.tsx   (badge SLA rico)
+src/pages/tickets/components/TicketsKanban.tsx    (badge SLA rico)
+src/pages/tickets/hooks/useTickets.ts             (evaluateTicketSla + logEvent para depto/categoria)
+```
 
-## Critérios de aceite
-
-1. Clicar em "Abrir ticket de suporte" no menu do chat abre um painel lateral à direita; mensagens continuam clicáveis, selecionáveis e enviáveis.
-2. Painel só fecha pelo botão X. Cliques fora e ESC não fecham.
-3. Mudar de conversa e abrir o painel novamente mostra os dados do novo contato (nada residual).
-4. Há um campo "Responsável" cuja lista é igual à dos filtros de atendimento e vem com o usuário atual selecionado.
-5. Tickets criados a partir de grupo guardam `is_group=true` em `metadata` e o `contact_id` correto.
-6. Em `/tickets/:id`, o botão de abrir conversa abre o mesmo `ChatSidePanel` lateral usado pelos cards do CRM, com a conversa do contato vinculado.
+Sem migração de banco. Sem mudança em RLS. Sem mudança em edge functions.
