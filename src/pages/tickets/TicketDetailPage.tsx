@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { ChatSidePanel, type ChatSidePanelTarget } from '@/components/chat/ChatSidePanel';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,6 +52,42 @@ export default function TicketDetailPage() {
   const [csat, setCsatScore] = useState(0);
   const [csatComment, setCsatComment] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+
+  // Resolve queue_id do ticket: via conversation_id se houver, senão pega a
+  // conversa mais recente do contato.
+  const { data: chatTarget, isLoading: isChatTargetLoading } = useQuery({
+    queryKey: ['ticket-chat-target', ticket?.id, ticket?.conversation_id, ticket?.contact_id],
+    enabled: !!ticket?.contact_id,
+    staleTime: 60_000,
+    queryFn: async (): Promise<ChatSidePanelTarget | null> => {
+      if (!ticket?.contact_id) return null;
+      let conversationId = ticket.conversation_id ?? null;
+      let queueId: string | null = null;
+      if (conversationId) {
+        const { data } = await supabase
+          .from('chat_conversations')
+          .select('id, queue_id')
+          .eq('id', conversationId)
+          .maybeSingle();
+        queueId = (data?.queue_id as string | null) ?? null;
+      }
+      if (!queueId) {
+        const { data } = await supabase
+          .from('chat_conversations')
+          .select('id, queue_id')
+          .eq('contact_id', ticket.contact_id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data) {
+          queueId = (data.queue_id as string | null) ?? null;
+          if (!conversationId) conversationId = (data.id as string) ?? null;
+        }
+      }
+      return { contactId: ticket.contact_id, queueId, conversationId };
+    },
+  });
 
   const isAgent = role === 'agent';
 
@@ -159,9 +198,15 @@ export default function TicketDetailPage() {
               {ticket.requester_phone && <p className="text-xs text-muted-foreground">{ticket.requester_phone}</p>}
             </div>
 
-            {ticket.conversation_id && (
-              <Button variant="outline" size="sm" className="w-full gap-1" onClick={() => navigate('/chat')}>
-                <MessageCircle className="h-4 w-4" /> Abrir conversa no WhatsApp
+            {ticket.contact_id && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-1"
+                onClick={() => setChatPanelOpen(true)}
+                disabled={isChatTargetLoading}
+              >
+                <MessageCircle className="h-4 w-4" /> Abrir conversa
               </Button>
             )}
 
@@ -273,6 +318,15 @@ export default function TicketDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ChatSidePanel
+        open={chatPanelOpen}
+        onOpenChange={setChatPanelOpen}
+        target={chatTarget ?? null}
+        isLoading={isChatTargetLoading}
+        title={`Conversa do chamado #${ticket.number ?? ''}`}
+        emptyDescription="Este chamado não está vinculado a uma conversa de chat."
+      />
     </div>
   );
 }
