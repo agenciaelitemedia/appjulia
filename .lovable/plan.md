@@ -1,22 +1,13 @@
-# Encerrar conversa pelo menu da lista = mesma ação do header
+Ajustar o botão de menu de ações em `src/components/chat/ConversationQuickActions.tsx` para não ocupar espaço quando o mouse não estiver sobre a conversa.
 
-Hoje o item "Encerrar conversa" do menu da lista (`ConversationQuickActions`) chama direto `updateConversationStatus('closed')`. O header da mensagem usa um fluxo mais rico via `CSATDialog`, com nota interna e pesquisa de satisfação. Vou unificar: o item do menu abre o mesmo `CSATDialog` e executa o mesmo `handleConfirmClose` usado no `ChatHeader`.
+Mudança única no `className` do `Button` (trigger do DropdownMenu):
 
-## Alteração
+- Remover: `opacity-0 group-hover:opacity-100 focus-visible:opacity-100`
+- Adicionar: largura colapsada por padrão e expansão no hover/focus/aberto:
+  - base: `h-5 w-0 p-0 overflow-hidden opacity-0 transition-[width,opacity] duration-150`
+  - hover/foco no grupo: `group-hover:w-5 group-hover:opacity-100 focus-visible:w-5 focus-visible:opacity-100`
+  - estado aberto: `open && 'w-5 opacity-100'`
 
-**`src/components/chat/ConversationQuickActions.tsx`** (edição)
+Resultado: sem hover, o chevron some completamente e os ícones (PriorityBadge etc.) ficam encostados à direita. Ao passar o mouse, o botão aparece à direita do PriorityBadge.
 
-- Remover `handleClose` direto e o item de menu disparar `setCloseOpen(true)` para abrir o `CSATDialog`.
-- Importar `CSATDialog` e o hook `useAutoSummaryOnStatusChange`.
-- Pegar `sendInternalNote` do `useWhatsAppData()` (já disponível).
-- Implementar `handleConfirmClose(closeNote, _sendSurvey)` idêntico ao do `ChatHeader`:
-  1. Se houver `closeNote.trim()`, chama `sendInternalNote(contact_id, note, currentUserName||'Sistema', { noteType: 'urgent', extraMetadata: { closure_note: true } })` com try/catch que apenas loga.
-  2. `await updateConversationStatus(conversation.id, 'closed', closeNote || undefined)`.
-  3. `triggerAutoSummary(conversation.id, 'auto_close')`.
-  4. Toast de sucesso.
-- Renderizar `<CSATDialog>` com props: `open`, `onOpenChange`, `conversationId={conversation.id}`, `contactId={conversation.contact_id}`, `clientId={conversation.client_id}`, `codAgent={conversation.cod_agent}`, `onConfirm={handleConfirmClose}`.
-
-## Fora de escopo
-
-- Nenhuma mudança em backend, schema, hooks ou no `ChatHeader`.
-- Itens "Assumir" e "Transferir" do menu permanecem como estão.
+Nada mais é alterado (lógica, dialogs, estilos do item, comportamento de clique permanecem iguais).

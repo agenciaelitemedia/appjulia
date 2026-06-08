@@ -102,9 +102,10 @@ export function ConversationQuickActions({ conversation }: Props) {
             disabled={busy}
             aria-label="Ações da conversa"
             className={cn(
-              'h-5 w-5 p-0 rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent',
-              'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
-              open && 'opacity-100',
+              'h-5 w-0 p-0 overflow-hidden rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent',
+              'opacity-0 transition-[width,opacity] duration-150',
+              'group-hover:w-5 group-hover:opacity-100 focus-visible:w-5 focus-visible:opacity-100',
+              open && 'w-5 opacity-100',
             )}
           >
             {busy ? (
