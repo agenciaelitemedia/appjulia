@@ -10,6 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,24 +22,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Clock, AlertTriangle, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
+  CircleDot, ArrowRightLeft, Flag, Building2, FolderTree, UserCheck, Reply, Star as StarIcon, Activity,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTicket, useTicketMutations, useTicketRole, useSupportConfig, isOverdue } from './hooks/useTickets';
+import { useTicket, useTicketMutations, useTicketRole, useSupportConfig } from './hooks/useTickets';
+import { TicketSlaBadge } from './components/TicketSlaBadge';
 import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import {
   STATUS_LABEL, STATUS_BADGE, STATUS_ORDER, PRIORITY_LABEL, PRIORITY_BADGE,
   type TicketStatus, type TicketPriority,
 } from './types';
-
-function SlaBadge({ overdue }: { overdue: boolean }) {
-  return overdue
-    ? <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 gap-1"><AlertTriangle className="h-3 w-3" />SLA atrasado</Badge>
-    : <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 gap-1"><Clock className="h-3 w-3" />No prazo</Badge>;
-}
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +51,8 @@ export default function TicketDetailPage() {
   const teamMembers: TeamMemberOption[] = (team || []).map((m) => ({
     id: m.id, name: m.name, email: m.email, role: m.role, photo: m.photo,
   }));
+  const deptName = (id: string | null | undefined) => departments.find((d) => d.id === id)?.name ?? '—';
+  const catName  = (id: string | null | undefined) => categories.find((c) => c.id === id)?.name ?? '—';
 
   const [draft, setDraft] = useState('');
   const [internal, setInternal] = useState(false);
