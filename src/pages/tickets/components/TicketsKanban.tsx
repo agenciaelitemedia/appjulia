@@ -8,16 +8,16 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { AlertTriangle, MessageCircle } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { User } from 'lucide-react';
-import { useTickets, useTicketMutations, isOverdue, type TicketFilters } from '../hooks/useTickets';
+import { useTickets, useTicketMutations, type TicketFilters } from '../hooks/useTickets';
+import { TicketSlaBadge } from './TicketSlaBadge';
 import {
   KANBAN_STATUSES, STATUS_LABEL, STATUS_BADGE, PRIORITY_LABEL, PRIORITY_BADGE,
   type SupportTicket, type TicketStatus,
 } from '../types';
 
 function TicketCard({ ticket, onClick, dragging }: { ticket: SupportTicket; onClick?: () => void; dragging?: boolean }) {
-  const overdue = isOverdue(ticket);
   return (
     <div
       onClick={onClick}
@@ -29,7 +29,7 @@ function TicketCard({ ticket, onClick, dragging }: { ticket: SupportTicket; onCl
       <div className="flex items-center gap-1.5">
         <span className="text-[11px] font-mono text-muted-foreground">#{ticket.number ?? '—'}</span>
         {ticket.conversation_id && <MessageCircle className="h-3 w-3 text-emerald-500" />}
-        {overdue && <AlertTriangle className="h-3 w-3 text-red-500 ml-auto" />}
+        <span className="ml-auto"><TicketSlaBadge ticket={ticket} compact /></span>
       </div>
       <p className="text-sm font-medium line-clamp-2">{ticket.subject}</p>
       <div className="flex items-center justify-between gap-2">
