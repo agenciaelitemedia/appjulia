@@ -10,6 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,23 +22,74 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Clock, AlertTriangle, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
+  CircleDot, ArrowRightLeft, Flag, Building2, FolderTree, UserCheck, Reply, Star as StarIcon, Activity,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTicket, useTicketMutations, useTicketRole, useSupportConfig, isOverdue } from './hooks/useTickets';
+import { useTicket, useTicketMutations, useTicketRole, useSupportConfig } from './hooks/useTickets';
+import { TicketSlaBadge } from './components/TicketSlaBadge';
 import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import {
   STATUS_LABEL, STATUS_BADGE, STATUS_ORDER, PRIORITY_LABEL, PRIORITY_BADGE,
   type TicketStatus, type TicketPriority,
 } from './types';
+import type { TicketMessage } from './types';
 
-function SlaBadge({ overdue }: { overdue: boolean }) {
-  return overdue
-    ? <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 gap-1"><AlertTriangle className="h-3 w-3" />SLA atrasado</Badge>
-    : <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 gap-1"><Clock className="h-3 w-3" />No prazo</Badge>;
+function eventIcon(eventType: string | null, kind: string) {
+  if (kind === 'public') return Reply;
+  if (kind === 'internal') return StickyNote;
+  switch (eventType) {
+    case 'created': return CircleDot;
+    case 'status_change': return ArrowRightLeft;
+    case 'assigned': return UserCheck;
+    case 'csat': return StarIcon;
+    default: return Flag;
+  }
+}
+
+function eventLabel(m: TicketMessage): string {
+  if (m.kind === 'public') return `Resposta enviada${m.author_name ? ` por ${m.author_name}` : ''}`;
+  if (m.kind === 'internal') return `Nota interna${m.author_name ? ` por ${m.author_name}` : ''}`;
+  return m.body || m.event_type || 'Evento';
+}
+
+function TicketHistory({ messages }: { messages: TicketMessage[] }) {
+  const items = [...messages].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+  if (items.length === 0) {
+    return <p className="text-xs text-muted-foreground py-6 text-center">Sem eventos ainda.</p>;
+  }
+  return (
+    <ScrollArea className="max-h-[60vh] pr-2">
+      <ol className="space-y-3">
+        {items.map((m) => {
+          const Icon = eventIcon(m.event_type, m.kind);
+          return (
+            <li key={m.id} className="flex gap-2 text-sm">
+              <div className="flex flex-col items-center pt-0.5">
+                <span className="rounded-full border bg-muted/40 p-1.5">
+                  <Icon className="h-3 w-3 text-muted-foreground" />
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="leading-snug">{eventLabel(m)}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {m.author_name ? `${m.author_name} · ` : ''}
+                  {format(new Date(m.created_at), 'dd/MM/yyyy HH:mm')}
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </ScrollArea>
+  );
 }
 
 export default function TicketDetailPage() {
@@ -51,6 +104,8 @@ export default function TicketDetailPage() {
   const teamMembers: TeamMemberOption[] = (team || []).map((m) => ({
     id: m.id, name: m.name, email: m.email, role: m.role, photo: m.photo,
   }));
+  const deptName = (id: string | null | undefined) => departments.find((d) => d.id === id)?.name ?? '—';
+  const catName  = (id: string | null | undefined) => categories.find((c) => c.id === id)?.name ?? '—';
 
   const [draft, setDraft] = useState('');
   const [internal, setInternal] = useState(false);
@@ -154,15 +209,24 @@ export default function TicketDetailPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Coluna esquerda: meta */}
+        {/* Coluna esquerda: abas (Detalhes / Histórico) */}
         <Card className="lg:col-span-1 h-fit">
-          <CardHeader className="pb-3"><CardTitle className="text-base">Detalhes</CardTitle></CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex flex-wrap gap-2">
-              <Badge className={STATUS_BADGE[ticket.status]}>{STATUS_LABEL[ticket.status]}</Badge>
-              <Badge className={PRIORITY_BADGE[ticket.priority]}>{PRIORITY_LABEL[ticket.priority]}</Badge>
-              <SlaBadge overdue={isOverdue(ticket)} />
-            </div>
+          <Tabs defaultValue="detalhes" className="w-full">
+            <CardHeader className="pb-2">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+                <TabsTrigger value="historico" className="gap-1">
+                  <Activity className="h-3.5 w-3.5" /> Histórico
+                </TabsTrigger>
+              </TabsList>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <TabsContent value="detalhes" className="space-y-3 text-sm mt-0">
+                <div className="flex flex-wrap gap-2">
+                  <Badge className={STATUS_BADGE[ticket.status]}>{STATUS_LABEL[ticket.status]}</Badge>
+                  <Badge className={PRIORITY_BADGE[ticket.priority]}>{PRIORITY_LABEL[ticket.priority]}</Badge>
+                  <TicketSlaBadge ticket={ticket} />
+                </div>
 
             {isAgent ? (
               <div className="space-y-2">
@@ -182,14 +246,14 @@ export default function TicketDetailPage() {
                 </div>
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Departamento</span>
-                  <Select value={ticket.department_id ?? ''} onValueChange={(v) => update.mutate({ ticketId: ticket.id, patch: { department_id: v } })}>
+                  <Select value={ticket.department_id ?? ''} onValueChange={(v) => update.mutate({ ticketId: ticket.id, patch: { department_id: v }, event: `Departamento: ${deptName(v)}` })}>
                     <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Categoria</span>
-                  <Select value={ticket.category_id ?? ''} onValueChange={(v) => update.mutate({ ticketId: ticket.id, patch: { category_id: v } })}>
+                  <Select value={ticket.category_id ?? ''} onValueChange={(v) => update.mutate({ ticketId: ticket.id, patch: { category_id: v }, event: `Categoria: ${catName(v)}` })}>
                     <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>{categories.filter((c) => !c.department_id || c.department_id === ticket.department_id).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
@@ -258,7 +322,13 @@ export default function TicketDetailPage() {
                 {ticket.csat_comment && <p className="text-xs text-muted-foreground mt-0.5">"{ticket.csat_comment}"</p>}
               </div>
             )}
-          </CardContent>
+              </TabsContent>
+
+              <TabsContent value="historico" className="mt-0">
+                <TicketHistory messages={messages} />
+              </TabsContent>
+            </CardContent>
+          </Tabs>
         </Card>
 
         {/* Coluna direita: descrição + thread */}
