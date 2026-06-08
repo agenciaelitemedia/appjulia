@@ -170,6 +170,9 @@ export interface CreateTicketInput {
   requester_phone?: string;
   conversation_id?: string | null;
   contact_id?: string | null;
+  assigned_to?: string | null;
+  assigned_to_name?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export function useTicketMutations() {
@@ -213,6 +216,9 @@ export function useTicketMutations() {
         requester_phone: input.requester_phone ?? null,
         conversation_id: input.conversation_id ?? null,
         contact_id: input.contact_id ?? null,
+        assigned_to: input.assigned_to ?? null,
+        assigned_to_name: input.assigned_to_name ?? null,
+        metadata: input.metadata ?? {},
         sla_first_response_due_at: sla ? new Date(now + sla.firstResponseMins * 60000).toISOString() : null,
         sla_resolution_due_at: sla ? new Date(now + sla.resolutionMins * 60000).toISOString() : null,
       };
