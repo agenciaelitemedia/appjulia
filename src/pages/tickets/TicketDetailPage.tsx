@@ -156,15 +156,24 @@ export default function TicketDetailPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Coluna esquerda: meta */}
+        {/* Coluna esquerda: abas (Detalhes / Histórico) */}
         <Card className="lg:col-span-1 h-fit">
-          <CardHeader className="pb-3"><CardTitle className="text-base">Detalhes</CardTitle></CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex flex-wrap gap-2">
-              <Badge className={STATUS_BADGE[ticket.status]}>{STATUS_LABEL[ticket.status]}</Badge>
-              <Badge className={PRIORITY_BADGE[ticket.priority]}>{PRIORITY_LABEL[ticket.priority]}</Badge>
-              <SlaBadge overdue={isOverdue(ticket)} />
-            </div>
+          <Tabs defaultValue="detalhes" className="w-full">
+            <CardHeader className="pb-2">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+                <TabsTrigger value="historico" className="gap-1">
+                  <Activity className="h-3.5 w-3.5" /> Histórico
+                </TabsTrigger>
+              </TabsList>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <TabsContent value="detalhes" className="space-y-3 text-sm mt-0">
+                <div className="flex flex-wrap gap-2">
+                  <Badge className={STATUS_BADGE[ticket.status]}>{STATUS_LABEL[ticket.status]}</Badge>
+                  <Badge className={PRIORITY_BADGE[ticket.priority]}>{PRIORITY_LABEL[ticket.priority]}</Badge>
+                  <TicketSlaBadge ticket={ticket} />
+                </div>
 
             {isAgent ? (
               <div className="space-y-2">
@@ -184,14 +193,14 @@ export default function TicketDetailPage() {
                 </div>
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Departamento</span>
-                  <Select value={ticket.department_id ?? ''} onValueChange={(v) => update.mutate({ ticketId: ticket.id, patch: { department_id: v } })}>
+                  <Select value={ticket.department_id ?? ''} onValueChange={(v) => update.mutate({ ticketId: ticket.id, patch: { department_id: v }, event: `Departamento: ${deptName(v)}` })}>
                     <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>{departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
                   <span className="text-xs text-muted-foreground">Categoria</span>
-                  <Select value={ticket.category_id ?? ''} onValueChange={(v) => update.mutate({ ticketId: ticket.id, patch: { category_id: v } })}>
+                  <Select value={ticket.category_id ?? ''} onValueChange={(v) => update.mutate({ ticketId: ticket.id, patch: { category_id: v }, event: `Categoria: ${catName(v)}` })}>
                     <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>{categories.filter((c) => !c.department_id || c.department_id === ticket.department_id).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
@@ -260,7 +269,13 @@ export default function TicketDetailPage() {
                 {ticket.csat_comment && <p className="text-xs text-muted-foreground mt-0.5">"{ticket.csat_comment}"</p>}
               </div>
             )}
-          </CardContent>
+              </TabsContent>
+
+              <TabsContent value="historico" className="mt-0">
+                <TicketHistory messages={messages} />
+              </TabsContent>
+            </CardContent>
+          </Tabs>
         </Card>
 
         {/* Coluna direita: descrição + thread */}
