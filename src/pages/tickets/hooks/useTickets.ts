@@ -267,7 +267,22 @@ export function useTicketMutations() {
 
   const update = useMutation({
     mutationFn: async ({ ticketId, patch, event }: { ticketId: string; patch: Record<string, unknown>; event?: string }) => {
-      await db.from('support_tickets').update(patch).eq('id', ticketId);
+      const finalPatch: Record<string, unknown> = { ...patch };
+      if (typeof patch.priority === 'string') {
+        const [{ data: settings }, { data: t }] = await Promise.all([
+          db.from('support_settings').select('sla').eq('id', 'global').maybeSingle(),
+          db.from('support_tickets').select('opened_at, created_at, first_response_at, status').eq('id', ticketId).maybeSingle(),
+        ]);
+        const sla = settings?.sla?.[patch.priority as string];
+        if (sla && t && !['resolved', 'closed'].includes(t.status)) {
+          const anchor = new Date(t.opened_at ?? t.created_at).getTime();
+          if (!t.first_response_at) {
+            finalPatch.sla_first_response_due_at = new Date(anchor + sla.firstResponseMins * 60000).toISOString();
+          }
+          finalPatch.sla_resolution_due_at = new Date(anchor + sla.resolutionMins * 60000).toISOString();
+        }
+      }
+      await db.from('support_tickets').update(finalPatch).eq('id', ticketId);
       if (event) await logEvent(ticketId, 'updated', event);
     },
     onSuccess: (_d, v) => invalidate(v.ticketId),
