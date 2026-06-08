@@ -5747,6 +5747,7 @@ export type Database = {
           description: string | null
           first_response_at: string | null
           id: string
+          metadata: Json
           number: number | null
           opened_at: string | null
           priority: string
@@ -5780,6 +5781,7 @@ export type Database = {
           description?: string | null
           first_response_at?: string | null
           id?: string
+          metadata?: Json
           number?: number | null
           opened_at?: string | null
           priority?: string
@@ -5813,6 +5815,7 @@ export type Database = {
           description?: string | null
           first_response_at?: string | null
           id?: string
+          metadata?: Json
           number?: number | null
           opened_at?: string | null
           priority?: string
