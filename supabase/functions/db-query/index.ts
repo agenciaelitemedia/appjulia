@@ -1427,20 +1427,46 @@ serve(async (req) => {
 
       case 'delete_team_member': {
         const { memberId } = data;
-        
-        // Delete user_agents first (FK constraint)
-        await sql.unsafe(
-          `DELETE FROM user_agents WHERE user_id = $1`,
-          [memberId]
-        );
-        
-        // Delete user
-        await sql.unsafe(
-          `DELETE FROM users WHERE id = $1 AND role IN ('time', 'advogado', 'comercial')`,
-          [memberId]
-        );
-        
-        result = [{ success: true }];
+
+        try {
+          // Delete user_agents first (FK constraint)
+          await sql.unsafe(
+            `DELETE FROM user_agents WHERE user_id = $1`,
+            [memberId]
+          );
+
+          // Delete user (whitelist of removable roles)
+          const deleted = await sql.unsafe(
+            `DELETE FROM users
+               WHERE id = $1
+                 AND role IN ('time', 'advogado', 'comercial', 'colaborador')
+             RETURNING id, role`,
+            [memberId]
+          );
+
+          if (!deleted || deleted.length === 0) {
+            result = [{
+              success: false,
+              reason: 'not_found_or_role_not_allowed',
+              message: 'Usuário não encontrado ou com cargo que não permite remoção por este fluxo.',
+            }];
+          } else {
+            result = [{ success: true }];
+          }
+        } catch (err) {
+          const msg = (err as Error)?.message || String(err);
+          // Postgres FK violation (23503) — usuário possui dados vinculados
+          if (/foreign key|violates foreign key|23503/i.test(msg)) {
+            result = [{
+              success: false,
+              reason: 'fk_violation',
+              message: 'Não foi possível remover: o usuário possui registros vinculados.',
+              detail: msg,
+            }];
+          } else {
+            throw err;
+          }
+        }
         break;
       }
 

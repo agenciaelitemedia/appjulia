@@ -147,15 +147,23 @@ export function useDeleteTeamMember() {
 
   return useMutation({
     mutationFn: async (memberId: number) => {
-      return externalDb.deleteTeamMember(memberId);
+      const res: any = await externalDb.deleteTeamMember(memberId);
+      // A edge function pode retornar { success: false, reason, message }
+      const payload = Array.isArray(res) ? res[0] : res;
+      if (payload && payload.success === false) {
+        const err: any = new Error(payload.message || 'Não foi possível remover o membro.');
+        err.reason = payload.reason;
+        throw err;
+      }
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
       toast.success("Membro removido com sucesso!");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Error deleting team member:", error);
-      toast.error("Erro ao remover membro da equipe");
+      toast.error(error?.message || "Erro ao remover membro da equipe");
     },
   });
 }
