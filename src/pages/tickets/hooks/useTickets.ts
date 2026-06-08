@@ -354,7 +354,38 @@ export function useSupportConfigMutations() {
     onSuccess: invalidate,
   });
 
-  return { saveDepartment, deleteDepartment, saveCategory, deleteCategory, saveSettings };
+  const reapplySlaToOpenTickets = useMutation({
+    mutationFn: async (slaOverride?: Record<string, { firstResponseMins: number; resolutionMins: number }>) => {
+      let sla = slaOverride;
+      if (!sla) {
+        const { data: settings } = await db.from('support_settings').select('sla').eq('id', 'global').maybeSingle();
+        sla = settings?.sla ?? {};
+      }
+      const { data: tickets, error } = await db.from('support_tickets')
+        .select('id, priority, opened_at, created_at, first_response_at, status')
+        .not('status', 'in', '(resolved,closed)');
+      if (error) throw error;
+      let updated = 0;
+      for (const t of tickets || []) {
+        const cfg = sla?.[t.priority as string];
+        if (!cfg) continue;
+        const anchor = new Date(t.opened_at ?? t.created_at).getTime();
+        const patch: Record<string, unknown> = {
+          sla_resolution_due_at: new Date(anchor + cfg.resolutionMins * 60000).toISOString(),
+        };
+        if (!t.first_response_at) {
+          patch.sla_first_response_due_at = new Date(anchor + cfg.firstResponseMins * 60000).toISOString();
+        }
+        await db.from('support_tickets').update(patch).eq('id', t.id);
+        updated++;
+      }
+      qc.invalidateQueries({ queryKey: ['support-tickets'] });
+      qc.invalidateQueries({ queryKey: ['support-ticket'] });
+      return updated;
+    },
+  });
+
+  return { saveDepartment, deleteDepartment, saveCategory, deleteCategory, saveSettings, reapplySlaToOpenTickets };
 }
 
 // ── SLA helpers ──

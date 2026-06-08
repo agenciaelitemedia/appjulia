@@ -12,7 +12,7 @@ import { PRIORITY_LABEL, type TicketPriority, type SlaTarget } from '../types';
 
 export function SupportSettingsTab() {
   const { departments, categories, settings } = useSupportConfig();
-  const { saveDepartment, deleteDepartment, saveCategory, deleteCategory, saveSettings } = useSupportConfigMutations();
+  const { saveDepartment, deleteDepartment, saveCategory, deleteCategory, saveSettings, reapplySlaToOpenTickets } = useSupportConfigMutations();
 
   const [newDept, setNewDept] = useState('');
   const [newCat, setNewCat] = useState('');
@@ -21,6 +21,7 @@ export function SupportSettingsTab() {
   // SLA editável localmente, persistido no save
   const [sla, setSla] = useState<Record<TicketPriority, SlaTarget>>(() => settings?.sla ?? {} as Record<TicketPriority, SlaTarget>);
   const [csatEnabled, setCsatEnabled] = useState(settings?.csat_enabled ?? true);
+  const [reapplyOnSave, setReapplyOnSave] = useState(false);
 
   useEffect(() => {
     if (settings) { setSla(settings.sla); setCsatEnabled(settings.csat_enabled); }
@@ -35,7 +36,26 @@ export function SupportSettingsTab() {
     saveCategory.mutate({ name: newCat.trim(), department_id: newCatDept || null }, { onSuccess: () => { setNewCat(''); } });
   };
   const saveSla = () => {
-    saveSettings.mutate({ sla, csat_enabled: csatEnabled }, { onSuccess: () => toast.success('Configurações salvas') });
+    saveSettings.mutate({ sla, csat_enabled: csatEnabled }, {
+      onSuccess: async () => {
+        toast.success('Configurações salvas');
+        if (reapplyOnSave) {
+          try {
+            const n = await reapplySlaToOpenTickets.mutateAsync(sla as any);
+            toast.success(`SLA reaplicado em ${n} ticket(s) aberto(s)`);
+          } catch (e: any) {
+            toast.error('Falha ao reaplicar SLA: ' + (e?.message ?? 'erro'));
+          }
+        }
+      },
+    });
+  };
+
+  const reapplyNow = () => {
+    reapplySlaToOpenTickets.mutate(sla as any, {
+      onSuccess: (n) => toast.success(`SLA reaplicado em ${n} ticket(s) aberto(s)`),
+      onError: (e: any) => toast.error('Falha ao reaplicar SLA: ' + (e?.message ?? 'erro')),
+    });
   };
 
   const priorities = Object.keys(PRIORITY_LABEL) as TicketPriority[];
@@ -119,6 +139,15 @@ export function SupportSettingsTab() {
               <Label htmlFor="csat">Pesquisa de satisfação (CSAT) ao resolver</Label>
             </div>
             <Button onClick={saveSla} disabled={saveSettings.isPending}><Save className="h-4 w-4 mr-1" /> Salvar</Button>
+          </div>
+          <div className="flex items-center justify-between border-t pt-3">
+            <div className="flex items-center gap-2">
+              <Switch checked={reapplyOnSave} onCheckedChange={setReapplyOnSave} id="reapply" />
+              <Label htmlFor="reapply">Reaplicar SLA aos tickets já abertos ao salvar</Label>
+            </div>
+            <Button variant="outline" onClick={reapplyNow} disabled={reapplySlaToOpenTickets.isPending}>
+              {reapplySlaToOpenTickets.isPending ? 'Reaplicando...' : 'Reaplicar agora'}
+            </Button>
           </div>
         </CardContent>
       </Card>
