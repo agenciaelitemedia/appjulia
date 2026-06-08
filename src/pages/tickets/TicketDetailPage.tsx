@@ -38,6 +38,59 @@ import {
   STATUS_LABEL, STATUS_BADGE, STATUS_ORDER, PRIORITY_LABEL, PRIORITY_BADGE,
   type TicketStatus, type TicketPriority,
 } from './types';
+import type { TicketMessage } from './types';
+
+function eventIcon(eventType: string | null, kind: string) {
+  if (kind === 'public') return Reply;
+  if (kind === 'internal') return StickyNote;
+  switch (eventType) {
+    case 'created': return CircleDot;
+    case 'status_change': return ArrowRightLeft;
+    case 'assigned': return UserCheck;
+    case 'csat': return StarIcon;
+    default: return Flag;
+  }
+}
+
+function eventLabel(m: TicketMessage): string {
+  if (m.kind === 'public') return `Resposta enviada${m.author_name ? ` por ${m.author_name}` : ''}`;
+  if (m.kind === 'internal') return `Nota interna${m.author_name ? ` por ${m.author_name}` : ''}`;
+  return m.body || m.event_type || 'Evento';
+}
+
+function TicketHistory({ messages }: { messages: TicketMessage[] }) {
+  const items = [...messages].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+  if (items.length === 0) {
+    return <p className="text-xs text-muted-foreground py-6 text-center">Sem eventos ainda.</p>;
+  }
+  return (
+    <ScrollArea className="max-h-[60vh] pr-2">
+      <ol className="space-y-3">
+        {items.map((m) => {
+          const Icon = eventIcon(m.event_type, m.kind);
+          return (
+            <li key={m.id} className="flex gap-2 text-sm">
+              <div className="flex flex-col items-center pt-0.5">
+                <span className="rounded-full border bg-muted/40 p-1.5">
+                  <Icon className="h-3 w-3 text-muted-foreground" />
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="leading-snug">{eventLabel(m)}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {m.author_name ? `${m.author_name} · ` : ''}
+                  {format(new Date(m.created_at), 'dd/MM/yyyy HH:mm')}
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </ScrollArea>
+  );
+}
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
