@@ -26,6 +26,8 @@ import { format } from 'date-fns';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTicket, useTicketMutations, useTicketRole, useSupportConfig, isOverdue } from './hooks/useTickets';
+import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
 import {
   STATUS_LABEL, STATUS_BADGE, STATUS_ORDER, PRIORITY_LABEL, PRIORITY_BADGE,
   type TicketStatus, type TicketPriority,
@@ -43,8 +45,12 @@ export default function TicketDetailPage() {
   const { isAdmin } = useAuth();
   const role = useTicketRole();
   const { ticket, messages, isLoading } = useTicket(id);
-  const { reply, setStatus, update, setCsat, deleteTicket } = useTicketMutations();
+  const { reply, setStatus, update, setCsat, deleteTicket, assign } = useTicketMutations();
   const { departments, categories } = useSupportConfig();
+  const { data: team } = useTeamByClient();
+  const teamMembers: TeamMemberOption[] = (team || []).map((m) => ({
+    id: m.id, name: m.name, email: m.email, role: m.role, photo: m.photo,
+  }));
 
   const [draft, setDraft] = useState('');
   const [internal, setInternal] = useState(false);
@@ -187,6 +193,26 @@ export default function TicketDetailPage() {
                     <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
                     <SelectContent>{categories.filter((c) => !c.department_id || c.department_id === ticket.department_id).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Responsável</span>
+                  <TeamMemberSelect
+                    members={teamMembers}
+                    value={ticket.assigned_to_name ?? null}
+                    onValueChange={(name) => {
+                      const m = teamMembers.find((x) => x.name === name);
+                      assign.mutate({
+                        ticketId: ticket.id,
+                        assignedTo: m ? String(m.id) : null,
+                        assignedToName: m?.name ?? null,
+                      });
+                    }}
+                    valueKey="name"
+                    allowUnassigned
+                    showCurrentUserShortcut
+                    placeholder="Selecione um responsável…"
+                    className="w-full"
+                  />
                 </div>
               </div>
             ) : null}
