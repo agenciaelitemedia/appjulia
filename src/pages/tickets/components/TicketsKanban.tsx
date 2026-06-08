@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { AlertTriangle, MessageCircle } from 'lucide-react';
+import { User } from 'lucide-react';
 import { useTickets, useTicketMutations, isOverdue, type TicketFilters } from '../hooks/useTickets';
 import {
   KANBAN_STATUSES, STATUS_LABEL, STATUS_BADGE, PRIORITY_LABEL, PRIORITY_BADGE,
@@ -35,6 +36,11 @@ function TicketCard({ ticket, onClick, dragging }: { ticket: SupportTicket; onCl
         <Badge className={PRIORITY_BADGE[ticket.priority]}>{PRIORITY_LABEL[ticket.priority]}</Badge>
         <span className="text-[11px] text-muted-foreground truncate">{ticket.requester_name || '—'}</span>
       </div>
+      {ticket.assigned_to_name && (
+        <Badge variant="outline" className="gap-1 text-[10px] font-normal">
+          <User className="h-3 w-3" /> {ticket.assigned_to_name}
+        </Badge>
+      )}
     </div>
   );
 }

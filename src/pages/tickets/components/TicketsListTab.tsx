@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, AlertTriangle, MessageCircle, Inbox } from 'lucide-react';
+import { Search, AlertTriangle, MessageCircle, Inbox, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { useTickets, isOverdue, type TicketFilters } from '../hooks/useTickets';
 import {
@@ -44,6 +44,11 @@ function TicketRow({ ticket, showRequester, onClick }: { ticket: SupportTicket; 
           <div className="flex items-center gap-1.5">
             <Badge className={PRIORITY_BADGE[ticket.priority]}>{PRIORITY_LABEL[ticket.priority]}</Badge>
             <Badge className={STATUS_BADGE[ticket.status]}>{STATUS_LABEL[ticket.status]}</Badge>
+            {ticket.assigned_to_name && (
+              <Badge variant="outline" className="gap-1 font-normal">
+                <User className="h-3 w-3" /> {ticket.assigned_to_name}
+              </Badge>
+            )}
           </div>
           <span className="text-[11px] text-muted-foreground flex items-center gap-1">
             {overdue && <AlertTriangle className="h-3 w-3 text-red-500" />}
