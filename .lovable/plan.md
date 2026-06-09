@@ -1,89 +1,74 @@
 ## Objetivo
 
-Reformular o painel lateral esquerdo de `/tickets/:id` em abas (**Detalhes** e **Histórico**) e introduzir badges de SLA ricos (no estilo `/chat`), aplicando a configuração de SLA já existente em "Configurações" do módulo de tickets.
+Mostrar, em cada item da lista de conversas do `/chat`, um badge "TICKET #N · status" quando a conversa tiver um ticket de suporte **aberto** vinculado — no mesmo estilo dos badges Painel CRM e CRM Julia já existentes em `ChatContactItem`. Para evitar consulta por conversa, persistir o vínculo direto na tabela `chat_conversations`.
 
----
+## Mudanças
 
-## 1. Abas no painel lateral esquerdo
+### 1. Banco — nova coluna em `chat_conversations`
 
-Substituir o `Card` único atual por um `Tabs` com duas abas, mantendo a mesma largura (`lg:col-span-1`).
+Migration adicionando:
 
-### Aba "Detalhes"
-Contém exatamente o que hoje aparece no card lateral:
-- Badges (status, prioridade, SLA — agora rico, ver §3)
-- Selects de Status / Prioridade / Departamento / Categoria / Responsável (para agente)
-- Bloco "Solicitante" (nome, e-mail, telefone)
-- Botão "Abrir conversa" (quando há `contact_id`)
-- Bloco CSAT (avaliação ou formulário)
+- `active_ticket_id uuid null` → referência ao ticket de suporte aberto no momento.
+- `active_ticket_number int8 null` → cache do número (#202604004) para evitar join no listagem.
+- Índice parcial `where active_ticket_id is not null` para o lookup do mapa.
 
-Nenhuma alteração funcional — apenas reembrulhado em `<TabsContent value="detalhes">`.
+Sem foreign key dura (mantém padrão dos outros vínculos do projeto e evita falhas em delete de ticket).
 
-### Aba "Histórico"
-Lista cronológica reversa (mais novo primeiro) de **todos** os eventos do ticket, derivados de `support_ticket_messages` filtrando `kind = 'event'` **mais** entradas sintéticas para mensagens públicas/internas (envio de resposta / nota interna).
+### 2. Banco — preenchimento automático via trigger em `support_tickets`
 
-Cada item exibe:
-- Ícone por tipo de evento (criação, mudança de status, prioridade, departamento, categoria, responsável, resposta enviada, nota interna, CSAT)
-- Texto descritivo (já gravado em `body` pelo `logEvent`)
-- Autor (`author_name`) e timestamp formatado (`dd/MM/yyyy HH:mm`)
+Trigger `AFTER INSERT/UPDATE/DELETE` que mantém o vínculo coerente:
 
-Eventos já registrados hoje pelas mutations: `created`, `status_change`, `updated` (com `event` opcional), `assigned`, `csat`. O `update` para prioridade já passa `event: "Prioridade: …"`. **Acrescentar** chamadas a `logEvent` para mudanças de **departamento** e **categoria** (hoje passam sem `event`) para que apareçam no histórico de forma consistente.
+- Ao **criar** ticket com `conversation_id` não nulo e `status NOT IN ('resolved','closed')` → escreve `active_ticket_id` + `active_ticket_number` na conversa correspondente.
+- Ao **mudar status** para `resolved`/`closed` → se a conversa ainda aponta para este ticket, volta `active_ticket_id`/`active_ticket_number` para `null`.
+- Ao **reabrir** (`resolved/closed → open/...`) → reescreve o vínculo (apenas se conversa não tiver outro ticket ativo; senão mantém o existente).
+- Ao **alterar `conversation_id`** do ticket → limpa o vínculo da conversa antiga e seta na nova.
+- Ao **deletar** ticket → limpa o vínculo se for o ativo.
 
-Também serão exibidas, intercaladas pelo `created_at`, as mensagens `public` e `internal` como "Resposta enviada por X" / "Nota interna por X" — derivadas do mesmo array `messages` já carregado em `useTicket`. Sem nova query.
+Toda escrita é condicionada (`where active_ticket_id is null` ou `= old.id`) para nunca sobrescrever um vínculo de outro ticket aberto. Trigger usa `security definer` com `search_path = public`.
 
----
+### 3. Backfill
 
-## 2. Badges de SLA com nome do responsável nas listas
+Em uma única instrução, popular `active_ticket_id`/`active_ticket_number` a partir do ticket **aberto mais recente** por `conversation_id` (`status NOT IN ('resolved','closed')`). Operação idempotente, rodada na própria migration.
 
-Sem mudança — a feature já está implementada nas listagens/kanban via badge de responsável. (Não tocar.)
+### 4. Frontend — novo hook `useTicketLinkedConversations`
 
----
+Arquivo `src/hooks/useTicketLinkedConversations.ts`, espelhando `useCRMBuilderLinkedConversations`:
 
-## 3. Avaliador de SLA do ticket (estilo `/chat`)
+- Consulta `chat_conversations` filtrando `client_id` e `active_ticket_id is not null`, selecionando apenas `id, active_ticket_id, active_ticket_number`.
+- Faz um segundo `select` em `support_tickets` pelos `active_ticket_id` retornados, pegando `id, number, status, subject, priority`.
+- Retorna `Map<conversation_id, { ticketId, number, status, subject, priority }>`.
+- `staleTime: 30s`; invalidado por realtime de `support_tickets` (canal já presente em outras telas, criado novo no hook).
 
-### Diagnóstico atual
-- `useTicketMutations.create` já calcula `sla_first_response_due_at` e `sla_resolution_due_at` a partir de `support_settings.sla[priority]` na criação. ✅
-- Mutations de `reply` já gravam `first_response_at` na primeira resposta do agente. ✅
-- O badge atual é binário (atrasado / no prazo), sem indicar qual SLA está em jogo nem o tempo restante.
+Custo: 2 queries leves, sem N+1, só traz tickets de fato abertos.
 
-### Novo componente `TicketSlaBadge`
-Arquivo: `src/pages/tickets/components/TicketSlaBadge.tsx`.
+### 5. Frontend — badge na lista de conversas
 
-Reaproveita visual/UX do `src/components/chat/SlaBadge.tsx`:
-- Estados: `on_track` (verde), `at_risk` (âmbar, quando restam ≤ 25% do prazo), `breached` (vermelho), `unknown`.
-- Tipos: **FRT** ("1ª Resposta") quando `first_response_at` ainda é nulo; **TTR** ("Resolução") caso contrário. (Tickets não têm equivalente a NRT do chat.)
-- Tooltip com tipo, descrição curta e tempo restante/atrasado (`formatRemaining` — reaproveitar de `useChatSlaConfigs`).
-- Variante `compact` para listagem/kanban e padrão para o detalhe.
+- `ChatList.tsx`: chama o novo hook e passa `ticketLink={ticketMap?.get(conv.id)}` para `ChatContactItem`.
+- `ChatContactItem.tsx`: nova linha logo abaixo da linha do CRM Builder, no mesmo padrão visual (ícone `Ticket` do lucide, label "TICKET", número `#N`, badge de status colorido reusando `STATUS_BADGE` de `pages/tickets/types`). Tooltip com assunto + prioridade. Clique abre `/tickets/:id` em nova aba (igual ao botão CRM).
+- Memo: incluir `ticketLink` na comparação de props.
 
-### Função de avaliação
-Adicionar em `src/pages/tickets/hooks/useTickets.ts` (ao lado de `isOverdue`) uma função `evaluateTicketSla(ticket)` que retorna `{ status, slaType, slaTypeLabel, remainingMinutes, targetMinutes }`.
+### 6. Frontend — criação/fechamento de ticket
 
-Lógica:
-1. Se `status ∈ {resolved, closed}` → `on_track`, label "Concluído".
-2. Se `!first_response_at` e `sla_first_response_due_at` existe → calcula restante até o due; classifica em on_track / at_risk / breached. SLA type = FRT.
-3. Caso contrário, se `sla_resolution_due_at` existe → calcula restante até o due; classifica idem. SLA type = TTR.
-4. Sem due dates → `unknown` (não renderiza badge).
+`useTickets.ts` continua chamando apenas `support_tickets`; o vínculo na conversa é responsabilidade da trigger no banco. Nenhuma alteração de lógica no fluxo de criar/fechar/reabrir ticket é necessária — assim não corremos risco de regressão.
 
-`isOverdue` permanece para retrocompatibilidade (filtro "apenas atrasados").
+## Segurança / não-regressão
 
-### Aplicação
-- Substituir o `SlaBadge` local em `TicketDetailPage.tsx` pelo novo `TicketSlaBadge`.
-- Em `TicketsListTab.tsx` e `TicketsKanban.tsx`: substituir o uso atual de `isOverdue` → badge binário, pelo `TicketSlaBadge` em modo `compact`.
+- Coluna nova é nullable, sem default → não impacta nenhum insert existente.
+- Trigger só toca `chat_conversations` quando `conversation_id` está setado.
+- Updates da trigger são scoped (`where id = ... and (active_ticket_id is null or active_ticket_id = old.id)`), preservando vínculos de outras conversas/tickets.
+- Tipos do Supabase regenerados após a migration; o hook só é importado depois.
 
-### Validação da configuração
-Verificar que `useSupportConfig().settings.sla` carrega corretamente e que `create` está lendo a coluna `sla` de `support_settings` (já está — sem mudança).
-
----
-
-## Arquivos afetados
+## Detalhes técnicos
 
 ```text
-src/pages/tickets/TicketDetailPage.tsx        (abas + novo SlaBadge)
-src/pages/tickets/components/TicketSlaBadge.tsx   (novo)
-src/pages/tickets/components/TicketHistoryTab.tsx (novo)
-src/pages/tickets/components/TicketDetailsTab.tsx (novo — refactor do bloco existente)
-src/pages/tickets/components/TicketsListTab.tsx   (badge SLA rico)
-src/pages/tickets/components/TicketsKanban.tsx    (badge SLA rico)
-src/pages/tickets/hooks/useTickets.ts             (evaluateTicketSla + logEvent para depto/categoria)
+chat_conversations
+├── active_ticket_id      uuid  null   (novo)
+└── active_ticket_number  int8  null   (novo, cache)
+
+trigger trg_support_tickets_link_conversation
+  AFTER INSERT OR UPDATE OF status, conversation_id OR DELETE
+  ON support_tickets
+  FOR EACH ROW EXECUTE FUNCTION public.sync_conversation_active_ticket();
 ```
 
-Sem migração de banco. Sem mudança em RLS. Sem mudança em edge functions.
+Status "aberto" = `status NOT IN ('resolved','closed')`.
