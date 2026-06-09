@@ -49,6 +49,23 @@ if (typeof window !== "undefined") {
       }
     }, 5000);
   });
+
+  // Silently ACK Lovable host iframe RESET_BLANK_CHECK pings so the
+  // preview console stops logging "Unknown message type" warnings.
+  window.addEventListener("message", (event) => {
+    const data = event?.data;
+    const type = typeof data === "string" ? data : data?.type;
+    if (type === "RESET_BLANK_CHECK") {
+      try {
+        (event.source as Window | null)?.postMessage(
+          { type: "RESET_BLANK_CHECK_ACK" },
+          { targetOrigin: event.origin || "*" } as WindowPostMessageOptions,
+        );
+      } catch {
+        /* ignore */
+      }
+    }
+  });
 }
 
 export {};
