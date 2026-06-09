@@ -1438,6 +1438,8 @@ export type Database = {
       }
       chat_conversations: {
         Row: {
+          active_ticket_id: string | null
+          active_ticket_number: number | null
           assigned_to: string | null
           channel: string
           client_id: string
@@ -1466,6 +1468,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_ticket_id?: string | null
+          active_ticket_number?: number | null
           assigned_to?: string | null
           channel?: string
           client_id: string
@@ -1494,6 +1498,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_ticket_id?: string | null
+          active_ticket_number?: number | null
           assigned_to?: string | null
           channel?: string
           client_id?: string

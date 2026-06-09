@@ -35,6 +35,7 @@ import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
+import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { externalDb } from '@/lib/externalDb';
 import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
@@ -496,6 +497,7 @@ export function ChatList() {
   const { data: stageByPhone, isFetching: stageByPhoneFetching } =
     useCRMStageByPhone(allPhoneAgentPairs);
   const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
+  const { data: ticketLinkMap } = useTicketLinkedConversations();
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
   const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
@@ -1652,6 +1654,7 @@ export function ChatList() {
                     }
                     hasCrmCard={conv?.id ? !!crmBuilderMap?.has(conv.id) : false}
                     crmBuilderLink={conv?.id ? crmBuilderMap?.get(conv.id) : undefined}
+                    ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
                   />
                 </div>
