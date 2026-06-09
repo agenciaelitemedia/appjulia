@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, Network, MessageSquare, History, Trash2, Activity, Wrench, CreditCard, ShoppingBag } from 'lucide-react';
+import { Plus, Loader2, Network, MessageSquare, History, Trash2, Activity, Wrench, CreditCard, ShoppingBag, RefreshCw } from 'lucide-react';
 import { ChatSettingsTab } from '@/pages/configuracoes/components/ChatSettingsTab';
 import { UazapiHistoryTab } from '@/pages/configuracoes/components/UazapiHistoryTab';
 import { UazapiMonitorTab } from '@/pages/configuracoes/components/UazapiMonitorTab';
@@ -19,6 +19,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 export default function ChatAdminPage() {
   const { data: providers = [], isLoading } = useQueueProviders();
@@ -44,11 +45,32 @@ export default function ChatAdminPage() {
   const [editingProvider, setEditingProvider] = useState<QueueProvider | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<QueueProvider | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
+  const [reapplying, setReapplying] = useState(false);
 
   const handleEdit = (p: QueueProvider) => { setEditingProvider(p); setFormOpen(true); };
   const handleNew = () => { setEditingProvider(null); setFormOpen(true); };
   const handleConfirmDelete = () => {
     if (deleteTarget) { deleteProvider.mutate(deleteTarget.id); setDeleteTarget(null); }
+  };
+
+  const handleReapplyWebhooks = async () => {
+    if (reapplying) return;
+    setReapplying(true);
+    const t = toast.loading('Reaplicando webhooks em todas as filas UaZapi...');
+    try {
+      const { data, error } = await supabase.functions.invoke('uazapi-instance-manager', {
+        body: { action: 'reconfigure_webhook_all' },
+      });
+      if (error) throw error;
+      const results = (data as any)?.results ?? [];
+      const ok = results.filter((r: any) => r.ok).length;
+      const fail = results.length - ok;
+      toast.success(`Webhooks reaplicados: ${ok} ok${fail ? `, ${fail} falhas` : ''}`, { id: t });
+    } catch (e: any) {
+      toast.error(`Falha ao reaplicar webhooks: ${e?.message ?? e}`, { id: t });
+    } finally {
+      setReapplying(false);
+    }
   };
 
   return (
@@ -85,6 +107,10 @@ export default function ChatAdminPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleReapplyWebhooks} disabled={reapplying}>
+                {reapplying ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Reaplicar webhooks (UaZapi)
+              </Button>
               <Button variant="destructive" onClick={() => setResetOpen(true)}>
                 <Trash2 className="w-4 h-4 mr-2" /> Resetar Chat
               </Button>
