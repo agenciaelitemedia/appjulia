@@ -497,6 +497,7 @@ export function ChatList() {
   const { data: stageByPhone, isFetching: stageByPhoneFetching } =
     useCRMStageByPhone(allPhoneAgentPairs);
   const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
+  const { data: ticketLinkMap } = useTicketLinkedConversations();
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
   const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
