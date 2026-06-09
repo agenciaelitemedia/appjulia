@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
-  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon, Activity,
+  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon, Activity, History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
