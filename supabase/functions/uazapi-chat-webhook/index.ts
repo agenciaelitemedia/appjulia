@@ -1008,16 +1008,64 @@ Deno.serve(async (req) => {
         if (!phone) continue;
         const updates: Record<string, unknown> = {};
         if (c.name || c.pushName || c.notify) updates.name = c.name || c.pushName || c.notify;
-        if (c.imgUrl || c.profilePictureUrl) updates.avatar = c.imgUrl || c.profilePictureUrl;
-        if (Object.keys(updates).length > 0) {
-          await supabase
-            .from('chat_contacts')
-            .update(updates)
-            .eq('phone', phone)
-            .eq('channel_source', queueId);
+        const newPic: string | null = c.imgUrl || c.profilePictureUrl || c.picture || null;
+
+        // Look up the contact so we can both update non-picture fields and
+        // queue a Storage-backed avatar refresh when the picture changed.
+        const { data: existing } = await supabase
+          .from('chat_contacts')
+          .select('id, avatar_source_url')
+          .eq('phone', phone)
+          .eq('channel_source', queueId)
+          .maybeSingle();
+
+        if (Object.keys(updates).length > 0 && existing?.id) {
+          await supabase.from('chat_contacts').update(updates).eq('id', existing.id);
+        }
+
+        // Real-time: if the WhatsApp side announced a new profile picture
+        // (or simply emitted a contacts.update for a contact whose avatar
+        // we never cached), trigger a Storage refresh in background.
+        if (existing?.id && (newPic || c.profilePictureUpdate || c.pictureUpdate)) {
+          const changed = !existing.avatar_source_url || existing.avatar_source_url !== newPic;
+          if (changed) {
+            await triggerAvatarRefresh(supabase, existing.id);
+          }
         }
       }
       return respond({ ok: true, event: 'contacts.update' });
+    }
+
+    // ─── GROUPS UPDATE (subject, picture, description) ───
+    if (event === 'groups.update' || event === 'group.update' || event === 'groups.upsert') {
+      const groups = Array.isArray(payload.data) ? payload.data : [payload.data || payload];
+      for (const g of groups) {
+        const groupJid: string = g.id || g.groupjid || g.remoteJid || '';
+        if (!groupJid.includes('@g.us')) continue;
+        const phone = normalizePhone(groupJid);
+        const { data: existing } = await supabase
+          .from('chat_contacts')
+          .select('id, avatar_source_url, name')
+          .eq('phone', phone)
+          .eq('channel_source', queueId)
+          .maybeSingle();
+        if (!existing?.id) continue;
+
+        const updates: Record<string, unknown> = {};
+        const newName = g.subject || g.name || g.groupName;
+        if (newName && newName !== existing.name) updates.name = newName;
+        if (Object.keys(updates).length > 0) {
+          await supabase.from('chat_contacts').update(updates).eq('id', existing.id);
+        }
+
+        const newPic: string | null = g.pictureUrl || g.imgUrl || g.profilePictureUrl || g.picture || null;
+        const changed = (g.profilePictureUpdate || g.pictureUpdate) ||
+          (newPic && existing.avatar_source_url !== newPic);
+        if (changed) {
+          await triggerAvatarRefresh(supabase, existing.id);
+        }
+      }
+      return respond({ ok: true, event });
     }
 
     // ─── CHATS UPDATE (archive, mute) ───
@@ -1036,6 +1084,20 @@ Deno.serve(async (req) => {
             .update(updates)
             .eq('phone', phone)
             .eq('channel_source', queueId);
+        }
+
+        // Some UaZapi deployments emit picture changes through chats.update.
+        const newPic: string | null = ch.imgUrl || ch.profilePictureUrl || ch.picture || null;
+        if (newPic || ch.profilePictureUpdate || ch.pictureUpdate) {
+          const { data: existing } = await supabase
+            .from('chat_contacts')
+            .select('id, avatar_source_url')
+            .eq('phone', phone)
+            .eq('channel_source', queueId)
+            .maybeSingle();
+          if (existing?.id && (!existing.avatar_source_url || existing.avatar_source_url !== newPic)) {
+            await triggerAvatarRefresh(supabase, existing.id);
+          }
         }
       }
       return respond({ ok: true, event: 'chats.update' });
