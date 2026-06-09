@@ -267,6 +267,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showHelp, setShowHelp] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
+  const [showTicketDetail, setShowTicketDetail] = useState<string | null>(null);
+
+  const { data: ticketLinkMap } = useTicketLinkedConversations();
+  const ticketLink = selectedConversation?.id ? ticketLinkMap?.get(selectedConversation.id) : undefined;
 
   const { data: queueLink } = useQueueAgentLink(selectedConversation?.queue_id);
   const queueId = selectedConversation?.queue_id || null;
