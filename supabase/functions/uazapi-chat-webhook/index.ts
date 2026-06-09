@@ -10,6 +10,41 @@ import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
 import { logDroppedMessage } from "../_shared/droppedLogger.ts";
 import { resolveQuotedMeta } from "../_shared/quotedMessage.ts";
 
+// ─── Avatar refresh helper (fire-and-forget) ───
+// Marks a contact as needing an avatar refresh and triggers the
+// `refresh-contact-avatar` edge function in background. Deduplicated:
+// won't enqueue again if a request was made in the last 60 seconds.
+async function triggerAvatarRefresh(supabase: any, contactId: string) {
+  try {
+    const { data: row } = await supabase
+      .from('chat_contacts')
+      .select('avatar_refresh_requested_at')
+      .eq('id', contactId)
+      .maybeSingle();
+    if (row?.avatar_refresh_requested_at) {
+      const last = new Date(row.avatar_refresh_requested_at).getTime();
+      if (Date.now() - last < 60_000) return;
+    }
+    await supabase
+      .from('chat_contacts')
+      .update({ avatar_refresh_requested_at: new Date().toISOString() })
+      .eq('id', contactId);
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/refresh-contact-avatar`;
+    EdgeRuntime.waitUntil(
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({ contact_id: contactId, force: true }),
+      }).catch(() => {}),
+    );
+  } catch (e) {
+    console.warn('[avatar-refresh] trigger failed', (e as Error).message);
+  }
+}
+
 declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
 
 const corsHeaders = {
