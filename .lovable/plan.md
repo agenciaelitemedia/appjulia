@@ -1,55 +1,34 @@
-# Redesenho da tela de detalhes do ticket
+# Separar Interações de Histórico no detalhe do ticket
 
-A tela atual (`/tickets/:id`) trata as interações como um chat (bolhas alinhadas à esquerda/direita, aba "Histórico" separada). Ticket de suporte não é conversa de WhatsApp — o esperado é uma **timeline unificada** com todos os eventos do chamado em ordem cronológica.
+Hoje a coluna direita ("Interações") mistura respostas, notas internas e eventos (criação, mudança de status, atribuição). O usuário quer separar:
+
+- **Interações** (coluna direita): apenas respostas públicas e notas internas, com um cabeçalho acima descrevendo do que se trata o chamado.
+- **Histórico** (coluna esquerda, aba ao lado de "Detalhes" — como antes): timeline com todos os eventos do chamado (criação, mudança de status, atribuição, CSAT, etc.).
 
 ## Mudanças em `src/pages/tickets/TicketDetailPage.tsx`
 
-### 1. Remover o layout estilo chat
-- Remover o card "Conversa" com bolhas (`bg-primary/10` / `bg-muted` alinhadas por `justify-end` / `justify-start`) — linhas 334–366.
-- Remover a aba duplicada **Histórico** da coluna esquerda (linhas 213–332 viram apenas "Detalhes", sem `Tabs`). O histórico passa a viver como timeline única na coluna direita.
-- Remover o componente local `TicketHistory` (linhas 61–93) — substituído pelo novo `TicketTimeline`.
+### 1. Coluna esquerda volta a ter abas Detalhes / Histórico
+- Reintroduzir `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` e o ícone `Activity` nos imports.
+- Envolver o conteúdo atual da coluna esquerda em `<Tabs defaultValue="detalhes">` com duas abas: "Detalhes" (conteúdo atual) e "Histórico".
+- A aba **Histórico** renderiza `<TicketTimeline messages={eventsOnly} />`, onde `eventsOnly = messages.filter((m) => m.kind === 'event')`. Reaproveita o componente `TicketTimeline` já criado para manter o visual de linha do tempo vertical com bullets.
 
-### 2. Novo componente `TicketTimeline` (mesmo arquivo)
-Renderiza **todas** as `messages` (eventos, respostas públicas e notas internas) como uma única linha do tempo vertical em ordem cronológica **decrescente** (mais recente no topo):
+### 2. Coluna direita: cabeçalho do chamado + somente interações
+- Renomear título para "Interações" (já está) e, **acima da lista**, adicionar um bloco "Sobre este chamado" com:
+  - Assunto (`ticket.subject`) em destaque.
+  - Descrição original (`ticket.description`) com `whitespace-pre-wrap`, se existir.
+  - Mantém o estilo de card sutil (`bg-muted/30 border rounded-md p-3`).
+- Filtrar a lista para `interactionsOnly = visibleMessages.filter((m) => m.kind !== 'event')` antes de passar para `<TicketTimeline />`.
+- Mantém o composer (Resposta / Nota interna) no rodapé sem mudanças.
 
-```text
-│ ● [ícone]  Resposta de João Silva                 09/06 14:32
-│            "Olá, segue o procedimento..."
-│
-│ ◌ [ícone]  Nota interna · Maria                   09/06 14:10
-│            "Cliente já havia pedido reembolso..."
-│
-│ ◇ [ícone]  Status alterado: Aberto → Em andamento 09/06 13:55
-│            por Maria
-│
-│ ◇ [ícone]  Responsável atribuído: Maria           09/06 13:50
-│
-│ ● [ícone]  Chamado criado por Cliente Foo         09/06 13:45
-```
-
-Tratamento por tipo:
-- `kind === 'public'`: card com borda neutra, cabeçalho "Resposta de {autor}", corpo `whitespace-pre-wrap`. Sem distinção visual "esquerda/direita".
-- `kind === 'internal'`: card com fundo âmbar suave (`bg-amber-50/50 dark:bg-amber-950/20 border-amber-200/60`), cabeçalho "Nota interna · {autor}". Só visível para `isAgent`.
-- `kind === 'event'`: linha compacta de uma linha (sem card), texto `text-muted-foreground`, ícone conforme `event_type` (`CircleDot` criado, `ArrowRightLeft` status, `UserCheck` atribuído, `Flag` outros, `StarIcon` csat).
-
-Estrutura visual: rail vertical (`border-l ml-3`) com pontos/ícones encostados, conteúdo à direita. Densidade compacta (`text-sm`, `gap-3`).
-
-### 3. Coluna direita: Descrição + Timeline + Composer
-- Card único com:
-  - **Descrição original** (mantém o bloco atual `bg-muted/30` se houver `ticket.description`).
-  - **Timeline** (`<TicketTimeline messages={visibleMessages} />`) com `max-h-[60vh] overflow-y-auto`.
-  - **Composer** (mantém Textarea + toggle Resposta/Nota interna + botão Enviar — sem mudanças funcionais).
-
-### 4. Coluna esquerda: só "Detalhes"
-Remover `Tabs` e manter o conteúdo de "Detalhes" direto no `CardContent`. Permanece: badges (status/prioridade/SLA), selects de status/prioridade/depto/categoria/responsável (para agente), bloco solicitante, botão "Abrir conversa" (quando há `contact_id`), bloco CSAT.
+### 3. Empty states
+- Se não houver interações, mostrar "Sem respostas ou notas ainda." no lugar da lista.
+- Se não houver eventos no histórico, manter "Sem interações ainda." (texto do `TicketTimeline` já cobre — apenas trocar para "Sem eventos registrados.").
 
 ## Fora do escopo
-- Sem mudanças no banco, hooks (`useTickets`), tipos ou edge functions.
-- Sem mudanças no `ChatSidePanel`, `ChatTicketDetailSidePanel` ou na lista de conversas (`ChatContactItem`/`ChatHeader`).
-- Sem alterações no comportamento do composer (envio de resposta/nota continua igual).
+- Sem mudanças em hooks, tipos, banco, edge functions ou em qualquer outra tela.
+- Componente `TicketTimeline` permanece (apenas passa a receber subconjuntos diferentes de mensagens em cada local).
 
 ## Validação
-- Abrir `/tickets/:id`: a coluna direita exibe descrição, timeline única em ordem decrescente, composer no rodapé. Sem bolhas estilo chat.
-- Agente vê notas internas em âmbar; solicitante não as vê.
-- Eventos (criação, mudança de status, atribuição, CSAT) aparecem como linhas compactas intercaladas na timeline.
-- Coluna esquerda mostra apenas "Detalhes" (sem aba "Histórico").
+- `/tickets/:id`: coluna esquerda tem abas "Detalhes" e "Histórico"; a aba Histórico mostra apenas eventos (criação, status, atribuição, CSAT) em timeline.
+- Coluna direita mostra "Sobre este chamado" (assunto + descrição) acima da lista de Interações, que contém apenas respostas e notas internas.
+- Composer continua funcionando igual.
