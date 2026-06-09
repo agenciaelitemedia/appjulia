@@ -39,10 +39,14 @@ export function useTickets(filters: TicketFilters = {}) {
     queryKey: ['support-tickets', role, userId, clientId],
     enabled: !!user,
     queryFn: async () => {
-      let q = db.from('support_tickets').select('*').order('created_at', { ascending: false }).limit(500);
+      let q = db.from('support_tickets')
+        .select('*')
+        .neq('status', 'closed')
+        .order('created_at', { ascending: false })
+        .limit(500);
       if (role === 'requester') q = q.eq('requester_user_id', userId);
       else if (role === 'manager') q = q.eq('requester_client_id', clientId);
-      // agent (admin) → todos
+      // agent (admin) → todos (exceto fechados)
       const { data, error } = await q;
       if (error) throw error;
       return (data || []) as SupportTicket[];
