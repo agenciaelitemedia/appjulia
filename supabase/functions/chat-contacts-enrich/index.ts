@@ -7,7 +7,7 @@
 // ============================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
+import { fetchWhatsappProfile, profileToContactColumns, persistAvatarToStorage } from "../_shared/whatsapp-profile.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -48,9 +48,8 @@ async function runJob(params: {
 
   let query = supabase
     .from('chat_contacts')
-    .select('id, phone, channel_source, avatar, profile_fetched_at, is_group, name')
+    .select('id, client_id, phone, channel_source, avatar, profile_fetched_at, is_group, name, remote_jid, avatar_storage_path, avatar_source_hash, avatar_refreshed_at')
     .eq('client_id', params.client_id)
-    .eq('is_group', false)
     .order('profile_fetched_at', { ascending: true, nullsFirst: true })
     .limit(limit);
 
@@ -96,7 +95,34 @@ async function runJob(params: {
         try {
           const profile = await fetchWhatsappProfile(queue as any, contact.phone);
           const update: Record<string, unknown> = { ...profileToContactColumns(profile) };
-          if (profile.avatar) update.avatar = profile.avatar;
+          if (profile.avatar) {
+            // Persist to Storage so the saved URL is stable and survives
+            // pps.whatsapp.net signed URL expiration.
+            const persisted = await persistAvatarToStorage(supabase, {
+              contact_id: contact.id,
+              client_id: contact.client_id,
+              is_group: contact.is_group === true ||
+                (typeof contact.phone === 'string' && contact.phone.includes('@g.us')),
+              phone: contact.phone,
+              source_url: profile.avatar,
+              previous_hash: (contact as any).avatar_source_hash || null,
+              force: false,
+            });
+            if (persisted.public_url) {
+              update.avatar = persisted.changed
+                ? `${persisted.public_url}?v=${(persisted.hash || Date.now().toString()).slice(0, 12)}`
+                : persisted.public_url;
+              update.avatar_storage_path = persisted.storage_path;
+              update.avatar_source_url = profile.avatar;
+              update.avatar_source_hash = persisted.hash;
+              update.avatar_refreshed_at = new Date().toISOString();
+              update.avatar_refresh_requested_at = null;
+            } else {
+              // Storage upload failed — fall back to the raw URL to avoid
+              // losing the picture entirely; SmartAvatarImage tolerates 403.
+              update.avatar = profile.avatar;
+            }
+          }
           if (profile.name && profile.name !== contact.phone &&
               (!contact.name || /^[\d\s+\-()]+$/.test(contact.name) || contact.name === contact.phone)) {
             update.name = profile.name;
