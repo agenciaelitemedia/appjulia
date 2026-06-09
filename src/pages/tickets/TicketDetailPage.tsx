@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
-  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon,
+  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon, Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
