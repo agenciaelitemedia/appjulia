@@ -369,22 +369,8 @@ export default function TicketDetailPage() {
               )}
             </div>
 
-            {/* Interações */}
-            <div className="space-y-2">
-              <h3 className="text-base font-semibold">Interações</h3>
-              <div className="max-h-[55vh] overflow-y-auto pr-1">
-                {(() => {
-                  const interactions = visibleMessages.filter((m) => m.kind !== 'event');
-                  if (interactions.length === 0) {
-                    return <p className="text-xs text-muted-foreground py-8 text-center">Sem respostas ou notas ainda.</p>;
-                  }
-                  return <TicketTimeline messages={interactions} />;
-                })()}
-              </div>
-            </div>
-
             {/* Composer */}
-            <div className="border-t pt-3 space-y-2">
+            <div className="space-y-2">
               {isAgent && (
                 <div className="flex gap-2">
                   <Button type="button" size="sm" variant={internal ? 'outline' : 'default'} onClick={() => setInternal(false)}>
@@ -405,6 +391,20 @@ export default function TicketDetailPage() {
                 <Button onClick={handleSend} disabled={sending || !draft.trim()}>
                   <Send className="h-4 w-4 mr-1" /> {sending ? 'Enviando…' : internal ? 'Salvar nota' : 'Responder'}
                 </Button>
+              </div>
+            </div>
+
+            {/* Interações (após o composer) */}
+            <div className="space-y-2 border-t pt-3">
+              <h3 className="text-base font-semibold">Interações</h3>
+              <div className="max-h-[55vh] overflow-y-auto pr-1">
+                {(() => {
+                  const interactions = visibleMessages.filter((m) => m.kind !== 'event');
+                  if (interactions.length === 0) {
+                    return <p className="text-xs text-muted-foreground py-8 text-center">Sem respostas ou notas ainda.</p>;
+                  }
+                  return <TicketTimeline messages={interactions} />;
+                })()}
               </div>
             </div>
           </CardContent>
