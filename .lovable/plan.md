@@ -1,82 +1,61 @@
-# Corrigir eventos do webhook UaZapi
+## Objetivo
 
-## Problema
+Ajustar três pontos do fluxo de Ticket de Suporte dentro do módulo de Chat, alinhando o comportamento ao já praticado pelo bloco CRM.
 
-A documentação oficial (https://docs.uazapi.com/endpoint/post/webhook) lista um conjunto fechado de nomes de evento. A maior parte do que estamos enviando hoje usa "dot notation" (ex.: `chats.update`, `contacts.upsert`, `messages.delete`) que **não consta na lista oficial** — esses eventos são silenciosamente ignorados pelo servidor UaZapi, o que explica por que atualizações de perfil/foto/contato não chegavam de forma consistente.
+---
 
-## Comparação
+### 1. Badge TICKET na lista de conversas: deixar de abrir link externo
 
-**Eventos válidos segundo a doc:**
-`connection`, `history`, `messages`, `messages_update`, `newsletter_messages`, `call`, `contacts`, `presence`, `groups`, `labels`, `chats`, `chat_labels`, `blocks`, `sender`
+**Arquivo:** `src/components/chat/ChatContactItem.tsx` (linhas 332–375)
 
-**O que enviamos hoje (`uazapi-instance-manager/index.ts` linhas 14-29):**
+- Remover o `role="link"`, o `onClick` que faz `window.open('/tickets/{id}')` e o `cursor-pointer` do contêiner da linha "TICKET #N · status".
+- O bloco passa a ser puramente informativo (igual ao bloco CRM Builder logo acima), de forma que o clique no item da lista continue selecionando a conversa normalmente e abrindo as mensagens no chat.
+- Mantém-se o Tooltip com número/assunto/status/prioridade.
+- Mantém-se o menu de contexto (botão direito) com as opções "Ver ticket #N" (abre painel lateral de detalhes) e "Abrir no módulo" (nova aba), que continuam funcionando como atalhos avançados.
 
-| Evento atual          | Status                              |
-| --------------------- | ----------------------------------- |
-| `messages`            | OK                                  |
-| `messages.set`        | Inválido (não existe)               |
-| `history`             | OK                                  |
-| `messages.update`     | Inválido — o correto é `messages_update` |
-| `messages_update`     | OK                                  |
-| `messages.delete`     | Inválido (não existe evento próprio) |
-| `chats.update`        | Inválido — usar `chats`             |
-| `chats.upsert`        | Inválido — usar `chats`             |
-| `contacts.update`     | Inválido — usar `contacts`          |
-| `contacts.upsert`     | Inválido — usar `contacts`          |
-| `groups.update`       | Inválido — usar `groups`            |
-| `connection.update`   | Inválido — usar `connection`        |
-| `presence.update`     | Inválido — usar `presence`          |
+---
 
-## Sobre `excludeMessages`
+### 2. Item "Abrir ticket de suporte" não aparece no menu da lista de conversas
 
-A doc recomenda `excludeMessages: ["wasSentByApi"]` para evitar loops. **Não vamos aplicar.** Verificação no `uazapi-chat-webhook/index.ts` (linhas 1644, 1664-1665) confirma que mensagens `fromMe` enviadas pela Julia via API são gravadas em `chat_messages` com `from_me: true` e `status: 'sent'`. Esse fluxo é o que mantém o histórico do chat completo. Se filtrássemos `wasSentByApi`, perderíamos essas mensagens no histórico do operador.
+**Causa:** Em `ChatContactItem.tsx` o menu de contexto está gated por `hasPermission('support_tickets', 'view' | 'create')`. Para usuários cujo papel ainda não recebeu permissões finas no módulo `support_tickets` (cenário comum hoje), o menu inteiro é suprimido — mesmo para admin/colaborador, que no header já têm acesso direto via `user.role`.
 
-A proteção contra eco já é feita em outra camada (memória `chat/anti-echo-self-conversation` — descarte de mensagens entre duas filas do mesmo cliente). Logo, **vamos enviar `excludeMessages: []`** (ou omitir o campo) e manter o comportamento atual.
+**Correção em `src/components/chat/ChatContactItem.tsx`:**
 
-## Mudanças
+- Trocar as guardas `canViewTickets` / `canCreateTickets` por uma regra equivalente à do header:
+  - `canViewTickets = hasPermission('support_tickets','view') || user?.role === 'admin' || user?.role === 'colaborador'`
+  - `canCreateTickets = hasPermission('support_tickets','create') || user?.role === 'admin' || user?.role === 'colaborador'`
+- Assim, quando não há ticket vinculado, o item "Abrir ticket de suporte" passa a aparecer no menu de contexto para admin/colaborador, idêntico ao item já existente no header da conversa.
 
-### 1. `supabase/functions/uazapi-instance-manager/index.ts`
+Observação: isto preserva o RLS do banco — a permissão fina continua sendo respeitada para perfis de equipe; apenas garantimos paridade para admin/colaborador.
 
-Substituir `DEFAULT_WEBHOOK_EVENTS` pelo conjunto canônico:
+---
 
-```ts
-const DEFAULT_WEBHOOK_EVENTS = [
-  'connection',      // estado da conexão
-  'messages',        // mensagens recebidas/enviadas (incluindo fromMe via API)
-  'messages_update', // edição/status/delete
-  'history',         // backfill on-demand
-  'chats',           // eventos de conversas
-  'contacts',        // atualizações de contato + foto de perfil
-  'groups',          // mudanças em grupo, inclusive foto
-  'presence',        // presença
-  'call',            // chamadas VoIP
-];
-```
+### 3. Header do chat: "Abrir ticket de suporte" deve abrir o ticket existente
 
-Manter o body do POST `/webhook` **sem** `excludeMessages` (preservar comportamento atual de receber mensagens da API).
+**Arquivo:** `src/components/chat/ChatHeader.tsx` (linhas 700–722 e 811–817)
 
-### 2. `supabase/functions/uazapi-admin/index.ts`
+Hoje o `DropdownMenuItem` "Abrir ticket de suporte" sempre abre `ChatTicketSidePanel` (modo criação), mesmo quando já existe ticket aberto vinculado à conversa.
 
-Linhas 152-153 e 354-355 — alinhar com a nova lista. Remover `excludeMessages: ['isGroupYes']` (derrubaria mensagens de grupo e impede receber foto de grupo).
+**Mudanças:**
 
-### 3. `src/config/chat.ts`
+1. Importar e consumir `useTicketLinkedConversations` para obter o `ticketLink` da conversa selecionada (`selectedConversation?.id`).
+2. Adicionar estado `showTicketDetail` (string | null) com o `ticketId` quando aberto.
+3. No `DropdownMenuItem`:
+   - Se `ticketLink` existe → rótulo passa a ser "Ver ticket de suporte #N" e o clique abre `ChatTicketDetailSidePanel` com `ticketId = ticketLink.ticketId`.
+   - Se não existe → mantém rótulo "Abrir ticket de suporte" e abre o `ChatTicketSidePanel` atual (criação).
+4. Renderizar `ChatTicketDetailSidePanel` ao lado do `ChatTicketSidePanel` no final do componente, controlado por `showTicketDetail`.
 
-Atualizar `UAZAPI_DEFAULT_WEBHOOK_EVENTS` (constante de referência usada no frontend/admin) com a mesma lista canônica acima.
+O painel de detalhes (`ChatTicketDetailSidePanel`) já é o mesmo usado pelo menu de contexto da lista, garantindo experiência consistente: o detalhe abre no mesmo "slot" lateral onde a criação apareceria.
 
-### 4. Handler do webhook (`supabase/functions/uazapi-chat-webhook/index.ts`)
+---
 
-Os eventos chegarão como `contacts`, `chats`, `groups`, `presence`, `connection`, `messages_update`. Ajustar o roteamento por `EventType` para reconhecer essas chaves canônicas, mantendo um fallback defensivo aceitando os formatos antigos (`contacts.update`, etc.) durante a transição — assim não há perda de payloads em voo nem regressão se alguma instância demorar para receber a reconfiguração.
+### Validação
 
-A lógica de avatar (em `contacts` / `groups`) e atualização de fila em tempo real continua a mesma — muda apenas o nome do evento que ativa o handler.
+- Lista: o item da conversa com ticket exibe a linha laranja "TICKET #N · status" sem cursor de link; clique no item abre as mensagens no chat. Botão direito segue mostrando "Ver ticket / Abrir no módulo".
+- Lista (sem ticket): botão direito mostra "Abrir ticket de suporte" para admin/colaborador.
+- Header: ao abrir uma conversa **com** ticket aberto, o menu "⋮ → Ver ticket de suporte #N" abre o `ChatTicketDetailSidePanel`. Em conversa **sem** ticket, o mesmo menu mostra "Abrir ticket de suporte" e abre o painel de criação.
 
-### 5. Reaplicação
+### Fora de escopo
 
-Sem migração nem mudança de UI. O usuário aciona o botão **"Reaplicar webhooks (UaZapi)"** já existente em `/admin/chat` (aba Provedores) para propagar o novo set para todas as instâncias ativas. Novas filas criadas após o deploy já nascem com os eventos corretos.
-
-## Validação
-
-1. Após deploy, clicar "Reaplicar webhooks (UaZapi)" e confirmar `ok` em todos os resultados.
-2. Conferir via `GET /webhook` em uma instância que `events` contém os 9 nomes canônicos e que `excludeMessages` está vazio.
-3. Enviar uma mensagem pela Julia (via API) e confirmar que ela aparece normalmente no histórico do chat (regressão de `fromMe`).
-4. Trocar foto de perfil de um contato no WhatsApp e confirmar nos logs de `uazapi-chat-webhook` o recebimento do evento `contacts` e o refresh do avatar no Storage.
-5. Trocar foto de um grupo e confirmar evento `groups` + refresh do avatar do grupo.
+- Nenhuma mudança em banco, edge functions ou RLS.
+- Nenhuma alteração no módulo `/tickets` em si.
