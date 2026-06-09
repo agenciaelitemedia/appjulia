@@ -292,6 +292,7 @@ export function TicketsKanban({ filters }: { filters: TicketFilters }) {
   const { tickets, isLoading } = useTickets(filters);
   const { setStatus } = useTicketMutations();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -322,21 +323,31 @@ export function TicketsKanban({ filters }: { filters: TicketFilters }) {
   const activeTicket = activeId ? tickets.find((t) => t.id === activeId) ?? null : null;
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div
-        className="flex gap-3 overflow-x-auto overflow-y-auto pb-2 scrollbar-none h-full"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
-        {KANBAN_STATUSES.map((status) => (
-          <Column
-            key={status}
-            status={status}
-            tickets={tickets.filter((t) => t.status === status)}
-            onCardClick={(id) => navigate(`/tickets/${id}`)}
-          />
-        ))}
-      </div>
-      <DragOverlay>{activeTicket && <TicketCard ticket={activeTicket} dragging />}</DragOverlay>
-    </DndContext>
+    <>
+      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div
+          className="flex gap-4 overflow-x-auto overflow-y-auto pb-2 scrollbar-none h-full"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {KANBAN_STATUSES.map((status) => (
+            <Column
+              key={status}
+              status={status}
+              tickets={tickets.filter((t) => t.status === status)}
+              onCardClick={(id) => navigate(`/tickets/${id}`)}
+              onResolve={(id) => setStatus.mutate({ ticketId: id, status: 'resolved' })}
+              onClose={(id) => setStatus.mutate({ ticketId: id, status: 'closed' })}
+              onAdd={() => setNewOpen(true)}
+            />
+          ))}
+        </div>
+        <DragOverlay>{activeTicket && <TicketCard ticket={activeTicket} dragging />}</DragOverlay>
+      </DndContext>
+      <NewTicketDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        onCreated={(id) => navigate(`/tickets/${id}`)}
+      />
+    </>
   );
 }
