@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
-  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon, Activity,
+  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon, Activity, History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -396,7 +396,9 @@ export default function TicketDetailPage() {
 
             {/* Interações (após o composer) */}
             <div className="space-y-2 border-t pt-3">
-              <h3 className="text-base font-semibold">Interações</h3>
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <History className="h-4 w-4 text-muted-foreground" /> Histórico de Conversa
+              </h3>
               <div className="max-h-[55vh] overflow-y-auto pr-1">
                 {(() => {
                   const interactions = visibleMessages.filter((m) => m.kind !== 'event');
