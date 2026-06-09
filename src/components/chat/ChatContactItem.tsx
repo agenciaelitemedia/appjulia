@@ -330,10 +330,10 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                     e.stopPropagation();
                     window.open(`/tickets/${ticketLink.ticketId}`, '_blank', 'noopener');
                   }}
-                  className="flex items-center justify-between min-w-0 w-full pt-1 mt-0.5 bg-amber-50/40 dark:bg-amber-950/20 rounded-sm border border-amber-100/70 dark:border-amber-900/40 px-0 gap-0 py-[2px] my-0 cursor-pointer"
+                  className="flex items-center justify-between min-w-0 w-full pt-1 mt-0.5 bg-orange-50/40 dark:bg-orange-950/20 rounded-sm border border-orange-100/70 dark:border-orange-900/40 px-0 gap-0 py-[2px] my-0 cursor-pointer"
                 >
                   <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
-                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 whitespace-nowrap flex-shrink-0">
+                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 whitespace-nowrap flex-shrink-0">
                       <Ticket className="h-2.5 w-2.5 flex-shrink-0" />
                       TICKET
                     </span>
