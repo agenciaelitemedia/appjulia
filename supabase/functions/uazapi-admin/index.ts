@@ -149,8 +149,8 @@ serve(async (req) => {
             body: JSON.stringify({
               url: webhookUrl,
               enabled: true,
-              events: ['messages', 'history'],
-              excludeMessages: ['isGroupYes'],
+              events: ['connection', 'messages', 'messages_update', 'history', 'chats', 'contacts', 'groups', 'presence', 'call'],
+              excludeMessages: [],
             }),
           });
 
