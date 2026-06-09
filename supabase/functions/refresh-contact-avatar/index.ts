@@ -1,9 +1,13 @@
 // ============================================
 // Refresh Contact Avatar
-// On-demand refresh of a chat_contacts.avatar URL when the
-// stored signed URL from pps.whatsapp.net has expired (403/404).
+// On-demand refresh of a chat_contacts.avatar URL.
+// Downloads the WhatsApp profile picture (UaZapi /chat/details for
+// individuals, /group/info for groups) and persists it to the
+// `avatars` Storage bucket. The public Storage URL is stable, so the
+// frontend stops fighting expired pps.whatsapp.net signed URLs.
 // ============================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { persistAvatarToStorage } from '../_shared/whatsapp-profile.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,7 +24,7 @@ function pickStr(...c: unknown[]): string | null {
   return null;
 }
 
-async function fetchUazapiAvatar(
+async function fetchUazapiIndividualAvatar(
   base: string,
   token: string,
   phone: string,
@@ -59,12 +63,36 @@ async function fetchUazapiAvatar(
   return null;
 }
 
+async function fetchUazapiGroupAvatar(
+  base: string,
+  token: string,
+  groupJid: string,
+): Promise<string | null> {
+  const url = base.replace(/\/$/, '');
+  const headers = { 'Content-Type': 'application/json', token };
+  try {
+    const r = await fetch(`${url}/group/info`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ groupjid: groupJid, pictureUrl: true }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      const info = data?.group || data?.data || data || null;
+      return pickStr(info?.pictureUrl, info?.image, info?.profilePictureUrl, info?.imagePreview);
+    }
+  } catch (_) { /* ignore */ }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
   try {
-    const { contact_id } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { contact_id, force } = body || {};
     if (!contact_id || typeof contact_id !== 'string') {
       return new Response(
         JSON.stringify({ error: 'contact_id is required' }),
@@ -79,7 +107,7 @@ Deno.serve(async (req) => {
 
     const { data: contact, error: cErr } = await supabase
       .from('chat_contacts')
-      .select('id, client_id, phone, channel_source, channel_type, is_group')
+      .select('id, client_id, phone, channel_source, channel_type, is_group, remote_jid, avatar, avatar_storage_path, avatar_source_url, avatar_source_hash, avatar_refresh_requested_at, avatar_refreshed_at')
       .eq('id', contact_id)
       .maybeSingle();
 
@@ -116,32 +144,85 @@ Deno.serve(async (req) => {
 
     if (!queue?.evo_url || !queue?.evo_apikey) {
       return new Response(
-        JSON.stringify({ avatar: null, reason: 'no_uazapi_queue' }),
+        JSON.stringify({ avatar: contact.avatar ?? null, reason: 'no_uazapi_queue' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const avatar = await fetchUazapiAvatar(
-      queue.evo_url,
-      queue.evo_apikey,
-      contact.phone,
-    );
+    // Route group vs individual lookup.
+    const isGroup = contact.is_group === true ||
+      (typeof contact.phone === 'string' && contact.phone.includes('@g.us')) ||
+      (typeof contact.remote_jid === 'string' && contact.remote_jid.includes('@g.us'));
 
-    if (avatar) {
+    const sourceUrl = isGroup
+      ? await fetchUazapiGroupAvatar(queue.evo_url, queue.evo_apikey, contact.remote_jid || contact.phone)
+      : await fetchUazapiIndividualAvatar(queue.evo_url, queue.evo_apikey, contact.phone);
+
+    // The webhook may have flagged this contact for forced refresh.
+    const flagged = !!contact.avatar_refresh_requested_at &&
+      (!contact.avatar_refreshed_at || new Date(contact.avatar_refresh_requested_at) > new Date(contact.avatar_refreshed_at));
+    const effectiveForce = force === true || flagged;
+
+    if (!sourceUrl) {
+      // Keep whatever we already have — don't blow away a previously stored avatar.
       await supabase
         .from('chat_contacts')
-        .update({ avatar, updated_at: new Date().toISOString() })
+        .update({ avatar_refresh_requested_at: null, updated_at: new Date().toISOString() })
+        .eq('id', contact.id);
+      return new Response(
+        JSON.stringify({ avatar: contact.avatar ?? null, reason: 'no_remote_avatar' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const result = await persistAvatarToStorage(supabase, {
+      contact_id: contact.id,
+      client_id: contact.client_id,
+      is_group: isGroup,
+      phone: contact.phone,
+      source_url: sourceUrl,
+      previous_hash: contact.avatar_source_hash,
+      force: effectiveForce,
+    });
+
+    const nowIso = new Date().toISOString();
+    let avatarUrl: string | null = contact.avatar ?? null;
+
+    if (result.public_url && (result.changed || !contact.avatar_storage_path)) {
+      // Append a cache-buster on real changes so clients reload the new image.
+      avatarUrl = result.changed
+        ? `${result.public_url}?v=${(result.hash || nowIso).slice(0, 12)}`
+        : result.public_url;
+      await supabase
+        .from('chat_contacts')
+        .update({
+          avatar: avatarUrl,
+          avatar_storage_path: result.storage_path,
+          avatar_source_url: sourceUrl,
+          avatar_source_hash: result.hash,
+          avatar_refreshed_at: nowIso,
+          avatar_refresh_requested_at: null,
+          updated_at: nowIso,
+        })
         .eq('id', contact.id);
     } else {
-      // Clear stale URL so we stop hitting expired CDN links
       await supabase
         .from('chat_contacts')
-        .update({ avatar: null, updated_at: new Date().toISOString() })
+        .update({
+          avatar_source_url: sourceUrl,
+          avatar_refreshed_at: nowIso,
+          avatar_refresh_requested_at: null,
+          updated_at: nowIso,
+        })
         .eq('id', contact.id);
     }
 
     return new Response(
-      JSON.stringify({ avatar }),
+      JSON.stringify({
+        avatar: avatarUrl,
+        changed: result.changed,
+        reason: result.reason ?? null,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (e) {
