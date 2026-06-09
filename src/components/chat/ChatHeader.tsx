@@ -828,6 +828,14 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         contact={contact}
         conversation={selectedConversation ?? null}
       />
+
+      {showTicketDetail && (
+        <ChatTicketDetailSidePanel
+          open
+          onClose={() => setShowTicketDetail(null)}
+          ticketId={showTicketDetail}
+        />
+      )}
     </>
   );
 }
