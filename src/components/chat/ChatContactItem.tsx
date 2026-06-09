@@ -2,7 +2,7 @@ import React from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, Globe, Instagram, Kanban, Bot } from 'lucide-react';
+import { Users, MessageCircle, Globe, Instagram, Kanban, Bot, Ticket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
@@ -16,6 +16,8 @@ import { PriorityBadge } from '@/components/chat/PriorityBadge';
 import { ConversationQuickActions } from '@/components/chat/ConversationQuickActions';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 import type { CrmBuilderLink } from '@/hooks/useCRMBuilderLinkedConversations';
+import type { TicketConversationLink } from '@/hooks/useTicketLinkedConversations';
+import { STATUS_LABEL as TICKET_STATUS_LABEL, STATUS_BADGE as TICKET_STATUS_BADGE, PRIORITY_LABEL as TICKET_PRIORITY_LABEL } from '@/pages/tickets/types';
 
 function toTitleCase(s: string): string {
   return s
@@ -43,6 +45,8 @@ interface ChatContactItemProps {
   hasCrmCard?: boolean;
   /** Vínculo com card do CRM Builder (Quadro · Etapa). */
   crmBuilderLink?: CrmBuilderLink;
+  /** Vínculo com ticket de suporte aberto (TICKET #N · status). */
+  ticketLink?: TicketConversationLink;
   /** Metadados derivados de chat_messages para avaliar NRT corretamente. */
   lastMessageMeta?: LastMessageMeta;
 }
