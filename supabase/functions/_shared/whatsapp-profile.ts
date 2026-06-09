@@ -31,6 +31,8 @@ export interface NormalizedProfile {
 
 const TIMEOUT_MS = 15000;
 const GRAPH_API_VERSION = 'v22.0';
+const AVATAR_BUCKET = 'avatars';
+const AVATAR_FETCH_TIMEOUT_MS = 15000;
 
 function emptyProfile(source: 'uazapi' | 'waba'): NormalizedProfile {
   return {
@@ -261,4 +263,104 @@ export async function fetchWabaProfileWithUazapiFallback(
   }
 
   return profile;
+}
+
+// ────────────────────── Avatar Storage Cache ──────────────────────
+// Downloads a WhatsApp profile picture and persists it to the
+// `avatars` Storage bucket, returning a stable public URL. Uses a
+// SHA-256 hash to avoid re-uploading unchanged images.
+
+export interface PersistAvatarInput {
+  contact_id: string;
+  client_id: string;
+  is_group: boolean;
+  phone: string;
+  source_url: string | null;
+  /** Previous hash stored in chat_contacts.avatar_source_hash */
+  previous_hash?: string | null;
+  /** When true, re-uploads even if hash matches */
+  force?: boolean;
+}
+
+export interface PersistAvatarResult {
+  changed: boolean;
+  public_url: string | null;
+  storage_path: string | null;
+  hash: string | null;
+  reason?: string;
+}
+
+function bufToHex(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+function inferContentType(url: string, fallback = 'image/jpeg'): string {
+  const u = url.toLowerCase();
+  if (u.includes('.png')) return 'image/png';
+  if (u.includes('.webp')) return 'image/webp';
+  if (u.includes('.gif')) return 'image/gif';
+  return fallback;
+}
+
+export async function persistAvatarToStorage(
+  supabase: any,
+  input: PersistAvatarInput,
+): Promise<PersistAvatarResult> {
+  const empty: PersistAvatarResult = {
+    changed: false, public_url: null, storage_path: null, hash: null,
+  };
+  if (!input.source_url) return { ...empty, reason: 'no_source_url' };
+
+  // 1) Download the picture binary server-side (no CORS).
+  let bin: ArrayBuffer;
+  let contentType = 'image/jpeg';
+  try {
+    const r = await fetch(input.source_url, {
+      signal: AbortSignal.timeout(AVATAR_FETCH_TIMEOUT_MS),
+      headers: { 'User-Agent': 'Mozilla/5.0 AvatarFetcher' },
+    });
+    if (!r.ok) {
+      return { ...empty, reason: `fetch_${r.status}` };
+    }
+    contentType = r.headers.get('content-type') || inferContentType(input.source_url);
+    if (!contentType.startsWith('image/')) {
+      contentType = inferContentType(input.source_url);
+    }
+    bin = await r.arrayBuffer();
+    if (!bin || bin.byteLength === 0) return { ...empty, reason: 'empty_body' };
+  } catch (e) {
+    return { ...empty, reason: `fetch_error:${(e as Error).message}` };
+  }
+
+  // 2) Hash for change detection.
+  const hashBuf = await crypto.subtle.digest('SHA-256', bin);
+  const hash = bufToHex(hashBuf);
+
+  const storage_path = `whatsapp/${input.client_id}/${input.contact_id}.jpg`;
+  const { data: existingPublic } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(storage_path);
+  const public_url = existingPublic?.publicUrl || null;
+
+  if (!input.force && input.previous_hash && input.previous_hash === hash) {
+    return { changed: false, public_url, storage_path, hash, reason: 'hash_match' };
+  }
+
+  // 3) Upload (upsert) to Storage.
+  const { error: upErr } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(storage_path, new Uint8Array(bin), {
+      contentType,
+      upsert: true,
+      cacheControl: '3600',
+    });
+
+  if (upErr) {
+    return { ...empty, hash, reason: `upload_error:${upErr.message}` };
+  }
+
+  return { changed: true, public_url, storage_path, hash };
 }

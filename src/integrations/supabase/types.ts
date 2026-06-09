@@ -1170,6 +1170,11 @@ export type Database = {
       chat_contacts: {
         Row: {
           avatar: string | null
+          avatar_refresh_requested_at: string | null
+          avatar_refreshed_at: string | null
+          avatar_source_hash: string | null
+          avatar_source_url: string | null
+          avatar_storage_path: string | null
           channel_source: string | null
           channel_type: string
           client_id: string
@@ -1199,6 +1204,11 @@ export type Database = {
         }
         Insert: {
           avatar?: string | null
+          avatar_refresh_requested_at?: string | null
+          avatar_refreshed_at?: string | null
+          avatar_source_hash?: string | null
+          avatar_source_url?: string | null
+          avatar_storage_path?: string | null
           channel_source?: string | null
           channel_type?: string
           client_id: string
@@ -1228,6 +1238,11 @@ export type Database = {
         }
         Update: {
           avatar?: string | null
+          avatar_refresh_requested_at?: string | null
+          avatar_refreshed_at?: string | null
+          avatar_source_hash?: string | null
+          avatar_source_url?: string | null
+          avatar_storage_path?: string | null
           channel_source?: string | null
           channel_type?: string
           client_id?: string

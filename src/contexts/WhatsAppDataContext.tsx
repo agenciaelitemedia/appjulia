@@ -35,6 +35,51 @@ export type ChatPeriodFilter =
   | 'last3Months';
 
 const CONTACTS_PAGE_SIZE = 50;
+
+// ─── Send-error normalization ───────────────────────────────────────
+// Maps provider error codes / messages to user-friendly toasts so the
+// agent knows whether to wait, switch number or send a template.
+function normalizeSendError(err: unknown): { message: string; code: string | null } {
+  const raw = err instanceof Error ? err.message : (typeof err === 'string' ? err : '');
+  const txt = raw.toLowerCase();
+
+  // UaZapi temporary timelock (account just connected / starting too many
+  // new conversations). Code 463 / WHATSAPP_REACHOUT_TIMELOCK.
+  if (txt.includes('timelock') || txt.includes('reachout')) {
+    return {
+      code: 'WHATSAPP_REACHOUT_TIMELOCK',
+      message: 'Número temporariamente bloqueado pelo WhatsApp. Aguarde algumas horas antes de tentar novamente.',
+    };
+  }
+
+  // WABA 24h customer-service window expired.
+  if (txt.includes('re-engagement') || txt.includes('24 hour') || txt.includes('24-hour') ||
+      txt.includes('customer service window') || txt.includes('outside the allowed window')) {
+    return {
+      code: 'WABA_WINDOW_EXPIRED',
+      message: 'Janela de 24h expirada. Envie um template aprovado para reabrir a conversa.',
+    };
+  }
+
+  // Number not registered on WhatsApp.
+  if (txt.includes('not a whatsapp') || txt.includes('not registered') ||
+      txt.includes('invalid wa_id') || txt.includes('invalid recipient')) {
+    return {
+      code: 'INVALID_RECIPIENT',
+      message: 'Este número não possui conta WhatsApp ativa.',
+    };
+  }
+
+  // Generic provider rejection.
+  if (txt.includes('rejected this message') || txt.includes('server rejected')) {
+    return {
+      code: 'PROVIDER_REJECTED',
+      message: 'O WhatsApp recusou esta mensagem. Verifique o número, a janela de atendimento ou tente novamente em alguns minutos.',
+    };
+  }
+
+  return { code: null, message: raw || 'Erro ao enviar mensagem' };
+}
 // Conversation pagination — bigger initial page for instant context, then
 // smaller chunks on demand (scroll/click). Avoids the previous "infinite
 // auto-loop" that flooded the DB and the browser DOM with thousands of rows.
@@ -1603,9 +1648,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       }
 
     } catch (error) {
-      console.error('Error sending message:', error);
-      const msg = error instanceof Error ? error.message : 'Erro ao enviar mensagem';
-      toast.error(msg);
+      const { message, code } = normalizeSendError(error);
+      if (code) console.warn('[chat][send] provider error', code, error);
+      else console.error('Error sending message:', error);
+      toast.error(message);
 
       setMessages(prev => ({
         ...prev,
