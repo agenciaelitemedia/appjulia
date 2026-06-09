@@ -38,6 +38,8 @@ import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { ChatCrmButton } from './ChatCrmButton';
 import { ChatTicketSidePanel } from './ChatTicketSidePanel';
+import { ChatTicketDetailSidePanel } from './ChatTicketDetailSidePanel';
+import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from './SlaBadge';
