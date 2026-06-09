@@ -158,6 +158,101 @@ export function useSupportConfig() {
   };
 }
 
+export class WhatsappDispatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WhatsappDispatchError';
+  }
+}
+
+async function dispatchToWhatsApp(params: {
+  ticketId: string;
+  queueId: string;
+  contactId: string;
+  conversationId: string | null;
+  body: string;
+  senderName: string | null;
+}): Promise<{ queueName: string | null }> {
+  const { ticketId, queueId, contactId, conversationId, body, senderName } = params;
+  const { data: queue, error: qerr } = await db
+    .from('queues')
+    .select('id, name, channel_type, evo_url, evo_apikey, waba_token, waba_number_id')
+    .eq('id', queueId)
+    .maybeSingle();
+  if (qerr || !queue) throw new WhatsappDispatchError('Fila não encontrada');
+
+  const { data: contact, error: cerr } = await db
+    .from('chat_contacts')
+    .select('id, phone, client_id')
+    .eq('id', contactId)
+    .maybeSingle();
+  if (cerr || !contact?.phone) throw new WhatsappDispatchError('Contato sem telefone');
+
+  let externalMessageId: string | undefined;
+  try {
+    if (queue.channel_type === 'waba') {
+      if (!queue.waba_token || !queue.waba_number_id) {
+        throw new WhatsappDispatchError('Credenciais WABA ausentes na fila');
+      }
+      const r = await fetch(`https://graph.facebook.com/v22.0/${queue.waba_number_id}/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${queue.waba_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: contact.phone,
+          type: 'text',
+          text: { body },
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new WhatsappDispatchError(`WABA ${r.status}: ${j?.error?.message || 'falha no envio'}`);
+      externalMessageId = j?.messages?.[0]?.id;
+    } else {
+      if (!queue.evo_url || !queue.evo_apikey) {
+        throw new WhatsappDispatchError('Credenciais UaZapi ausentes na fila');
+      }
+      const baseUrl = String(queue.evo_url).replace(/\/+$/, '');
+      const r = await fetch(`${baseUrl}/message/sendText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', token: String(queue.evo_apikey) },
+        body: JSON.stringify({ number: contact.phone, text: body }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new WhatsappDispatchError(`UaZapi ${r.status}: ${j?.error || j?.message || 'falha no envio'}`);
+      externalMessageId = j?.messageId || j?.id || j?.data?.messageId;
+    }
+  } catch (e) {
+    if (e instanceof WhatsappDispatchError) throw e;
+    throw new WhatsappDispatchError((e as Error).message || 'Erro ao enviar WhatsApp');
+  }
+
+  // Persistir na conversa para aparecer no histórico do chat
+  try {
+    await db.from('chat_messages').insert({
+      contact_id: contactId,
+      client_id: contact.client_id,
+      conversation_id: conversationId,
+      text: body,
+      type: 'text',
+      from_me: true,
+      status: 'sent',
+      message_id: externalMessageId,
+      external_id: externalMessageId,
+      timestamp: new Date().toISOString(),
+      sender_name: senderName || 'Suporte',
+      metadata: { support_ticket_id: ticketId },
+    });
+    await db.from('chat_contacts').update({
+      last_message_at: new Date().toISOString(),
+      last_message_text: body,
+    }).eq('id', contactId);
+  } catch (e) {
+    console.error('[dispatchToWhatsApp] persist failed', e);
+  }
+
+  return { queueName: (queue.name as string | null) ?? null };
+}
+
 // ── Mutations ──
 export interface CreateTicketInput {
   subject: string;
