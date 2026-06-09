@@ -1,132 +1,82 @@
+# Corrigir eventos do webhook UaZapi
 
-# Plano (revisado): erros visíveis no /chat + cache de avatares (individuais + grupos) com atualização em tempo real
+## Problema
 
-Três frentes.
+A documentação oficial (https://docs.uazapi.com/endpoint/post/webhook) lista um conjunto fechado de nomes de evento. A maior parte do que estamos enviando hoje usa "dot notation" (ex.: `chats.update`, `contacts.upsert`, `messages.delete`) que **não consta na lista oficial** — esses eventos são silenciosamente ignorados pelo servidor UaZapi, o que explica por que atualizações de perfil/foto/contato não chegavam de forma consistente.
 
-## 1) Mensagem de envio "rejeitada pelo WhatsApp" mais clara
+## Comparação
 
-Mapear códigos do provedor em mensagens acionáveis antes do toast.
+**Eventos válidos segundo a doc:**
+`connection`, `history`, `messages`, `messages_update`, `newsletter_messages`, `call`, `contacts`, `presence`, `groups`, `labels`, `chats`, `chat_labels`, `blocks`, `sender`
 
-- UaZapi `WHATSAPP_REACHOUT_TIMELOCK` (463) → "Número temporariamente bloqueado pelo WhatsApp. Aguarde algumas horas antes de tentar novamente."
-- WABA janela 24h expirada → "Janela de 24h expirada. Envie um template aprovado para reabrir a conversa."
-- Número sem WhatsApp → "Este número não possui conta WhatsApp ativa."
-- Fallback → mensagem genérica + código do provedor entre parênteses.
+**O que enviamos hoje (`uazapi-instance-manager/index.ts` linhas 14-29):**
 
-Arquivos: `src/contexts/WhatsAppDataContext.tsx` (helper `normalizeSendError`), `src/components/chat/ChatInput.tsx` (toast).
+| Evento atual          | Status                              |
+| --------------------- | ----------------------------------- |
+| `messages`            | OK                                  |
+| `messages.set`        | Inválido (não existe)               |
+| `history`             | OK                                  |
+| `messages.update`     | Inválido — o correto é `messages_update` |
+| `messages_update`     | OK                                  |
+| `messages.delete`     | Inválido (não existe evento próprio) |
+| `chats.update`        | Inválido — usar `chats`             |
+| `chats.upsert`        | Inválido — usar `chats`             |
+| `contacts.update`     | Inválido — usar `contacts`          |
+| `contacts.upsert`     | Inválido — usar `contacts`          |
+| `groups.update`       | Inválido — usar `groups`            |
+| `connection.update`   | Inválido — usar `connection`        |
+| `presence.update`     | Inválido — usar `presence`          |
 
-## 2) Warning "Unknown message type: RESET_BLANK_CHECK"
+## Sobre `excludeMessages`
 
-Vem do iframe host do Lovable e polui o console. Adicionar listener global em `src/lib/chunkReload.ts` (já lida com mensagens do parent) que reconhece `RESET_BLANK_CHECK` e responde `RESET_BLANK_CHECK_ACK` silenciosamente.
+A doc recomenda `excludeMessages: ["wasSentByApi"]` para evitar loops. **Não vamos aplicar.** Verificação no `uazapi-chat-webhook/index.ts` (linhas 1644, 1664-1665) confirma que mensagens `fromMe` enviadas pela Julia via API são gravadas em `chat_messages` com `from_me: true` e `status: 'sent'`. Esse fluxo é o que mantém o histórico do chat completo. Se filtrássemos `wasSentByApi`, perderíamos essas mensagens no histórico do operador.
 
-## 3) Cache de avatares no Storage (individuais **e** grupos) + atualização em tempo real
+A proteção contra eco já é feita em outra camada (memória `chat/anti-echo-self-conversation` — descarte de mensagens entre duas filas do mesmo cliente). Logo, **vamos enviar `excludeMessages: []`** (ou omitir o campo) e manter o comportamento atual.
 
-Problema atual: gravamos a URL crua do `pps.whatsapp.net`, que expira em horas/dias → vira 403 → cada navegação dispara um refresh que pega outra URL também expirável. Loop sem fim.
+## Mudanças
 
-Solução: persistir a imagem em `storage://avatars/...` e gravar a URL pública estável em `chat_contacts.avatar`. Detectar mudança real por hash. Reagir a eventos do webhook para invalidar o cache no momento certo.
+### 1. `supabase/functions/uazapi-instance-manager/index.ts`
 
-### 3.1 Modelo de dados (chat_contacts)
+Substituir `DEFAULT_WEBHOOK_EVENTS` pelo conjunto canônico:
 
-Novas colunas:
-- `avatar_storage_path text` — `whatsapp/{client_id}/{contact_id}.jpg`
-- `avatar_source_url text` — última URL crua baixada do WhatsApp
-- `avatar_source_hash text` — SHA-256 do binário, para deduplicar uploads
-- `avatar_refreshed_at timestamptz`
-- `avatar_refresh_requested_at timestamptz` — marcado pelo webhook quando chega evento de atualização de foto (sinaliza para o próximo refresh ignorar o hash)
-
-`avatar` continua sendo a URL servida ao frontend (agora será sempre a pública do Storage após a migração).
-
-### 3.2 Edge function `refresh-contact-avatar` (refatorada)
-
-Aceita `{ contact_id, force?: boolean }`. Fluxo:
-
-1. Resolve a queue UaZapi do client (mesma lógica de hoje).
-2. Detecta `is_group` pelo `chat_contacts` / sufixo `@g.us` no `phone`:
-   - Individual → `fetchUazapiProfile` (`/chat/details` + fallback `GetNameAndImageURL`).
-   - Grupo → `fetchUazapiGroupProfile` (`/group/info` com `pictureUrl: true`).
-3. Pega a URL crua atual. Se nada veio → mantém o que está no storage e retorna.
-4. `fetch` da URL no edge (server-side, sem CORS).
-5. SHA-256 do binário. Se `=== avatar_source_hash` **e** `force !== true` **e** `avatar_refresh_requested_at` não é mais novo que `avatar_refreshed_at` → só atualiza `avatar_refreshed_at` e retorna a URL pública atual.
-6. Senão → `upload` em `avatars/whatsapp/{client_id}/{contact_id}.jpg` (`upsert:true`, `cacheControl:'3600'`), gera URL pública, escreve em `chat_contacts` (`avatar`, `avatar_storage_path`, `avatar_source_url`, `avatar_source_hash`, `avatar_refreshed_at`, limpa `avatar_refresh_requested_at`).
-7. Se a URL do WhatsApp falhar (403/404) → mantém storage existente, **não derruba** `avatar`.
-
-Reuso: o mesmo helper de download/hash/upload é exportado de `_shared/whatsapp-profile.ts` (nova função `persistAvatarToStorage(supabase, contact, queue)`), usado tanto pela edge `refresh-contact-avatar` quanto pela `chat-contacts-enrich` para já gravar no Storage no enriquecimento inicial.
-
-### 3.3 Frontend (`SmartAvatarImage`)
-
-Continua igual conceitualmente: `onError` dispara `refresh-contact-avatar`. Como o `src` passa a ser URL estável do Storage, esse `onError` praticamente só ocorre no 1º carregamento de um contato ainda não migrado, então o cooldown de 5 min basta.
-
-### 3.4 Reatividade em tempo real (webhook UaZapi)
-
-UaZapi envia eventos de presença/perfil quando a foto muda. Os mais usados:
-
-- `messages.update` / `contacts.update` com `profilePictureUrl` ou `imgUrl` novos.
-- Para grupos: `groups.update` (mudança de subject, picture, descrição).
-- `presence.update` em alguns deployments traz `profilePictureUrl`.
-
-No webhook `supabase/functions/uazapi-chat-webhook/index.ts`, depois de identificar `client_id` e `contact_id`/`group_id`:
-
-1. Se o payload contém qualquer campo que indique mudança de foto (`profilePictureUrl`, `imgUrl`, `picture`, ou `event` ∈ `{contacts.update, groups.update, profile.update}` com a foto diferente da armazenada em `avatar_source_url`):
-   - `UPDATE chat_contacts SET avatar_refresh_requested_at = now() WHERE id = ?`
-   - Enfileira (fire-and-forget, `EdgeRuntime.waitUntil`) chamada à `refresh-contact-avatar` com `{ contact_id, force: true }`.
-2. Para eventos de grupo (`groups.update`, ou mensagem nova em chat `@g.us` cujo contato ainda não tem `avatar_storage_path`): mesma rotina apontando para o contato-grupo.
-3. Deduplicação: se `avatar_refresh_requested_at` já é mais recente que 60s, não enfileira de novo.
-
-Frontend recebe automaticamente o avatar novo via Realtime já existente em `chat_contacts` (canal de update).
-
-### 3.5 Suporte explícito a grupos
-
-- `chat-contacts-enrich` e `refresh-contact-avatar` passam a rotear para `/group/info` quando `is_group=true` ou `phone` termina em `@g.us` (helper já existe em `_shared/whatsapp-profile.ts`).
-- Path no Storage diferencia por id, então grupos não colidem com individuais.
-- `SmartAvatarImage` não precisa mudar — recebe igual a foto pública do bucket.
-
-### 3.6 Cron de revalidação (rede de segurança)
-
-`pg_cron` diário invoca `chat-contacts-enrich` por client com filtro `avatar_refreshed_at < now() - interval '7 days'` (inclui grupos). O hash evita re-upload se a foto não mudou.
-
-### 3.7 Migração
-
-- Migration 1: adicionar as colunas novas + índice em `avatar_refreshed_at`.
-- Migration 2: agendar o cron diário.
-- Backfill: rodar `chat-contacts-enrich` 1x por client logo após a migration; a nova lógica já grava no Storage. Avatares antigos continuam funcionando até serem regravados (`SmartAvatarImage` tolera 403).
-
-## Arquivos afetados
-
-- `src/contexts/WhatsAppDataContext.tsx` — `normalizeSendError`.
-- `src/components/chat/ChatInput.tsx` — toast usa a mensagem amigável.
-- `src/lib/chunkReload.ts` — handler `RESET_BLANK_CHECK`.
-- `supabase/functions/_shared/whatsapp-profile.ts` — nova função `persistAvatarToStorage` (download + hash + upload) reaproveitável.
-- `supabase/functions/refresh-contact-avatar/index.ts` — usa Storage, suporta `force`, suporta grupos.
-- `supabase/functions/chat-contacts-enrich/index.ts` — chama `persistAvatarToStorage` no enriquecimento, inclui grupos.
-- `supabase/functions/uazapi-chat-webhook/index.ts` — detecta `profile/group picture update` e dispara refresh em tempo real (`fire-and-forget`).
-- Nova migration: colunas + cron diário.
-
-## Fluxo final
-
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ Webhook UaZapi (profile/group update)                                    │
-│   → marca avatar_refresh_requested_at                                    │
-│   → invoca refresh-contact-avatar (force=true) em background             │
-└─────────────────────────┬────────────────────────────────────────────────┘
-                          ▼
-        refresh-contact-avatar  ──► UaZapi /chat/details ou /group/info
-                          │                ▼
-                          │           binário foto
-                          │                ▼
-                          │           sha256 == anterior?  ── sim ──► só atualiza timestamp
-                          │                │ não
-                          ▼                ▼
-                Storage avatars/whatsapp/{client}/{contact}.jpg (upsert)
-                          │
-                          ▼
-              chat_contacts.avatar = URL pública (estável)
-                          │
-                          ▼ Realtime
-                       Frontend SmartAvatarImage (sem 403)
+```ts
+const DEFAULT_WEBHOOK_EVENTS = [
+  'connection',      // estado da conexão
+  'messages',        // mensagens recebidas/enviadas (incluindo fromMe via API)
+  'messages_update', // edição/status/delete
+  'history',         // backfill on-demand
+  'chats',           // eventos de conversas
+  'contacts',        // atualizações de contato + foto de perfil
+  'groups',          // mudanças em grupo, inclusive foto
+  'presence',        // presença
+  'call',            // chamadas VoIP
+];
 ```
 
-## Fora de escopo
+Manter o body do POST `/webhook` **sem** `excludeMessages` (preservar comportamento atual de receber mensagens da API).
 
-- Mudar a lógica de envio em si (rejeição é do lado do WhatsApp).
-- Proxy/cache para mídias de mensagens (só fotos de perfil aqui).
-- WABA: Meta não expõe foto de terceiros; cross-provider fallback para UaZapi já existe e continua.
+### 2. `supabase/functions/uazapi-admin/index.ts`
+
+Linhas 152-153 e 354-355 — alinhar com a nova lista. Remover `excludeMessages: ['isGroupYes']` (derrubaria mensagens de grupo e impede receber foto de grupo).
+
+### 3. `src/config/chat.ts`
+
+Atualizar `UAZAPI_DEFAULT_WEBHOOK_EVENTS` (constante de referência usada no frontend/admin) com a mesma lista canônica acima.
+
+### 4. Handler do webhook (`supabase/functions/uazapi-chat-webhook/index.ts`)
+
+Os eventos chegarão como `contacts`, `chats`, `groups`, `presence`, `connection`, `messages_update`. Ajustar o roteamento por `EventType` para reconhecer essas chaves canônicas, mantendo um fallback defensivo aceitando os formatos antigos (`contacts.update`, etc.) durante a transição — assim não há perda de payloads em voo nem regressão se alguma instância demorar para receber a reconfiguração.
+
+A lógica de avatar (em `contacts` / `groups`) e atualização de fila em tempo real continua a mesma — muda apenas o nome do evento que ativa o handler.
+
+### 5. Reaplicação
+
+Sem migração nem mudança de UI. O usuário aciona o botão **"Reaplicar webhooks (UaZapi)"** já existente em `/admin/chat` (aba Provedores) para propagar o novo set para todas as instâncias ativas. Novas filas criadas após o deploy já nascem com os eventos corretos.
+
+## Validação
+
+1. Após deploy, clicar "Reaplicar webhooks (UaZapi)" e confirmar `ok` em todos os resultados.
+2. Conferir via `GET /webhook` em uma instância que `events` contém os 9 nomes canônicos e que `excludeMessages` está vazio.
+3. Enviar uma mensagem pela Julia (via API) e confirmar que ela aparece normalmente no histórico do chat (regressão de `fromMe`).
+4. Trocar foto de perfil de um contato no WhatsApp e confirmar nos logs de `uazapi-chat-webhook` o recebimento do evento `contacts` e o refresh do avatar no Storage.
+5. Trocar foto de um grupo e confirmar evento `groups` + refresh do avatar do grupo.
