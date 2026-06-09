@@ -2,9 +2,13 @@ import React from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, Globe, Instagram, Kanban, Bot, Ticket } from 'lucide-react';
+import { Users, MessageCircle, Globe, Instagram, Kanban, Bot, Ticket, LifeBuoy, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import {
+  ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import { useAuth } from '@/contexts/AuthContext';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ChatTag } from '@/types/conversation';
@@ -49,6 +53,8 @@ interface ChatContactItemProps {
   ticketLink?: TicketConversationLink;
   /** Metadados derivados de chat_messages para avaliar NRT corretamente. */
   lastMessageMeta?: LastMessageMeta;
+  /** Acionado pelo menu de contexto para abrir/visualizar ticket de suporte. */
+  onOpenTicket?: (mode: 'create' | 'detail', ticketId?: string) => void;
 }
 
 function ChannelOverlay({ channel }: { channel?: string }) {
@@ -126,8 +132,12 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   crmBuilderLink,
   ticketLink,
   lastMessageMeta,
+  onOpenTicket,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
+  const { hasPermission } = useAuth();
+  const canViewTickets = hasPermission('support_tickets', 'view');
+  const canCreateTickets = hasPermission('support_tickets', 'create');
 
   const slaEvaluation = React.useMemo(() => {
     if (!conversation) return null;
@@ -160,7 +170,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
 
   const visibleTags = convTags || [];
 
-  return (
+  const itemContent = (
     <div
       role="button"
       tabIndex={0}
