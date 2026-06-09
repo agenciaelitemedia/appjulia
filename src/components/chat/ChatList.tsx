@@ -72,13 +72,12 @@ function getDateRange(p: PeriodFilter): { from: Date; to: Date } | null {
   }
 }
 
-import type { ChatContact } from '@/types/chat';
-
 export interface ChatListProps {
   onOpenTicketPanel?: (
     contact: ChatContact,
     mode: 'create' | 'detail',
     ticketId?: string,
+    conversation?: any,
   ) => void;
 }
 
@@ -1670,7 +1669,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                       onOpenTicketPanel
                         ? (mode, ticketId) => {
                             selectContact(contact.id);
-                            onOpenTicketPanel(contact, mode, ticketId);
+                            onOpenTicketPanel(contact, mode, ticketId, conv);
                           }
                         : undefined
                     }
