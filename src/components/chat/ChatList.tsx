@@ -35,6 +35,7 @@ import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
+import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { externalDb } from '@/lib/externalDb';
 import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
