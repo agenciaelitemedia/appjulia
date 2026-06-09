@@ -1,61 +1,55 @@
-## Objetivo
+# Redesenho da tela de detalhes do ticket
 
-Ajustar três pontos do fluxo de Ticket de Suporte dentro do módulo de Chat, alinhando o comportamento ao já praticado pelo bloco CRM.
+A tela atual (`/tickets/:id`) trata as interações como um chat (bolhas alinhadas à esquerda/direita, aba "Histórico" separada). Ticket de suporte não é conversa de WhatsApp — o esperado é uma **timeline unificada** com todos os eventos do chamado em ordem cronológica.
 
----
+## Mudanças em `src/pages/tickets/TicketDetailPage.tsx`
 
-### 1. Badge TICKET na lista de conversas: deixar de abrir link externo
+### 1. Remover o layout estilo chat
+- Remover o card "Conversa" com bolhas (`bg-primary/10` / `bg-muted` alinhadas por `justify-end` / `justify-start`) — linhas 334–366.
+- Remover a aba duplicada **Histórico** da coluna esquerda (linhas 213–332 viram apenas "Detalhes", sem `Tabs`). O histórico passa a viver como timeline única na coluna direita.
+- Remover o componente local `TicketHistory` (linhas 61–93) — substituído pelo novo `TicketTimeline`.
 
-**Arquivo:** `src/components/chat/ChatContactItem.tsx` (linhas 332–375)
+### 2. Novo componente `TicketTimeline` (mesmo arquivo)
+Renderiza **todas** as `messages` (eventos, respostas públicas e notas internas) como uma única linha do tempo vertical em ordem cronológica **decrescente** (mais recente no topo):
 
-- Remover o `role="link"`, o `onClick` que faz `window.open('/tickets/{id}')` e o `cursor-pointer` do contêiner da linha "TICKET #N · status".
-- O bloco passa a ser puramente informativo (igual ao bloco CRM Builder logo acima), de forma que o clique no item da lista continue selecionando a conversa normalmente e abrindo as mensagens no chat.
-- Mantém-se o Tooltip com número/assunto/status/prioridade.
-- Mantém-se o menu de contexto (botão direito) com as opções "Ver ticket #N" (abre painel lateral de detalhes) e "Abrir no módulo" (nova aba), que continuam funcionando como atalhos avançados.
+```text
+│ ● [ícone]  Resposta de João Silva                 09/06 14:32
+│            "Olá, segue o procedimento..."
+│
+│ ◌ [ícone]  Nota interna · Maria                   09/06 14:10
+│            "Cliente já havia pedido reembolso..."
+│
+│ ◇ [ícone]  Status alterado: Aberto → Em andamento 09/06 13:55
+│            por Maria
+│
+│ ◇ [ícone]  Responsável atribuído: Maria           09/06 13:50
+│
+│ ● [ícone]  Chamado criado por Cliente Foo         09/06 13:45
+```
 
----
+Tratamento por tipo:
+- `kind === 'public'`: card com borda neutra, cabeçalho "Resposta de {autor}", corpo `whitespace-pre-wrap`. Sem distinção visual "esquerda/direita".
+- `kind === 'internal'`: card com fundo âmbar suave (`bg-amber-50/50 dark:bg-amber-950/20 border-amber-200/60`), cabeçalho "Nota interna · {autor}". Só visível para `isAgent`.
+- `kind === 'event'`: linha compacta de uma linha (sem card), texto `text-muted-foreground`, ícone conforme `event_type` (`CircleDot` criado, `ArrowRightLeft` status, `UserCheck` atribuído, `Flag` outros, `StarIcon` csat).
 
-### 2. Item "Abrir ticket de suporte" não aparece no menu da lista de conversas
+Estrutura visual: rail vertical (`border-l ml-3`) com pontos/ícones encostados, conteúdo à direita. Densidade compacta (`text-sm`, `gap-3`).
 
-**Causa:** Em `ChatContactItem.tsx` o menu de contexto está gated por `hasPermission('support_tickets', 'view' | 'create')`. Para usuários cujo papel ainda não recebeu permissões finas no módulo `support_tickets` (cenário comum hoje), o menu inteiro é suprimido — mesmo para admin/colaborador, que no header já têm acesso direto via `user.role`.
+### 3. Coluna direita: Descrição + Timeline + Composer
+- Card único com:
+  - **Descrição original** (mantém o bloco atual `bg-muted/30` se houver `ticket.description`).
+  - **Timeline** (`<TicketTimeline messages={visibleMessages} />`) com `max-h-[60vh] overflow-y-auto`.
+  - **Composer** (mantém Textarea + toggle Resposta/Nota interna + botão Enviar — sem mudanças funcionais).
 
-**Correção em `src/components/chat/ChatContactItem.tsx`:**
+### 4. Coluna esquerda: só "Detalhes"
+Remover `Tabs` e manter o conteúdo de "Detalhes" direto no `CardContent`. Permanece: badges (status/prioridade/SLA), selects de status/prioridade/depto/categoria/responsável (para agente), bloco solicitante, botão "Abrir conversa" (quando há `contact_id`), bloco CSAT.
 
-- Trocar as guardas `canViewTickets` / `canCreateTickets` por uma regra equivalente à do header:
-  - `canViewTickets = hasPermission('support_tickets','view') || user?.role === 'admin' || user?.role === 'colaborador'`
-  - `canCreateTickets = hasPermission('support_tickets','create') || user?.role === 'admin' || user?.role === 'colaborador'`
-- Assim, quando não há ticket vinculado, o item "Abrir ticket de suporte" passa a aparecer no menu de contexto para admin/colaborador, idêntico ao item já existente no header da conversa.
+## Fora do escopo
+- Sem mudanças no banco, hooks (`useTickets`), tipos ou edge functions.
+- Sem mudanças no `ChatSidePanel`, `ChatTicketDetailSidePanel` ou na lista de conversas (`ChatContactItem`/`ChatHeader`).
+- Sem alterações no comportamento do composer (envio de resposta/nota continua igual).
 
-Observação: isto preserva o RLS do banco — a permissão fina continua sendo respeitada para perfis de equipe; apenas garantimos paridade para admin/colaborador.
-
----
-
-### 3. Header do chat: "Abrir ticket de suporte" deve abrir o ticket existente
-
-**Arquivo:** `src/components/chat/ChatHeader.tsx` (linhas 700–722 e 811–817)
-
-Hoje o `DropdownMenuItem` "Abrir ticket de suporte" sempre abre `ChatTicketSidePanel` (modo criação), mesmo quando já existe ticket aberto vinculado à conversa.
-
-**Mudanças:**
-
-1. Importar e consumir `useTicketLinkedConversations` para obter o `ticketLink` da conversa selecionada (`selectedConversation?.id`).
-2. Adicionar estado `showTicketDetail` (string | null) com o `ticketId` quando aberto.
-3. No `DropdownMenuItem`:
-   - Se `ticketLink` existe → rótulo passa a ser "Ver ticket de suporte #N" e o clique abre `ChatTicketDetailSidePanel` com `ticketId = ticketLink.ticketId`.
-   - Se não existe → mantém rótulo "Abrir ticket de suporte" e abre o `ChatTicketSidePanel` atual (criação).
-4. Renderizar `ChatTicketDetailSidePanel` ao lado do `ChatTicketSidePanel` no final do componente, controlado por `showTicketDetail`.
-
-O painel de detalhes (`ChatTicketDetailSidePanel`) já é o mesmo usado pelo menu de contexto da lista, garantindo experiência consistente: o detalhe abre no mesmo "slot" lateral onde a criação apareceria.
-
----
-
-### Validação
-
-- Lista: o item da conversa com ticket exibe a linha laranja "TICKET #N · status" sem cursor de link; clique no item abre as mensagens no chat. Botão direito segue mostrando "Ver ticket / Abrir no módulo".
-- Lista (sem ticket): botão direito mostra "Abrir ticket de suporte" para admin/colaborador.
-- Header: ao abrir uma conversa **com** ticket aberto, o menu "⋮ → Ver ticket de suporte #N" abre o `ChatTicketDetailSidePanel`. Em conversa **sem** ticket, o mesmo menu mostra "Abrir ticket de suporte" e abre o painel de criação.
-
-### Fora de escopo
-
-- Nenhuma mudança em banco, edge functions ou RLS.
-- Nenhuma alteração no módulo `/tickets` em si.
+## Validação
+- Abrir `/tickets/:id`: a coluna direita exibe descrição, timeline única em ordem decrescente, composer no rodapé. Sem bolhas estilo chat.
+- Agente vê notas internas em âmbar; solicitante não as vê.
+- Eventos (criação, mudança de status, atribuição, CSAT) aparecem como linhas compactas intercaladas na timeline.
+- Coluna esquerda mostra apenas "Detalhes" (sem aba "Histórico").

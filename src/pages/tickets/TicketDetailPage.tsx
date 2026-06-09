@@ -10,8 +10,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
-  CircleDot, ArrowRightLeft, Flag, Building2, FolderTree, UserCheck, Reply, Star as StarIcon, Activity,
+  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -40,10 +38,10 @@ import {
 } from './types';
 import type { TicketMessage } from './types';
 
-function eventIcon(eventType: string | null, kind: string) {
-  if (kind === 'public') return Reply;
-  if (kind === 'internal') return StickyNote;
-  switch (eventType) {
+function eventIcon(m: TicketMessage) {
+  if (m.kind === 'public') return Reply;
+  if (m.kind === 'internal') return StickyNote;
+  switch (m.event_type) {
     case 'created': return CircleDot;
     case 'status_change': return ArrowRightLeft;
     case 'assigned': return UserCheck;
@@ -52,43 +50,70 @@ function eventIcon(eventType: string | null, kind: string) {
   }
 }
 
-function eventLabel(m: TicketMessage): string {
-  if (m.kind === 'public') return `Resposta enviada${m.author_name ? ` por ${m.author_name}` : ''}`;
-  if (m.kind === 'internal') return `Nota interna${m.author_name ? ` por ${m.author_name}` : ''}`;
-  return m.body || m.event_type || 'Evento';
-}
-
-function TicketHistory({ messages }: { messages: TicketMessage[] }) {
+function TicketTimeline({ messages }: { messages: TicketMessage[] }) {
   const items = [...messages].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
   if (items.length === 0) {
-    return <p className="text-xs text-muted-foreground py-6 text-center">Sem eventos ainda.</p>;
+    return <p className="text-xs text-muted-foreground py-8 text-center">Sem interações ainda.</p>;
   }
   return (
-    <ScrollArea className="max-h-[60vh] pr-2">
-      <ol className="space-y-3">
-        {items.map((m) => {
-          const Icon = eventIcon(m.event_type, m.kind);
+    <ol className="relative border-l border-border ml-3 space-y-4 py-2">
+      {items.map((m) => {
+        const Icon = eventIcon(m);
+        const ts = format(new Date(m.created_at), 'dd/MM/yyyy HH:mm');
+        const author = m.author_name || (m.author_role === 'agent' ? 'Suporte' : 'Solicitante');
+
+        // Bullet/icon comum
+        const bullet = (extra?: string) => (
+          <span
+            className={cn(
+              'absolute -left-[13px] flex h-6 w-6 items-center justify-center rounded-full border bg-background',
+              extra,
+            )}
+          >
+            <Icon className="h-3 w-3 text-muted-foreground" />
+          </span>
+        );
+
+        if (m.kind === 'event') {
           return (
-            <li key={m.id} className="flex gap-2 text-sm">
-              <div className="flex flex-col items-center pt-0.5">
-                <span className="rounded-full border bg-muted/40 p-1.5">
-                  <Icon className="h-3 w-3 text-muted-foreground" />
-                </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="leading-snug">{eventLabel(m)}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {m.author_name ? `${m.author_name} · ` : ''}
-                  {format(new Date(m.created_at), 'dd/MM/yyyy HH:mm')}
-                </p>
+            <li key={m.id} className="relative pl-6">
+              {bullet('bg-muted/40')}
+              <div className="text-xs text-muted-foreground leading-snug">
+                <span className="text-foreground">{m.body || m.event_type || 'Evento'}</span>
+                <span className="mx-1">·</span>
+                <span>{ts}</span>
+                {m.author_name ? <span> · {m.author_name}</span> : null}
               </div>
             </li>
           );
-        })}
-      </ol>
-    </ScrollArea>
+        }
+
+        const isInternal = m.kind === 'internal';
+        return (
+          <li key={m.id} className="relative pl-6">
+            {bullet(isInternal ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/40' : 'bg-background')}
+            <div
+              className={cn(
+                'rounded-md border px-3 py-2 text-sm',
+                isInternal
+                  ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200/70 dark:border-amber-900/50'
+                  : 'bg-card',
+              )}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-medium">
+                  {isInternal ? `Nota interna · ${author}` : `Resposta de ${author}`}
+                </span>
+                <span className="text-[11px] text-muted-foreground">{ts}</span>
+              </div>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.body}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -209,24 +234,17 @@ export default function TicketDetailPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Coluna esquerda: abas (Detalhes / Histórico) */}
+        {/* Coluna esquerda: detalhes */}
         <Card className="lg:col-span-1 h-fit">
-          <Tabs defaultValue="detalhes" className="w-full">
-            <CardHeader className="pb-2">
-              <TabsList className="grid grid-cols-2 w-full">
-                <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
-                <TabsTrigger value="historico" className="gap-1">
-                  <Activity className="h-3.5 w-3.5" /> Histórico
-                </TabsTrigger>
-              </TabsList>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <TabsContent value="detalhes" className="space-y-3 text-sm mt-0">
-                <div className="flex flex-wrap gap-2">
-                  <Badge className={STATUS_BADGE[ticket.status]}>{STATUS_LABEL[ticket.status]}</Badge>
-                  <Badge className={PRIORITY_BADGE[ticket.priority]}>{PRIORITY_LABEL[ticket.priority]}</Badge>
-                  <TicketSlaBadge ticket={ticket} />
-                </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Detalhes</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-2 space-y-3 text-sm">
+            <div className="flex flex-wrap gap-2">
+              <Badge className={STATUS_BADGE[ticket.status]}>{STATUS_LABEL[ticket.status]}</Badge>
+              <Badge className={PRIORITY_BADGE[ticket.priority]}>{PRIORITY_LABEL[ticket.priority]}</Badge>
+              <TicketSlaBadge ticket={ticket} />
+            </div>
 
             {isAgent ? (
               <div className="space-y-2">
@@ -322,47 +340,22 @@ export default function TicketDetailPage() {
                 {ticket.csat_comment && <p className="text-xs text-muted-foreground mt-0.5">"{ticket.csat_comment}"</p>}
               </div>
             )}
-              </TabsContent>
-
-              <TabsContent value="historico" className="mt-0">
-                <TicketHistory messages={messages} />
-              </TabsContent>
-            </CardContent>
-          </Tabs>
+          </CardContent>
         </Card>
 
-        {/* Coluna direita: descrição + thread */}
+        {/* Coluna direita: descrição + timeline + composer */}
         <Card className="lg:col-span-2 flex flex-col">
-          <CardHeader className="pb-3"><CardTitle className="text-base">Conversa</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Interações</CardTitle></CardHeader>
           <CardContent className="flex-1 flex flex-col gap-3">
             {ticket.description && (
-              <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">{ticket.description}</div>
+              <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
+                <p className="text-[11px] font-medium text-muted-foreground mb-1">Descrição original</p>
+                {ticket.description}
+              </div>
             )}
 
-            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
-              {visibleMessages.map((m) => {
-                if (m.kind === 'event') {
-                  return <p key={m.id} className="text-center text-[11px] text-muted-foreground py-1">{m.body} · {format(new Date(m.created_at), 'dd/MM HH:mm')}</p>;
-                }
-                const mine = m.author_role === 'agent';
-                return (
-                  <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
-                    <div className={cn(
-                      'rounded-lg px-3 py-2 max-w-[80%] text-sm',
-                      m.kind === 'internal'
-                        ? 'bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900'
-                        : mine ? 'bg-primary/10' : 'bg-muted',
-                    )}>
-                      <div className="flex items-center gap-1 mb-0.5">
-                        {m.kind === 'internal' && <StickyNote className="h-3 w-3 text-amber-600" />}
-                        <span className="text-[11px] font-medium">{m.author_name || (mine ? 'Suporte' : 'Solicitante')}</span>
-                        <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), 'dd/MM HH:mm')}</span>
-                      </div>
-                      <p className="whitespace-pre-wrap">{m.body}</p>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="max-h-[60vh] overflow-y-auto pr-1">
+              <TicketTimeline messages={visibleMessages} />
             </div>
 
             {/* Composer */}
