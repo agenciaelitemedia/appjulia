@@ -72,7 +72,17 @@ function getDateRange(p: PeriodFilter): { from: Date; to: Date } | null {
   }
 }
 
-export function ChatList() {
+import type { ChatContact } from '@/types/chat';
+
+export interface ChatListProps {
+  onOpenTicketPanel?: (
+    contact: ChatContact,
+    mode: 'create' | 'detail',
+    ticketId?: string,
+  ) => void;
+}
+
+export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   const {
     filteredContacts,
     selectedContactId,
@@ -1656,6 +1666,14 @@ export function ChatList() {
                     crmBuilderLink={conv?.id ? crmBuilderMap?.get(conv.id) : undefined}
                     ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
+                    onOpenTicket={
+                      onOpenTicketPanel
+                        ? (mode, ticketId) => {
+                            selectContact(contact.id);
+                            onOpenTicketPanel(contact, mode, ticketId);
+                          }
+                        : undefined
+                    }
                   />
                 </div>
               );
