@@ -1,34 +1,53 @@
-# Separar Interações de Histórico no detalhe do ticket
+## Objetivo
 
-Hoje a coluna direita ("Interações") mistura respostas, notas internas e eventos (criação, mudança de status, atribuição). O usuário quer separar:
+No bloco de resposta do chamado, adicionar um **switch "Enviar para WhatsApp"** (default desligado). Quando ligado, a resposta é salva como mensagem pública do ticket E enviada ao WhatsApp do solicitante pela mesma fila vinculada ao chamado.
 
-- **Interações** (coluna direita): apenas respostas públicas e notas internas, com um cabeçalho acima descrevendo do que se trata o chamado.
-- **Histórico** (coluna esquerda, aba ao lado de "Detalhes" — como antes): timeline com todos os eventos do chamado (criação, mudança de status, atribuição, CSAT, etc.).
+## Comportamento
 
-## Mudanças em `src/pages/tickets/TicketDetailPage.tsx`
+- Switch fica ao lado do switch "Nota interna", apenas para agentes/admin.
+- **Desabilitado automaticamente** quando:
+  - O switch "Nota interna" estiver ligado (nota interna nunca vaza para o cliente).
+  - O ticket não tiver `contact_id` + `queue_id` resolvíveis (sem canal WhatsApp).
+  - O envio estiver em andamento.
+- Tooltip explicando quando estiver desabilitado ("Chamado sem conversa de WhatsApp vinculada").
+- Ao enviar:
+  1. Insere a `support_ticket_messages` (resposta pública) — fluxo atual.
+  2. Dispara o envio ao WhatsApp via fila resolvida.
+  3. Loga evento `whatsapp_sent` no histórico (timeline) com o nome do canal/fila.
+  4. Em caso de falha no envio, a resposta no chamado **permanece salva** e mostramos toast de erro citando que o WhatsApp não foi enviado (com motivo).
+- Default `false` em cada novo envio (não persiste o estado anterior).
 
-### 1. Coluna esquerda volta a ter abas Detalhes / Histórico
-- Reintroduzir `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` e o ícone `Activity` nos imports.
-- Envolver o conteúdo atual da coluna esquerda em `<Tabs defaultValue="detalhes">` com duas abas: "Detalhes" (conteúdo atual) e "Histórico".
-- A aba **Histórico** renderiza `<TicketTimeline messages={eventsOnly} />`, onde `eventsOnly = messages.filter((m) => m.kind === 'event')`. Reaproveita o componente `TicketTimeline` já criado para manter o visual de linha do tempo vertical com bullets.
+## Resolução da fila
 
-### 2. Coluna direita: cabeçalho do chamado + somente interações
-- Renomear título para "Interações" (já está) e, **acima da lista**, adicionar um bloco "Sobre este chamado" com:
-  - Assunto (`ticket.subject`) em destaque.
-  - Descrição original (`ticket.description`) com `whitespace-pre-wrap`, se existir.
-  - Mantém o estilo de card sutil (`bg-muted/30 border rounded-md p-3`).
-- Filtrar a lista para `interactionsOnly = visibleMessages.filter((m) => m.kind !== 'event')` antes de passar para `<TicketTimeline />`.
-- Mantém o composer (Resposta / Nota interna) no rodapé sem mudanças.
+Já existe o hook local `chatTarget` na página, que devolve `{ contactId, queueId, conversationId }` a partir de:
+1. `ticket.conversation_id` → `chat_conversations.queue_id`
+2. Fallback: conversa mais recente do `ticket.contact_id`.
 
-### 3. Empty states
-- Se não houver interações, mostrar "Sem respostas ou notas ainda." no lugar da lista.
-- Se não houver eventos no histórico, manter "Sem interações ainda." (texto do `TicketTimeline` já cobre — apenas trocar para "Sem eventos registrados.").
+Reutilizamos esse mesmo resultado para decidir se o switch fica habilitado e para passar `contactId` + `conversationId` + `queueId` ao envio.
 
-## Fora do escopo
-- Sem mudanças em hooks, tipos, banco, edge functions ou em qualquer outra tela.
-- Componente `TicketTimeline` permanece (apenas passa a receber subconjuntos diferentes de mensagens em cada local).
+## Detalhes técnicos
 
-## Validação
-- `/tickets/:id`: coluna esquerda tem abas "Detalhes" e "Histórico"; a aba Histórico mostra apenas eventos (criação, status, atribuição, CSAT) em timeline.
-- Coluna direita mostra "Sobre este chamado" (assunto + descrição) acima da lista de Interações, que contém apenas respostas e notas internas.
-- Composer continua funcionando igual.
+**`src/pages/tickets/hooks/useTickets.ts`**
+- Estender a mutation `reply` para aceitar um parâmetro opcional `sendToWhatsApp?: { contactId: string; queueId: string; conversationId: string | null }`.
+- Quando presente e `internal=false`:
+  - Carregar `queues` (`channel_type`, `evo_url`, `evo_apikey`, `waba_token`, `waba_number_id`) e `chat_contacts.phone`.
+  - Despachar o texto conforme `channel_type`:
+    - `waba` → `POST https://graph.facebook.com/v22.0/{waba_number_id}/messages` (texto).
+    - demais (`uazapi`) → `POST {evo_url}/message/sendText` com header `token`.
+    - Mesmo padrão usado por `supabase/functions/chat-scheduler/index.ts` (referência).
+  - Persistir um registro em `chat_messages` (from_me=true, sender_name do agente, `metadata.support_ticket_id` para rastreabilidade) e atualizar `last_message_at`/`last_message_text` em `chat_contacts`, para a mensagem aparecer no histórico do chat.
+  - Logar `logEvent(ticketId, 'whatsapp_sent', 'Resposta enviada ao WhatsApp do solicitante via fila <nome>')`.
+  - Se falhar, lançar erro tipado `WhatsappDispatchError` para a UI tratar sem perder a resposta já salva.
+
+**`src/pages/tickets/TicketDetailPage.tsx`**
+- Novo estado `sendWhatsApp: boolean` (default `false`, reset após envio).
+- Renderizar `<Switch>` + `<Label>` "Enviar para WhatsApp" no rodapé do bloco de resposta, junto do toggle de nota interna.
+- `disabled` quando: `internal === true`, `!chatTarget?.queueId || !chatTarget?.contactId`, `isChatTargetLoading`, ou `sending`.
+- No `handleSend`, passar `sendToWhatsApp` para a mutation se `sendWhatsApp && !internal && chatTarget?.queueId && chatTarget?.contactId`.
+- Capturar `WhatsappDispatchError` separadamente: `toast.success('Resposta registrada')` + `toast.error('Falha ao enviar WhatsApp: ...')`.
+
+## Não escopo
+
+- Envio de mídia/anexos pelo switch (apenas texto nesta entrega).
+- Templates WABA fora da janela 24h (se a API recusar, mostramos o erro retornado).
+- Persistir preferência do switch entre envios.
