@@ -41,6 +41,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
+import type { ChatContact } from '@/types/chat';
 import { cn } from '@/lib/utils';
 
 type ConversationModeFilter = 'all' | 'julia' | 'human';
