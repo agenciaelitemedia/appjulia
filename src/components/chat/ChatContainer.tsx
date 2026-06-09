@@ -4,6 +4,8 @@ import { ChatHeader } from './ChatHeader';
 import { ChatMessages } from './ChatMessages';
 import { ChatInput } from './ChatInput';
 import { ContactDetailPanel } from './ContactDetailPanel';
+import { ChatTicketSidePanel } from './ChatTicketSidePanel';
+import { ChatTicketDetailSidePanel } from './ChatTicketDetailSidePanel';
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
@@ -12,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import type { ChatMessage } from '@/types/chat';
+import type { ChatContact } from '@/types/chat';
 
 const ChatListFallback = () => (
   <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-muted-foreground">
@@ -50,6 +53,11 @@ export function ChatContainer({ className }: ChatContainerProps) {
   } = useWhatsAppData();
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  const [ticketPanel, setTicketPanel] = useState<
+    | { mode: 'create'; contact: ChatContact; conversation: any }
+    | { mode: 'detail'; contact: ChatContact; ticketId: string }
+    | null
+  >(null);
 
   return (
     <div className={cn('flex h-full w-full bg-background min-w-0 overflow-hidden', className)}>
@@ -59,7 +67,15 @@ export function ChatContainer({ className }: ChatContainerProps) {
         (selectedContact || selectedContactId) && 'hidden lg:flex lg:flex-col'
       )}>
         <ErrorBoundary fallback={<ChatListFallback />}>
-          <ChatList />
+          <ChatList
+            onOpenTicketPanel={(contact, mode, ticketId, conversation) => {
+              if (mode === 'detail' && ticketId) {
+                setTicketPanel({ mode: 'detail', contact, ticketId });
+              } else {
+                setTicketPanel({ mode: 'create', contact, conversation });
+              }
+            }}
+          />
         </ErrorBoundary>
       </div>
 
@@ -132,6 +148,23 @@ export function ChatContainer({ className }: ChatContainerProps) {
             />
           </SheetContent>
         </Sheet>
+      )}
+
+      {/* Painéis de ticket abertos a partir do menu de contexto da lista */}
+      {ticketPanel?.mode === 'create' && (
+        <ChatTicketSidePanel
+          open
+          onClose={() => setTicketPanel(null)}
+          contact={ticketPanel.contact}
+          conversation={ticketPanel.conversation ?? null}
+        />
+      )}
+      {ticketPanel?.mode === 'detail' && (
+        <ChatTicketDetailSidePanel
+          open
+          onClose={() => setTicketPanel(null)}
+          ticketId={ticketPanel.ticketId}
+        />
       )}
     </div>
   );

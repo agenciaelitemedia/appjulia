@@ -1,74 +1,72 @@
 ## Objetivo
 
-Mostrar, em cada item da lista de conversas do `/chat`, um badge "TICKET #N · status" quando a conversa tiver um ticket de suporte **aberto** vinculado — no mesmo estilo dos badges Painel CRM e CRM Julia já existentes em `ChatContactItem`. Para evitar consulta por conversa, persistir o vínculo direto na tabela `chat_conversations`.
+Na lista de conversas (`/chat`), permitir abrir um ticket de suporte (ou visualizar/editar o ticket já vinculado) diretamente a partir de cada conversa, via menu de contexto (clique direito) + botão de atalho no hover. O comportamento deve espelhar o fluxo já existente no `ChatHeader > Abrir ticket de suporte`, e só aparecer para usuários com permissão no módulo `support_tickets`.
 
-## Mudanças
+## Comportamento
 
-### 1. Banco — nova coluna em `chat_conversations`
+1. **Gatilho na lista** (`ChatContactItem`):
+   - **Clique direito** sobre o item da conversa abre um menu (`ContextMenu` do shadcn).
+   - Também adicionar um botão discreto no hover (ícone `LifeBuoy`) ao lado dos QuickActions já existentes, para descoberta.
+   - Item do menu:
+     - Se a conversa **não tem ticket aberto** (`ticketLink` ausente): "Abrir ticket de suporte".
+     - Se a conversa **tem ticket aberto** (`ticketLink` presente): "Ver ticket #N (status)".
+   - Em ambos os casos, ao clicar:
+     1. Seleciona o contato (`selectContact(contact.id)`) → mensagens carregam normalmente no painel central.
+     2. Abre o painel lateral de ticket (mesmo painel já usado pelo header).
 
-Migration adicionando:
+2. **Visibilidade (permissão)**:
+   - Usar `hasPermission('support_tickets', 'view')` do `AuthContext`.
+   - Sem permissão: nem o item do menu de contexto, nem o botão de hover aparecem.
+   - Para "Abrir ticket" (criar), exigir `hasPermission('support_tickets', 'create')`; sem create mas com view, só permitir "Ver ticket #N".
 
-- `active_ticket_id uuid null` → referência ao ticket de suporte aberto no momento.
-- `active_ticket_number int8 null` → cache do número (#202604004) para evitar join no listagem.
-- Índice parcial `where active_ticket_id is not null` para o lookup do mapa.
+3. **Painel lateral**:
+   - **Modo criar** (sem ticket vinculado): reutilizar `ChatTicketSidePanel` atual, sem alterações.
+   - **Modo visualizar/editar** (ticket já vinculado): novo componente `ChatTicketDetailSidePanel` com a mesma "casca" (portal lateral 460px, header com X) usada pelo `ChatTicketSidePanel`. Conteúdo: formulário equivalente ao `NewTicketDialog` mas pré-carregado a partir de `useTicket(id)` e usando as mutations existentes (`update`, `changeStatus`, `assign`, `csat`, `delete`) de `useTickets.ts`. Campos editáveis: assunto, descrição, prioridade, departamento, categoria, responsável, status. Botões: "Salvar", "Resolver", "Fechar", "Reabrir" (conforme status atual).
+   - Ambos os painéis convivem com a área de chat (não-modal), iguais ao atual.
 
-Sem foreign key dura (mantém padrão dos outros vínculos do projeto e evita falhas em delete de ticket).
+4. **Estado/onde mora**:
+   - Estado `ticketPanel: { mode: 'create' | 'detail', ticketId?: string } | null` no `ChatContainer` (acima de `ChatList` e da área de chat), passado para `ChatList` via prop `onOpenTicketPanel(contact, mode, ticketId)` e renderizado lá no topo.
+   - O `ChatList` já tem o `ticketLinkMap`; decide `mode`/`ticketId` ao chamar.
+   - Quando o usuário clica em "Abrir/Ver ticket": (a) chama `selectContact(contact.id)`, (b) chama `setTicketPanel(...)`.
 
-### 2. Banco — preenchimento automático via trigger em `support_tickets`
+5. **Vínculo automático**:
+   - A criação via painel já preenche `conversation_id` → trigger DB existente atualiza `active_ticket_id` em `chat_conversations`, e o `useTicketLinkedConversations` reflete em tempo real (badge laranja já implementado). Nada a mudar aqui.
+   - Ao fechar/resolver pelo novo painel de detalhes, o mesmo trigger limpa o vínculo.
 
-Trigger `AFTER INSERT/UPDATE/DELETE` que mantém o vínculo coerente:
+## Arquivos afetados
 
-- Ao **criar** ticket com `conversation_id` não nulo e `status NOT IN ('resolved','closed')` → escreve `active_ticket_id` + `active_ticket_number` na conversa correspondente.
-- Ao **mudar status** para `resolved`/`closed` → se a conversa ainda aponta para este ticket, volta `active_ticket_id`/`active_ticket_number` para `null`.
-- Ao **reabrir** (`resolved/closed → open/...`) → reescreve o vínculo (apenas se conversa não tiver outro ticket ativo; senão mantém o existente).
-- Ao **alterar `conversation_id`** do ticket → limpa o vínculo da conversa antiga e seta na nova.
-- Ao **deletar** ticket → limpa o vínculo se for o ativo.
+- **Editar** `src/components/chat/ChatContactItem.tsx`
+  - Envolver o `<div>` raiz com `<ContextMenu>` / `<ContextMenuTrigger>` / `<ContextMenuContent>`.
+  - Adicionar prop `onOpenTicket?: (mode: 'create' | 'detail', ticketId?: string) => void`.
+  - Renderizar itens do menu conforme `ticketLink` e permissões (`useAuth().hasPermission`).
+  - (Opcional) botão `LifeBuoy` no hover, ao lado dos QuickActions.
 
-Toda escrita é condicionada (`where active_ticket_id is null` ou `= old.id`) para nunca sobrescrever um vínculo de outro ticket aberto. Trigger usa `security definer` com `search_path = public`.
+- **Editar** `src/components/chat/ChatList.tsx`
+  - Receber `onOpenTicketPanel(contact, mode, ticketId?)` via prop.
+  - Repassar `onOpenTicket` para cada `ChatContactItem`, montando o handler que (a) `selectContact`, (b) chama `onOpenTicketPanel` com base no `ticketLinkMap`.
 
-### 3. Backfill
+- **Editar** `src/components/chat/ChatContainer.tsx`
+  - Estado local `ticketPanel`.
+  - Passar `onOpenTicketPanel={(c, mode, id) => setTicketPanel({ contact: c, mode, ticketId: id })}` para `<ChatList />`.
+  - Renderizar condicionalmente `<ChatTicketSidePanel>` (mode=create) ou `<ChatTicketDetailSidePanel>` (mode=detail) no nível do container.
 
-Em uma única instrução, popular `active_ticket_id`/`active_ticket_number` a partir do ticket **aberto mais recente** por `conversation_id` (`status NOT IN ('resolved','closed')`). Operação idempotente, rodada na própria migration.
+- **Criar** `src/components/chat/ChatTicketDetailSidePanel.tsx`
+  - Reaproveita a casca em `createPortal` do `ChatTicketSidePanel` (extrair um wrapper `<TicketSidePanelShell title onClose>` em arquivo compartilhado seria ideal, mas para minimizar risco mantemos casca duplicada).
+  - Usa `useTicket(ticketId)`, `useTicketMutations`, `useSupportConfig`, `useTeamByClient`.
+  - Formulário pré-preenchido + ações (Salvar / Resolver / Fechar / Reabrir / Excluir, esta última só com `delete` permission).
+  - Toasts + invalidações já cuidadas pelas mutations existentes.
 
-### 4. Frontend — novo hook `useTicketLinkedConversations`
+- **Sem alterações** em DB, em `useTickets.ts`, em `useTicketLinkedConversations.ts`, em `ChatHeader.tsx`.
 
-Arquivo `src/hooks/useTicketLinkedConversations.ts`, espelhando `useCRMBuilderLinkedConversations`:
+## Riscos e mitigação
 
-- Consulta `chat_conversations` filtrando `client_id` e `active_ticket_id is not null`, selecionando apenas `id, active_ticket_id, active_ticket_number`.
-- Faz um segundo `select` em `support_tickets` pelos `active_ticket_id` retornados, pegando `id, number, status, subject, priority`.
-- Retorna `Map<conversation_id, { ticketId, number, status, subject, priority }>`.
-- `staleTime: 30s`; invalidado por realtime de `support_tickets` (canal já presente em outras telas, criado novo no hook).
+- **Conflito de UI** com `ConversationQuickActions` no hover: manter o novo botão pequeno (ícone-only) e atrás de `hasPermission`. Pode ser deixado só no context menu para reduzir poluição visual.
+- **Painel concorrente**: garantir que abrir o painel lateral fecha o que estiver aberto (state único `ticketPanel` no container resolve).
+- **Stale link**: depois de fechar/resolver o ticket pelo novo painel, o trigger limpa `active_ticket_id`; o realtime de `useTicketLinkedConversations` atualiza o badge automaticamente.
+- **Permissões**: gating no item do menu impede ação; rotas de mutação no `useTickets` já são protegidas pelo módulo.
 
-Custo: 2 queries leves, sem N+1, só traz tickets de fato abertos.
+## Fora de escopo
 
-### 5. Frontend — badge na lista de conversas
-
-- `ChatList.tsx`: chama o novo hook e passa `ticketLink={ticketMap?.get(conv.id)}` para `ChatContactItem`.
-- `ChatContactItem.tsx`: nova linha logo abaixo da linha do CRM Builder, no mesmo padrão visual (ícone `Ticket` do lucide, label "TICKET", número `#N`, badge de status colorido reusando `STATUS_BADGE` de `pages/tickets/types`). Tooltip com assunto + prioridade. Clique abre `/tickets/:id` em nova aba (igual ao botão CRM).
-- Memo: incluir `ticketLink` na comparação de props.
-
-### 6. Frontend — criação/fechamento de ticket
-
-`useTickets.ts` continua chamando apenas `support_tickets`; o vínculo na conversa é responsabilidade da trigger no banco. Nenhuma alteração de lógica no fluxo de criar/fechar/reabrir ticket é necessária — assim não corremos risco de regressão.
-
-## Segurança / não-regressão
-
-- Coluna nova é nullable, sem default → não impacta nenhum insert existente.
-- Trigger só toca `chat_conversations` quando `conversation_id` está setado.
-- Updates da trigger são scoped (`where id = ... and (active_ticket_id is null or active_ticket_id = old.id)`), preservando vínculos de outras conversas/tickets.
-- Tipos do Supabase regenerados após a migration; o hook só é importado depois.
-
-## Detalhes técnicos
-
-```text
-chat_conversations
-├── active_ticket_id      uuid  null   (novo)
-└── active_ticket_number  int8  null   (novo, cache)
-
-trigger trg_support_tickets_link_conversation
-  AFTER INSERT OR UPDATE OF status, conversation_id OR DELETE
-  ON support_tickets
-  FOR EACH ROW EXECUTE FUNCTION public.sync_conversation_active_ticket();
-```
-
-Status "aberto" = `status NOT IN ('resolved','closed')`.
+- Mudanças no esquema de banco.
+- Mudanças no header da conversa.
+- Mudanças no módulo `/tickets`.

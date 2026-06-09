@@ -41,6 +41,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
+import type { ChatContact } from '@/types/chat';
 import { cn } from '@/lib/utils';
 
 type ConversationModeFilter = 'all' | 'julia' | 'human';
@@ -72,7 +73,16 @@ function getDateRange(p: PeriodFilter): { from: Date; to: Date } | null {
   }
 }
 
-export function ChatList() {
+export interface ChatListProps {
+  onOpenTicketPanel?: (
+    contact: ChatContact,
+    mode: 'create' | 'detail',
+    ticketId?: string,
+    conversation?: any,
+  ) => void;
+}
+
+export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   const {
     filteredContacts,
     selectedContactId,
@@ -1656,6 +1666,14 @@ export function ChatList() {
                     crmBuilderLink={conv?.id ? crmBuilderMap?.get(conv.id) : undefined}
                     ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
+                    onOpenTicket={
+                      onOpenTicketPanel
+                        ? (mode, ticketId) => {
+                            selectContact(contact.id);
+                            onOpenTicketPanel(contact, mode, ticketId, conv);
+                          }
+                        : undefined
+                    }
                   />
                 </div>
               );
