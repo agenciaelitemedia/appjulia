@@ -124,6 +124,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   stageLoading,
   hasCrmCard,
   crmBuilderLink,
+  ticketLink,
   lastMessageMeta,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
