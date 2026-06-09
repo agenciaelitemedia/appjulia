@@ -11,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +33,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTicket, useTicketMutations, useTicketRole, useSupportConfig } from './hooks/useTickets';
+import { useTicket, useTicketMutations, useTicketRole, useSupportConfig, WhatsappDispatchError } from './hooks/useTickets';
 import { TicketSlaBadge } from './components/TicketSlaBadge';
 import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
@@ -204,6 +207,7 @@ export default function TicketDetailPage() {
   const [draft, setDraft] = useState('');
   const [internal, setInternal] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [csat, setCsatScore] = useState(0);
   const [csatComment, setCsatComment] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -307,10 +311,35 @@ export default function TicketDetailPage() {
   const handleSend = async () => {
     if (!draft.trim() || !id) return;
     setSending(true);
+    const wantsWhatsApp =
+      sendWhatsApp && !internal && !!chatTarget?.queueId && !!chatTarget?.contactId;
     try {
-      await reply.mutateAsync({ ticketId: id, body: draft.trim(), internal: internal && isAgent });
+      await reply.mutateAsync({
+        ticketId: id,
+        body: draft.trim(),
+        internal: internal && isAgent,
+        sendToWhatsApp: wantsWhatsApp
+          ? {
+              contactId: chatTarget!.contactId!,
+              queueId: chatTarget!.queueId!,
+              conversationId: chatTarget!.conversationId ?? null,
+            }
+          : undefined,
+      });
       setDraft('');
       setInternal(false);
+      setSendWhatsApp(false);
+      if (wantsWhatsApp) toast.success('Resposta registrada e enviada ao WhatsApp');
+    } catch (err) {
+      if (err instanceof WhatsappDispatchError) {
+        toast.success('Resposta registrada no chamado');
+        toast.error(`Falha ao enviar WhatsApp: ${err.message}`);
+        setDraft('');
+        setInternal(false);
+        setSendWhatsApp(false);
+      } else {
+        toast.error('Erro ao enviar resposta');
+      }
     } finally { setSending(false); }
   };
 
@@ -507,7 +536,38 @@ export default function TicketDetailPage() {
                 placeholder={internal ? 'Nota interna (não visível ao solicitante)' : 'Escreva uma resposta…'}
                 className="min-h-[70px]"
               />
-              <div className="flex justify-end">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {isAgent && !internal ? (
+                  (() => {
+                    const hasChannel = !!chatTarget?.queueId && !!chatTarget?.contactId;
+                    const disabled = !hasChannel || isChatTargetLoading || sending;
+                    const reason = isChatTargetLoading
+                      ? 'Carregando canal…'
+                      : !hasChannel
+                        ? 'Chamado sem conversa de WhatsApp vinculada'
+                        : 'Também envia a resposta ao WhatsApp do solicitante pela fila do chamado';
+                    return (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                id="send-whatsapp"
+                                checked={sendWhatsApp && hasChannel}
+                                onCheckedChange={setSendWhatsApp}
+                                disabled={disabled}
+                              />
+                              <Label htmlFor="send-whatsapp" className="text-xs cursor-pointer">
+                                Enviar para WhatsApp
+                              </Label>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>{reason}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })()
+                ) : <span />}
                 <Button onClick={handleSend} disabled={sending || !draft.trim()}>
                   <Send className="h-4 w-4 mr-1" /> {sending ? 'Enviando…' : internal ? 'Salvar nota' : 'Responder'}
                 </Button>
