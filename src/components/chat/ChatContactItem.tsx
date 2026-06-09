@@ -435,6 +435,9 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   if (prev.stageColor !== next.stageColor) return false;
   if (prev.hasCrmCard !== next.hasCrmCard) return false;
   if (prev.crmBuilderLink !== next.crmBuilderLink) return false;
+  if (prev.ticketLink?.ticketId !== next.ticketLink?.ticketId) return false;
+  if (prev.ticketLink?.status !== next.ticketLink?.status) return false;
+  if (prev.ticketLink?.number !== next.ticketLink?.number) return false;
   if (prev.index !== next.index) return false;
   if (prev.contact?.id !== next.contact?.id) return false;
   if (prev.contact?.name !== next.contact?.name) return false;
