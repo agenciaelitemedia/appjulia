@@ -1648,9 +1648,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       }
 
     } catch (error) {
-      console.error('Error sending message:', error);
-      const msg = error instanceof Error ? error.message : 'Erro ao enviar mensagem';
-      toast.error(msg);
+      const { message, code } = normalizeSendError(error);
+      if (code) console.warn('[chat][send] provider error', code, error);
+      else console.error('Error sending message:', error);
+      toast.error(message);
 
       setMessages(prev => ({
         ...prev,
