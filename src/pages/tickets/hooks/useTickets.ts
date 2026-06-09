@@ -326,7 +326,14 @@ export function useTicketMutations() {
   });
 
   const reply = useMutation({
-    mutationFn: async ({ ticketId, body, internal }: { ticketId: string; body: string; internal: boolean }) => {
+    mutationFn: async ({
+      ticketId, body, internal, sendToWhatsApp,
+    }: {
+      ticketId: string;
+      body: string;
+      internal: boolean;
+      sendToWhatsApp?: { contactId: string; queueId: string; conversationId: string | null };
+    }) => {
       const { data: inserted, error: insertError } = await db
         .from('support_ticket_messages')
         .insert({
@@ -349,6 +356,22 @@ export function useTicketMutations() {
         if (t && !t.first_response_at) {
           await db.from('support_tickets').update({ first_response_at: new Date().toISOString() }).eq('id', ticketId);
         }
+      }
+      // Envio opcional ao WhatsApp do solicitante
+      if (!internal && sendToWhatsApp?.queueId && sendToWhatsApp?.contactId) {
+        const { queueName } = await dispatchToWhatsApp({
+          ticketId,
+          queueId: sendToWhatsApp.queueId,
+          contactId: sendToWhatsApp.contactId,
+          conversationId: sendToWhatsApp.conversationId,
+          body,
+          senderName: actor.name,
+        });
+        await logEvent(
+          ticketId,
+          'whatsapp_sent',
+          `Resposta enviada ao WhatsApp do solicitante${queueName ? ` via fila ${queueName}` : ''}`,
+        );
       }
       return inserted?.id as string | undefined;
     },
