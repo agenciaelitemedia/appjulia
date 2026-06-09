@@ -11,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +33,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTicket, useTicketMutations, useTicketRole, useSupportConfig } from './hooks/useTickets';
+import { useTicket, useTicketMutations, useTicketRole, useSupportConfig, WhatsappDispatchError } from './hooks/useTickets';
 import { TicketSlaBadge } from './components/TicketSlaBadge';
 import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
@@ -204,6 +207,7 @@ export default function TicketDetailPage() {
   const [draft, setDraft] = useState('');
   const [internal, setInternal] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendWhatsApp, setSendWhatsApp] = useState(false);
   const [csat, setCsatScore] = useState(0);
   const [csatComment, setCsatComment] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -307,10 +311,35 @@ export default function TicketDetailPage() {
   const handleSend = async () => {
     if (!draft.trim() || !id) return;
     setSending(true);
+    const wantsWhatsApp =
+      sendWhatsApp && !internal && !!chatTarget?.queueId && !!chatTarget?.contactId;
     try {
-      await reply.mutateAsync({ ticketId: id, body: draft.trim(), internal: internal && isAgent });
+      await reply.mutateAsync({
+        ticketId: id,
+        body: draft.trim(),
+        internal: internal && isAgent,
+        sendToWhatsApp: wantsWhatsApp
+          ? {
+              contactId: chatTarget!.contactId!,
+              queueId: chatTarget!.queueId!,
+              conversationId: chatTarget!.conversationId ?? null,
+            }
+          : undefined,
+      });
       setDraft('');
       setInternal(false);
+      setSendWhatsApp(false);
+      if (wantsWhatsApp) toast.success('Resposta registrada e enviada ao WhatsApp');
+    } catch (err) {
+      if (err instanceof WhatsappDispatchError) {
+        toast.success('Resposta registrada no chamado');
+        toast.error(`Falha ao enviar WhatsApp: ${err.message}`);
+        setDraft('');
+        setInternal(false);
+        setSendWhatsApp(false);
+      } else {
+        toast.error('Erro ao enviar resposta');
+      }
     } finally { setSending(false); }
   };
 
