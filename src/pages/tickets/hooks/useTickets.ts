@@ -212,10 +212,10 @@ async function dispatchToWhatsApp(params: {
         throw new WhatsappDispatchError('Credenciais UaZapi ausentes na fila');
       }
       const baseUrl = String(queue.evo_url).replace(/\/+$/, '');
-      const r = await fetch(`${baseUrl}/message/sendText`, {
+      const r = await fetch(`${baseUrl}/send/text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', token: String(queue.evo_apikey) },
-        body: JSON.stringify({ number: contact.phone, text: body }),
+        body: JSON.stringify({ number: contact.phone, text: body, linkPreview: true }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new WhatsappDispatchError(`UaZapi ${r.status}: ${j?.error || j?.message || 'falha no envio'}`);
