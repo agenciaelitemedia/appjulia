@@ -10,8 +10,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
-  CircleDot, ArrowRightLeft, Flag, Building2, FolderTree, UserCheck, Reply, Star as StarIcon, Activity,
+  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -40,10 +38,10 @@ import {
 } from './types';
 import type { TicketMessage } from './types';
 
-function eventIcon(eventType: string | null, kind: string) {
-  if (kind === 'public') return Reply;
-  if (kind === 'internal') return StickyNote;
-  switch (eventType) {
+function eventIcon(m: TicketMessage) {
+  if (m.kind === 'public') return Reply;
+  if (m.kind === 'internal') return StickyNote;
+  switch (m.event_type) {
     case 'created': return CircleDot;
     case 'status_change': return ArrowRightLeft;
     case 'assigned': return UserCheck;
@@ -52,43 +50,70 @@ function eventIcon(eventType: string | null, kind: string) {
   }
 }
 
-function eventLabel(m: TicketMessage): string {
-  if (m.kind === 'public') return `Resposta enviada${m.author_name ? ` por ${m.author_name}` : ''}`;
-  if (m.kind === 'internal') return `Nota interna${m.author_name ? ` por ${m.author_name}` : ''}`;
-  return m.body || m.event_type || 'Evento';
-}
-
-function TicketHistory({ messages }: { messages: TicketMessage[] }) {
+function TicketTimeline({ messages }: { messages: TicketMessage[] }) {
   const items = [...messages].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
   if (items.length === 0) {
-    return <p className="text-xs text-muted-foreground py-6 text-center">Sem eventos ainda.</p>;
+    return <p className="text-xs text-muted-foreground py-8 text-center">Sem interações ainda.</p>;
   }
   return (
-    <ScrollArea className="max-h-[60vh] pr-2">
-      <ol className="space-y-3">
-        {items.map((m) => {
-          const Icon = eventIcon(m.event_type, m.kind);
+    <ol className="relative border-l border-border ml-3 space-y-4 py-2">
+      {items.map((m) => {
+        const Icon = eventIcon(m);
+        const ts = format(new Date(m.created_at), 'dd/MM/yyyy HH:mm');
+        const author = m.author_name || (m.author_role === 'agent' ? 'Suporte' : 'Solicitante');
+
+        // Bullet/icon comum
+        const bullet = (extra?: string) => (
+          <span
+            className={cn(
+              'absolute -left-[13px] flex h-6 w-6 items-center justify-center rounded-full border bg-background',
+              extra,
+            )}
+          >
+            <Icon className="h-3 w-3 text-muted-foreground" />
+          </span>
+        );
+
+        if (m.kind === 'event') {
           return (
-            <li key={m.id} className="flex gap-2 text-sm">
-              <div className="flex flex-col items-center pt-0.5">
-                <span className="rounded-full border bg-muted/40 p-1.5">
-                  <Icon className="h-3 w-3 text-muted-foreground" />
-                </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="leading-snug">{eventLabel(m)}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {m.author_name ? `${m.author_name} · ` : ''}
-                  {format(new Date(m.created_at), 'dd/MM/yyyy HH:mm')}
-                </p>
+            <li key={m.id} className="relative pl-6">
+              {bullet('bg-muted/40')}
+              <div className="text-xs text-muted-foreground leading-snug">
+                <span className="text-foreground">{m.body || m.event_type || 'Evento'}</span>
+                <span className="mx-1">·</span>
+                <span>{ts}</span>
+                {m.author_name ? <span> · {m.author_name}</span> : null}
               </div>
             </li>
           );
-        })}
-      </ol>
-    </ScrollArea>
+        }
+
+        const isInternal = m.kind === 'internal';
+        return (
+          <li key={m.id} className="relative pl-6">
+            {bullet(isInternal ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/40' : 'bg-background')}
+            <div
+              className={cn(
+                'rounded-md border px-3 py-2 text-sm',
+                isInternal
+                  ? 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200/70 dark:border-amber-900/50'
+                  : 'bg-card',
+              )}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-medium">
+                  {isInternal ? `Nota interna · ${author}` : `Resposta de ${author}`}
+                </span>
+                <span className="text-[11px] text-muted-foreground">{ts}</span>
+              </div>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.body}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
