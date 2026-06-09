@@ -536,7 +536,38 @@ export default function TicketDetailPage() {
                 placeholder={internal ? 'Nota interna (não visível ao solicitante)' : 'Escreva uma resposta…'}
                 className="min-h-[70px]"
               />
-              <div className="flex justify-end">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {isAgent && !internal ? (
+                  (() => {
+                    const hasChannel = !!chatTarget?.queueId && !!chatTarget?.contactId;
+                    const disabled = !hasChannel || isChatTargetLoading || sending;
+                    const reason = isChatTargetLoading
+                      ? 'Carregando canal…'
+                      : !hasChannel
+                        ? 'Chamado sem conversa de WhatsApp vinculada'
+                        : 'Também envia a resposta ao WhatsApp do solicitante pela fila do chamado';
+                    return (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                id="send-whatsapp"
+                                checked={sendWhatsApp && hasChannel}
+                                onCheckedChange={setSendWhatsApp}
+                                disabled={disabled}
+                              />
+                              <Label htmlFor="send-whatsapp" className="text-xs cursor-pointer">
+                                Enviar para WhatsApp
+                              </Label>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>{reason}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })()
+                ) : <span />}
                 <Button onClick={handleSend} disabled={sending || !draft.trim()}>
                   <Send className="h-4 w-4 mr-1" /> {sending ? 'Enviando…' : internal ? 'Salvar nota' : 'Responder'}
                 </Button>
