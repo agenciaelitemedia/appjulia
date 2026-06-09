@@ -1,72 +1,132 @@
-## Objetivo
 
-Na lista de conversas (`/chat`), permitir abrir um ticket de suporte (ou visualizar/editar o ticket já vinculado) diretamente a partir de cada conversa, via menu de contexto (clique direito) + botão de atalho no hover. O comportamento deve espelhar o fluxo já existente no `ChatHeader > Abrir ticket de suporte`, e só aparecer para usuários com permissão no módulo `support_tickets`.
+# Plano (revisado): erros visíveis no /chat + cache de avatares (individuais + grupos) com atualização em tempo real
 
-## Comportamento
+Três frentes.
 
-1. **Gatilho na lista** (`ChatContactItem`):
-   - **Clique direito** sobre o item da conversa abre um menu (`ContextMenu` do shadcn).
-   - Também adicionar um botão discreto no hover (ícone `LifeBuoy`) ao lado dos QuickActions já existentes, para descoberta.
-   - Item do menu:
-     - Se a conversa **não tem ticket aberto** (`ticketLink` ausente): "Abrir ticket de suporte".
-     - Se a conversa **tem ticket aberto** (`ticketLink` presente): "Ver ticket #N (status)".
-   - Em ambos os casos, ao clicar:
-     1. Seleciona o contato (`selectContact(contact.id)`) → mensagens carregam normalmente no painel central.
-     2. Abre o painel lateral de ticket (mesmo painel já usado pelo header).
+## 1) Mensagem de envio "rejeitada pelo WhatsApp" mais clara
 
-2. **Visibilidade (permissão)**:
-   - Usar `hasPermission('support_tickets', 'view')` do `AuthContext`.
-   - Sem permissão: nem o item do menu de contexto, nem o botão de hover aparecem.
-   - Para "Abrir ticket" (criar), exigir `hasPermission('support_tickets', 'create')`; sem create mas com view, só permitir "Ver ticket #N".
+Mapear códigos do provedor em mensagens acionáveis antes do toast.
 
-3. **Painel lateral**:
-   - **Modo criar** (sem ticket vinculado): reutilizar `ChatTicketSidePanel` atual, sem alterações.
-   - **Modo visualizar/editar** (ticket já vinculado): novo componente `ChatTicketDetailSidePanel` com a mesma "casca" (portal lateral 460px, header com X) usada pelo `ChatTicketSidePanel`. Conteúdo: formulário equivalente ao `NewTicketDialog` mas pré-carregado a partir de `useTicket(id)` e usando as mutations existentes (`update`, `changeStatus`, `assign`, `csat`, `delete`) de `useTickets.ts`. Campos editáveis: assunto, descrição, prioridade, departamento, categoria, responsável, status. Botões: "Salvar", "Resolver", "Fechar", "Reabrir" (conforme status atual).
-   - Ambos os painéis convivem com a área de chat (não-modal), iguais ao atual.
+- UaZapi `WHATSAPP_REACHOUT_TIMELOCK` (463) → "Número temporariamente bloqueado pelo WhatsApp. Aguarde algumas horas antes de tentar novamente."
+- WABA janela 24h expirada → "Janela de 24h expirada. Envie um template aprovado para reabrir a conversa."
+- Número sem WhatsApp → "Este número não possui conta WhatsApp ativa."
+- Fallback → mensagem genérica + código do provedor entre parênteses.
 
-4. **Estado/onde mora**:
-   - Estado `ticketPanel: { mode: 'create' | 'detail', ticketId?: string } | null` no `ChatContainer` (acima de `ChatList` e da área de chat), passado para `ChatList` via prop `onOpenTicketPanel(contact, mode, ticketId)` e renderizado lá no topo.
-   - O `ChatList` já tem o `ticketLinkMap`; decide `mode`/`ticketId` ao chamar.
-   - Quando o usuário clica em "Abrir/Ver ticket": (a) chama `selectContact(contact.id)`, (b) chama `setTicketPanel(...)`.
+Arquivos: `src/contexts/WhatsAppDataContext.tsx` (helper `normalizeSendError`), `src/components/chat/ChatInput.tsx` (toast).
 
-5. **Vínculo automático**:
-   - A criação via painel já preenche `conversation_id` → trigger DB existente atualiza `active_ticket_id` em `chat_conversations`, e o `useTicketLinkedConversations` reflete em tempo real (badge laranja já implementado). Nada a mudar aqui.
-   - Ao fechar/resolver pelo novo painel de detalhes, o mesmo trigger limpa o vínculo.
+## 2) Warning "Unknown message type: RESET_BLANK_CHECK"
+
+Vem do iframe host do Lovable e polui o console. Adicionar listener global em `src/lib/chunkReload.ts` (já lida com mensagens do parent) que reconhece `RESET_BLANK_CHECK` e responde `RESET_BLANK_CHECK_ACK` silenciosamente.
+
+## 3) Cache de avatares no Storage (individuais **e** grupos) + atualização em tempo real
+
+Problema atual: gravamos a URL crua do `pps.whatsapp.net`, que expira em horas/dias → vira 403 → cada navegação dispara um refresh que pega outra URL também expirável. Loop sem fim.
+
+Solução: persistir a imagem em `storage://avatars/...` e gravar a URL pública estável em `chat_contacts.avatar`. Detectar mudança real por hash. Reagir a eventos do webhook para invalidar o cache no momento certo.
+
+### 3.1 Modelo de dados (chat_contacts)
+
+Novas colunas:
+- `avatar_storage_path text` — `whatsapp/{client_id}/{contact_id}.jpg`
+- `avatar_source_url text` — última URL crua baixada do WhatsApp
+- `avatar_source_hash text` — SHA-256 do binário, para deduplicar uploads
+- `avatar_refreshed_at timestamptz`
+- `avatar_refresh_requested_at timestamptz` — marcado pelo webhook quando chega evento de atualização de foto (sinaliza para o próximo refresh ignorar o hash)
+
+`avatar` continua sendo a URL servida ao frontend (agora será sempre a pública do Storage após a migração).
+
+### 3.2 Edge function `refresh-contact-avatar` (refatorada)
+
+Aceita `{ contact_id, force?: boolean }`. Fluxo:
+
+1. Resolve a queue UaZapi do client (mesma lógica de hoje).
+2. Detecta `is_group` pelo `chat_contacts` / sufixo `@g.us` no `phone`:
+   - Individual → `fetchUazapiProfile` (`/chat/details` + fallback `GetNameAndImageURL`).
+   - Grupo → `fetchUazapiGroupProfile` (`/group/info` com `pictureUrl: true`).
+3. Pega a URL crua atual. Se nada veio → mantém o que está no storage e retorna.
+4. `fetch` da URL no edge (server-side, sem CORS).
+5. SHA-256 do binário. Se `=== avatar_source_hash` **e** `force !== true` **e** `avatar_refresh_requested_at` não é mais novo que `avatar_refreshed_at` → só atualiza `avatar_refreshed_at` e retorna a URL pública atual.
+6. Senão → `upload` em `avatars/whatsapp/{client_id}/{contact_id}.jpg` (`upsert:true`, `cacheControl:'3600'`), gera URL pública, escreve em `chat_contacts` (`avatar`, `avatar_storage_path`, `avatar_source_url`, `avatar_source_hash`, `avatar_refreshed_at`, limpa `avatar_refresh_requested_at`).
+7. Se a URL do WhatsApp falhar (403/404) → mantém storage existente, **não derruba** `avatar`.
+
+Reuso: o mesmo helper de download/hash/upload é exportado de `_shared/whatsapp-profile.ts` (nova função `persistAvatarToStorage(supabase, contact, queue)`), usado tanto pela edge `refresh-contact-avatar` quanto pela `chat-contacts-enrich` para já gravar no Storage no enriquecimento inicial.
+
+### 3.3 Frontend (`SmartAvatarImage`)
+
+Continua igual conceitualmente: `onError` dispara `refresh-contact-avatar`. Como o `src` passa a ser URL estável do Storage, esse `onError` praticamente só ocorre no 1º carregamento de um contato ainda não migrado, então o cooldown de 5 min basta.
+
+### 3.4 Reatividade em tempo real (webhook UaZapi)
+
+UaZapi envia eventos de presença/perfil quando a foto muda. Os mais usados:
+
+- `messages.update` / `contacts.update` com `profilePictureUrl` ou `imgUrl` novos.
+- Para grupos: `groups.update` (mudança de subject, picture, descrição).
+- `presence.update` em alguns deployments traz `profilePictureUrl`.
+
+No webhook `supabase/functions/uazapi-chat-webhook/index.ts`, depois de identificar `client_id` e `contact_id`/`group_id`:
+
+1. Se o payload contém qualquer campo que indique mudança de foto (`profilePictureUrl`, `imgUrl`, `picture`, ou `event` ∈ `{contacts.update, groups.update, profile.update}` com a foto diferente da armazenada em `avatar_source_url`):
+   - `UPDATE chat_contacts SET avatar_refresh_requested_at = now() WHERE id = ?`
+   - Enfileira (fire-and-forget, `EdgeRuntime.waitUntil`) chamada à `refresh-contact-avatar` com `{ contact_id, force: true }`.
+2. Para eventos de grupo (`groups.update`, ou mensagem nova em chat `@g.us` cujo contato ainda não tem `avatar_storage_path`): mesma rotina apontando para o contato-grupo.
+3. Deduplicação: se `avatar_refresh_requested_at` já é mais recente que 60s, não enfileira de novo.
+
+Frontend recebe automaticamente o avatar novo via Realtime já existente em `chat_contacts` (canal de update).
+
+### 3.5 Suporte explícito a grupos
+
+- `chat-contacts-enrich` e `refresh-contact-avatar` passam a rotear para `/group/info` quando `is_group=true` ou `phone` termina em `@g.us` (helper já existe em `_shared/whatsapp-profile.ts`).
+- Path no Storage diferencia por id, então grupos não colidem com individuais.
+- `SmartAvatarImage` não precisa mudar — recebe igual a foto pública do bucket.
+
+### 3.6 Cron de revalidação (rede de segurança)
+
+`pg_cron` diário invoca `chat-contacts-enrich` por client com filtro `avatar_refreshed_at < now() - interval '7 days'` (inclui grupos). O hash evita re-upload se a foto não mudou.
+
+### 3.7 Migração
+
+- Migration 1: adicionar as colunas novas + índice em `avatar_refreshed_at`.
+- Migration 2: agendar o cron diário.
+- Backfill: rodar `chat-contacts-enrich` 1x por client logo após a migration; a nova lógica já grava no Storage. Avatares antigos continuam funcionando até serem regravados (`SmartAvatarImage` tolera 403).
 
 ## Arquivos afetados
 
-- **Editar** `src/components/chat/ChatContactItem.tsx`
-  - Envolver o `<div>` raiz com `<ContextMenu>` / `<ContextMenuTrigger>` / `<ContextMenuContent>`.
-  - Adicionar prop `onOpenTicket?: (mode: 'create' | 'detail', ticketId?: string) => void`.
-  - Renderizar itens do menu conforme `ticketLink` e permissões (`useAuth().hasPermission`).
-  - (Opcional) botão `LifeBuoy` no hover, ao lado dos QuickActions.
+- `src/contexts/WhatsAppDataContext.tsx` — `normalizeSendError`.
+- `src/components/chat/ChatInput.tsx` — toast usa a mensagem amigável.
+- `src/lib/chunkReload.ts` — handler `RESET_BLANK_CHECK`.
+- `supabase/functions/_shared/whatsapp-profile.ts` — nova função `persistAvatarToStorage` (download + hash + upload) reaproveitável.
+- `supabase/functions/refresh-contact-avatar/index.ts` — usa Storage, suporta `force`, suporta grupos.
+- `supabase/functions/chat-contacts-enrich/index.ts` — chama `persistAvatarToStorage` no enriquecimento, inclui grupos.
+- `supabase/functions/uazapi-chat-webhook/index.ts` — detecta `profile/group picture update` e dispara refresh em tempo real (`fire-and-forget`).
+- Nova migration: colunas + cron diário.
 
-- **Editar** `src/components/chat/ChatList.tsx`
-  - Receber `onOpenTicketPanel(contact, mode, ticketId?)` via prop.
-  - Repassar `onOpenTicket` para cada `ChatContactItem`, montando o handler que (a) `selectContact`, (b) chama `onOpenTicketPanel` com base no `ticketLinkMap`.
+## Fluxo final
 
-- **Editar** `src/components/chat/ChatContainer.tsx`
-  - Estado local `ticketPanel`.
-  - Passar `onOpenTicketPanel={(c, mode, id) => setTicketPanel({ contact: c, mode, ticketId: id })}` para `<ChatList />`.
-  - Renderizar condicionalmente `<ChatTicketSidePanel>` (mode=create) ou `<ChatTicketDetailSidePanel>` (mode=detail) no nível do container.
-
-- **Criar** `src/components/chat/ChatTicketDetailSidePanel.tsx`
-  - Reaproveita a casca em `createPortal` do `ChatTicketSidePanel` (extrair um wrapper `<TicketSidePanelShell title onClose>` em arquivo compartilhado seria ideal, mas para minimizar risco mantemos casca duplicada).
-  - Usa `useTicket(ticketId)`, `useTicketMutations`, `useSupportConfig`, `useTeamByClient`.
-  - Formulário pré-preenchido + ações (Salvar / Resolver / Fechar / Reabrir / Excluir, esta última só com `delete` permission).
-  - Toasts + invalidações já cuidadas pelas mutations existentes.
-
-- **Sem alterações** em DB, em `useTickets.ts`, em `useTicketLinkedConversations.ts`, em `ChatHeader.tsx`.
-
-## Riscos e mitigação
-
-- **Conflito de UI** com `ConversationQuickActions` no hover: manter o novo botão pequeno (ícone-only) e atrás de `hasPermission`. Pode ser deixado só no context menu para reduzir poluição visual.
-- **Painel concorrente**: garantir que abrir o painel lateral fecha o que estiver aberto (state único `ticketPanel` no container resolve).
-- **Stale link**: depois de fechar/resolver o ticket pelo novo painel, o trigger limpa `active_ticket_id`; o realtime de `useTicketLinkedConversations` atualiza o badge automaticamente.
-- **Permissões**: gating no item do menu impede ação; rotas de mutação no `useTickets` já são protegidas pelo módulo.
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Webhook UaZapi (profile/group update)                                    │
+│   → marca avatar_refresh_requested_at                                    │
+│   → invoca refresh-contact-avatar (force=true) em background             │
+└─────────────────────────┬────────────────────────────────────────────────┘
+                          ▼
+        refresh-contact-avatar  ──► UaZapi /chat/details ou /group/info
+                          │                ▼
+                          │           binário foto
+                          │                ▼
+                          │           sha256 == anterior?  ── sim ──► só atualiza timestamp
+                          │                │ não
+                          ▼                ▼
+                Storage avatars/whatsapp/{client}/{contact}.jpg (upsert)
+                          │
+                          ▼
+              chat_contacts.avatar = URL pública (estável)
+                          │
+                          ▼ Realtime
+                       Frontend SmartAvatarImage (sem 403)
+```
 
 ## Fora de escopo
 
-- Mudanças no esquema de banco.
-- Mudanças no header da conversa.
-- Mudanças no módulo `/tickets`.
+- Mudar a lógica de envio em si (rejeição é do lado do WhatsApp).
+- Proxy/cache para mídias de mensagens (só fotos de perfil aqui).
+- WABA: Meta não expõe foto de terceiros; cross-provider fallback para UaZapi já existe e continua.
