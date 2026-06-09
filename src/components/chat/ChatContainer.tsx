@@ -54,7 +54,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [ticketPanel, setTicketPanel] = useState<
-    | { mode: 'create'; contact: ChatContact }
+    | { mode: 'create'; contact: ChatContact; conversation: any }
     | { mode: 'detail'; contact: ChatContact; ticketId: string }
     | null
   >(null);
@@ -68,11 +68,11 @@ export function ChatContainer({ className }: ChatContainerProps) {
       )}>
         <ErrorBoundary fallback={<ChatListFallback />}>
           <ChatList
-            onOpenTicketPanel={(contact, mode, ticketId) => {
+            onOpenTicketPanel={(contact, mode, ticketId, conversation) => {
               if (mode === 'detail' && ticketId) {
                 setTicketPanel({ mode: 'detail', contact, ticketId });
               } else {
-                setTicketPanel({ mode: 'create', contact });
+                setTicketPanel({ mode: 'create', contact, conversation });
               }
             }}
           />
@@ -156,7 +156,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
           open
           onClose={() => setTicketPanel(null)}
           contact={ticketPanel.contact}
-          conversation={null}
+          conversation={ticketPanel.conversation ?? null}
         />
       )}
       {ticketPanel?.mode === 'detail' && (
