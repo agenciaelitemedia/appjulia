@@ -319,6 +319,51 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           </TooltipProvider>
         )}
 
+        {/* Linha Ticket de Suporte: badge TICKET #N + status (lazy) */}
+        {ticketLink && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  role="link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(`/tickets/${ticketLink.ticketId}`, '_blank', 'noopener');
+                  }}
+                  className="flex items-center justify-between min-w-0 w-full pt-1 mt-0.5 bg-amber-50/40 dark:bg-amber-950/20 rounded-sm border border-amber-100/70 dark:border-amber-900/40 px-0 gap-0 py-[2px] my-0 cursor-pointer"
+                >
+                  <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
+                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 whitespace-nowrap flex-shrink-0">
+                      <Ticket className="h-2.5 w-2.5 flex-shrink-0" />
+                      TICKET
+                    </span>
+                    {ticketLink.number != null && (
+                      <span className="text-[10px] text-muted-foreground font-mono truncate min-w-0">
+                        #{ticketLink.number}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      'flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap',
+                      TICKET_STATUS_BADGE[ticketLink.status],
+                    )}
+                  >
+                    {TICKET_STATUS_LABEL[ticketLink.status]}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <div className="font-semibold mb-1">Ticket de suporte aberto</div>
+                {ticketLink.number != null && <div>Número: #{ticketLink.number}</div>}
+                {ticketLink.subject && <div>Assunto: {ticketLink.subject}</div>}
+                <div>Status: {TICKET_STATUS_LABEL[ticketLink.status]}</div>
+                <div>Prioridade: {TICKET_PRIORITY_LABEL[ticketLink.priority]}</div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
         {/* Row 3: Tags — fila → SLA → atribuído → extras → prioridade (direita) */}
         <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden w-full">
           <div className="flex items-stretch gap-0 flex-shrink-0 mr-2">
