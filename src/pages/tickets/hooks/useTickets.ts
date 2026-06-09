@@ -232,11 +232,22 @@ export function useTicketMutations() {
 
   const reply = useMutation({
     mutationFn: async ({ ticketId, body, internal }: { ticketId: string; body: string; internal: boolean }) => {
-      await db.from('support_ticket_messages').insert({
-        ticket_id: ticketId, author_user_id: actor.id, author_name: actor.name,
-        author_role: role === 'agent' ? 'agent' : 'requester',
-        kind: internal ? 'internal' : 'public', body,
-      });
+      const { data: inserted, error: insertError } = await db
+        .from('support_ticket_messages')
+        .insert({
+          ticket_id: ticketId, author_user_id: actor.id, author_name: actor.name,
+          author_role: role === 'agent' ? 'agent' : 'requester',
+          kind: internal ? 'internal' : 'public', body,
+        })
+        .select('id')
+        .single();
+      if (insertError) throw insertError;
+      const who = actor.name || (role === 'agent' ? 'Suporte' : 'Solicitante');
+      await logEvent(
+        ticketId,
+        internal ? 'note_added' : 'reply_added',
+        internal ? `Nota interna adicionada por ${who}` : `Resposta enviada por ${who}`,
+      );
       // Primeira resposta do agente → marca first_response_at
       if (role === 'agent' && !internal) {
         const { data: t } = await db.from('support_tickets').select('first_response_at').eq('id', ticketId).maybeSingle();
@@ -244,6 +255,37 @@ export function useTicketMutations() {
           await db.from('support_tickets').update({ first_response_at: new Date().toISOString() }).eq('id', ticketId);
         }
       }
+      return inserted?.id as string | undefined;
+    },
+    onSuccess: (_d, v) => invalidate(v.ticketId),
+  });
+
+  const editMessage = useMutation({
+    mutationFn: async ({ ticketId, messageId, body }: { ticketId: string; messageId: string; body: string }) => {
+      const { error } = await db
+        .from('support_ticket_messages')
+        .update({ body })
+        .eq('id', messageId);
+      if (error) throw error;
+      const who = actor.name || (role === 'agent' ? 'Suporte' : 'Solicitante');
+      await logEvent(ticketId, 'message_edited', `Mensagem editada por ${who}`);
+    },
+    onSuccess: (_d, v) => invalidate(v.ticketId),
+  });
+
+  const deleteMessage = useMutation({
+    mutationFn: async ({ ticketId, messageId, kind }: { ticketId: string; messageId: string; kind: 'public' | 'internal' }) => {
+      const { error } = await db
+        .from('support_ticket_messages')
+        .delete()
+        .eq('id', messageId);
+      if (error) throw error;
+      const who = actor.name || (role === 'agent' ? 'Suporte' : 'Solicitante');
+      await logEvent(
+        ticketId,
+        'message_deleted',
+        kind === 'internal' ? `Nota interna excluída por ${who}` : `Resposta excluída por ${who}`,
+      );
     },
     onSuccess: (_d, v) => invalidate(v.ticketId),
   });
@@ -311,7 +353,7 @@ export function useTicketMutations() {
     onSuccess: () => invalidate(),
   });
 
-  return { create, reply, setStatus, update, assign, setCsat, deleteTicket };
+  return { create, reply, editMessage, deleteMessage, setStatus, update, assign, setCsat, deleteTicket };
 }
 
 // ── Mutations de configuração (departamentos / categorias / SLA / CSAT) ──
