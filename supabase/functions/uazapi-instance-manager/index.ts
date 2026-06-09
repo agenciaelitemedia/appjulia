@@ -11,21 +11,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Eventos padrão do webhook UaZapi (chat moderno completo)
+// Eventos padrão do webhook UaZapi — nomes canônicos conforme
+// https://docs.uazapi.com/endpoint/post/webhook
+// (a doc lista nomes sem dot-notation; os antigos chats.update / contacts.update
+// etc. eram ignorados silenciosamente pelo servidor)
 const DEFAULT_WEBHOOK_EVENTS = [
-  'messages',
-  'messages.set',
-  'history',
-  'messages.update',
-  'messages_update',
-  'messages.delete',
-  'chats.update',
-  'chats.upsert',
-  'contacts.update',
-  'contacts.upsert',
-  'groups.update',
-  'connection.update',
-  'presence.update',
+  'connection',       // estado da conexão
+  'messages',         // mensagens recebidas/enviadas (inclui fromMe via API)
+  'messages_update',  // edição/status/delete
+  'history',          // backfill on-demand
+  'chats',            // eventos de conversas
+  'contacts',         // atualizações de contato + foto de perfil
+  'groups',           // mudanças em grupo, inclusive foto
+  'presence',         // presença
+  'call',             // chamadas VoIP
 ];
 
 async function configureWebhook(baseUrl: string, instanceToken: string, supabaseUrl: string, queueId: string) {

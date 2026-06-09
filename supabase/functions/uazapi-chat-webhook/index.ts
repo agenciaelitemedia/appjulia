@@ -910,6 +910,12 @@ Deno.serve(async (req) => {
       contacts_update: 'contacts.update',
       chats: 'chats.update',
       chats_update: 'chats.update',
+      groups: 'groups.update',
+      groups_update: 'groups.update',
+      presence: 'presence.update',
+      presence_update: 'presence.update',
+      call: 'call.update',
+      messages_set: 'messages.set',
     };
     const event = EVENT_ALIAS[rawEvent] || rawEvent;
     // Normalize: treat messages, messages.upsert, message as the same logical MESSAGE_UPSERT event
