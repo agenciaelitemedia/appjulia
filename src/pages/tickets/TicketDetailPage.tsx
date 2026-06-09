@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
-  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon,
+  CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon, Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -234,13 +235,20 @@ export default function TicketDetailPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Coluna esquerda: detalhes */}
+        {/* Coluna esquerda: detalhes + histórico */}
         <Card className="lg:col-span-1 h-fit">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Detalhes</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-2 space-y-3 text-sm">
-            <div className="flex flex-wrap gap-2">
+          <Tabs defaultValue="detalhes" className="w-full">
+            <CardHeader className="pb-2">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+                <TabsTrigger value="historico" className="gap-1">
+                  <Activity className="h-3.5 w-3.5" /> Histórico
+                </TabsTrigger>
+              </TabsList>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <TabsContent value="detalhes" className="space-y-3 text-sm mt-0">
+                <div className="flex flex-wrap gap-2">
               <Badge className={STATUS_BADGE[ticket.status]}>{STATUS_LABEL[ticket.status]}</Badge>
               <Badge className={PRIORITY_BADGE[ticket.priority]}>{PRIORITY_LABEL[ticket.priority]}</Badge>
               <TicketSlaBadge ticket={ticket} />
@@ -340,22 +348,39 @@ export default function TicketDetailPage() {
                 {ticket.csat_comment && <p className="text-xs text-muted-foreground mt-0.5">"{ticket.csat_comment}"</p>}
               </div>
             )}
-          </CardContent>
+              </TabsContent>
+
+              <TabsContent value="historico" className="mt-0 max-h-[70vh] overflow-y-auto pr-1">
+                <TicketTimeline messages={messages.filter((m) => m.kind === 'event')} />
+              </TabsContent>
+            </CardContent>
+          </Tabs>
         </Card>
 
-        {/* Coluna direita: descrição + timeline + composer */}
+        {/* Coluna direita: sobre + interações + composer */}
         <Card className="lg:col-span-2 flex flex-col">
-          <CardHeader className="pb-3"><CardTitle className="text-base">Interações</CardTitle></CardHeader>
-          <CardContent className="flex-1 flex flex-col gap-3">
-            {ticket.description && (
-              <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
-                <p className="text-[11px] font-medium text-muted-foreground mb-1">Descrição original</p>
-                {ticket.description}
-              </div>
-            )}
+          <CardContent className="flex-1 flex flex-col gap-4 pt-6">
+            {/* Sobre este chamado */}
+            <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Sobre este chamado</p>
+              <p className="font-medium">{ticket.subject}</p>
+              {ticket.description && (
+                <p className="whitespace-pre-wrap text-sm text-muted-foreground">{ticket.description}</p>
+              )}
+            </div>
 
-            <div className="max-h-[60vh] overflow-y-auto pr-1">
-              <TicketTimeline messages={visibleMessages} />
+            {/* Interações */}
+            <div className="space-y-2">
+              <h3 className="text-base font-semibold">Interações</h3>
+              <div className="max-h-[55vh] overflow-y-auto pr-1">
+                {(() => {
+                  const interactions = visibleMessages.filter((m) => m.kind !== 'event');
+                  if (interactions.length === 0) {
+                    return <p className="text-xs text-muted-foreground py-8 text-center">Sem respostas ou notas ainda.</p>;
+                  }
+                  return <TicketTimeline messages={interactions} />;
+                })()}
+              </div>
             </div>
 
             {/* Composer */}
