@@ -432,6 +432,44 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       </div>
     </div>
   );
+
+  if (!canViewTickets || !onOpenTicket) {
+    return itemContent;
+  }
+
+  const hasTicket = !!ticketLink;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{itemContent}</ContextMenuTrigger>
+      <ContextMenuContent className="w-60">
+        {hasTicket ? (
+          <>
+            <ContextMenuItem
+              onSelect={() => onOpenTicket('detail', ticketLink!.ticketId)}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Ver ticket #{ticketLink!.number ?? '—'}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onSelect={() => window.open(`/tickets/${ticketLink!.ticketId}`, '_blank', 'noopener')}
+            >
+              <Ticket className="h-4 w-4 mr-2" />
+              Abrir no módulo
+            </ContextMenuItem>
+          </>
+        ) : (
+          canCreateTickets && (
+            <ContextMenuItem onSelect={() => onOpenTicket('create')}>
+              <LifeBuoy className="h-4 w-4 mr-2" />
+              Abrir ticket de suporte
+            </ContextMenuItem>
+          )
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }, (prev, next) => {
   // Custom shallow comparison: avoids re-renders when parent rebuilds
   // empty arrays / equal objects with new references on every scroll tick.
@@ -448,6 +486,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   if (prev.ticketLink?.ticketId !== next.ticketLink?.ticketId) return false;
   if (prev.ticketLink?.status !== next.ticketLink?.status) return false;
   if (prev.ticketLink?.number !== next.ticketLink?.number) return false;
+  if (prev.onOpenTicket !== next.onOpenTicket) return false;
   if (prev.index !== next.index) return false;
   if (prev.contact?.id !== next.contact?.id) return false;
   if (prev.contact?.name !== next.contact?.name) return false;
