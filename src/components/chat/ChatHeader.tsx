@@ -38,6 +38,8 @@ import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { ChatCrmButton } from './ChatCrmButton';
 import { ChatTicketSidePanel } from './ChatTicketSidePanel';
+import { ChatTicketDetailSidePanel } from './ChatTicketDetailSidePanel';
+import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
 import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from './SlaBadge';
@@ -265,6 +267,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showHelp, setShowHelp] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
+  const [showTicketDetail, setShowTicketDetail] = useState<string | null>(null);
+
+  const { data: ticketLinkMap } = useTicketLinkedConversations();
+  const ticketLink = selectedConversation?.id ? ticketLinkMap?.get(selectedConversation.id) : undefined;
 
   const { data: queueLink } = useQueueAgentLink(selectedConversation?.queue_id);
   const queueId = selectedConversation?.queue_id || null;
@@ -709,10 +715,17 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                         Buscar nesta conversa
                       </DropdownMenuItem>
                       {(user?.role === 'admin' || user?.role === 'colaborador') && (
-                        <DropdownMenuItem onClick={() => setShowNewTicket(true)}>
-                          <LifeBuoy className="h-4 w-4 mr-2" />
-                          Abrir ticket de suporte
-                        </DropdownMenuItem>
+                        ticketLink ? (
+                          <DropdownMenuItem onClick={() => setShowTicketDetail(ticketLink.ticketId)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            Ver ticket de suporte #{ticketLink.number ?? '—'}
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={() => setShowNewTicket(true)}>
+                            <LifeBuoy className="h-4 w-4 mr-2" />
+                            Abrir ticket de suporte
+                          </DropdownMenuItem>
+                        )
                       )}
                       <DropdownMenuItem onClick={() => setShowHelp(true)}>
                         <Keyboard className="h-4 w-4 mr-2" />
@@ -815,6 +828,14 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         contact={contact}
         conversation={selectedConversation ?? null}
       />
+
+      {showTicketDetail && (
+        <ChatTicketDetailSidePanel
+          open
+          onClose={() => setShowTicketDetail(null)}
+          ticketId={showTicketDetail}
+        />
+      )}
     </>
   );
 }
