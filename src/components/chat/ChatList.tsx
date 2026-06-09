@@ -1654,6 +1654,7 @@ export function ChatList() {
                     }
                     hasCrmCard={conv?.id ? !!crmBuilderMap?.has(conv.id) : false}
                     crmBuilderLink={conv?.id ? crmBuilderMap?.get(conv.id) : undefined}
+                    ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
                   />
                 </div>
