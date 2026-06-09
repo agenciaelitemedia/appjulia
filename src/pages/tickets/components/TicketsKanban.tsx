@@ -57,7 +57,7 @@ function DraggableCard({ ticket, onClick }: { ticket: SupportTicket; onClick: ()
 function Column({ status, tickets, onCardClick }: { status: TicketStatus; tickets: SupportTicket[]; onCardClick: (id: string) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   return (
-    <div className="flex flex-col min-w-[260px] max-w-[260px] flex-shrink-0">
+    <div className="flex flex-col min-w-[260px] max-w-[260px] flex-shrink-0 h-full">
       <div className="flex items-center justify-between mb-2 px-1">
         <Badge className={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</Badge>
         <span className="text-xs text-muted-foreground">{tickets.length}</span>
@@ -65,9 +65,10 @@ function Column({ status, tickets, onCardClick }: { status: TicketStatus; ticket
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 space-y-2 rounded-lg p-2 min-h-[120px] transition-colors',
+          'flex-1 space-y-2 rounded-lg p-2 min-h-[120px] overflow-y-auto scrollbar-none transition-colors',
           isOver ? 'bg-primary/5 ring-2 ring-primary/20' : 'bg-muted/30',
         )}
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {tickets.map((t) => <DraggableCard key={t.id} ticket={t} onClick={() => onCardClick(t.id)} />)}
         {tickets.length === 0 && <p className="text-center text-[11px] text-muted-foreground py-4">Vazio</p>}
@@ -99,7 +100,10 @@ export function TicketsKanban({ filters }: { filters: TicketFilters }) {
 
   if (isLoading) {
     return (
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div
+        className="flex gap-3 overflow-x-auto overflow-y-auto pb-2 scrollbar-none h-full"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
         {KANBAN_STATUSES.map((s) => <Skeleton key={s} className="h-72 min-w-[260px]" />)}
       </div>
     );
@@ -109,7 +113,10 @@ export function TicketsKanban({ filters }: { filters: TicketFilters }) {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div
+        className="flex gap-3 overflow-x-auto overflow-y-auto pb-2 scrollbar-none h-full"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
         {KANBAN_STATUSES.map((status) => (
           <Column
             key={status}
