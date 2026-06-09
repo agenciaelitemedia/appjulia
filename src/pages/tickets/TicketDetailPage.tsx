@@ -24,6 +24,7 @@ import {
 import {
   ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
   CircleDot, ArrowRightLeft, Flag, UserCheck, Reply, Star as StarIcon, Activity, History,
+  Pencil, X, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -51,7 +52,18 @@ function eventIcon(m: TicketMessage) {
   }
 }
 
-function TicketTimeline({ messages }: { messages: TicketMessage[] }) {
+interface TimelineEditState {
+  editingId: string | null;
+  editDraft: string;
+  setEditingId: (id: string | null) => void;
+  setEditDraft: (s: string) => void;
+  canEditMessage: (m: TicketMessage) => boolean;
+  onSaveEdit: (m: TicketMessage) => void;
+  onDelete: (m: TicketMessage) => void;
+  saving: boolean;
+}
+
+function TicketTimeline({ messages, edit }: { messages: TicketMessage[]; edit?: TimelineEditState }) {
   const items = [...messages].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
@@ -92,6 +104,8 @@ function TicketTimeline({ messages }: { messages: TicketMessage[] }) {
         }
 
         const isInternal = m.kind === 'internal';
+        const isEditing = edit?.editingId === m.id;
+        const canEdit = edit?.canEditMessage(m) ?? false;
         return (
           <li key={m.id} className="relative pl-6">
             {bullet(isInternal ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/40' : 'bg-background')}
@@ -107,9 +121,63 @@ function TicketTimeline({ messages }: { messages: TicketMessage[] }) {
                 <span className="text-xs font-medium">
                   {isInternal ? `Nota interna · ${author}` : `Resposta de ${author}`}
                 </span>
-                <span className="text-[11px] text-muted-foreground">{ts}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] text-muted-foreground">{ts}</span>
+                  {canEdit && !isEditing && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        title="Editar"
+                        onClick={() => {
+                          edit?.setEditingId(m.id);
+                          edit?.setEditDraft(m.body ?? '');
+                        }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive hover:text-destructive"
+                        title="Excluir"
+                        onClick={() => edit?.onDelete(m)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.body}</p>
+              {isEditing ? (
+                <div className="space-y-2">
+                  <Textarea
+                    value={edit?.editDraft ?? ''}
+                    onChange={(e) => edit?.setEditDraft(e.target.value)}
+                    className="min-h-[60px] text-sm"
+                  />
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => edit?.setEditingId(null)}
+                      disabled={edit?.saving}
+                    >
+                      <X className="h-3 w-3 mr-1" /> Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => edit?.onSaveEdit(m)}
+                      disabled={edit?.saving || !edit?.editDraft.trim()}
+                    >
+                      <Check className="h-3 w-3 mr-1" /> Salvar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.body}</p>
+              )}
             </div>
           </li>
         );
@@ -121,10 +189,10 @@ function TicketTimeline({ messages }: { messages: TicketMessage[] }) {
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const role = useTicketRole();
   const { ticket, messages, isLoading } = useTicket(id);
-  const { reply, setStatus, update, setCsat, deleteTicket, assign } = useTicketMutations();
+  const { reply, editMessage, deleteMessage, setStatus, update, setCsat, deleteTicket, assign } = useTicketMutations();
   const { departments, categories } = useSupportConfig();
   const { data: team } = useTeamByClient();
   const teamMembers: TeamMemberOption[] = (team || []).map((m) => ({
@@ -140,6 +208,9 @@ export default function TicketDetailPage() {
   const [csatComment, setCsatComment] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [deleteMsg, setDeleteMsg] = useState<TicketMessage | null>(null);
 
   // Resolve queue_id do ticket: via conversation_id se houver, senão pega a
   // conversa mais recente do contato.
@@ -177,12 +248,61 @@ export default function TicketDetailPage() {
   });
 
   const isAgent = role === 'agent';
+  const currentUserId = user?.id != null ? String(user.id) : null;
 
   if (isLoading) return <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 w-full" />)}</div>;
   if (!ticket) return <div className="text-center text-muted-foreground py-12">Chamado não encontrado.</div>;
 
   // Solicitante não vê notas internas
   const visibleMessages = messages.filter((m) => isAgent || m.kind !== 'internal');
+
+  // Última mensagem (resposta/nota) do usuário atual, dentro de 15min e editável
+  const EDIT_WINDOW_MS = 15 * 60 * 1000;
+  const lastEditable = (() => {
+    const own = visibleMessages
+      .filter(
+        (m) =>
+          m.kind !== 'event' &&
+          m.author_user_id != null &&
+          currentUserId != null &&
+          String(m.author_user_id) === currentUserId,
+      )
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const m = own[0];
+    if (!m) return null;
+    if (Date.now() - new Date(m.created_at).getTime() > EDIT_WINDOW_MS) return null;
+    return m;
+  })();
+
+  const canEditMessage = (m: TicketMessage) => !!lastEditable && m.id === lastEditable.id;
+
+  const handleSaveEdit = async (m: TicketMessage) => {
+    if (!id || !editDraft.trim()) return;
+    try {
+      await editMessage.mutateAsync({ ticketId: id, messageId: m.id, body: editDraft.trim() });
+      setEditingId(null);
+      setEditDraft('');
+      toast.success('Mensagem atualizada');
+    } catch {
+      toast.error('Erro ao editar mensagem');
+    }
+  };
+
+  const handleDeleteMessage = async () => {
+    if (!id || !deleteMsg) return;
+    try {
+      await deleteMessage.mutateAsync({
+        ticketId: id,
+        messageId: deleteMsg.id,
+        kind: deleteMsg.kind as 'public' | 'internal',
+      });
+      toast.success('Mensagem excluída');
+    } catch {
+      toast.error('Erro ao excluir mensagem');
+    } finally {
+      setDeleteMsg(null);
+    }
+  };
 
   const handleSend = async () => {
     if (!draft.trim() || !id) return;
@@ -405,7 +525,21 @@ export default function TicketDetailPage() {
                   if (interactions.length === 0) {
                     return <p className="text-xs text-muted-foreground py-8 text-center">Sem respostas ou notas ainda.</p>;
                   }
-                  return <TicketTimeline messages={interactions} />;
+                  return (
+                    <TicketTimeline
+                      messages={interactions}
+                      edit={{
+                        editingId,
+                        editDraft,
+                        setEditingId,
+                        setEditDraft,
+                        canEditMessage,
+                        onSaveEdit: handleSaveEdit,
+                        onDelete: (m) => setDeleteMsg(m),
+                        saving: editMessage.isPending,
+                      }}
+                    />
+                  );
                 })()}
               </div>
             </div>
@@ -430,6 +564,27 @@ export default function TicketDetailPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteTicket.isPending ? 'Excluindo…' : 'Sim, excluir chamado'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteMsg} onOpenChange={(o) => !o && setDeleteMsg(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir mensagem?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta {deleteMsg?.kind === 'internal' ? 'nota interna' : 'resposta'}? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMessage.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMessage}
+              disabled={deleteMessage.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMessage.isPending ? 'Excluindo…' : 'Sim, excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
