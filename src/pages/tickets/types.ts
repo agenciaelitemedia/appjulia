@@ -4,6 +4,7 @@ export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 export interface SupportTicket {
   id: string;
   number: number | null;
+  protocol: string | null;
   subject: string;
   description: string | null;
   status: TicketStatus;
@@ -56,6 +57,7 @@ export interface SupportSettings {
   id: string;
   sla: Record<TicketPriority, SlaTarget>;
   csat_enabled: boolean;
+  protocol_mask: string;
 }
 
 export const STATUS_LABEL: Record<TicketStatus, string> = {
