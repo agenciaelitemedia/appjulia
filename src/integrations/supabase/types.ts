@@ -4292,6 +4292,33 @@ export type Database = {
           },
         ]
       }
+      help_studio_editors: {
+        Row: {
+          added_by: number | null
+          created_at: string
+          id: string
+          user_email: string | null
+          user_id: number
+          user_name: string | null
+        }
+        Insert: {
+          added_by?: number | null
+          created_at?: string
+          id?: string
+          user_email?: string | null
+          user_id: number
+          user_name?: string | null
+        }
+        Update: {
+          added_by?: number | null
+          created_at?: string
+          id?: string
+          user_email?: string | null
+          user_id?: number
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       instagram_config: {
         Row: {
           client_id: string
