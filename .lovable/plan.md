@@ -1,54 +1,32 @@
-## Objetivo
+## Refatoração de layout — `src/components/chat/ChatTicketDetailSidePanel.tsx`
 
-Transformar o painel lateral `ChatTicketDetailSidePanel` (aberto pelo menu "Ver ticket de suporte #N" na lista de conversas / header do chat) em uma visão completa com 3 abas, espelhando a experiência da página `/tickets/:id`, sem trocar de tela.
+Reestruturar cada `TabsContent` para o padrão **topo fixo + corpo rolável + rodapé fixo**, usando `flex flex-col min-h-0`.
 
-## Estrutura das abas
+### 1. Aba "Dados do Ticket" — rodapé sticky
+- Corpo `flex-1 overflow-y-auto p-4 space-y-3` com os campos do formulário e a linha do solicitante.
+- Rodapé `flex-shrink-0 border-t bg-muted/20 px-4 py-3 flex flex-wrap items-center gap-2`:
+  - Excluir à esquerda (`mr-auto`)
+  - Resolver / Reabrir / Salvar à direita
+  - `flex-wrap` evita estouro em telas estreitas.
 
-```text
-┌─ Ticket #1234 · [Status]                              [↗] [X] ┐
-│ [ Dados do Ticket ] [ Conversas ] [ Histórico ]               │
-├───────────────────────────────────────────────────────────────┤
-│                       (conteúdo da aba)                       │
-└───────────────────────────────────────────────────────────────┘
-```
+### 2. Aba "Conversas" — Sobre + Composer fixos no topo, histórico rola
+- Topo `flex-shrink-0 border-b p-4 space-y-3`:
+  - Card "Sobre este chamado"
+  - Toggle Resposta / Nota interna
+  - Textarea
+  - Linha "Switch WhatsApp .... Responder"
+- Corpo `flex-1 overflow-y-auto p-4 space-y-2` com cabeçalho `sticky top-0 bg-background z-10 -mx-4 px-4 py-2 border-b` "Histórico de Conversa" + `<TicketTimeline messages={interactions} … />`.
 
-### Aba 1 — Dados do Ticket (imagem 1)
-Mantém o formulário atual já existente no painel, exatamente como na referência:
-- Assunto, Descrição
-- Responsável pelo atendimento (TeamMemberSelect)
-- Departamento / Categoria (lado a lado)
-- Prioridade / Status atual (lado a lado)
-- Rodapé fixo: linha "Solicitante: NOME [PROTOCOLO] · telefone"
-- Botões Salvar / Resolver / Reabrir / Excluir (rodapé existente)
+### 3. Aba "Histórico" — alinhado ao topo
+- Topo `flex-shrink-0 px-4 pt-3 pb-2 border-b` com título "Eventos do chamado".
+- Corpo `flex-1 overflow-y-auto p-4` com `<TicketTimeline messages={events} />`.
+- Empty state alinhado ao topo (`pt-6`), não centralizado verticalmente.
 
-### Aba 2 — Conversas (imagem 2)
-Nova aba, replicando o bloco da coluna direita de `TicketDetailPage`:
-- Card "SOBRE ESTE CHAMADO" no topo (assunto + descrição em destaque)
-- Toggle Resposta / Nota interna (somente agentes)
-- Textarea "Escreva uma resposta…"
-- Switch "Enviar para WhatsApp" + botão "Responder" (mesma lógica de `chatTarget`/`reply.mutateAsync` já usada em `TicketDetailPage`)
-- Lista "Histórico de Conversa" abaixo, usando o componente `TicketTimeline` filtrando `messages` para `kind !== 'event'` (respostas públicas + notas internas), com edição/exclusão pela janela de 15min já existente
+### Ajustes estruturais
+- `Tabs` raiz: `flex-1 flex flex-col min-h-0` (mantém).
+- `TabsList`: adicionar `flex-shrink-0`.
+- Cada `TabsContent`: `flex-1 flex flex-col min-h-0 overflow-hidden mt-0 data-[state=inactive]:hidden` para garantir altura plena.
+- Remover `max-h-` arbitrários — referência de altura passa a ser o portal `h-full`.
 
-### Aba 3 — Histórico (imagem 3)
-Timeline cronológica de eventos:
-- Reusa `TicketTimeline` com `messages.filter(m => m.kind === 'event')`
-- Mostra eventos do tipo: Chamado aberto, Status alterado, Resposta enviada, Resposta excluída, Nota interna excluída, Mensagem editada, Atribuição, etc.
-
-## Detalhes técnicos
-
-**Arquivo único alterado:** `src/components/chat/ChatTicketDetailSidePanel.tsx`
-
-1. Trocar o body atual por um layout com `<Tabs defaultValue="dados">` (shadcn), com `TabsList` logo abaixo do header e três `TabsContent` roláveis.
-2. Extrair o formulário atual (linhas ~194–289) para uma sub-aba `dados` mantendo `useTicket`, `useTicketMutations`, `useSupportConfig`, `useTeamByClient`, e os estados `subject/description/priority/...` já existentes.
-3. Para as abas `conversas` e `historico`:
-   - Estender a desestruturação de `useTicketMutations()` para incluir `reply`, `editMessage`, `deleteMessage`.
-   - Ler `messages` de `useTicket(ticketId)` (já retornado pelo hook).
-   - Importar `TicketTimeline` e o tipo `TicketMessage` exportando-os do módulo de tickets. Como `TicketTimeline` hoje é função local em `TicketDetailPage.tsx`, mover para um arquivo compartilhado novo `src/pages/tickets/components/TicketTimeline.tsx` e re-importar tanto em `TicketDetailPage` quanto no painel.
-   - Replicar o `chatTarget` (mesma `useQuery` com `queryKey: ['ticket-chat-target', ...]`) para habilitar o switch "Enviar para WhatsApp"; pode-se extrair para hook `useTicketChatTarget(ticket)` em `src/pages/tickets/hooks/useTicketChatTarget.ts` e reutilizar nos dois locais (refator opcional, mas recomendado para evitar duplicação).
-4. Permissões: respeitar `hasPermission('support_tickets', 'edit'/'delete')` igual ao painel atual; respostas/notas seguem o gate de `isAgent` (via `useTicketRole`).
-5. Rodapé com botões Salvar / Resolver / Reabrir / Excluir continua visível apenas na aba "Dados do Ticket" (move o `<div>` do rodapé para dentro do `TabsContent value="dados"`); nas demais abas o rodapé não é necessário pois respostas têm seu próprio botão.
-
-## Fora de escopo
-- Página `/tickets/:id` mantém seu layout atual (apenas extrai `TicketTimeline` para arquivo compartilhado).
-- `ChatTicketSidePanel` (criação de novo ticket) permanece inalterado.
-- Nenhuma mudança de banco, RLS ou edge function.
+### Fora de escopo
+- Sem mudanças em lógica de mutations, hooks, permissões, `TicketDetailPage`, `ChatTicketSidePanel` ou banco.
