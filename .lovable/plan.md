@@ -1,37 +1,44 @@
-## Problema
+# Som de alerta global para novas mensagens do Chat
 
-Roniel (`role='time'`, vinculado a Mario via `parent_user_id`, sem `client_id` próprio) cai no branch `requester` do `useTickets`, que filtra por `requester_user_id = roniel.id` — e como nenhum ticket foi aberto por ele, a lista vem vazia. Os 9 chamados existentes têm `requester_client_id = 30` e `requester_user_id = 2` (Mario).
+## Objetivo
+Tocar o som enviado (`bible_images-whatsapp-message-sound-effect-3-386095.mp3`) em **qualquer página da plataforma** sempre que chegar uma nova mensagem recebida no módulo /chat — sem interferir em nenhuma funcionalidade existente.
 
-A regra atual em `useTicketRole()`:
-- `isAdmin` → `agent`
-- `user.role === 'user'` → `manager`
-- demais (incluindo `time`, `advogado`, `colaborador`) → `requester`
+## Como funciona hoje
+O chat só escuta novas mensagens em tempo real quando a página /chat está aberta (o contexto do chat é montado apenas lá). Por isso, o alerta sonoro será implementado de forma **independente**, num hook global montado no layout principal (`MainLayout`), que envolve todas as páginas autenticadas.
 
-## Plano
+## O que será feito
 
-Tratar membros do escritório (`role` em `time | advogado | colaborador | comercial`) como **manager do escritório**: enxergam todos os chamados do `client_id` efetivo (herdado do dono via `parent_user_id`).
+### 1. Salvar o arquivo de som
+- Criar a pasta `public/som/`
+- Salvar o MP3 como `public/som/nova-mensagem.mp3` (nome simples e estável para referência no código)
 
-### 1. `src/pages/tickets/hooks/useTickets.ts`
+### 2. Novo hook global `useNewMessageSound` (arquivo novo, sem tocar em código existente)
+- Resolve o `client_id` efetivo do usuário (mesma lógica já usada: `user.client_id` ou herdado do dono do escritório)
+- Abre uma assinatura Realtime **própria e separada** (canal exclusivo, ex.: `chat_messages_sound_alert`) escutando apenas INSERTs na tabela de mensagens filtrados pelo `client_id` — não compartilha nem interfere no canal usado pela página /chat
+- Toca o som **apenas** quando:
+  - a mensagem é **recebida** (`from_me = false`)
+  - **não** é nota interna
+  - não é duplicada (controle por ID já visto)
+- **Throttle de ~2 segundos**: se chegarem várias mensagens em rajada, o som toca uma vez, evitando "metralhadora" de áudio
 
-- **`useTicketRole()`**: ampliar o branch `manager` para qualquer usuário não-admin cujo `role !== 'requester-only'`. Hoje só `requester` puro seria alguém sem vínculo — na prática, todo usuário interno do escritório deve ver os chamados do cliente. Nova regra:
-  - `isAdmin` → `agent`
-  - usuário autenticado com `client_id` resolvível → `manager`
-  - fallback → `requester` (mantém para casos sem vínculo)
+### 3. Tratamento de áudio do navegador (importante)
+- Navegadores bloqueiam áudio antes da primeira interação do usuário. O hook:
+  - Pré-carrega o áudio uma única vez
+  - "Destrava" o áudio silenciosamente na primeira interação (clique/tecla)
+  - Se o navegador bloquear o play, falha silenciosamente — nunca gera erro visível
 
-- **`useTickets`**: usar `resolveEffectiveClientId(user)` (já existe em `src/lib/resolveEffectiveClientId.ts`) para obter o `client_id` do dono quando o usuário-membro não tem `client_id` direto. Resolver de forma assíncrona dentro do `queryFn` e usar esse valor no filtro `requester_client_id`. Adicionar o `effectiveClientId` à `queryKey` para invalidação correta.
+### 4. Montagem no layout
+- Uma linha no `MainLayout`: chamar `useNewMessageSound()` junto dos outros hooks globais (presença, heartbeat). Nada mais é alterado.
 
-- **`useTicketMutations.create`**: ao criar ticket, gravar `requester_client_id` usando o `effectiveClientId` resolvido (não apenas `user.client_id`), garantindo que tickets abertos por membros fiquem vinculados ao escritório.
+## Garantias de não-interferência
+- Nenhum arquivo do chat (`WhatsAppDataContext`, `ChatContainer`, etc.) é modificado
+- Canal Realtime separado com nome exclusivo — sem conflito com o canal do /chat
+- Sem alteração de backend, banco ou RLS
+- Se o áudio falhar (autoplay bloqueado, arquivo indisponível), o sistema segue funcionando normalmente
 
-### 2. Header do `TicketsPage`
-
-O texto do subtítulo usa `role === 'requester'` / `manager`. Manter o texto de manager para todos os membros do escritório (já fica adequado: "Chamados do seu escritório").
-
-### Fora do escopo
-
-- RLS de `support_tickets` já é permissiva (`ALL true`), então não há mudança no banco.
-- Schema dos tickets não muda.
-- Comportamento de admin (suporte Julia) permanece igual.
-
-## Resultado esperado
-
-Roniel passa a ser tratado como `manager` com `client_id` efetivo = 30 e visualizará os 9 chamados do escritório de Mario. Qualquer outro membro de equipe (advogado/colaborador) terá o mesmo comportamento.
+## Arquivos
+| Arquivo | Ação |
+|---|---|
+| `public/som/nova-mensagem.mp3` | criar (upload do usuário) |
+| `src/hooks/useNewMessageSound.ts` | criar |
+| `src/components/layout/MainLayout.tsx` | adicionar 1 import + 1 chamada de hook |
