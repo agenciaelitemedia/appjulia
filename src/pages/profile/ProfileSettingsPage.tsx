@@ -412,7 +412,7 @@ export default function ProfileSettingsPage() {
                     onClick={handlePhotoClick}
                   >
                     <Avatar className="h-24 w-24">
-                      <AvatarImage src={clientData?.photo || undefined} alt={user?.name} />
+                      <AvatarImage src={userPhoto || undefined} alt={user?.name} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
                         {user?.name ? getInitials(user.name) : 'U'}
                       </AvatarFallback>
@@ -462,7 +462,13 @@ export default function ProfileSettingsPage() {
                       <User className="h-4 w-4" />
                       Dados do Cliente
                     </h4>
-                    
+                    {!canEditClient && (
+                      <Alert>
+                        <AlertDescription>
+                          Somente o proprietário da conta pode editar os dados do cliente.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <div className="grid gap-4 md:grid-cols-2">
                       {/* Name */}
                       <div className="space-y-2">
@@ -473,6 +479,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('name', e.target.value)}
                           placeholder="Nome do responsável"
                           maxLength={100}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -485,6 +492,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('business_name', e.target.value)}
                           placeholder="Razão social da empresa"
                           maxLength={100}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -497,6 +505,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleMaskedInputChange('federal_id', e.target.value, maskCPFCNPJ)}
                           placeholder="000.000.000-00 ou 00.000.000/0000-00"
                           maxLength={18}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -513,6 +522,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('email', e.target.value)}
                           placeholder="email@empresa.com"
                           maxLength={100}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -528,6 +538,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleMaskedInputChange('phone', e.target.value, maskPhone)}
                           placeholder="(00) 00000-0000"
                           maxLength={15}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -546,13 +557,14 @@ export default function ProfileSettingsPage() {
                             placeholder="00000-000"
                             maxLength={9}
                             className="flex-1"
+                            disabled={!canEditClient}
                           />
                           <Button
                             type="button"
                             variant="outline"
                             size="icon"
                             onClick={searchCep}
-                            disabled={isSearchingCep || unmask(formData.zip_code || '').length !== 8}
+                            disabled={!canEditClient || isSearchingCep || unmask(formData.zip_code || '').length !== 8}
                             title="Buscar endereço pelo CEP"
                           >
                             {isSearchingCep ? (
@@ -573,6 +585,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('street', e.target.value)}
                           placeholder="Rua, Avenida, etc."
                           maxLength={150}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -585,6 +598,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('street_number', e.target.value)}
                           placeholder="123"
                           maxLength={10}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -597,6 +611,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('complement', e.target.value)}
                           placeholder="Apto, Sala, etc."
                           maxLength={50}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -609,6 +624,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('neighborhood', e.target.value)}
                           placeholder="Nome do bairro"
                           maxLength={100}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -621,6 +637,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('city', e.target.value)}
                           placeholder="Nome da cidade"
                           maxLength={50}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -633,6 +650,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('state', e.target.value.toUpperCase())}
                           placeholder="UF"
                           maxLength={2}
+                          disabled={!canEditClient}
                         />
                       </div>
                     </div>
@@ -641,7 +659,7 @@ export default function ProfileSettingsPage() {
                     <div className="flex justify-end pt-4">
                       <Button 
                         onClick={handleSaveClient}
-                        disabled={!hasChanges || isSavingClient}
+                        disabled={!canEditClient || !hasChanges || isSavingClient}
                         className="min-w-[150px]"
                       >
                         {isSavingClient ? (
