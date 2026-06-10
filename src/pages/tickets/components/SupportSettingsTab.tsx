@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Plus, Trash2, Save, Hash } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { useSupportConfig, useSupportConfigMutations } from '../hooks/useTickets';
 import { PRIORITY_LABEL, type TicketPriority, type SlaTarget } from '../types';
+import { renderProtocolMaskPreview } from '../lib/protocolMask';
 
 export function SupportSettingsTab() {
   const { departments, categories, settings } = useSupportConfig();
@@ -22,10 +23,24 @@ export function SupportSettingsTab() {
   const [sla, setSla] = useState<Record<TicketPriority, SlaTarget>>(() => settings?.sla ?? {} as Record<TicketPriority, SlaTarget>);
   const [csatEnabled, setCsatEnabled] = useState(settings?.csat_enabled ?? true);
   const [reapplyOnSave, setReapplyOnSave] = useState(false);
+  const [protocolMask, setProtocolMask] = useState(settings?.protocol_mask ?? 'AAAAMMDDNNNNNN');
 
   useEffect(() => {
-    if (settings) { setSla(settings.sla); setCsatEnabled(settings.csat_enabled); }
+    if (settings) {
+      setSla(settings.sla);
+      setCsatEnabled(settings.csat_enabled);
+      setProtocolMask(settings.protocol_mask ?? 'AAAAMMDDNNNNNN');
+    }
   }, [settings]);
+
+  const protocolPreview = useMemo(() => renderProtocolMaskPreview(protocolMask, 1), [protocolMask]);
+
+  const saveProtocolMask = () => {
+    saveSettings.mutate({ protocol_mask: protocolMask } as any, {
+      onSuccess: () => toast.success('Máscara de protocolo salva'),
+      onError: (e: any) => toast.error('Falha ao salvar: ' + (e?.message ?? 'erro')),
+    });
+  };
 
   const addDept = () => {
     if (!newDept.trim()) return;
