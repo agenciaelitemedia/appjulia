@@ -11,6 +11,7 @@ import { DebugProvider } from "@/contexts/DebugContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 
 import { ProtectedRoute } from "@/components/guards/ProtectedRoute";
+import { HelpStudioGuard } from "@/components/guards/HelpStudioGuard";
 import { DebugBar } from "@/components/debug/DebugBar";
 
 // ── Static imports (critical path / tiny) ──────────────────────
