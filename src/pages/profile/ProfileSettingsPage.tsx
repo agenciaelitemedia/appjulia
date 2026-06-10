@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { User, Lock, Mail, Shield, Eye, EyeOff, Check, X, Camera, Building2, Phone, MapPin, Loader2, Save, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { externalDb, Client } from '@/lib/externalDb';
@@ -25,6 +26,7 @@ interface ViaCEPResponse {
 
 export default function ProfileSettingsPage() {
   const { user } = useAuth();
+  const canEditClient = user?.role === 'user';
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -35,6 +37,7 @@ export default function ProfileSettingsPage() {
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isSearchingCep, setIsSearchingCep] = useState(false);
+  const [userPhoto, setUserPhoto] = useState<string | null>(null);
   
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -84,6 +87,25 @@ export default function ProfileSettingsPage() {
 
     loadClientData();
   }, [user?.client_id, toast]);
+
+  // Load this user's individual avatar from public.user_avatars
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user?.id) return;
+      try {
+        const { data } = await supabase
+          .from('user_avatars')
+          .select('photo_url')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (!cancelled) setUserPhoto(data?.photo_url ?? null);
+      } catch (e) {
+        console.warn('[Profile] Failed to load user avatar', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const getInitials = (name: string) => {
     return name
@@ -193,7 +215,7 @@ export default function ProfileSettingsPage() {
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user?.client_id) return;
+    if (!file || !user?.id) return;
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
@@ -217,7 +239,7 @@ export default function ProfileSettingsPage() {
     setIsUploadingPhoto(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `client_${user.client_id}/${Date.now()}.${fileExt}`;
+      const fileName = `user_${user.id}/${Date.now()}.${fileExt}`;
 
       const { data, error } = await supabase.storage
         .from('avatars')
@@ -230,8 +252,12 @@ export default function ProfileSettingsPage() {
         .getPublicUrl(data.path);
 
       const photoUrl = urlData.publicUrl;
-      await externalDb.updateClient(user.client_id, { photo: photoUrl });
-      setClientData(prev => prev ? { ...prev, photo: photoUrl } : null);
+      const { error: upsertError } = await supabase
+        .from('user_avatars')
+        .upsert({ user_id: user.id, photo_url: photoUrl, updated_at: new Date().toISOString() });
+      if (upsertError) throw upsertError;
+      setUserPhoto(photoUrl);
+      try { localStorage.removeItem('auth_user_photo_cache_v1'); } catch {}
 
       toast({
         title: 'Foto atualizada',
@@ -254,7 +280,7 @@ export default function ProfileSettingsPage() {
 
   // Handle client data save
   const handleSaveClient = async () => {
-    if (!user?.client_id || !hasChanges) return;
+    if (!user?.client_id || !hasChanges || !canEditClient) return;
 
     setIsSavingClient(true);
     try {
@@ -386,7 +412,7 @@ export default function ProfileSettingsPage() {
                     onClick={handlePhotoClick}
                   >
                     <Avatar className="h-24 w-24">
-                      <AvatarImage src={clientData?.photo || undefined} alt={user?.name} />
+                      <AvatarImage src={userPhoto || undefined} alt={user?.name} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
                         {user?.name ? getInitials(user.name) : 'U'}
                       </AvatarFallback>
@@ -436,7 +462,13 @@ export default function ProfileSettingsPage() {
                       <User className="h-4 w-4" />
                       Dados do Cliente
                     </h4>
-                    
+                    {!canEditClient && (
+                      <Alert>
+                        <AlertDescription>
+                          Somente o proprietário da conta pode editar os dados do cliente.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                     <div className="grid gap-4 md:grid-cols-2">
                       {/* Name */}
                       <div className="space-y-2">
@@ -447,6 +479,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('name', e.target.value)}
                           placeholder="Nome do responsável"
                           maxLength={100}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -459,6 +492,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('business_name', e.target.value)}
                           placeholder="Razão social da empresa"
                           maxLength={100}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -471,6 +505,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleMaskedInputChange('federal_id', e.target.value, maskCPFCNPJ)}
                           placeholder="000.000.000-00 ou 00.000.000/0000-00"
                           maxLength={18}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -487,6 +522,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('email', e.target.value)}
                           placeholder="email@empresa.com"
                           maxLength={100}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -502,6 +538,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleMaskedInputChange('phone', e.target.value, maskPhone)}
                           placeholder="(00) 00000-0000"
                           maxLength={15}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -520,13 +557,14 @@ export default function ProfileSettingsPage() {
                             placeholder="00000-000"
                             maxLength={9}
                             className="flex-1"
+                            disabled={!canEditClient}
                           />
                           <Button
                             type="button"
                             variant="outline"
                             size="icon"
                             onClick={searchCep}
-                            disabled={isSearchingCep || unmask(formData.zip_code || '').length !== 8}
+                            disabled={!canEditClient || isSearchingCep || unmask(formData.zip_code || '').length !== 8}
                             title="Buscar endereço pelo CEP"
                           >
                             {isSearchingCep ? (
@@ -547,6 +585,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('street', e.target.value)}
                           placeholder="Rua, Avenida, etc."
                           maxLength={150}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -559,6 +598,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('street_number', e.target.value)}
                           placeholder="123"
                           maxLength={10}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -571,6 +611,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('complement', e.target.value)}
                           placeholder="Apto, Sala, etc."
                           maxLength={50}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -583,6 +624,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('neighborhood', e.target.value)}
                           placeholder="Nome do bairro"
                           maxLength={100}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -595,6 +637,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('city', e.target.value)}
                           placeholder="Nome da cidade"
                           maxLength={50}
+                          disabled={!canEditClient}
                         />
                       </div>
 
@@ -607,6 +650,7 @@ export default function ProfileSettingsPage() {
                           onChange={(e) => handleInputChange('state', e.target.value.toUpperCase())}
                           placeholder="UF"
                           maxLength={2}
+                          disabled={!canEditClient}
                         />
                       </div>
                     </div>
@@ -615,7 +659,7 @@ export default function ProfileSettingsPage() {
                     <div className="flex justify-end pt-4">
                       <Button 
                         onClick={handleSaveClient}
-                        disabled={!hasChanges || isSavingClient}
+                        disabled={!canEditClient || !hasChanges || isSavingClient}
                         className="min-w-[150px]"
                       >
                         {isSavingClient ? (

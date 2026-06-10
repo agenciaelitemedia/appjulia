@@ -1,71 +1,71 @@
-# Geração de Protocolo Reutilizável
+# Plano: Perfil — Permissão de edição + Foto individual por usuário
 
-Hoje o protocolo é gerado por trigger no banco usando a função `generate_ticket_protocol(mask)`. Vamos expor essa geração como um **serviço reutilizável** no frontend e garantir que seja chamado no momento de salvar o ticket (não só via trigger), permitindo reuso por outros módulos (ex.: conversas, contratos futuros).
+## 1. Restringir edição de "Dados do Cliente"
 
-## 1. RPC no banco (reuso server-side)
+Em `src/pages/profile/ProfileSettingsPage.tsx`:
 
-A função `public.generate_ticket_protocol(p_mask text)` já existe e é `SECURITY DEFINER`. Vamos:
+- Computar `canEditClient = user?.role === 'user'` (dono do escritório/clientId).
+- Aplicar `disabled={!canEditClient}` em **todos** os inputs do bloco "Dados do Cliente" (nome, razão social, CPF/CNPJ, e-mail, telefone, CEP, endereço, etc.) e no botão "Salvar".
+- Exibir um `Alert` discreto acima do formulário quando `!canEditClient`:
+  > "Somente o proprietário da conta pode editar os dados do cliente."
+- A busca de CEP também fica desabilitada.
+- Não bloquear a leitura — todos continuam vendo os dados.
 
-- Garantir `GRANT EXECUTE ... TO authenticated` (migração curta, idempotente).
-- Manter o trigger `set_support_ticket_protocol` como **fallback de segurança** (se o cliente esquecer de enviar, ainda gera).
+## 2. Foto de perfil individual por usuário
 
-## 2. Serviço de Protocolo (frontend)
+Hoje a foto vem de `clients.photo` (compartilhada entre todos os usuários do mesmo `client_id`). Vamos manter `clients.photo` como **foto da empresa** (intacta) e introduzir foto **por usuário**, sem alterar o schema do banco externo.
 
-Criar `src/lib/protocol/protocolService.ts` — único ponto de geração/preview:
+### 2.1 Backend (Lovable Cloud)
 
-```ts
-export type ProtocolScope = 'support_ticket'; // extensível
+Nova migração criando a tabela `public.user_avatars`:
 
-export const protocolService = {
-  // Preview client-side (sem consumir sequencial)
-  preview(mask: string, seq = 1, now = new Date()): string,
+```sql
+CREATE TABLE public.user_avatars (
+  user_id    bigint PRIMARY KEY,
+  photo_url  text NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
-  // Geração real (consome sequencial via RPC) — chama public.generate_ticket_protocol
-  async generate(mask: string): Promise<string>,
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_avatars TO authenticated;
+GRANT SELECT ON public.user_avatars TO anon;
+GRANT ALL ON public.user_avatars TO service_role;
 
-  // Helper: busca máscara salva em support_settings e gera
-  async generateForSupportTicket(): Promise<string>,
-};
+ALTER TABLE public.user_avatars ENABLE ROW LEVEL SECURITY;
+
+-- O projeto usa auth externo (não auth.uid). Seguimos o padrão das demais
+-- tabelas: leitura aberta a authenticated/anon, escrita validada no client.
+CREATE POLICY "user_avatars read"  ON public.user_avatars FOR SELECT USING (true);
+CREATE POLICY "user_avatars write" ON public.user_avatars FOR ALL USING (true) WITH CHECK (true);
 ```
 
-- `preview` reaproveita `renderProtocolMaskPreview` (move `src/pages/tickets/lib/protocolMask.ts` para `src/lib/protocol/mask.ts` e re-exporta no caminho antigo para não quebrar imports).
-- `generate` usa `supabase.rpc('generate_ticket_protocol', { p_mask })`.
-- `generateForSupportTicket` faz `select protocol_mask from support_settings where id='global'` + `generate`.
+Bucket `avatars` (já existe, público). Caminho de upload novo: `user_{userId}/{timestamp}.{ext}`. Não tocamos no caminho atual `client_{clientId}/...` (continua sendo a foto da empresa).
 
-## 3. Hook React
+### 2.2 Frontend
 
-`src/lib/protocol/useProtocolPreview.ts`:
+**a) `src/pages/profile/ProfileSettingsPage.tsx`**
+- `handlePhotoChange` passa a fazer upload para `user_{user.id}/...` e grava em `public.user_avatars` via `supabase.from('user_avatars').upsert({ user_id: user.id, photo_url })`.
+- O `<AvatarImage src=...>` deste card mostra a foto do **usuário logado** (estado local `userPhoto`), com fallback para iniciais — não mais `clientData.photo`.
+- Carregar `userPhoto` no mount via `supabase.from('user_avatars').select('photo_url').eq('user_id', user.id).maybeSingle()`.
 
-```ts
-useProtocolPreview(mask: string) => { preview: string }
-```
+**b) `src/contexts/AuthContext.tsx`**
+- Trocar `hydrateClientPhoto` por `hydrateUserAvatar`:
+  - Cache em `localStorage` por `user.id` (chave `auth_user_photo_cache_v1`).
+  - Busca em background `user_avatars.photo_url` pelo `user.id`.
+  - Fallback: se não existir registro, mantém o comportamento atual (busca `clients.photo`) — assim quem nunca trocou continua vendo a foto da empresa.
+  - Atualiza `user.avatar` com a URL resultante.
+- Continua expondo `user.avatar`, então **todos os lugares que já usam `user.avatar`** (header, sidebar, etc.) passam a refletir a foto individual sem mudanças.
+- Manter `client_name` hidratado a partir de `clients.name`.
 
-Atualizar `SupportSettingsTab.tsx` para consumir o hook (mantém a UI atual, apenas troca import).
+### 2.3 Por que essa abordagem é segura
+- Não altera schema do banco externo (zero risco para módulos legados).
+- `clients.photo` continua existindo e segue sendo a "foto da empresa" (poderá ser exposta no futuro como logo).
+- Bucket já é público — apenas novo prefixo de path, sem mudar policies de storage.
+- AuthContext mantém contrato (`user.avatar`), preservando todos os consumidores.
 
-## 4. Geração no salvar (ticket)
+## 3. Arquivos afetados
 
-No fluxo de criação de ticket (`useTickets` / `createTicket` mutation):
+- **Migração nova** em `supabase/migrations/` (tabela `user_avatars` + grants + RLS).
+- `src/pages/profile/ProfileSettingsPage.tsx` — gating de edição, upload + leitura por usuário.
+- `src/contexts/AuthContext.tsx` — hidratação do avatar via `user_avatars` com fallback para `clients.photo`.
 
-- Antes do `insert`, chamar `protocolService.generateForSupportTicket()` e passar `protocol` no payload.
-- Se falhar (rede/RPC), **não bloquear**: insere sem `protocol` e o trigger preenche.
-- Em caso de retry/erro de unique no protocol, regenerar 1x.
-
-## 5. Onde aplicar
-- `src/pages/tickets/hooks/useTickets.ts` (mutation de criar ticket) — gerar antes do insert.
-- `src/pages/tickets/components/SupportSettingsTab.tsx` — usar `useProtocolPreview`.
-- Outros módulos que queiram protocolo no futuro importam `protocolService`.
-
-## 6. Entregáveis
-1. **Migração curta**: `GRANT EXECUTE ON FUNCTION public.generate_ticket_protocol(text) TO authenticated;`
-2. **Novo módulo** `src/lib/protocol/`:
-   - `mask.ts` (movido de `pages/tickets/lib/protocolMask.ts`, com re-export de compatibilidade)
-   - `protocolService.ts`
-   - `useProtocolPreview.ts`
-   - `index.ts`
-3. Ajuste em `useTickets` para chamar `generateForSupportTicket()` no create.
-4. Ajuste em `SupportSettingsTab` para usar o hook.
-
-## 7. Por que assim
-- **Reuso**: qualquer módulo importa `protocolService`.
-- **Confiável**: geração explícita no salvar + trigger como rede de segurança.
-- **Sem duplicar lógica**: cálculo de sequencial fica 100% no Postgres (atômico via `ON CONFLICT ... RETURNING`). Frontend só orquestra e pré-visualiza.
+Nenhuma alteração em componentes que apenas consomem `user.avatar`.
