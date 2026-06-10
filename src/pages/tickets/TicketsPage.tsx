@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Plus, List, LayoutGrid, LayoutDashboard, Settings, LifeBuoy } from 'lucide-react';
@@ -10,11 +10,35 @@ import { SupportSettingsTab } from './components/SupportSettingsTab';
 import { NewTicketDialog } from './components/NewTicketDialog';
 import { useNavigate } from 'react-router-dom';
 
+const TICKETS_VIEW_KEY = 'tickets:lastView';
+type TicketsView = 'list' | 'kanban' | 'dashboard' | 'settings';
+
 export default function TicketsPage() {
   const role = useTicketRole();
   const navigate = useNavigate();
   const [newOpen, setNewOpen] = useState(false);
   const [filters, setFilters] = useState<TicketFilters>({ status: 'all', priority: 'all' });
+  const isAgent = role === 'agent';
+
+  const [view, setView] = useState<TicketsView>(() => {
+    if (typeof window === 'undefined') return 'list';
+    const saved = window.localStorage.getItem(TICKETS_VIEW_KEY) as TicketsView | null;
+    if (saved === 'list' || saved === 'dashboard') return saved;
+    if ((saved === 'kanban' || saved === 'settings') && role === 'agent') return saved;
+    return 'list';
+  });
+
+  useEffect(() => {
+    if ((view === 'kanban' || view === 'settings') && !isAgent) {
+      setView('list');
+    }
+  }, [view, isAgent]);
+
+  const handleViewChange = (v: string) => {
+    const next = v as TicketsView;
+    setView(next);
+    try { window.localStorage.setItem(TICKETS_VIEW_KEY, next); } catch {}
+  };
 
   const header = (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -49,12 +73,10 @@ export default function TicketsPage() {
   }
 
   // Atendente (admin) e gestor do escritório: workspace com abas.
-  const isAgent = role === 'agent';
-
   return (
     <div className="space-y-5">
       {header}
-      <Tabs defaultValue="list">
+      <Tabs value={view} onValueChange={handleViewChange}>
         <TabsList>
           <TabsTrigger value="list" className="gap-2"><List className="h-4 w-4" /> Lista</TabsTrigger>
           {isAgent && <TabsTrigger value="kanban" className="gap-2"><LayoutGrid className="h-4 w-4" /> Kanban</TabsTrigger>}
