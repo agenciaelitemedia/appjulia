@@ -16,6 +16,7 @@ import { NotificationCenter } from '@/components/notifications/NotificationCente
 import { useGlobalPresence } from '@/hooks/useGlobalPresence';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 import { usePerformanceReporter } from '@/hooks/usePerformanceReporter';
+import { useNewMessageSound } from '@/hooks/useNewMessageSound';
 
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
@@ -60,6 +61,8 @@ export function MainLayout() {
   useHeartbeat();
   // Telemetria de performance (Web Vitals + tempos de carga)
   usePerformanceReporter();
+  // Alerta sonoro global de novas mensagens do Chat (toca em qualquer página)
+  useNewMessageSound();
 
   if (isLoading) {
     return (
