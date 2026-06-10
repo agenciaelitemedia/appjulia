@@ -314,8 +314,11 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
           </TabsList>
 
           {/* ============ ABA: DADOS DO TICKET ============ */}
-          <TabsContent value="dados" className="flex-1 flex flex-col min-h-0 mt-0">
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <TabsContent
+            value="dados"
+            className="flex-1 flex flex-col min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden"
+          >
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
               <div className="space-y-1">
               <Label>Assunto</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canEdit || saving} />
@@ -411,43 +414,43 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
               </div>
             )}
             </div>
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-t bg-muted/20 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            {canDelete && (
-              <Button
-                variant={confirmDelete ? 'destructive' : 'ghost'}
-                size="sm"
-                onClick={handleDelete}
-                onBlur={() => setConfirmDelete(false)}
-                title={confirmDelete ? 'Clique novamente para confirmar' : 'Excluir chamado'}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                {confirmDelete ? 'Confirmar' : 'Excluir'}
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t bg-muted/20 flex-shrink-0">
+              {canDelete && (
+                <Button
+                  variant={confirmDelete ? 'destructive' : 'ghost'}
+                  size="sm"
+                  onClick={handleDelete}
+                  onBlur={() => setConfirmDelete(false)}
+                  title={confirmDelete ? 'Clique novamente para confirmar' : 'Excluir chamado'}
+                  className="mr-auto"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  {confirmDelete ? 'Confirmar' : 'Excluir'}
+                </Button>
+              )}
+              {!isClosed && canEdit && (
+                <Button variant="outline" size="sm" onClick={() => handleStatus('resolved')}>
+                  Resolver
+                </Button>
+              )}
+              {isClosed && canEdit && (
+                <Button variant="outline" size="sm" onClick={() => handleStatus('open')}>
+                  Reabrir
+                </Button>
+              )}
+              <Button onClick={handleSave} disabled={!canEdit || saving} size="sm">
+                {saving ? 'Salvando…' : 'Salvar'}
               </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {!isClosed && canEdit && (
-              <Button variant="outline" size="sm" onClick={() => handleStatus('resolved')}>
-                Resolver
-              </Button>
-            )}
-            {isClosed && canEdit && (
-              <Button variant="outline" size="sm" onClick={() => handleStatus('open')}>
-                Reabrir
-              </Button>
-            )}
-            <Button onClick={handleSave} disabled={!canEdit || saving} size="sm">
-              {saving ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </div>
             </div>
           </TabsContent>
 
           {/* ============ ABA: CONVERSAS ============ */}
-          <TabsContent value="conversas" className="flex-1 flex flex-col min-h-0 mt-0">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Sobre este chamado */}
+          <TabsContent
+            value="conversas"
+            className="flex-1 flex flex-col min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden"
+          >
+            {/* Topo fixo: Sobre + Composer */}
+            <div className="flex-shrink-0 border-b p-4 space-y-3">
               <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
                 <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Sobre este chamado</p>
                 <p className="font-medium">{ticket.subject}</p>
@@ -456,7 +459,6 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
                 )}
               </div>
 
-              {/* Composer */}
               <div className="space-y-2">
                 {isAgent && (
                   <div className="flex gap-2">
@@ -509,14 +511,18 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
                   </Button>
                 </div>
               </div>
+            </div>
 
-              {/* Histórico de Conversa */}
-              <div className="space-y-2 border-t pt-3">
+            {/* Corpo rolável: Histórico de Conversa */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="sticky top-0 bg-background z-10 px-4 py-2 border-b">
                 <h3 className="text-sm font-semibold flex items-center gap-2">
                   <History className="h-4 w-4 text-muted-foreground" /> Histórico de Conversa
                 </h3>
+              </div>
+              <div className="p-4">
                 {interactions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-8 text-center">Sem respostas ou notas ainda.</p>
+                  <p className="text-xs text-muted-foreground pt-6 text-center">Sem respostas ou notas ainda.</p>
                 ) : (
                   <TicketTimeline
                     messages={interactions}
@@ -537,8 +543,22 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
           </TabsContent>
 
           {/* ============ ABA: HISTÓRICO ============ */}
-          <TabsContent value="historico" className="flex-1 overflow-y-auto p-4 mt-0">
-            <TicketTimeline messages={events} />
+          <TabsContent
+            value="historico"
+            className="flex-1 flex flex-col min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden"
+          >
+            <div className="flex-shrink-0 px-4 pt-3 pb-2 border-b">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <History className="h-4 w-4 text-muted-foreground" /> Eventos do chamado
+              </h3>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
+              {events.length === 0 ? (
+                <p className="text-xs text-muted-foreground pt-6 text-center">Sem eventos registrados ainda.</p>
+              ) : (
+                <TicketTimeline messages={events} />
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       )}
