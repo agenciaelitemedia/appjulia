@@ -401,7 +401,11 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                 currentPriority={conversation.priority}
                 compact
               />
-              <ConversationQuickActions conversation={conversation} />
+              <ConversationQuickActions
+                conversation={conversation}
+                ticketLink={ticketLink}
+                onOpenTicket={onOpenTicket}
+              />
             </div>
           )}
         </div>
