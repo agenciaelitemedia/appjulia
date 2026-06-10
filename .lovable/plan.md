@@ -1,40 +1,41 @@
-# Restringir acesso ao Studio da Central de Ajuda
+## Objetivo
+Adicionar configuração na aba **Máscara de Protocolo** (`/tickets`) para enviar automaticamente o protocolo ao WhatsApp do solicitante assim que o ticket é aberto.
 
-## O que muda
+## Escopo
 
-O Studio (`/ajuda/studio`) passa a ser acessível **somente** para:
-1. Usuários com perfil **admin**
-2. Usuários **vinculados manualmente** na nova aba **"Permissões"** dentro do Studio
+### 1. Banco — `support_settings`
+Migration adicionando dois campos:
+- `protocol_auto_send boolean NOT NULL DEFAULT false`
+- `protocol_send_template text NOT NULL DEFAULT 'Olá {nome}! Seu chamado foi aberto. Protocolo: {protocolo}. Assunto: {assunto}.'`
 
-A permissão genérica de "edição" do módulo deixa de liberar o Studio. A Central de Ajuda (`/ajuda`) continua visível para todos com acesso ao módulo.
+### 2. UI — `src/pages/tickets/components/SupportSettingsTab.tsx`
+Dentro do card "Máscara de Protocolo", abaixo dos tokens, adicionar:
+- `Switch` "Enviar protocolo automaticamente ao abrir o ticket" (vinculado a `protocol_auto_send`).
+- `Textarea` "Mensagem enviada com o protocolo" (vinculado a `protocol_send_template`), com helper listando placeholders disponíveis: `{protocolo}`, `{numero}`, `{assunto}`, `{nome}`, `{prioridade}`.
+- Botão "Salvar máscara" passa a salvar os 3 campos juntos (`protocol_mask`, `protocol_auto_send`, `protocol_send_template`).
+- Textarea desabilitado quando o switch está off (visual feedback).
 
-## Nova aba "Permissões" (visível apenas para admin)
+### 3. Tipos — `src/pages/tickets/types.ts`
+Estender `SupportSettings` com `protocol_auto_send: boolean` e `protocol_send_template: string`.
 
-Seguindo o layout da tela de referência (Vincular Usuário):
-- Campo de busca "Buscar usuário por nome ou email..." com resultados em tempo real (mesma busca usada no cadastro de agentes)
-- Ao clicar em um resultado, o usuário é vinculado como editor do Studio
-- Lista dos usuários vinculados em cards, com nome, email e botão para remover o vínculo
-- Estado vazio ilustrado quando não há busca/vínculos
+### 4. Lógica de envio — `src/pages/tickets/hooks/useTickets.ts` (mutation `create`)
+Após `insert` do ticket bem-sucedido, se:
+- `settings.protocol_auto_send === true`
+- ticket tem `protocol` gerado
+- `input.contact_id` definido
+- Conseguir resolver `queue_id` (via `chat_conversations.queue_id` quando houver `conversation_id`; caso contrário pular silenciosamente — não bloqueia criação)
 
-## Comportamento de acesso
+Então:
+- Renderizar o template substituindo `{protocolo}`, `{numero}`, `{assunto}`, `{nome}`, `{prioridade}`.
+- Chamar a função existente `dispatchToWhatsApp(...)` (já cuida de WABA/UaZapi + persistência em `chat_messages`).
+- Registrar `logEvent(ticketId, 'whatsapp_protocol_sent', ...)`.
+- Falha do envio NÃO derruba a criação do ticket (try/catch silencioso + toast warning opcional via retorno).
 
-- O botão "Studio" na página `/ajuda` aparece apenas para admin ou usuários vinculados
-- As rotas `/ajuda/studio` e `/ajuda/studio/post/:id` ganham uma guarda própria: quem não for admin nem vinculado é redirecionado para `/ajuda`
-- A aba "Permissões" só aparece para admin (usuários vinculados veem Posts, Categorias e Destaques, mas não gerenciam permissões)
+### 5. Detalhes técnicos
+- Sem novas Edge Functions; reuso de `dispatchToWhatsApp` já existente no hook.
+- Sem alterações em RLS (campos novos na mesma linha singleton `id='global'`).
+- Sem mudanças no componente `ChatTicketSidePanel` — ele continua chamando `create.mutateAsync` normalmente; o envio é transparente.
 
-## Detalhes técnicos
-
-1. **Migração de banco** — nova tabela `help_studio_editors`:
-   - `user_id` (bigint, único), `user_name`, `user_email`, `added_by` (bigint), `created_at`
-   - GRANTs e política seguindo o padrão das demais tabelas do Help Center
-2. **Hook `useHelpStudioAccess`** — retorna `canAccessStudio` (admin OU id presente em `help_studio_editors`) com React Query
-3. **Guarda `HelpStudioGuard`** — componente que envolve as rotas do Studio no `App.tsx`, redirecionando para `/ajuda` sem acesso
-4. **Aba `HelpPermissionsTab`** — busca via `externalDb.searchUsers` (debounce 300ms, mínimo 3 caracteres), inserção/remoção na tabela com invalidação de cache
-5. **Ajustes** — `HelpCenterPage.tsx` troca `isAdmin || canEdit('help_center')` pelo novo hook; `HelpStudioPage.tsx` adiciona a aba condicional
-
-## Arquivos
-
-- Nova migração SQL (`help_studio_editors`)
-- `src/hooks/useHelpStudioAccess.ts` (novo)
-- `src/pages/ajuda/studio/components/HelpPermissionsTab.tsx` (novo)
-- `src/pages/ajuda/studio/HelpStudioPage.tsx`, `src/pages/ajuda/HelpCenterPage.tsx`, `src/App.tsx` (editados)
+## Fora do escopo
+- Não altera fluxo de respostas (`reply`) nem envio manual.
+- Não envia para tickets criados sem `contact_id` (ex.: chamado interno sem origem em chat).
