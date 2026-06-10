@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, Save, Hash } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
@@ -24,19 +25,31 @@ export function SupportSettingsTab() {
   const [csatEnabled, setCsatEnabled] = useState(settings?.csat_enabled ?? true);
   const [reapplyOnSave, setReapplyOnSave] = useState(false);
   const [protocolMask, setProtocolMask] = useState(settings?.protocol_mask ?? 'AAAAMMDDNNNNNN');
+  const [protocolAutoSend, setProtocolAutoSend] = useState<boolean>(settings?.protocol_auto_send ?? false);
+  const [protocolTemplate, setProtocolTemplate] = useState<string>(
+    settings?.protocol_send_template ?? 'Olá {nome}! Seu chamado foi aberto. Protocolo: {protocolo}. Assunto: {assunto}.',
+  );
 
   useEffect(() => {
     if (settings) {
       setSla(settings.sla);
       setCsatEnabled(settings.csat_enabled);
       setProtocolMask(settings.protocol_mask ?? 'AAAAMMDDNNNNNN');
+      setProtocolAutoSend(settings.protocol_auto_send ?? false);
+      setProtocolTemplate(
+        settings.protocol_send_template ?? 'Olá {nome}! Seu chamado foi aberto. Protocolo: {protocolo}. Assunto: {assunto}.',
+      );
     }
   }, [settings]);
 
   const protocolPreview = useProtocolPreview(protocolMask, 1);
 
   const saveProtocolMask = () => {
-    saveSettings.mutate({ protocol_mask: protocolMask } as any, {
+    saveSettings.mutate({
+      protocol_mask: protocolMask,
+      protocol_auto_send: protocolAutoSend,
+      protocol_send_template: protocolTemplate,
+    } as any, {
       onSuccess: () => toast.success('Máscara de protocolo salva'),
       onError: (e: any) => toast.error('Falha ao salvar: ' + (e?.message ?? 'erro')),
     });
@@ -206,9 +219,37 @@ export function SupportSettingsTab() {
             </div>
             <div className="pt-1">Qualquer outro caractere é literal. Ex.: <code className="font-mono">220022AAAAMMDDNNNNNN</code> → <code className="font-mono">{renderProtocolMaskPreview('220022AAAAMMDDNNNNNN', 1)}</code></div>
           </div>
+          <div className="border-t pt-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="protocol-auto-send" className="text-sm">Envio automático do protocolo ao abrir ticket</Label>
+                <p className="text-xs text-muted-foreground">
+                  Quando ativado, ao abrir um ticket vinculado a um contato/fila do WhatsApp, o protocolo é enviado automaticamente.
+                </p>
+              </div>
+              <Switch
+                id="protocol-auto-send"
+                checked={protocolAutoSend}
+                onCheckedChange={setProtocolAutoSend}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Mensagem enviada com o protocolo</Label>
+              <Textarea
+                value={protocolTemplate}
+                onChange={(e) => setProtocolTemplate(e.target.value)}
+                disabled={!protocolAutoSend}
+                className="min-h-[90px] font-mono text-sm"
+                placeholder="Olá {nome}! Seu chamado foi aberto. Protocolo: {protocolo}. Assunto: {assunto}."
+              />
+              <p className="text-xs text-muted-foreground">
+                Placeholders: <code className="font-mono">{'{protocolo}'}</code>, <code className="font-mono">{'{numero}'}</code>, <code className="font-mono">{'{assunto}'}</code>, <code className="font-mono">{'{nome}'}</code>, <code className="font-mono">{'{prioridade}'}</code>.
+              </p>
+            </div>
+          </div>
           <div className="flex justify-end pt-1">
             <Button onClick={saveProtocolMask} disabled={saveSettings.isPending || !protocolMask.trim()}>
-              <Save className="h-4 w-4 mr-1" /> Salvar máscara
+              <Save className="h-4 w-4 mr-1" /> Salvar
             </Button>
           </div>
         </CardContent>

@@ -5827,21 +5827,27 @@ export type Database = {
         Row: {
           csat_enabled: boolean
           id: string
+          protocol_auto_send: boolean
           protocol_mask: string
+          protocol_send_template: string
           sla: Json
           updated_at: string | null
         }
         Insert: {
           csat_enabled?: boolean
           id?: string
+          protocol_auto_send?: boolean
           protocol_mask?: string
+          protocol_send_template?: string
           sla?: Json
           updated_at?: string | null
         }
         Update: {
           csat_enabled?: boolean
           id?: string
+          protocol_auto_send?: boolean
           protocol_mask?: string
+          protocol_send_template?: string
           sla?: Json
           updated_at?: string | null
         }

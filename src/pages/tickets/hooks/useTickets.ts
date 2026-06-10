@@ -305,7 +305,9 @@ export function useTicketMutations() {
   const create = useMutation({
     mutationFn: async (input: CreateTicketInput) => {
       // SLA due dates from settings/priority
-      const { data: settings } = await db.from('support_settings').select('sla').eq('id', 'global').maybeSingle();
+      const { data: settings } = await db.from('support_settings')
+        .select('sla, protocol_auto_send, protocol_send_template')
+        .eq('id', 'global').maybeSingle();
       const sla = settings?.sla?.[input.priority];
       const now = Date.now();
       const effectiveClientId = await resolveEffectiveClientId(user, 'useTickets.create');
@@ -336,9 +338,42 @@ export function useTicketMutations() {
         protocol = await protocolService.generateForSupportTicket();
       } catch { /* fallback no trigger */ }
       const finalPayload = protocol ? { ...payload, protocol } : payload;
-      const { data, error } = await db.from('support_tickets').insert(finalPayload).select('id').single();
+      const { data, error } = await db.from('support_tickets').insert(finalPayload).select('id, protocol, number').single();
       if (error) throw error;
       await logEvent(data.id, 'created', 'Chamado aberto');
+
+      // Envio automático do protocolo via WhatsApp (se habilitado)
+      if (settings?.protocol_auto_send && input.contact_id && data.protocol) {
+        try {
+          let queueId: string | null = null;
+          if (input.conversation_id) {
+            const { data: conv } = await db.from('chat_conversations')
+              .select('queue_id').eq('id', input.conversation_id).maybeSingle();
+            queueId = conv?.queue_id ?? null;
+          }
+          if (queueId) {
+            const tpl = (settings.protocol_send_template as string) || 'Protocolo: {protocolo}';
+            const body = tpl
+              .replace(/\{protocolo\}/g, String(data.protocol))
+              .replace(/\{numero\}/g, data.number != null ? String(data.number) : '')
+              .replace(/\{assunto\}/g, input.subject || '')
+              .replace(/\{nome\}/g, input.requester_name ?? user?.name ?? '')
+              .replace(/\{prioridade\}/g, input.priority);
+            await dispatchToWhatsApp({
+              ticketId: data.id,
+              queueId,
+              contactId: input.contact_id,
+              conversationId: input.conversation_id ?? null,
+              body,
+              senderName: actor.name,
+            });
+            await logEvent(data.id, 'whatsapp_protocol_sent', 'Protocolo enviado automaticamente ao WhatsApp do solicitante');
+          }
+        } catch (e) {
+          console.warn('[useTickets.create] auto-send protocol failed', e);
+        }
+      }
+
       return data.id as string;
     },
     onSuccess: () => invalidate(),
