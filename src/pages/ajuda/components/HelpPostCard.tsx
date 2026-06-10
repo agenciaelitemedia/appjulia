@@ -23,10 +23,10 @@ export function HelpPostCard({ post }: { post: HelpPost }) {
             <FileText className="h-8 w-8 text-slate-400" />
           </div>
         )}
-        <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-90" />
+        <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-3">
-          <p className="text-white text-sm font-semibold line-clamp-2 drop-shadow">{post.title}</p>
-          <p className="text-white/75 text-[11px] mt-0.5 flex items-center gap-1">
+          <p className="text-white text-sm font-semibold line-clamp-2 [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">{post.title}</p>
+          <p className="text-white/85 text-[11px] mt-0.5 flex items-center gap-1 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
             <Eye className="h-3 w-3" /> {post.view_count} visualizações
           </p>
         </div>
