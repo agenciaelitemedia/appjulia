@@ -1,32 +1,30 @@
-## Refatoração de layout — `src/components/chat/ChatTicketDetailSidePanel.tsx`
+## Mudanças
 
-Reestruturar cada `TabsContent` para o padrão **topo fixo + corpo rolável + rodapé fixo**, usando `flex flex-col min-h-0`.
+### 1. Link no topo do painel de detalhes do chamado (no chat)
+Arquivo: `src/components/chat/ChatTicketDetailSidePanel.tsx`
 
-### 1. Aba "Dados do Ticket" — rodapé sticky
-- Corpo `flex-1 overflow-y-auto p-4 space-y-3` com os campos do formulário e a linha do solicitante.
-- Rodapé `flex-shrink-0 border-t bg-muted/20 px-4 py-3 flex flex-wrap items-center gap-2`:
-  - Excluir à esquerda (`mr-auto`)
-  - Resolver / Reabrir / Salvar à direita
-  - `flex-wrap` evita estouro em telas estreitas.
+Hoje o botão `ExternalLink` no header (linha ~300) abre `/tickets/{id}` em uma nova aba. Mudar para:
+- Navegar in-app via `useNavigate()` para `/tickets/{ticket.id}` (a rota já é a página de detalhe do ticket, `TicketDetailPage`), no mesmo tab.
+- Fechar o painel lateral ao navegar (`onClose()`).
+- Manter o ícone e tooltip.
 
-### 2. Aba "Conversas" — Sobre + Composer fixos no topo, histórico rola
-- Topo `flex-shrink-0 border-b p-4 space-y-3`:
-  - Card "Sobre este chamado"
-  - Toggle Resposta / Nota interna
-  - Textarea
-  - Linha "Switch WhatsApp .... Responder"
-- Corpo `flex-1 overflow-y-auto p-4 space-y-2` com cabeçalho `sticky top-0 bg-background z-10 -mx-4 px-4 py-2 border-b` "Histórico de Conversa" + `<TicketTimeline messages={interactions} … />`.
+### 2. Última visualização persistente em `/tickets` (Lista x Kanban)
+Arquivo: `src/pages/tickets/TicketsPage.tsx`
 
-### 3. Aba "Histórico" — alinhado ao topo
-- Topo `flex-shrink-0 px-4 pt-3 pb-2 border-b` com título "Eventos do chamado".
-- Corpo `flex-1 overflow-y-auto p-4` com `<TicketTimeline messages={events} />`.
-- Empty state alinhado ao topo (`pt-6`), não centralizado verticalmente.
+- Introduzir uma chave em `localStorage` (`tickets:lastView`) com valores `list | kanban | dashboard | settings`.
+- Substituir `<Tabs defaultValue="list">` por um `Tabs` controlado (`value` + `onValueChange`) cujo estado inicial lê o `localStorage`. Fallback para `"list"` quando não houver valor ou quando a aba salva não estiver disponível para o papel atual (ex.: `kanban`/`settings` só existem para `agent`).
+- Cada mudança de aba grava no `localStorage`.
 
-### Ajustes estruturais
-- `Tabs` raiz: `flex-1 flex flex-col min-h-0` (mantém).
-- `TabsList`: adicionar `flex-shrink-0`.
-- Cada `TabsContent`: `flex-1 flex flex-col min-h-0 overflow-hidden mt-0 data-[state=inactive]:hidden` para garantir altura plena.
-- Remover `max-h-` arbitrários — referência de altura passa a ser o portal `h-full`.
+### 3. Voltar do detalhe do ticket respeita a última visualização
+Arquivo: `src/pages/tickets/TicketDetailPage.tsx`
 
-### Fora de escopo
-- Sem mudanças em lógica de mutations, hooks, permissões, `TicketDetailPage`, `ChatTicketSidePanel` ou banco.
+- As duas chamadas `navigate('/tickets')` (linhas 211 e 222 — botão "voltar" e pós-exclusão) continuam apontando para `/tickets`. Como `TicketsPage` agora restaura a aba a partir do `localStorage`, o usuário volta automaticamente para "Lista" ou "Kanban" conforme a última visualização escolhida.
+- Nenhuma mudança adicional necessária na rota.
+
+## Detalhes técnicos
+
+- Chave de storage: `tickets:lastView`.
+- Valores válidos: `'list' | 'kanban' | 'dashboard' | 'settings'`.
+- Sanitização ao ler: se o valor salvo for `kanban` ou `settings` mas `role !== 'agent'`, cai em `'list'`.
+- Sem mudanças de backend, schema, ou contratos de componentes filhos.
+- Sem alteração de comportamento para o papel `requester` (continua só com lista).
