@@ -88,6 +88,8 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
   const [assignedName, setAssignedName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDeleteStep, setConfirmDeleteStep] = useState<0 | 1 | 2>(0);
+  const [confirmResolveOpen, setConfirmResolveOpen] = useState(false);
 
   // Composer (aba Conversas)
   const [draft, setDraft] = useState('');
@@ -169,10 +171,10 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
 
   const handleDelete = async () => {
     if (!canDelete) return;
-    if (!confirmDelete) { setConfirmDelete(true); return; }
     try {
       await deleteTicket.mutateAsync(ticketId);
       toast.success('Chamado excluído');
+      setConfirmDeleteStep(0);
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao excluir chamado');
@@ -416,7 +418,9 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(Object.keys(STATUS_LABEL) as TicketStatus[]).map((s) => (
-                      <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
+                      s === 'resolved' || s === 'closed' ? null : (
+                        <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
+                      )
                     ))}
                   </SelectContent>
                 </Select>
@@ -427,19 +431,18 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
             <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t bg-muted/20 flex-shrink-0">
               {canDelete && (
                 <Button
-                  variant={confirmDelete ? 'destructive' : 'ghost'}
+                  variant="ghost"
                   size="sm"
-                  onClick={handleDelete}
-                  onBlur={() => setConfirmDelete(false)}
-                  title={confirmDelete ? 'Clique novamente para confirmar' : 'Excluir chamado'}
+                  onClick={() => setConfirmDeleteStep(1)}
+                  title="Excluir chamado"
                   className="mr-auto"
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  {confirmDelete ? 'Confirmar' : 'Excluir'}
+                  Excluir
                 </Button>
               )}
               {!isClosed && canEdit && (
-                <Button variant="outline" size="sm" onClick={() => handleStatus('resolved')}>
+                <Button variant="outline" size="sm" onClick={() => setConfirmResolveOpen(true)}>
                   Resolver
                 </Button>
               )}
