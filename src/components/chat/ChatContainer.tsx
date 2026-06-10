@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChatList } from './ChatList';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessages } from './ChatMessages';
@@ -59,9 +59,14 @@ export function ChatContainer({ className }: ChatContainerProps) {
     | null
   >(null);
 
-  // Fecha o painel de ticket ao mudar de conversa
+  // Fecha o painel de ticket ao trocar para outra conversa (ignora abertura inicial)
+  const prevContactIdRef = useRef<string | null | undefined>(selectedContactId);
   useEffect(() => {
-    setTicketPanel(null);
+    const prev = prevContactIdRef.current;
+    if (prev && prev !== selectedContactId) {
+      setTicketPanel(null);
+    }
+    prevContactIdRef.current = selectedContactId;
   }, [selectedContactId]);
 
 
