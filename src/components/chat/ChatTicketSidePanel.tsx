@@ -86,7 +86,7 @@ function ChatTicketForm({
   const isGroup = !!contact.is_group || (contact.remote_jid?.endsWith('@g.us') ?? false);
 
   const [name, setName] = useState<string>(contact.name || user?.name || '');
-  const [email, setEmail] = useState<string>(user?.email ?? '');
+  const [email, setEmail] = useState<string>('');
   const [phone, setPhone] = useState<string>(contact.phone ?? '');
   const [departmentId, setDepartmentId] = useState<string>('');
   const [categoryId, setCategoryId] = useState<string>('');
