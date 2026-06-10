@@ -107,9 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = user?.role === 'admin';
 
-  // Hydrate the user's avatar from `clients.photo`. Cached per client_id in
-  // localStorage so subsequent navigations / reloads don't refetch.
+  // Hydrate the user's avatar. We prefer the per-user photo from
+  // public.user_avatars (Lovable Cloud) and fall back to clients.photo
+  // (the company-wide logo on the external DB) when the user hasn't set one.
   const PHOTO_CACHE_KEY = 'auth_client_photo_cache_v1';
+  const USER_PHOTO_CACHE_KEY = 'auth_user_photo_cache_v1';
   const readPhotoCache = (): Record<string, { photo: string | null; name?: string | null; ts: number }> => {
     try { return JSON.parse(localStorage.getItem(PHOTO_CACHE_KEY) || '{}'); } catch { return {}; }
   };
@@ -120,32 +122,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(PHOTO_CACHE_KEY, JSON.stringify(cache));
     } catch { /* ignore quota */ }
   };
+  const readUserPhotoCache = (): Record<string, { photo: string | null; ts: number }> => {
+    try { return JSON.parse(localStorage.getItem(USER_PHOTO_CACHE_KEY) || '{}'); } catch { return {}; }
+  };
+  const writeUserPhotoCache = (userId: number, photo: string | null) => {
+    try {
+      const cache = readUserPhotoCache();
+      cache[String(userId)] = { photo, ts: Date.now() };
+      localStorage.setItem(USER_PHOTO_CACHE_KEY, JSON.stringify(cache));
+    } catch { /* ignore quota */ }
+  };
 
   const hydrateClientPhoto = useCallback(async (u: User): Promise<User> => {
-    if (!u.client_id) return u;
-    const cached = readPhotoCache()[String(u.client_id)];
+    if (!u.id && !u.client_id) return u;
+    const cachedClient = u.client_id ? readPhotoCache()[String(u.client_id)] : undefined;
+    const cachedUser = u.id ? readUserPhotoCache()[String(u.id)] : undefined;
     let next: User = u;
-    if (cached) {
+    const cachedAvatar = cachedUser?.photo || cachedClient?.photo || undefined;
+    if (cachedAvatar || cachedClient?.name) {
       next = {
         ...u,
-        avatar: u.avatar || cached.photo || undefined,
-        client_name: u.client_name || cached.name || undefined,
+        avatar: u.avatar || cachedAvatar,
+        client_name: u.client_name || cachedClient?.name || undefined,
       };
     }
     // Refresh in background — keeps the cache fresh without blocking UI.
     (async () => {
       try {
-        const client = await externalDb.getClient<{ photo?: string | null; name?: string | null }>(u.client_id!);
-        const photo = client?.photo ?? null;
-        const name = client?.name ?? null;
-        writePhotoCache(u.client_id!, photo, name);
+        // Per-user avatar (Lovable Cloud)
+        let userPhoto: string | null = null;
+        if (u.id) {
+          try {
+            const { data } = await supabase
+              .from('user_avatars')
+              .select('photo_url')
+              .eq('user_id', u.id)
+              .maybeSingle();
+            userPhoto = data?.photo_url ?? null;
+            writeUserPhotoCache(u.id, userPhoto);
+          } catch (e) {
+            console.warn('[AuthContext] Failed to load user avatar', e);
+          }
+        }
+
+        // Company photo (fallback) + client name
+        let clientPhoto: string | null = null;
+        let name: string | null = null;
+        if (u.client_id) {
+          const client = await externalDb.getClient<{ photo?: string | null; name?: string | null }>(u.client_id);
+          clientPhoto = client?.photo ?? null;
+          name = client?.name ?? null;
+          writePhotoCache(u.client_id, clientPhoto, name);
+        }
+
+        const photo = userPhoto || clientPhoto;
         setUser(prev => {
           if (!prev || prev.id !== u.id) return prev;
           if (prev.avatar === (photo || undefined) && prev.client_name === (name || undefined)) return prev;
           return { ...prev, avatar: photo || undefined, client_name: name || undefined };
         });
       } catch (e) {
-        console.warn('[AuthContext] Failed to hydrate client photo', e);
+        console.warn('[AuthContext] Failed to hydrate avatar', e);
       }
     })();
     return next;
