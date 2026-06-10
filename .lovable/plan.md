@@ -1,34 +1,40 @@
-# Central de Ajuda no tema do sistema (sem dark forçado)
-
-A experiência Netflix permanece igual (hero rotativo, carrosséis horizontais, cards com hover/zoom) — apenas a paleta deixa de ser escura fixa e passa a usar os tokens do tema do sistema, ficando idêntica ao restante da plataforma (claro hoje, e escuro automaticamente se o modo escuro for ativado no futuro).
+# Restringir acesso ao Studio da Central de Ajuda
 
 ## O que muda
 
-**Página principal (`/ajuda`)**
-- Fundo `bg-zinc-950` → fundo padrão do sistema (`bg-background`)
-- Busca e botão Studio: cores zinc fixas → tokens (`bg-card`, `border-border`, `text-foreground`, placeholders em `muted-foreground`)
-- Títulos das trilhas/carrosséis: branco fixo → `text-foreground`
+O Studio (`/ajuda/studio`) passa a ser acessível **somente** para:
+1. Usuários com perfil **admin**
+2. Usuários **vinculados manualmente** na nova aba **"Permissões"** dentro do Studio
 
-**Hero (destaques)**
-- Mantém os overlays escuros em gradiente **sobre a imagem** (necessário para legibilidade do texto branco sobre fotos — padrão Netflix), mas o degradê inferior passa a fundir com `background` em vez de preto, integrando com a página clara
-- Botões e badges ajustados para contraste em ambos os temas
+A permissão genérica de "edição" do módulo deixa de liberar o Studio. A Central de Ajuda (`/ajuda`) continua visível para todos com acesso ao módulo.
 
-**Cards e carrosséis (HelpPostCard / HelpRow)**
-- Placeholder sem capa: zinc fixo → `bg-muted`
-- Ring/hover: branco fixo → `ring-border` / `ring-primary`
-- Títulos e metadados: tokens `foreground` / `muted-foreground`
-- Setas de navegação dos carrosséis com fundo `background/80` + blur
+## Nova aba "Permissões" (visível apenas para admin)
 
-**Página do post (`/ajuda/post/:slug`)**
-- Fundo, estados de loading/erro e textos → tokens do tema
-- Banner de capa mantém overlay escuro sobre a imagem, fundindo com `background`
-- Conteúdo: `prose prose-invert` → `prose dark:prose-invert`, links em `text-primary`
+Seguindo o layout da tela de referência (Vincular Usuário):
+- Campo de busca "Buscar usuário por nome ou email..." com resultados em tempo real (mesma busca usada no cadastro de agentes)
+- Ao clicar em um resultado, o usuário é vinculado como editor do Studio
+- Lista dos usuários vinculados em cards, com nome, email e botão para remover o vínculo
+- Estado vazio ilustrado quando não há busca/vínculos
 
-**Sem mudanças** no Studio (já usa o tema do sistema), banco de dados, permissões ou lógica.
+## Comportamento de acesso
+
+- O botão "Studio" na página `/ajuda` aparece apenas para admin ou usuários vinculados
+- As rotas `/ajuda/studio` e `/ajuda/studio/post/:id` ganham uma guarda própria: quem não for admin nem vinculado é redirecionado para `/ajuda`
+- A aba "Permissões" só aparece para admin (usuários vinculados veem Posts, Categorias e Destaques, mas não gerenciam permissões)
 
 ## Detalhes técnicos
 
-- Arquivos editados: `HelpCenterPage.tsx`, `HelpPostPage.tsx`, `HelpHero.tsx`, `HelpPostCard.tsx`, `HelpRow.tsx`
-- Remoção dos wrappers `bg-zinc-950 -m-4 lg:-m-6` (mantendo o full-bleed apenas se necessário para o hero, agora com `bg-background`)
-- Substituição sistemática de classes fixas (`zinc-*`, `text-white`, `bg-black`) por tokens semânticos (`background`, `foreground`, `card`, `muted`, `border`, `primary`)
-- Overlays sobre imagens permanecem escuros por legibilidade; gradientes de transição usam `from-background`
+1. **Migração de banco** — nova tabela `help_studio_editors`:
+   - `user_id` (bigint, único), `user_name`, `user_email`, `added_by` (bigint), `created_at`
+   - GRANTs e política seguindo o padrão das demais tabelas do Help Center
+2. **Hook `useHelpStudioAccess`** — retorna `canAccessStudio` (admin OU id presente em `help_studio_editors`) com React Query
+3. **Guarda `HelpStudioGuard`** — componente que envolve as rotas do Studio no `App.tsx`, redirecionando para `/ajuda` sem acesso
+4. **Aba `HelpPermissionsTab`** — busca via `externalDb.searchUsers` (debounce 300ms, mínimo 3 caracteres), inserção/remoção na tabela com invalidação de cache
+5. **Ajustes** — `HelpCenterPage.tsx` troca `isAdmin || canEdit('help_center')` pelo novo hook; `HelpStudioPage.tsx` adiciona a aba condicional
+
+## Arquivos
+
+- Nova migração SQL (`help_studio_editors`)
+- `src/hooks/useHelpStudioAccess.ts` (novo)
+- `src/pages/ajuda/studio/components/HelpPermissionsTab.tsx` (novo)
+- `src/pages/ajuda/studio/HelpStudioPage.tsx`, `src/pages/ajuda/HelpCenterPage.tsx`, `src/App.tsx` (editados)

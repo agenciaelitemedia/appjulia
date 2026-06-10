@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, Settings2, BookOpen } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePermission } from '@/hooks/usePermission';
+import { useHelpStudioAccess } from '@/hooks/useHelpStudioAccess';
 import {
   usePublishedHelpPosts, useHelpCategories, useMyHelpViews, type HelpPost,
 } from '@/hooks/useHelpCenter';
@@ -15,8 +15,7 @@ import { HelpPostCard } from './components/HelpPostCard';
 export default function HelpCenterPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { canEdit, isAdmin } = usePermission();
-  const canManage = isAdmin || canEdit('help_center');
+  const { canAccessStudio: canManage } = useHelpStudioAccess();
   const [search, setSearch] = useState('');
 
   const { data: posts = [], isLoading } = usePublishedHelpPosts();

@@ -2,14 +2,20 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, FileText, FolderKanban, Sparkles } from 'lucide-react';
+import { ArrowLeft, FileText, FolderKanban, Sparkles, ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { HelpPostsTab } from './components/HelpPostsTab';
 import { HelpCategoriesTab } from './components/HelpCategoriesTab';
 import { HelpFeaturedTab } from './components/HelpFeaturedTab';
+import { HelpPermissionsTab } from './components/HelpPermissionsTab';
 
 export default function HelpStudioPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState(() => localStorage.getItem('help-studio-tab') || 'posts');
+  const { isAdmin } = useAuth();
+  const [tab, setTab] = useState(() => {
+    const saved = localStorage.getItem('help-studio-tab') || 'posts';
+    return saved === 'permissoes' && !isAdmin ? 'posts' : saved;
+  });
 
   const changeTab = (v: string) => {
     setTab(v);
@@ -33,10 +39,16 @@ export default function HelpStudioPage() {
           <TabsTrigger value="posts"><FileText className="h-4 w-4 mr-1" /> Posts</TabsTrigger>
           <TabsTrigger value="categorias"><FolderKanban className="h-4 w-4 mr-1" /> Categorias</TabsTrigger>
           <TabsTrigger value="destaques"><Sparkles className="h-4 w-4 mr-1" /> Destaques</TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="permissoes"><ShieldCheck className="h-4 w-4 mr-1" /> Permissões</TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="posts" className="mt-4"><HelpPostsTab /></TabsContent>
         <TabsContent value="categorias" className="mt-4"><HelpCategoriesTab /></TabsContent>
         <TabsContent value="destaques" className="mt-4"><HelpFeaturedTab /></TabsContent>
+        {isAdmin && (
+          <TabsContent value="permissoes" className="mt-4"><HelpPermissionsTab /></TabsContent>
+        )}
       </Tabs>
     </div>
   );

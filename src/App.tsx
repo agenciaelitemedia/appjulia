@@ -11,6 +11,7 @@ import { DebugProvider } from "@/contexts/DebugContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 
 import { ProtectedRoute } from "@/components/guards/ProtectedRoute";
+import { HelpStudioGuard } from "@/components/guards/HelpStudioGuard";
 import { DebugBar } from "@/components/debug/DebugBar";
 
 // ── Static imports (critical path / tiny) ──────────────────────
@@ -198,8 +199,8 @@ const App = () => (
                   <Route path="/tickets/:id" element={<ProtectedRoute module="support_tickets"><TicketDetailPage /></ProtectedRoute>} />
                   <Route path="/ajuda" element={<ProtectedRoute module="help_center"><HelpCenterPage /></ProtectedRoute>} />
                   <Route path="/ajuda/post/:slug" element={<ProtectedRoute module="help_center"><HelpPostPage /></ProtectedRoute>} />
-                  <Route path="/ajuda/studio" element={<ProtectedRoute module="help_center" action="edit"><HelpStudioPage /></ProtectedRoute>} />
-                  <Route path="/ajuda/studio/post/:id" element={<ProtectedRoute module="help_center" action="edit"><HelpPostEditorPage /></ProtectedRoute>} />
+                  <Route path="/ajuda/studio" element={<ProtectedRoute module="help_center"><HelpStudioGuard><HelpStudioPage /></HelpStudioGuard></ProtectedRoute>} />
+                  <Route path="/ajuda/studio/post/:id" element={<ProtectedRoute module="help_center"><HelpStudioGuard><HelpPostEditorPage /></HelpStudioGuard></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />
