@@ -341,9 +341,9 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                       <Ticket className="h-2.5 w-2.5 flex-shrink-0" />
                       TICKET
                     </span>
-                    {ticketLink.number != null && (
+                    {(ticketLink.protocol || ticketLink.number != null) && (
                       <span className="text-[10px] text-muted-foreground font-mono truncate min-w-0">
-                        #{ticketLink.number}
+                        #{ticketLink.protocol ?? ticketLink.number}
                       </span>
                     )}
                   </div>

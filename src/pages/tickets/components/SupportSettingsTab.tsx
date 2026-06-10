@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Save } from 'lucide-react';
+import { Plus, Trash2, Save, Hash } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { useSupportConfig, useSupportConfigMutations } from '../hooks/useTickets';
 import { PRIORITY_LABEL, type TicketPriority, type SlaTarget } from '../types';
+import { renderProtocolMaskPreview } from '../lib/protocolMask';
 
 export function SupportSettingsTab() {
   const { departments, categories, settings } = useSupportConfig();
@@ -22,10 +23,24 @@ export function SupportSettingsTab() {
   const [sla, setSla] = useState<Record<TicketPriority, SlaTarget>>(() => settings?.sla ?? {} as Record<TicketPriority, SlaTarget>);
   const [csatEnabled, setCsatEnabled] = useState(settings?.csat_enabled ?? true);
   const [reapplyOnSave, setReapplyOnSave] = useState(false);
+  const [protocolMask, setProtocolMask] = useState(settings?.protocol_mask ?? 'AAAAMMDDNNNNNN');
 
   useEffect(() => {
-    if (settings) { setSla(settings.sla); setCsatEnabled(settings.csat_enabled); }
+    if (settings) {
+      setSla(settings.sla);
+      setCsatEnabled(settings.csat_enabled);
+      setProtocolMask(settings.protocol_mask ?? 'AAAAMMDDNNNNNN');
+    }
   }, [settings]);
+
+  const protocolPreview = useMemo(() => renderProtocolMaskPreview(protocolMask, 1), [protocolMask]);
+
+  const saveProtocolMask = () => {
+    saveSettings.mutate({ protocol_mask: protocolMask } as any, {
+      onSuccess: () => toast.success('Máscara de protocolo salva'),
+      onError: (e: any) => toast.error('Falha ao salvar: ' + (e?.message ?? 'erro')),
+    });
+  };
 
   const addDept = () => {
     if (!newDept.trim()) return;
@@ -147,6 +162,53 @@ export function SupportSettingsTab() {
             </div>
             <Button variant="outline" onClick={reapplyNow} disabled={reapplySlaToOpenTickets.isPending}>
               {reapplySlaToOpenTickets.isPending ? 'Reaplicando...' : 'Reaplicar agora'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Protocolo */}
+      <Card className="lg:col-span-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Hash className="h-4 w-4 text-primary" /> Máscara de Protocolo
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Máscara</Label>
+              <Input
+                value={protocolMask}
+                onChange={(e) => setProtocolMask(e.target.value.toUpperCase())}
+                placeholder="AAAAMMDDNNNNNN"
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Pré-visualização</Label>
+              <div className="h-9 px-3 rounded-md border bg-muted/40 flex items-center font-mono text-sm">
+                {protocolPreview || '—'}
+              </div>
+            </div>
+          </div>
+          <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground space-y-1">
+            <div className="font-medium text-foreground">Tokens disponíveis</div>
+            <div className="grid sm:grid-cols-2 gap-x-4 gap-y-0.5 font-mono">
+              <span><strong>AAAA</strong> — Ano (4 dígitos)</span>
+              <span><strong>AA</strong> — Ano (2 dígitos)</span>
+              <span><strong>MM</strong> — Mês</span>
+              <span><strong>DD</strong> — Dia</span>
+              <span><strong>HH</strong> — Hora</span>
+              <span><strong>II</strong> — Minuto</span>
+              <span><strong>SSSSSS</strong> — Sequencial do mês (largura = nº de S)</span>
+              <span><strong>NNNNNN</strong> — Sequencial do dia (largura = nº de N)</span>
+            </div>
+            <div className="pt-1">Qualquer outro caractere é literal. Ex.: <code className="font-mono">220022AAAAMMDDNNNNNN</code> → <code className="font-mono">{renderProtocolMaskPreview('220022AAAAMMDDNNNNNN', 1)}</code></div>
+          </div>
+          <div className="flex justify-end pt-1">
+            <Button onClick={saveProtocolMask} disabled={saveSettings.isPending || !protocolMask.trim()}>
+              <Save className="h-4 w-4 mr-1" /> Salvar máscara
             </Button>
           </div>
         </CardContent>

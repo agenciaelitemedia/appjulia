@@ -7,6 +7,7 @@ import type { TicketStatus, TicketPriority } from '@/pages/tickets/types';
 export interface TicketConversationLink {
   ticketId: string;
   number: number | null;
+  protocol: string | null;
   status: TicketStatus;
   priority: TicketPriority;
   subject: string;
@@ -48,7 +49,7 @@ export function useTicketLinkedConversations() {
 
       const { data: tickets, error: tErr } = await supabase
         .from('support_tickets')
-        .select('id, number, status, priority, subject')
+        .select('id, number, protocol, status, priority, subject')
         .in('id', ticketIds);
       if (tErr) return map;
 
@@ -61,6 +62,7 @@ export function useTicketLinkedConversations() {
         map.set(r.id, {
           ticketId: t.id,
           number: (t.number as number) ?? (r.active_ticket_number as number) ?? null,
+          protocol: (t.protocol as string) ?? null,
           status: t.status,
           priority: t.priority,
           subject: t.subject ?? '',

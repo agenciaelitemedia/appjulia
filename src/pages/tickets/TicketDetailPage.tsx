@@ -221,8 +221,11 @@ export default function TicketDetailPage() {
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={() => navigate('/tickets')}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-bold truncate">#{ticket.number} · {ticket.subject}</h1>
-          <p className="text-xs text-muted-foreground">Aberto em {ticket.opened_at ? format(new Date(ticket.opened_at), 'dd/MM/yyyy HH:mm') : '—'}</p>
+          <h1 className="text-lg font-bold truncate">#{ticket.protocol ?? ticket.number} · {ticket.subject}</h1>
+          <p className="text-xs text-muted-foreground">
+            {ticket.protocol && ticket.number != null && <span className="font-mono mr-2">Nº interno #{ticket.number}</span>}
+            Aberto em {ticket.opened_at ? format(new Date(ticket.opened_at), 'dd/MM/yyyy HH:mm') : '—'}
+          </p>
         </div>
         {isAdmin && (
           <Button

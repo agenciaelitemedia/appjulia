@@ -285,7 +285,11 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
         <div className="flex items-center gap-2 min-w-0">
           <LifeBuoy className="h-4 w-4 text-primary flex-shrink-0" />
           <span className="text-sm font-semibold truncate">
-            {ticket?.number != null ? `Ticket #${ticket.number}` : 'Detalhes do chamado'}
+            {ticket?.protocol
+              ? `Ticket #${ticket.protocol}`
+              : ticket?.number != null
+                ? `Ticket #${ticket.number}`
+                : 'Detalhes do chamado'}
           </span>
           {ticket && (
             <Badge variant="secondary" className={`text-[10px] ${STATUS_BADGE[ticket.status]}`}>
