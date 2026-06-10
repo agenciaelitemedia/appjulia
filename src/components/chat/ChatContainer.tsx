@@ -80,6 +80,9 @@ export function ChatContainer({ className }: ChatContainerProps) {
         <ErrorBoundary fallback={<ChatListFallback />}>
           <ChatList
             onOpenTicketPanel={(contact, mode, ticketId, conversation) => {
+              // Atualiza o ref ANTES de mudar contato para que o effect não feche o painel recém aberto
+              prevContactIdRef.current = contact.id;
+              selectContact(contact.id);
               if (mode === 'detail' && ticketId) {
                 setTicketPanel({ mode: 'detail', contact, ticketId });
               } else {
