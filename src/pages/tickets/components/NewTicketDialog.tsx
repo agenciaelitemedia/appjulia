@@ -38,7 +38,11 @@ export function NewTicketDialog({ open, onOpenChange, onCreated, prefill }: NewT
   );
 
   const handleSubmit = async () => {
+    if (!name.trim()) { toast.error('Informe o nome'); return; }
+    if (!phone.trim()) { toast.error('Informe o telefone'); return; }
+    if (!departmentId) { toast.error('Selecione o departamento'); return; }
     if (!subject.trim()) { toast.error('Informe o assunto'); return; }
+    if (!description.trim()) { toast.error('Informe a descrição'); return; }
     setSaving(true);
     try {
       const id = await create.mutateAsync({
@@ -71,12 +75,12 @@ export function NewTicketDialog({ open, onOpenChange, onCreated, prefill }: NewT
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Nome</Label>
+              <Label>Nome <span className="text-destructive">*</span></Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Telefone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(opcional)" />
+              <Label>Telefone <span className="text-destructive">*</span></Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1">
@@ -86,7 +90,7 @@ export function NewTicketDialog({ open, onOpenChange, onCreated, prefill }: NewT
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Departamento</Label>
+              <Label>Departamento <span className="text-destructive">*</span></Label>
               <Select value={departmentId} onValueChange={(v) => { setDepartmentId(v); setCategoryId(''); }}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -120,11 +124,11 @@ export function NewTicketDialog({ open, onOpenChange, onCreated, prefill }: NewT
           </div>
 
           <div className="space-y-1">
-            <Label>Assunto</Label>
+            <Label>Assunto <span className="text-destructive">*</span></Label>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Resumo do problema" />
           </div>
           <div className="space-y-1">
-            <Label>Descrição</Label>
+            <Label>Descrição <span className="text-destructive">*</span></Label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="min-h-[100px]" placeholder="Descreva o problema" />
           </div>
         </div>
