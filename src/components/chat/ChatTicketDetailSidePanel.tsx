@@ -89,6 +89,16 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
   const [saving, setSaving] = useState(false);
   const [confirmDeleteStep, setConfirmDeleteStep] = useState<0 | 1 | 2>(0);
   const [confirmResolveOpen, setConfirmResolveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [allowDelete, setAllowDelete] = useState(false);
+
+  useEffect(() => {
+    if (!deleteOpen) {
+      setDeleteConfirmText('');
+      setAllowDelete(false);
+    }
+  }, [deleteOpen]);
 
   // Composer (aba Conversas)
   const [draft, setDraft] = useState('');
@@ -173,7 +183,7 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
     try {
       await deleteTicket.mutateAsync(ticketId);
       toast.success('Chamado excluído');
-      setConfirmDeleteStep(0);
+      setDeleteOpen(false);
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao excluir chamado');
@@ -432,7 +442,7 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setConfirmDeleteStep(1)}
+                  onClick={() => setDeleteOpen(true)}
                   title="Excluir chamado"
                   className="mr-auto"
                 >
