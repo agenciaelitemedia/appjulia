@@ -46,28 +46,28 @@ export default function HelpPostPage() {
   const cleanHtml = useMemo(() => sanitize(post?.content_html || ''), [post?.content_html]);
 
   if (isLoading) {
-    return <div className="bg-zinc-950 -m-4 lg:-m-6 min-h-[calc(100vh-4rem)] p-12 text-center text-zinc-400">Carregando…</div>;
+    return <div className="bg-background -m-4 lg:-m-6 min-h-[calc(100vh-4rem)] p-12 text-center text-muted-foreground">Carregando…</div>;
   }
 
   if (!post) {
     return (
-      <div className="bg-zinc-950 -m-4 lg:-m-6 min-h-[calc(100vh-4rem)] p-12 text-center space-y-4">
-        <p className="text-zinc-300">Conteúdo não encontrado</p>
+      <div className="bg-background -m-4 lg:-m-6 min-h-[calc(100vh-4rem)] p-12 text-center space-y-4">
+        <p className="text-muted-foreground">Conteúdo não encontrado</p>
         <Button className="rounded-full" onClick={() => navigate('/ajuda')}>Voltar à Central de Ajuda</Button>
       </div>
     );
   }
 
   return (
-    <div className="bg-zinc-950 -m-4 lg:-m-6 min-h-[calc(100vh-4rem)]">
+    <div className="bg-background -m-4 lg:-m-6 min-h-[calc(100vh-4rem)]">
       {/* Banner */}
       <div className="relative h-[260px] sm:h-[340px] overflow-hidden">
         {post.cover_image_url ? (
           <img src={post.cover_image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-zinc-900 to-black" />
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-slate-800 to-slate-950" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-zinc-950/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-black/40 to-black/10" />
         <div className="absolute top-4 left-4">
           <Button
             variant="secondary"
@@ -78,14 +78,14 @@ export default function HelpPostPage() {
             <ArrowLeft className="h-4 w-4 mr-1" /> Central de Ajuda
           </Button>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 max-w-3xl mx-auto px-4 sm:px-0 pb-6">
+        <div className="absolute bottom-0 left-0 right-0 max-w-3xl mx-auto px-4 sm:px-0 pb-8">
           {category && (
             <Badge className="mb-2 border-0" style={{ backgroundColor: category.color || '#6366f1', color: '#fff' }}>
               {category.name}
             </Badge>
           )}
-          <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight drop-shadow">{post.title}</h1>
-          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-zinc-300">
+          <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight drop-shadow-lg">{post.title}</h1>
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-white/80 drop-shadow">
             {post.author_name && <span className="flex items-center gap-1"><UserIcon className="h-3.5 w-3.5" />{post.author_name}</span>}
             {post.published_at && <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{format(new Date(post.published_at), 'dd/MM/yyyy')}</span>}
             <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{post.view_count} visualizações</span>
@@ -96,16 +96,16 @@ export default function HelpPostPage() {
       {/* Conteúdo */}
       <div className="max-w-3xl mx-auto px-4 sm:px-0 py-8">
         {post.summary && (
-          <p className="text-zinc-300 text-lg italic border-l-4 border-red-600 pl-4 mb-8">{post.summary}</p>
+          <p className="text-muted-foreground text-lg italic border-l-4 border-red-600 pl-4 mb-8">{post.summary}</p>
         )}
         <article
-          className="prose prose-invert prose-zinc max-w-none prose-headings:font-bold prose-a:text-red-400 prose-img:rounded-xl prose-video:rounded-xl [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-xl [&_video]:w-full [&_video]:rounded-xl"
+          className="prose dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-primary prose-img:rounded-xl prose-video:rounded-xl [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-xl [&_video]:w-full [&_video]:rounded-xl"
           dangerouslySetInnerHTML={{ __html: cleanHtml }}
         />
         {post.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-10">
             {post.tags.map(t => (
-              <Badge key={t} variant="outline" className="border-zinc-700 text-zinc-300">{t}</Badge>
+              <Badge key={t} variant="outline" className="text-muted-foreground">{t}</Badge>
             ))}
           </div>
         )}

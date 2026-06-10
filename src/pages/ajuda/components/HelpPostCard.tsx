@@ -10,7 +10,7 @@ export function HelpPostCard({ post }: { post: HelpPost }) {
       onClick={() => navigate(`/ajuda/post/${post.slug}`)}
       className="group relative w-56 sm:w-64 shrink-0 text-left snap-start"
     >
-      <div className="aspect-video rounded-lg overflow-hidden bg-zinc-800 ring-1 ring-white/10 transition-all duration-300 group-hover:ring-2 group-hover:ring-white/60 group-hover:scale-[1.04] group-hover:shadow-2xl group-hover:shadow-black/60">
+      <div className="aspect-video rounded-lg overflow-hidden bg-muted ring-1 ring-border transition-all duration-300 group-hover:ring-2 group-hover:ring-primary/70 group-hover:scale-[1.04] group-hover:shadow-2xl group-hover:shadow-black/30">
         {post.cover_image_url ? (
           <img
             src={post.cover_image_url}
@@ -19,14 +19,14 @@ export function HelpPostCard({ post }: { post: HelpPost }) {
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
           />
         ) : (
-          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">
-            <FileText className="h-8 w-8 text-zinc-600" />
+          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900">
+            <FileText className="h-8 w-8 text-slate-400" />
           </div>
         )}
-        <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90" />
+        <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-90" />
         <div className="absolute bottom-0 left-0 right-0 p-3">
           <p className="text-white text-sm font-semibold line-clamp-2 drop-shadow">{post.title}</p>
-          <p className="text-zinc-300 text-[11px] mt-0.5 flex items-center gap-1">
+          <p className="text-white/75 text-[11px] mt-0.5 flex items-center gap-1">
             <Eye className="h-3 w-3" /> {post.view_count} visualizações
           </p>
         </div>
