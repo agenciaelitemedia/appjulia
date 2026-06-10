@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.generate_ticket_protocol(text) TO authenticated;
