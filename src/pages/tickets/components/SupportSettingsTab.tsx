@@ -166,6 +166,53 @@ export function SupportSettingsTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Protocolo */}
+      <Card className="lg:col-span-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Hash className="h-4 w-4 text-primary" /> Máscara de Protocolo
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Máscara</Label>
+              <Input
+                value={protocolMask}
+                onChange={(e) => setProtocolMask(e.target.value.toUpperCase())}
+                placeholder="AAAAMMDDNNNNNN"
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Pré-visualização</Label>
+              <div className="h-9 px-3 rounded-md border bg-muted/40 flex items-center font-mono text-sm">
+                {protocolPreview || '—'}
+              </div>
+            </div>
+          </div>
+          <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground space-y-1">
+            <div className="font-medium text-foreground">Tokens disponíveis</div>
+            <div className="grid sm:grid-cols-2 gap-x-4 gap-y-0.5 font-mono">
+              <span><strong>AAAA</strong> — Ano (4 dígitos)</span>
+              <span><strong>AA</strong> — Ano (2 dígitos)</span>
+              <span><strong>MM</strong> — Mês</span>
+              <span><strong>DD</strong> — Dia</span>
+              <span><strong>HH</strong> — Hora</span>
+              <span><strong>II</strong> — Minuto</span>
+              <span><strong>SSSSSS</strong> — Sequencial do mês (largura = nº de S)</span>
+              <span><strong>NNNNNN</strong> — Sequencial do dia (largura = nº de N)</span>
+            </div>
+            <div className="pt-1">Qualquer outro caractere é literal. Ex.: <code className="font-mono">220022AAAAMMDDNNNNNN</code> → <code className="font-mono">{renderProtocolMaskPreview('220022AAAAMMDDNNNNNN', 1)}</code></div>
+          </div>
+          <div className="flex justify-end pt-1">
+            <Button onClick={saveProtocolMask} disabled={saveSettings.isPending || !protocolMask.trim()}>
+              <Save className="h-4 w-4 mr-1" /> Salvar máscara
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
