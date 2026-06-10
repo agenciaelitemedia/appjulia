@@ -67,7 +67,7 @@ export default function HelpPostPage() {
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-slate-800 to-slate-950" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-black/40 to-black/10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-black/30" />
         <div className="absolute top-4 left-4">
           <Button
             variant="secondary"
@@ -84,8 +84,8 @@ export default function HelpPostPage() {
               {category.name}
             </Badge>
           )}
-          <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight drop-shadow-lg">{post.title}</h1>
-          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-white/80 drop-shadow">
+          <h1 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight drop-shadow-2xl [text-shadow:0_2px_8px_rgba(0,0,0,0.95)]">{post.title}</h1>
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-white/90 drop-shadow [text-shadow:0_1px_4px_rgba(0,0,0,0.9)]">
             {post.author_name && <span className="flex items-center gap-1"><UserIcon className="h-3.5 w-3.5" />{post.author_name}</span>}
             {post.published_at && <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{format(new Date(post.published_at), 'dd/MM/yyyy')}</span>}
             <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{post.view_count} visualizações</span>

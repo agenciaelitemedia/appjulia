@@ -29,14 +29,14 @@ export function HelpHero({ posts }: { posts: HelpPost[] }) {
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-slate-800 to-slate-950" />
       )}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
       <div className="relative h-full flex flex-col justify-end p-6 sm:p-10 max-w-2xl">
-        <span className="text-[11px] font-bold tracking-[0.2em] text-red-400 uppercase mb-2 drop-shadow">Em destaque</span>
-        <h1 className="text-2xl sm:text-4xl font-extrabold text-white drop-shadow-lg leading-tight">{post.title}</h1>
+        <span className="text-[11px] font-bold tracking-[0.2em] text-red-400 uppercase mb-2 drop-shadow [text-shadow:0_1px_3px_rgba(0,0,0,0.9)]">Em destaque</span>
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-white drop-shadow-2xl leading-tight [text-shadow:0_2px_8px_rgba(0,0,0,0.95)]">{post.title}</h1>
         {post.summary && (
-          <p className="text-white/85 text-sm sm:text-base mt-2 line-clamp-2 drop-shadow">{post.summary}</p>
+          <p className="text-white/90 text-sm sm:text-base mt-2 line-clamp-2 drop-shadow-md [text-shadow:0_1px_4px_rgba(0,0,0,0.9)]">{post.summary}</p>
         )}
         <div className="flex items-center gap-3 mt-5">
           <Button
