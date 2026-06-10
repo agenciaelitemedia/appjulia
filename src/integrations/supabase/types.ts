@@ -6583,6 +6583,24 @@ export type Database = {
         }
         Relationships: []
       }
+      user_avatars: {
+        Row: {
+          photo_url: string
+          updated_at: string
+          user_id: number
+        }
+        Insert: {
+          photo_url: string
+          updated_at?: string
+          user_id: number
+        }
+        Update: {
+          photo_url?: string
+          updated_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
       user_device_log: {
         Row: {
           browser: string | null
