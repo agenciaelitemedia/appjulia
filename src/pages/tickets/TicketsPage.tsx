@@ -19,20 +19,25 @@ export default function TicketsPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [filters, setFilters] = useState<TicketFilters>({ status: 'all', priority: 'all' });
   const isAgent = role === 'agent';
+  const canKanban = role === 'agent' || role === 'manager';
 
   const [view, setView] = useState<TicketsView>(() => {
     if (typeof window === 'undefined') return 'list';
     const saved = window.localStorage.getItem(TICKETS_VIEW_KEY) as TicketsView | null;
     if (saved === 'list' || saved === 'dashboard') return saved;
-    if ((saved === 'kanban' || saved === 'settings') && role === 'agent') return saved;
+    if (saved === 'kanban' && (role === 'agent' || role === 'manager')) return saved;
+    if (saved === 'settings' && role === 'agent') return saved;
     return 'list';
   });
 
   useEffect(() => {
-    if ((view === 'kanban' || view === 'settings') && !isAgent) {
+    if (view === 'settings' && !isAgent) {
       setView('list');
     }
-  }, [view, isAgent]);
+    if (view === 'kanban' && !canKanban) {
+      setView('list');
+    }
+  }, [view, isAgent, canKanban]);
 
   const handleViewChange = (v: string) => {
     const next = v as TicketsView;
@@ -79,7 +84,7 @@ export default function TicketsPage() {
       <Tabs value={view} onValueChange={handleViewChange}>
         <TabsList>
           <TabsTrigger value="list" className="gap-2"><List className="h-4 w-4" /> Lista</TabsTrigger>
-          {isAgent && <TabsTrigger value="kanban" className="gap-2"><LayoutGrid className="h-4 w-4" /> Kanban</TabsTrigger>}
+          {canKanban && <TabsTrigger value="kanban" className="gap-2"><LayoutGrid className="h-4 w-4" /> Kanban</TabsTrigger>}
           <TabsTrigger value="dashboard" className="gap-2"><LayoutDashboard className="h-4 w-4" /> Dashboard</TabsTrigger>
           {isAgent && <TabsTrigger value="settings" className="gap-2"><Settings className="h-4 w-4" /> Configurações</TabsTrigger>}
         </TabsList>
@@ -88,7 +93,7 @@ export default function TicketsPage() {
           <TicketsListTab filters={filters} onFiltersChange={setFilters} showRequester />
         </TabsContent>
 
-        {isAgent && (
+        {canKanban && (
           <TabsContent value="kanban" className="mt-5">
             <TicketsKanban filters={filters} />
           </TabsContent>
