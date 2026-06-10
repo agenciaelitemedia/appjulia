@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, Save, Hash } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
@@ -24,19 +25,31 @@ export function SupportSettingsTab() {
   const [csatEnabled, setCsatEnabled] = useState(settings?.csat_enabled ?? true);
   const [reapplyOnSave, setReapplyOnSave] = useState(false);
   const [protocolMask, setProtocolMask] = useState(settings?.protocol_mask ?? 'AAAAMMDDNNNNNN');
+  const [protocolAutoSend, setProtocolAutoSend] = useState<boolean>(settings?.protocol_auto_send ?? false);
+  const [protocolTemplate, setProtocolTemplate] = useState<string>(
+    settings?.protocol_send_template ?? 'Olá {nome}! Seu chamado foi aberto. Protocolo: {protocolo}. Assunto: {assunto}.',
+  );
 
   useEffect(() => {
     if (settings) {
       setSla(settings.sla);
       setCsatEnabled(settings.csat_enabled);
       setProtocolMask(settings.protocol_mask ?? 'AAAAMMDDNNNNNN');
+      setProtocolAutoSend(settings.protocol_auto_send ?? false);
+      setProtocolTemplate(
+        settings.protocol_send_template ?? 'Olá {nome}! Seu chamado foi aberto. Protocolo: {protocolo}. Assunto: {assunto}.',
+      );
     }
   }, [settings]);
 
   const protocolPreview = useProtocolPreview(protocolMask, 1);
 
   const saveProtocolMask = () => {
-    saveSettings.mutate({ protocol_mask: protocolMask } as any, {
+    saveSettings.mutate({
+      protocol_mask: protocolMask,
+      protocol_auto_send: protocolAutoSend,
+      protocol_send_template: protocolTemplate,
+    } as any, {
       onSuccess: () => toast.success('Máscara de protocolo salva'),
       onError: (e: any) => toast.error('Falha ao salvar: ' + (e?.message ?? 'erro')),
     });
