@@ -51,7 +51,7 @@ export default function HelpCenterPage() {
   }, [posts, search]);
 
   return (
-    <div className="min-h-full bg-zinc-950 -m-0">
+    <div className="bg-zinc-950 -m-4 lg:-m-6 min-h-[calc(100vh-4rem)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6 space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">

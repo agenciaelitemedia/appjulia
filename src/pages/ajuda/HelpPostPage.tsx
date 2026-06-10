@@ -46,12 +46,12 @@ export default function HelpPostPage() {
   const cleanHtml = useMemo(() => sanitize(post?.content_html || ''), [post?.content_html]);
 
   if (isLoading) {
-    return <div className="min-h-full bg-zinc-950 p-12 text-center text-zinc-400">Carregando…</div>;
+    return <div className="bg-zinc-950 -m-4 lg:-m-6 min-h-[calc(100vh-4rem)] p-12 text-center text-zinc-400">Carregando…</div>;
   }
 
   if (!post) {
     return (
-      <div className="min-h-full bg-zinc-950 p-12 text-center space-y-4">
+      <div className="bg-zinc-950 -m-4 lg:-m-6 min-h-[calc(100vh-4rem)] p-12 text-center space-y-4">
         <p className="text-zinc-300">Conteúdo não encontrado</p>
         <Button className="rounded-full" onClick={() => navigate('/ajuda')}>Voltar à Central de Ajuda</Button>
       </div>
@@ -59,7 +59,7 @@ export default function HelpPostPage() {
   }
 
   return (
-    <div className="min-h-full bg-zinc-950">
+    <div className="bg-zinc-950 -m-4 lg:-m-6 min-h-[calc(100vh-4rem)]">
       {/* Banner */}
       <div className="relative h-[260px] sm:h-[340px] overflow-hidden">
         {post.cover_image_url ? (
