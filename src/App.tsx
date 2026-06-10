@@ -105,6 +105,10 @@ const TasksPage = lazy(() => import("./pages/tarefas/TasksPage"));
 const NotifyCustomersPage = lazy(() => import("./pages/notify-customers/NotifyCustomersPage"));
 const TicketsPage = lazy(() => import("./pages/tickets/TicketsPage"));
 const TicketDetailPage = lazy(() => import("./pages/tickets/TicketDetailPage"));
+const HelpCenterPage = lazy(() => import("./pages/ajuda/HelpCenterPage"));
+const HelpPostPage = lazy(() => import("./pages/ajuda/HelpPostPage"));
+const HelpStudioPage = lazy(() => import("./pages/ajuda/studio/HelpStudioPage"));
+const HelpPostEditorPage = lazy(() => import("./pages/ajuda/studio/HelpPostEditorPage"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -192,6 +196,10 @@ const App = () => (
                   <Route path="/notificar-clientes" element={<ProtectedRoute module="notify_customers"><NotifyCustomersPage /></ProtectedRoute>} />
                   <Route path="/tickets" element={<ProtectedRoute module="support_tickets"><TicketsPage /></ProtectedRoute>} />
                   <Route path="/tickets/:id" element={<ProtectedRoute module="support_tickets"><TicketDetailPage /></ProtectedRoute>} />
+                  <Route path="/ajuda" element={<ProtectedRoute module="help_center"><HelpCenterPage /></ProtectedRoute>} />
+                  <Route path="/ajuda/post/:slug" element={<ProtectedRoute module="help_center"><HelpPostPage /></ProtectedRoute>} />
+                  <Route path="/ajuda/studio" element={<ProtectedRoute module="help_center" action="edit"><HelpStudioPage /></ProtectedRoute>} />
+                  <Route path="/ajuda/studio/post/:id" element={<ProtectedRoute module="help_center" action="edit"><HelpPostEditorPage /></ProtectedRoute>} />
                   
                   {/* Admin routes - protected by module permission */}
                   <Route path="/admin/agentes" element={<ProtectedRoute module="admin_agents"><AgentsList /></ProtectedRoute>} />

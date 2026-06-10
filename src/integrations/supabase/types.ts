@@ -4156,6 +4156,142 @@ export type Database = {
         }
         Relationships: []
       }
+      help_categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      help_post_views: {
+        Row: {
+          id: string
+          post_id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          user_id?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_post_views_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "help_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      help_posts: {
+        Row: {
+          author_id: string | null
+          author_name: string | null
+          category_id: string | null
+          content: Json
+          content_html: string | null
+          cover_image_url: string | null
+          created_at: string
+          featured_order: number
+          id: string
+          is_featured: boolean
+          published_at: string | null
+          slug: string
+          status: string
+          summary: string | null
+          tags: string[]
+          title: string
+          updated_at: string
+          view_count: number
+        }
+        Insert: {
+          author_id?: string | null
+          author_name?: string | null
+          category_id?: string | null
+          content?: Json
+          content_html?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          featured_order?: number
+          id?: string
+          is_featured?: boolean
+          published_at?: string | null
+          slug: string
+          status?: string
+          summary?: string | null
+          tags?: string[]
+          title: string
+          updated_at?: string
+          view_count?: number
+        }
+        Update: {
+          author_id?: string | null
+          author_name?: string | null
+          category_id?: string | null
+          content?: Json
+          content_html?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          featured_order?: number
+          id?: string
+          is_featured?: boolean
+          published_at?: string | null
+          slug?: string
+          status?: string
+          summary?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_posts_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "help_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       instagram_config: {
         Row: {
           client_id: string
@@ -7732,6 +7868,10 @@ export type Database = {
       }
       increment_contact_unread: {
         Args: { p_contact_id: string; p_last_at?: string; p_preview?: string }
+        Returns: undefined
+      }
+      increment_help_post_view: {
+        Args: { p_post_id: string; p_user_id: string }
         Returns: undefined
       }
       map_priority_chat_to_crm: { Args: { p: string }; Returns: string }

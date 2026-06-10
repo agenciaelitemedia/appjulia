@@ -1,0 +1,36 @@
+import { useNavigate } from 'react-router-dom';
+import { Eye, FileText } from 'lucide-react';
+import type { HelpPost } from '@/hooks/useHelpCenter';
+
+export function HelpPostCard({ post }: { post: HelpPost }) {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/ajuda/post/${post.slug}`)}
+      className="group relative w-56 sm:w-64 shrink-0 text-left snap-start"
+    >
+      <div className="aspect-video rounded-lg overflow-hidden bg-zinc-800 ring-1 ring-white/10 transition-all duration-300 group-hover:ring-2 group-hover:ring-white/60 group-hover:scale-[1.04] group-hover:shadow-2xl group-hover:shadow-black/60">
+        {post.cover_image_url ? (
+          <img
+            src={post.cover_image_url}
+            alt={post.title}
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+          />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">
+            <FileText className="h-8 w-8 text-zinc-600" />
+          </div>
+        )}
+        <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90" />
+        <div className="absolute bottom-0 left-0 right-0 p-3">
+          <p className="text-white text-sm font-semibold line-clamp-2 drop-shadow">{post.title}</p>
+          <p className="text-zinc-300 text-[11px] mt-0.5 flex items-center gap-1">
+            <Eye className="h-3 w-3" /> {post.view_count} visualizações
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+}
