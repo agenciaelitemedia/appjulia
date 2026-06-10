@@ -87,8 +87,17 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
   const [categoryId, setCategoryId] = useState<string>('');
   const [assignedName, setAssignedName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [confirmDeleteStep, setConfirmDeleteStep] = useState<0 | 1 | 2>(0);
   const [confirmResolveOpen, setConfirmResolveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [allowDelete, setAllowDelete] = useState(false);
+
+  useEffect(() => {
+    if (!deleteOpen) {
+      setDeleteConfirmText('');
+      setAllowDelete(false);
+    }
+  }, [deleteOpen]);
 
   // Composer (aba Conversas)
   const [draft, setDraft] = useState('');
@@ -173,7 +182,7 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
     try {
       await deleteTicket.mutateAsync(ticketId);
       toast.success('Chamado excluído');
-      setConfirmDeleteStep(0);
+      setDeleteOpen(false);
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao excluir chamado');
@@ -432,7 +441,7 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setConfirmDeleteStep(1)}
+                  onClick={() => setDeleteOpen(true)}
                   title="Excluir chamado"
                   className="mr-auto"
                 >
@@ -596,49 +605,52 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Confirmação dupla de exclusão de chamado */}
-      <AlertDialog
-        open={confirmDeleteStep === 1}
-        onOpenChange={(o) => !o && setConfirmDeleteStep(0)}
-      >
+      {/* Exclusão de chamado: dupla confirmação (digitar + switch) */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir chamado?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir chamado</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação removerá o chamado e todo o seu histórico. Deseja continuar?
+              Esta ação é irreversível. O chamado e todo o seu histórico de mensagens e eventos serão excluídos permanentemente.
+              <br /><br />
+              Para confirmar, digite <code className="font-mono text-foreground">EXCLUIR</code> abaixo e ative o switch.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); setConfirmDeleteStep(2); }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Continuar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={confirmDeleteStep === 2}
-        onOpenChange={(o) => !o && setConfirmDeleteStep(0)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar exclusão definitiva</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta é a confirmação final. O chamado será excluído permanentemente e não poderá ser recuperado.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="ticket-delete-confirm">Digite EXCLUIR para confirmar</Label>
+              <Input
+                id="ticket-delete-confirm"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="EXCLUIR"
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <Label htmlFor="ticket-allow-delete" className="cursor-pointer">
+                Permitir excluir
+              </Label>
+              <Switch
+                id="ticket-allow-delete"
+                checked={allowDelete}
+                onCheckedChange={setAllowDelete}
+                disabled={deleteConfirmText.trim().toUpperCase() !== 'EXCLUIR'}
+              />
+            </div>
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteTicket.isPending}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleteTicket.isPending}
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+              disabled={
+                deleteTicket.isPending ||
+                !allowDelete ||
+                deleteConfirmText.trim().toUpperCase() !== 'EXCLUIR'
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteTicket.isPending ? 'Excluindo…' : 'Sim, excluir definitivamente'}
+              {deleteTicket.isPending ? 'Excluindo…' : 'Excluir definitivamente'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
