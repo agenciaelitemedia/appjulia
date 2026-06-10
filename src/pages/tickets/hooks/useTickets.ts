@@ -308,6 +308,7 @@ export function useTicketMutations() {
       const { data: settings } = await db.from('support_settings').select('sla').eq('id', 'global').maybeSingle();
       const sla = settings?.sla?.[input.priority];
       const now = Date.now();
+      const effectiveClientId = await resolveEffectiveClientId(user, 'useTickets.create');
       const payload = {
         subject: input.subject,
         description: input.description ?? null,
@@ -316,7 +317,7 @@ export function useTicketMutations() {
         department_id: input.department_id ?? null,
         category_id: input.category_id ?? null,
         requester_user_id: actor.id,
-        requester_client_id: user?.client_id != null ? String(user.client_id) : null,
+        requester_client_id: effectiveClientId,
         requester_name: input.requester_name ?? user?.name ?? null,
         requester_email: input.requester_email ?? user?.email ?? null,
         requester_phone: input.requester_phone ?? null,
