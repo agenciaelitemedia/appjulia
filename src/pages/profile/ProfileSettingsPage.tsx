@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { User, Lock, Mail, Shield, Eye, EyeOff, Check, X, Camera, Building2, Phone, MapPin, Loader2, Save, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { externalDb, Client } from '@/lib/externalDb';
@@ -25,6 +26,7 @@ interface ViaCEPResponse {
 
 export default function ProfileSettingsPage() {
   const { user } = useAuth();
+  const canEditClient = user?.role === 'user';
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -35,6 +37,7 @@ export default function ProfileSettingsPage() {
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isSearchingCep, setIsSearchingCep] = useState(false);
+  const [userPhoto, setUserPhoto] = useState<string | null>(null);
   
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -84,6 +87,25 @@ export default function ProfileSettingsPage() {
 
     loadClientData();
   }, [user?.client_id, toast]);
+
+  // Load this user's individual avatar from public.user_avatars
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user?.id) return;
+      try {
+        const { data } = await supabase
+          .from('user_avatars')
+          .select('photo_url')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (!cancelled) setUserPhoto(data?.photo_url ?? null);
+      } catch (e) {
+        console.warn('[Profile] Failed to load user avatar', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const getInitials = (name: string) => {
     return name
@@ -193,7 +215,7 @@ export default function ProfileSettingsPage() {
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user?.client_id) return;
+    if (!file || !user?.id) return;
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
@@ -217,7 +239,7 @@ export default function ProfileSettingsPage() {
     setIsUploadingPhoto(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `client_${user.client_id}/${Date.now()}.${fileExt}`;
+      const fileName = `user_${user.id}/${Date.now()}.${fileExt}`;
 
       const { data, error } = await supabase.storage
         .from('avatars')
@@ -230,8 +252,12 @@ export default function ProfileSettingsPage() {
         .getPublicUrl(data.path);
 
       const photoUrl = urlData.publicUrl;
-      await externalDb.updateClient(user.client_id, { photo: photoUrl });
-      setClientData(prev => prev ? { ...prev, photo: photoUrl } : null);
+      const { error: upsertError } = await supabase
+        .from('user_avatars')
+        .upsert({ user_id: user.id, photo_url: photoUrl, updated_at: new Date().toISOString() });
+      if (upsertError) throw upsertError;
+      setUserPhoto(photoUrl);
+      try { localStorage.removeItem('auth_user_photo_cache_v1'); } catch {}
 
       toast({
         title: 'Foto atualizada',
@@ -254,7 +280,7 @@ export default function ProfileSettingsPage() {
 
   // Handle client data save
   const handleSaveClient = async () => {
-    if (!user?.client_id || !hasChanges) return;
+    if (!user?.client_id || !hasChanges || !canEditClient) return;
 
     setIsSavingClient(true);
     try {
