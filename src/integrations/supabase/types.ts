@@ -1455,6 +1455,7 @@ export type Database = {
         Row: {
           active_ticket_id: string | null
           active_ticket_number: number | null
+          active_ticket_protocol: string | null
           assigned_to: string | null
           channel: string
           client_id: string
@@ -1485,6 +1486,7 @@ export type Database = {
         Insert: {
           active_ticket_id?: string | null
           active_ticket_number?: number | null
+          active_ticket_protocol?: string | null
           assigned_to?: string | null
           channel?: string
           client_id: string
@@ -1515,6 +1517,7 @@ export type Database = {
         Update: {
           active_ticket_id?: string | null
           active_ticket_number?: number | null
+          active_ticket_protocol?: string | null
           assigned_to?: string | null
           channel?: string
           client_id?: string
@@ -5639,22 +5642,43 @@ export type Database = {
         }
         Relationships: []
       }
+      support_protocol_counters: {
+        Row: {
+          last_value: number
+          scope: string
+          updated_at: string
+        }
+        Insert: {
+          last_value?: number
+          scope: string
+          updated_at?: string
+        }
+        Update: {
+          last_value?: number
+          scope?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       support_settings: {
         Row: {
           csat_enabled: boolean
           id: string
+          protocol_mask: string
           sla: Json
           updated_at: string | null
         }
         Insert: {
           csat_enabled?: boolean
           id?: string
+          protocol_mask?: string
           sla?: Json
           updated_at?: string | null
         }
         Update: {
           csat_enabled?: boolean
           id?: string
+          protocol_mask?: string
           sla?: Json
           updated_at?: string | null
         }
@@ -5772,6 +5796,7 @@ export type Database = {
           number: number | null
           opened_at: string | null
           priority: string
+          protocol: string | null
           reopened_count: number
           requester_client_id: string | null
           requester_email: string | null
@@ -5806,6 +5831,7 @@ export type Database = {
           number?: number | null
           opened_at?: string | null
           priority?: string
+          protocol?: string | null
           reopened_count?: number
           requester_client_id?: string | null
           requester_email?: string | null
@@ -5840,6 +5866,7 @@ export type Database = {
           number?: number | null
           opened_at?: string | null
           priority?: string
+          protocol?: string | null
           reopened_count?: number
           requester_client_id?: string | null
           requester_email?: string | null
@@ -7624,6 +7651,7 @@ export type Database = {
         Returns: Json
       }
       clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
+      generate_ticket_protocol: { Args: { p_mask: string }; Returns: string }
       get_db_cache_hit_ratio: {
         Args: never
         Returns: {
