@@ -9,11 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Loader2, MessageSquare, KanbanSquare, ListChecks, Users } from 'lucide-react';
+import { Loader2, MessageSquare, KanbanSquare, ListChecks, Users, Volume2, VolumeX } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { formatRelativePtBR } from '@/lib/relativeTime';
+import { useSoundAlertSettings } from '@/hooks/useSoundAlertSettings';
+import { toast } from 'sonner';
 
 function fmt(date: string | null | undefined) {
   if (!date) return null;
@@ -27,6 +29,22 @@ function fmtFull(date: string | null | undefined) {
 export function EquipeDashboardTab() {
   const { user } = useAuth();
   const { data: members = [], isLoading } = useTeamMembers();
+  const { settings: soundSettings, isUserMuted, isSoundActiveFor, toggleUserMute } = useSoundAlertSettings();
+
+  const handleToggleSom = (id: number, name: string) => {
+    if (!soundSettings.enabled || toggleUserMute.isPending) return;
+    const muted = isUserMuted(id);
+    const willMute = !muted;
+    toggleUserMute.mutate(
+      { userId: String(id), mute: willMute },
+      {
+        onSuccess: () =>
+          toast.success(willMute ? `Som de ${name} desativado` : `Som de ${name} ativado`),
+        onError: (e: any) =>
+          toast.error(`Erro ao alterar o som: ${e?.message ?? e}`),
+      },
+    );
+  };
 
   // Inclui o próprio usuário logado no dashboard
   const allRows = useMemo(() => {
@@ -109,6 +127,7 @@ export function EquipeDashboardTab() {
                   <TableHead className="w-[110px]">Status</TableHead>
                   <TableHead>Último login</TableHead>
                   <TableHead>Último logout</TableHead>
+                  <TableHead className="text-center w-[70px]">Som</TableHead>
                   <TableHead className="text-center">Chats</TableHead>
                   <TableHead className="text-center">CRM</TableHead>
                   <TableHead className="text-center">Tarefas</TableHead>
@@ -117,7 +136,7 @@ export function EquipeDashboardTab() {
               <TableBody>
                 {sorted.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       Nenhum membro encontrado
                     </TableCell>
                   </TableRow>
@@ -129,6 +148,8 @@ export function EquipeDashboardTab() {
                   const lastSeenAt = lastSeen(row.id);
                   const act = activity[row.id];
                   const m = metrics[String(row.id)] || { open_chats: 0, open_crm_deals: 0, open_tasks: 0 };
+                  const cleanName = (row.name || '').replace(/\s*\(você\)\s*$/, '');
+                  const soundActive = isSoundActiveFor(row.id);
                   const initials = (row.name || '?')
                     .split(' ')
                     .slice(0, 2)
@@ -219,6 +240,33 @@ export function EquipeDashboardTab() {
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSom(row.id, cleanName)}
+                              disabled={!soundSettings.enabled || toggleUserMute.isPending}
+                              className={cn(
+                                'inline-flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+                                soundActive
+                                  ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10'
+                                  : 'text-muted-foreground hover:bg-muted',
+                                !soundSettings.enabled && 'opacity-50 cursor-not-allowed hover:bg-transparent',
+                              )}
+                            >
+                              {soundActive ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {!soundSettings.enabled
+                              ? 'Alerta de som desativado nas configurações do Chat'
+                              : soundActive
+                                ? `Som de ${cleanName} ativo — clique para desativar`
+                                : `Som de ${cleanName} desativado — clique para ativar`}
+                          </TooltipContent>
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="text-center font-medium">{m.open_chats}</TableCell>
                       <TableCell className="text-center font-medium">{m.open_crm_deals}</TableCell>
