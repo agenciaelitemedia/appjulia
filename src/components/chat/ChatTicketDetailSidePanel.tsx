@@ -596,6 +596,74 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Confirmação dupla de exclusão de chamado */}
+      <AlertDialog
+        open={confirmDeleteStep === 1}
+        onOpenChange={(o) => !o && setConfirmDeleteStep(0)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir chamado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação removerá o chamado e todo o seu histórico. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); setConfirmDeleteStep(2); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmDeleteStep === 2}
+        onOpenChange={(o) => !o && setConfirmDeleteStep(0)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão definitiva</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta é a confirmação final. O chamado será excluído permanentemente e não poderá ser recuperado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteTicket.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteTicket.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteTicket.isPending ? 'Excluindo…' : 'Sim, excluir definitivamente'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação de resolução */}
+      <AlertDialog open={confirmResolveOpen} onOpenChange={setConfirmResolveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marcar como resolvido?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O chamado será movido para o status "Resolvido". Você poderá reabri-lo depois.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => { setConfirmResolveOpen(false); await handleStatus('resolved'); }}
+            >
+              Sim, resolver
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
