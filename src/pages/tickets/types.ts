@@ -58,6 +58,8 @@ export interface SupportSettings {
   sla: Record<TicketPriority, SlaTarget>;
   csat_enabled: boolean;
   protocol_mask: string;
+  protocol_auto_send: boolean;
+  protocol_send_template: string;
 }
 
 export const STATUS_LABEL: Record<TicketStatus, string> = {
