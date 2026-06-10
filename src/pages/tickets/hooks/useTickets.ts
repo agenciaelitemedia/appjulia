@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
 import type {
   SupportTicket, TicketMessage, SupportDepartment, SupportCategory, SupportSettings,
   TicketStatus, TicketPriority, TicketRole,
@@ -15,7 +16,10 @@ export function useTicketRole(): TicketRole {
   const { isAdmin, user } = useAuth();
   if (isAdmin) return 'agent';                 // suporte Julia
   if (user?.role === 'user') return 'manager'; // dono do escritório
-  return 'requester';                          // demais usuários do escritório
+  // Membros do escritório (time/advogado/colaborador/comercial) também enxergam
+  // os chamados do client_id do escritório.
+  if (user) return 'manager';
+  return 'requester';
 }
 
 export interface TicketFilters {
@@ -32,20 +36,23 @@ export function useTickets(filters: TicketFilters = {}) {
   const { user } = useAuth();
   const role = useTicketRole();
   const qc = useQueryClient();
-  const clientId = user?.client_id != null ? String(user.client_id) : null;
   const userId = user?.id != null ? String(user.id) : null;
 
   const query = useQuery({
-    queryKey: ['support-tickets', role, userId, clientId],
+    queryKey: ['support-tickets', role, userId, user?.client_id ?? null],
     enabled: !!user,
     queryFn: async () => {
+      const effectiveClientId = await resolveEffectiveClientId(user, 'useTickets');
       let q = db.from('support_tickets')
         .select('*')
         .neq('status', 'closed')
         .order('created_at', { ascending: false })
         .limit(500);
       if (role === 'requester') q = q.eq('requester_user_id', userId);
-      else if (role === 'manager') q = q.eq('requester_client_id', clientId);
+      else if (role === 'manager') {
+        if (!effectiveClientId) return [] as SupportTicket[];
+        q = q.eq('requester_client_id', effectiveClientId);
+      }
       // agent (admin) → todos (exceto fechados)
       const { data, error } = await q;
       if (error) throw error;
