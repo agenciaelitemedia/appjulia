@@ -59,6 +59,12 @@ export function ChatContainer({ className }: ChatContainerProps) {
     | null
   >(null);
 
+  // Fecha o painel de ticket ao mudar de conversa
+  useEffect(() => {
+    setTicketPanel(null);
+  }, [selectedContactId]);
+
+
   return (
     <div className={cn('flex h-full w-full bg-background min-w-0 overflow-hidden', className)}>
       {/* Contact list sidebar */}
