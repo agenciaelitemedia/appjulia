@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, LifeBuoy, Loader2, ExternalLink, Trash2 } from 'lucide-react';
+import {
+  X, LifeBuoy, Loader2, ExternalLink, Trash2,
+  MessageSquare, StickyNote, Send, History,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,17 +12,26 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
 import {
-  useTicket, useTicketMutations, useSupportConfig,
+  useTicket, useTicketMutations, useSupportConfig, useTicketRole, WhatsappDispatchError,
 } from '@/pages/tickets/hooks/useTickets';
+import { useTicketChatTarget } from '@/pages/tickets/hooks/useTicketChatTarget';
 import {
   PRIORITY_LABEL, STATUS_LABEL, STATUS_BADGE,
-  type TicketPriority, type TicketStatus,
+  type TicketPriority, type TicketStatus, type TicketMessage,
 } from '@/pages/tickets/types';
+import { TicketTimeline } from '@/pages/tickets/components/TicketTimeline';
 
 interface Props {
   open: boolean;
@@ -47,14 +59,21 @@ export function ChatTicketDetailSidePanel({ open, onClose, ticketId }: Props) {
 }
 
 function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
   const canEdit = hasPermission('support_tickets', 'edit');
   const canDelete = hasPermission('support_tickets', 'delete');
+  const role = useTicketRole();
+  const isAgent = role === 'agent';
+  const currentUserId = user?.id != null ? String(user.id) : null;
 
-  const { ticket, isLoading } = useTicket(ticketId);
+  const { ticket, messages, isLoading } = useTicket(ticketId);
   const { departments, categories } = useSupportConfig();
-  const { update, setStatus, assign, deleteTicket } = useTicketMutations();
+  const {
+    update, setStatus, assign, deleteTicket,
+    reply, editMessage, deleteMessage,
+  } = useTicketMutations();
   const { data: team = [] } = useTeamByClient();
+  const { data: chatTarget, isLoading: isChatTargetLoading } = useTicketChatTarget(ticket);
 
   const memberOptions: TeamMemberOption[] = useMemo(
     () => (team || []).map((m) => ({ id: m.id, name: m.name, email: m.email, role: m.role, photo: m.photo })),
@@ -69,6 +88,15 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
   const [assignedName, setAssignedName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Composer (aba Conversas)
+  const [draft, setDraft] = useState('');
+  const [internal, setInternal] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendWhatsApp, setSendWhatsApp] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [deleteMsg, setDeleteMsg] = useState<TicketMessage | null>(null);
 
   // Hidrata o formulário quando o ticket carrega
   useEffect(() => {
@@ -153,6 +181,92 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
 
   const isClosed = ticket && ['resolved', 'closed'].includes(ticket.status);
 
+  const visibleMessages = (messages ?? []).filter((m) => isAgent || m.kind !== 'internal');
+  const interactions = visibleMessages.filter((m) => m.kind !== 'event');
+  const events = (messages ?? []).filter((m) => m.kind === 'event');
+
+  // Edição: última mensagem própria, janela de 15min
+  const EDIT_WINDOW_MS = 15 * 60 * 1000;
+  const lastEditable = (() => {
+    const own = interactions
+      .filter(
+        (m) =>
+          m.author_user_id != null &&
+          currentUserId != null &&
+          String(m.author_user_id) === currentUserId,
+      )
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const m = own[0];
+    if (!m) return null;
+    if (Date.now() - new Date(m.created_at).getTime() > EDIT_WINDOW_MS) return null;
+    return m;
+  })();
+  const canEditMessage = (m: TicketMessage) => !!lastEditable && m.id === lastEditable.id;
+
+  const handleSaveEdit = async (m: TicketMessage) => {
+    if (!editDraft.trim()) return;
+    try {
+      await editMessage.mutateAsync({ ticketId, messageId: m.id, body: editDraft.trim() });
+      setEditingId(null);
+      setEditDraft('');
+      toast.success('Mensagem atualizada');
+    } catch {
+      toast.error('Erro ao editar mensagem');
+    }
+  };
+
+  const handleDeleteMessage = async () => {
+    if (!deleteMsg) return;
+    try {
+      await deleteMessage.mutateAsync({
+        ticketId,
+        messageId: deleteMsg.id,
+        kind: deleteMsg.kind as 'public' | 'internal',
+      });
+      toast.success('Mensagem excluída');
+    } catch {
+      toast.error('Erro ao excluir mensagem');
+    } finally {
+      setDeleteMsg(null);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!draft.trim()) return;
+    setSending(true);
+    const wantsWhatsApp =
+      sendWhatsApp && !internal && !!chatTarget?.queueId && !!chatTarget?.contactId;
+    try {
+      await reply.mutateAsync({
+        ticketId,
+        body: draft.trim(),
+        internal: internal && isAgent,
+        sendToWhatsApp: wantsWhatsApp
+          ? {
+              contactId: chatTarget!.contactId!,
+              queueId: chatTarget!.queueId!,
+              conversationId: chatTarget!.conversationId ?? null,
+            }
+          : undefined,
+      });
+      setDraft('');
+      setInternal(false);
+      setSendWhatsApp(false);
+      if (wantsWhatsApp) toast.success('Resposta registrada e enviada ao WhatsApp');
+      else toast.success(internal ? 'Nota interna salva' : 'Resposta registrada');
+    } catch (err) {
+      if (err instanceof WhatsappDispatchError) {
+        toast.success('Resposta registrada no chamado');
+        toast.error(`Falha ao enviar WhatsApp: ${err.message}`);
+        setDraft('');
+        setInternal(false);
+        setSendWhatsApp(false);
+      } else {
+        toast.error('Erro ao enviar resposta');
+      }
+    } finally { setSending(false); }
+  };
+
   return (
     <>
       <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 flex-shrink-0">
@@ -185,14 +299,24 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {isLoading || !ticket ? (
-          <div className="flex items-center justify-center py-10 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
-        ) : (
-          <div className="p-4 space-y-3">
-            <div className="space-y-1">
+      {isLoading || !ticket ? (
+        <div className="flex-1 flex items-center justify-center py-10 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      ) : (
+        <Tabs defaultValue="dados" className="flex-1 flex flex-col min-h-0">
+          <TabsList className="grid grid-cols-3 mx-4 mt-3 flex-shrink-0">
+            <TabsTrigger value="dados">Dados do Ticket</TabsTrigger>
+            <TabsTrigger value="conversas">Conversas</TabsTrigger>
+            <TabsTrigger value="historico" className="gap-1">
+              <History className="h-3.5 w-3.5" /> Histórico
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ============ ABA: DADOS DO TICKET ============ */}
+          <TabsContent value="dados" className="flex-1 flex flex-col min-h-0 mt-0">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="space-y-1">
               <Label>Assunto</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canEdit || saving} />
             </div>
@@ -286,12 +410,8 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
                 {ticket.requester_phone ? ` · ${ticket.requester_phone}` : ''}
               </div>
             )}
-          </div>
-        )}
-      </div>
-
-      {ticket && (
-        <div className="flex items-center justify-between gap-2 px-4 py-3 border-t bg-muted/20 flex-shrink-0">
+            </div>
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-t bg-muted/20 flex-shrink-0">
           <div className="flex items-center gap-2">
             {canDelete && (
               <Button
@@ -321,8 +441,128 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
               {saving ? 'Salvando…' : 'Salvar'}
             </Button>
           </div>
-        </div>
+            </div>
+          </TabsContent>
+
+          {/* ============ ABA: CONVERSAS ============ */}
+          <TabsContent value="conversas" className="flex-1 flex flex-col min-h-0 mt-0">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Sobre este chamado */}
+              <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Sobre este chamado</p>
+                <p className="font-medium">{ticket.subject}</p>
+                {ticket.description && (
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">{ticket.description}</p>
+                )}
+              </div>
+
+              {/* Composer */}
+              <div className="space-y-2">
+                {isAgent && (
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant={internal ? 'outline' : 'default'} onClick={() => setInternal(false)}>
+                      <MessageSquare className="h-4 w-4 mr-1" /> Resposta
+                    </Button>
+                    <Button type="button" size="sm" variant={internal ? 'default' : 'outline'} onClick={() => setInternal(true)}>
+                      <StickyNote className="h-4 w-4 mr-1" /> Nota interna
+                    </Button>
+                  </div>
+                )}
+                <Textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={internal ? 'Nota interna (não visível ao solicitante)' : 'Escreva uma resposta…'}
+                  className="min-h-[70px]"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {isAgent && !internal ? (() => {
+                    const hasChannel = !!chatTarget?.queueId && !!chatTarget?.contactId;
+                    const disabled = !hasChannel || isChatTargetLoading || sending;
+                    const reason = isChatTargetLoading
+                      ? 'Carregando canal…'
+                      : !hasChannel
+                        ? 'Chamado sem conversa de WhatsApp vinculada'
+                        : 'Também envia a resposta ao WhatsApp do solicitante pela fila do chamado';
+                    return (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                id="ticket-panel-send-whatsapp"
+                                checked={sendWhatsApp && hasChannel}
+                                onCheckedChange={setSendWhatsApp}
+                                disabled={disabled}
+                              />
+                              <Label htmlFor="ticket-panel-send-whatsapp" className="text-xs cursor-pointer">
+                                Enviar para WhatsApp
+                              </Label>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>{reason}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })() : <span />}
+                  <Button onClick={handleSend} disabled={sending || !draft.trim()} size="sm">
+                    <Send className="h-4 w-4 mr-1" /> {sending ? 'Enviando…' : internal ? 'Salvar nota' : 'Responder'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Histórico de Conversa */}
+              <div className="space-y-2 border-t pt-3">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <History className="h-4 w-4 text-muted-foreground" /> Histórico de Conversa
+                </h3>
+                {interactions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-8 text-center">Sem respostas ou notas ainda.</p>
+                ) : (
+                  <TicketTimeline
+                    messages={interactions}
+                    edit={{
+                      editingId,
+                      editDraft,
+                      setEditingId,
+                      setEditDraft,
+                      canEditMessage,
+                      onSaveEdit: handleSaveEdit,
+                      onDelete: (m) => setDeleteMsg(m),
+                      saving: editMessage.isPending,
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ============ ABA: HISTÓRICO ============ */}
+          <TabsContent value="historico" className="flex-1 overflow-y-auto p-4 mt-0">
+            <TicketTimeline messages={events} />
+          </TabsContent>
+        </Tabs>
       )}
+
+      <AlertDialog open={!!deleteMsg} onOpenChange={(o) => !o && setDeleteMsg(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir mensagem?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta {deleteMsg?.kind === 'internal' ? 'nota interna' : 'resposta'}? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMessage.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMessage}
+              disabled={deleteMessage.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMessage.isPending ? 'Excluindo…' : 'Sim, excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
