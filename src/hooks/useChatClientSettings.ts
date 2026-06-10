@@ -12,6 +12,9 @@ export interface ChatClientSettings {
   allow_anyone_create_tags: boolean;
   events_enabled: boolean;
   event_visibility: Record<string, boolean>;
+  sound_alert_enabled: boolean;
+  sound_alert_user_can_disable: boolean;
+  sound_alert_muted_users: Record<string, boolean>;
 }
 
 const DEFAULTS: ChatClientSettings = {
@@ -23,6 +26,9 @@ const DEFAULTS: ChatClientSettings = {
   allow_anyone_create_tags: true,
   events_enabled: true,
   event_visibility: {},
+  sound_alert_enabled: true,
+  sound_alert_user_can_disable: true,
+  sound_alert_muted_users: {},
 };
 
 export function useChatClientSettings() {
@@ -53,6 +59,11 @@ export function useChatClientSettings() {
         event_visibility: (s.event_visibility && typeof s.event_visibility === 'object'
           ? s.event_visibility as Record<string, boolean>
           : {}),
+        sound_alert_enabled: Boolean(s.sound_alert_enabled ?? true),
+        sound_alert_user_can_disable: Boolean(s.sound_alert_user_can_disable ?? true),
+        sound_alert_muted_users: (s.sound_alert_muted_users && typeof s.sound_alert_muted_users === 'object'
+          ? s.sound_alert_muted_users as Record<string, boolean>
+          : {}),
       };
     },
   });
@@ -76,6 +87,7 @@ export function useChatClientSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chat-client-settings', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['sound-alert-settings', clientId] });
       toast.success('Configuração salva');
     },
     onError: (e: any) => toast.error(`Erro ao salvar: ${e.message}`),

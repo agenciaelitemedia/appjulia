@@ -1,9 +1,10 @@
-import { Menu, Bell, Search, LogOut, User, Settings, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Menu, Search, LogOut, User, Settings, PanelLeftClose, PanelLeft, Volume2, VolumeX } from 'lucide-react';
 import { HeaderDialer } from './HeaderDialer';
 import { PushNotificationOptIn } from '@/components/notifications/PushNotificationOptIn';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSoundAlertSettings } from '@/hooks/useSoundAlertSettings';
 import {
   Tooltip,
   TooltipContent,
@@ -28,6 +30,34 @@ interface HeaderProps {
 
 export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
   const { user, logout } = useAuth();
+  const { settings: soundSettings, isUserMuted, toggleUserMute } = useSoundAlertSettings();
+
+  const myId = String(user?.id ?? '');
+  const muted = isUserMuted(myId);
+  const soundOn = soundSettings.enabled && !muted;
+  const canToggleSound = soundSettings.enabled && soundSettings.userCanDisable;
+
+  const soundTooltip = !soundSettings.enabled
+    ? 'Alerta de som desativado pelo administrador'
+    : !soundSettings.userCanDisable
+      ? 'Seu administrador não permite desativar o alerta'
+      : soundOn
+        ? 'Som de novas mensagens ativo — clique para desativar'
+        : 'Som de novas mensagens desativado — clique para ativar';
+
+  const handleToggleSound = () => {
+    if (!canToggleSound || toggleUserMute.isPending || !myId) return;
+    const willMute = !muted;
+    toggleUserMute.mutate(
+      { userId: myId, mute: willMute },
+      {
+        onSuccess: () =>
+          toast.success(willMute ? 'Alerta de som desativado' : 'Alerta de som ativado'),
+        onError: (e: any) =>
+          toast.error(`Erro ao alterar o alerta de som: ${e?.message ?? e}`),
+      },
+    );
+  };
 
   // Avatar (clients.photo) is hydrated by AuthContext into `user.avatar`,
   // cached per client_id in localStorage. No fetch needed here.
@@ -100,12 +130,28 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
           {/* Phone Dialer */}
           <HeaderDialer />
 
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
-            <span className="sr-only">Notificações</span>
-          </Button>
+          {/* Alerta de som de novas mensagens */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleToggleSound}
+                  disabled={!canToggleSound || toggleUserMute.isPending}
+                  className="relative disabled:opacity-100"
+                >
+                  {soundOn ? (
+                    <Volume2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  ) : (
+                    <VolumeX className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  <span className="sr-only">Alerta de som</span>
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{soundTooltip}</TooltipContent>
+          </Tooltip>
 
           {/* User Menu */}
           <DropdownMenu>

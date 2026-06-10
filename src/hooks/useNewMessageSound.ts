@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { externalDb } from '@/lib/externalDb';
+import { useSoundAlertSettings } from '@/hooks/useSoundAlertSettings';
 
 const SOUND_URL = '/som/nova-mensagem.mp3';
 const THROTTLE_MS = 2000;
@@ -21,39 +21,20 @@ const MAX_KNOWN_IDS = 500;
  */
 export function useNewMessageSound() {
   const { user } = useAuth();
-  const [clientId, setClientId] = useState<string | null>(null);
+  const { clientId, settings } = useSoundAlertSettings();
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const unlockedRef = useRef(false);
   const lastPlayedAtRef = useRef(0);
   const knownIdsRef = useRef<Set<string>>(new Set());
+  const allowedRef = useRef(true);
 
-  // Resolve o client_id efetivo (próprio ou herdado do dono do escritório)
+  // Gate: só toca se o alerta do cliente estiver ativo e o usuário não estiver silenciado.
+  // Mantido em ref para não reassinar o canal Realtime a cada mudança.
   useEffect(() => {
-    let cancelled = false;
-
-    const resolve = async () => {
-      if (!user?.id) {
-        if (!cancelled) setClientId(null);
-        return;
-      }
-      if (user.client_id) {
-        if (!cancelled) setClientId(String(user.client_id));
-        return;
-      }
-      try {
-        const inherited = await externalDb.getEffectiveClientId(Number(user.id));
-        if (!cancelled) setClientId(inherited ? String(inherited) : null);
-      } catch {
-        if (!cancelled) setClientId(null);
-      }
-    };
-
-    resolve();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, user?.client_id]);
+    const myId = String(user?.id ?? '');
+    allowedRef.current = settings.enabled && !settings.mutedUsers[myId];
+  }, [settings, user?.id]);
 
   // Pré-carrega o áudio e destrava na primeira interação do usuário
   useEffect(() => {
@@ -94,6 +75,7 @@ export function useNewMessageSound() {
     if (!clientId) return;
 
     const playAlert = () => {
+      if (!allowedRef.current) return;
       const now = Date.now();
       if (now - lastPlayedAtRef.current < THROTTLE_MS) return;
       lastPlayedAtRef.current = now;
