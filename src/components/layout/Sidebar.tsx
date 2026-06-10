@@ -30,6 +30,7 @@ import { useEnsureChatAdminModule } from "@/hooks/useEnsureChatAdminModule";
 import { useEnsureVideoModule } from "@/hooks/useEnsureVideoModule";
 import { useEnsureNotifyModule } from "@/hooks/useEnsureNotifyModule";
 import { useEnsureTicketsModule } from "@/hooks/useEnsureTicketsModule";
+import { useEnsureHelpCenterModule } from "@/hooks/useEnsureHelpCenterModule";
 import {
   Tooltip,
   TooltipContent,
@@ -72,6 +73,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureVideoModule();
   useEnsureNotifyModule();
   useEnsureTicketsModule();
+  useEnsureHelpCenterModule();
 
   const isTimeUser = user?.role === "time";
   
