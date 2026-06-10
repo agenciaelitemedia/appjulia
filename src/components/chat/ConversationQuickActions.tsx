@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ChevronDown, UserPlus, ArrowRightLeft, CheckCircle2, Loader2 } from 'lucide-react';
+import { ChevronDown, UserPlus, ArrowRightLeft, CheckCircle2, Loader2, LifeBuoy, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { TransferDialog } from './TransferDialog';
@@ -15,12 +16,15 @@ import { useAutoSummaryOnStatusChange } from '@/hooks/useAutoSummaryOnStatusChan
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ChatConversation } from '@/types/conversation';
+import type { TicketConversationLink } from '@/hooks/useTicketLinkedConversations';
 
 interface Props {
   conversation: ChatConversation;
+  ticketLink?: TicketConversationLink;
+  onOpenTicket?: (mode: 'create' | 'detail', ticketId?: string) => void;
 }
 
-export function ConversationQuickActions({ conversation }: Props) {
+export function ConversationQuickActions({ conversation, ticketLink, onOpenTicket }: Props) {
   const { user } = useAuth();
   const { assignConversation, updateConversationStatus, sendInternalNote } = useWhatsAppData();
   const { triggerAutoSummary } = useAutoSummaryOnStatusChange();
@@ -30,6 +34,8 @@ export function ConversationQuickActions({ conversation }: Props) {
   const [busy, setBusy] = useState(false);
 
   const currentUserName = user?.name || (user?.id ? String(user.id) : '');
+  const canSeeTicketAction =
+    !!onOpenTicket && (user?.role === 'admin' || user?.role === 'colaborador');
 
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -143,6 +149,32 @@ export function ConversationQuickActions({ conversation }: Props) {
             <CheckCircle2 className="h-4 w-4 mr-2" />
             Encerrar conversa
           </DropdownMenuItem>
+          {canSeeTicketAction && (
+            <>
+              <DropdownMenuSeparator />
+              {ticketLink ? (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    stop(e);
+                    onOpenTicket!('detail', ticketLink.ticketId);
+                  }}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Ver ticket de suporte #{ticketLink.number ?? '—'}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    stop(e);
+                    onOpenTicket!('create');
+                  }}
+                >
+                  <LifeBuoy className="h-4 w-4 mr-2" />
+                  Abrir ticket de suporte
+                </DropdownMenuItem>
+              )}
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
