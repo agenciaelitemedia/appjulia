@@ -1669,7 +1669,6 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     onOpenTicket={
                       onOpenTicketPanel
                         ? (mode, ticketId) => {
-                            selectContact(contact.id);
                             onOpenTicketPanel(contact, mode, ticketId, conv);
                           }
                         : undefined
