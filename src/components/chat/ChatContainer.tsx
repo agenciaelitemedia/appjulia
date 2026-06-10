@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChatList } from './ChatList';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessages } from './ChatMessages';
@@ -58,6 +58,12 @@ export function ChatContainer({ className }: ChatContainerProps) {
     | { mode: 'detail'; contact: ChatContact; ticketId: string }
     | null
   >(null);
+
+  // Fecha o painel de ticket ao mudar de conversa
+  useEffect(() => {
+    setTicketPanel(null);
+  }, [selectedContactId]);
+
 
   return (
     <div className={cn('flex h-full w-full bg-background min-w-0 overflow-hidden', className)}>
