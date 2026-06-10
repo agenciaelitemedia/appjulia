@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, LifeBuoy, Loader2, ExternalLink, Trash2,
-  MessageSquare, StickyNote, Send, History,
+  MessageSquare, StickyNote, Send, History, User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -319,6 +319,22 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
             className="flex-1 flex flex-col min-h-0 mt-0 overflow-hidden data-[state=inactive]:hidden"
           >
             <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+              {/* Destaque do solicitante no topo */}
+              {ticket.requester_name && (
+                <div className="flex items-center gap-2 rounded-lg border bg-primary/5 border-primary/20 px-3 py-2">
+                  <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <User className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs text-muted-foreground leading-none">Solicitante</div>
+                    <div className="text-sm font-semibold truncate">
+                      {ticket.requester_name}
+                      {ticket.requester_phone ? ` · ${ticket.requester_phone}` : ''}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1">
               <Label>Assunto</Label>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!canEdit || saving} />
@@ -407,12 +423,6 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
               </div>
             </div>
 
-            {ticket.requester_name && (
-              <div className="text-xs text-muted-foreground pt-1">
-                Solicitante: <span className="text-foreground">{ticket.requester_name}</span>
-                {ticket.requester_phone ? ` · ${ticket.requester_phone}` : ''}
-              </div>
-            )}
             </div>
             <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t bg-muted/20 flex-shrink-0">
               {canDelete && (
