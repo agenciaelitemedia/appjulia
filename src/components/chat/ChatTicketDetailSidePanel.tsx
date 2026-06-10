@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, LifeBuoy, Loader2, ExternalLink, Trash2,
-  MessageSquare, StickyNote, Send, History,
+  MessageSquare, StickyNote, Send, History, User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
