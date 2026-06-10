@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   X, LifeBuoy, Loader2, ExternalLink, Trash2,
   MessageSquare, StickyNote, Send, History, User,
@@ -60,6 +61,7 @@ export function ChatTicketDetailSidePanel({ open, onClose, ticketId }: Props) {
 
 function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) {
   const { hasPermission, user } = useAuth();
+  const navigate = useNavigate();
   const canEdit = hasPermission('support_tickets', 'edit');
   const canDelete = hasPermission('support_tickets', 'delete');
   const role = useTicketRole();
@@ -297,7 +299,7 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => window.open(`/tickets/${ticket.id}`, '_blank', 'noopener')}
+              onClick={() => { onClose(); navigate(`/tickets/${ticket.id}`); }}
               title="Abrir no módulo de chamados"
             >
               <ExternalLink className="h-4 w-4" />
