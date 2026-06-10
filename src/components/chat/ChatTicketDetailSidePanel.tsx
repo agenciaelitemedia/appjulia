@@ -87,7 +87,8 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
   const [categoryId, setCategoryId] = useState<string>('');
   const [assignedName, setAssignedName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDeleteStep, setConfirmDeleteStep] = useState<0 | 1 | 2>(0);
+  const [confirmResolveOpen, setConfirmResolveOpen] = useState(false);
 
   // Composer (aba Conversas)
   const [draft, setDraft] = useState('');
@@ -169,10 +170,10 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
 
   const handleDelete = async () => {
     if (!canDelete) return;
-    if (!confirmDelete) { setConfirmDelete(true); return; }
     try {
       await deleteTicket.mutateAsync(ticketId);
       toast.success('Chamado excluído');
+      setConfirmDeleteStep(0);
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao excluir chamado');
@@ -416,7 +417,9 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(Object.keys(STATUS_LABEL) as TicketStatus[]).map((s) => (
-                      <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
+                      s === 'resolved' || s === 'closed' ? null : (
+                        <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
+                      )
                     ))}
                   </SelectContent>
                 </Select>
@@ -427,19 +430,18 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
             <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-t bg-muted/20 flex-shrink-0">
               {canDelete && (
                 <Button
-                  variant={confirmDelete ? 'destructive' : 'ghost'}
+                  variant="ghost"
                   size="sm"
-                  onClick={handleDelete}
-                  onBlur={() => setConfirmDelete(false)}
-                  title={confirmDelete ? 'Clique novamente para confirmar' : 'Excluir chamado'}
+                  onClick={() => setConfirmDeleteStep(1)}
+                  title="Excluir chamado"
                   className="mr-auto"
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
-                  {confirmDelete ? 'Confirmar' : 'Excluir'}
+                  Excluir
                 </Button>
               )}
               {!isClosed && canEdit && (
-                <Button variant="outline" size="sm" onClick={() => handleStatus('resolved')}>
+                <Button variant="outline" size="sm" onClick={() => setConfirmResolveOpen(true)}>
                   Resolver
                 </Button>
               )}
@@ -589,6 +591,74 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMessage.isPending ? 'Excluindo…' : 'Sim, excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação dupla de exclusão de chamado */}
+      <AlertDialog
+        open={confirmDeleteStep === 1}
+        onOpenChange={(o) => !o && setConfirmDeleteStep(0)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir chamado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação removerá o chamado e todo o seu histórico. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); setConfirmDeleteStep(2); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmDeleteStep === 2}
+        onOpenChange={(o) => !o && setConfirmDeleteStep(0)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão definitiva</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta é a confirmação final. O chamado será excluído permanentemente e não poderá ser recuperado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteTicket.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteTicket.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteTicket.isPending ? 'Excluindo…' : 'Sim, excluir definitivamente'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmação de resolução */}
+      <AlertDialog open={confirmResolveOpen} onOpenChange={setConfirmResolveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Marcar como resolvido?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O chamado será movido para o status "Resolvido". Você poderá reabri-lo depois.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => { setConfirmResolveOpen(false); await handleStatus('resolved'); }}
+            >
+              Sim, resolver
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
