@@ -9,7 +9,7 @@ import { Plus, Trash2, Save, Hash } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { useSupportConfig, useSupportConfigMutations } from '../hooks/useTickets';
 import { PRIORITY_LABEL, type TicketPriority, type SlaTarget } from '../types';
-import { renderProtocolMaskPreview } from '../lib/protocolMask';
+import { useProtocolPreview, renderProtocolMaskPreview } from '@/lib/protocol';
 
 export function SupportSettingsTab() {
   const { departments, categories, settings } = useSupportConfig();
@@ -33,7 +33,7 @@ export function SupportSettingsTab() {
     }
   }, [settings]);
 
-  const protocolPreview = useMemo(() => renderProtocolMaskPreview(protocolMask, 1), [protocolMask]);
+  const protocolPreview = useProtocolPreview(protocolMask, 1);
 
   const saveProtocolMask = () => {
     saveSettings.mutate({ protocol_mask: protocolMask } as any, {

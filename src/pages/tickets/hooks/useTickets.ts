@@ -321,7 +321,14 @@ export function useTicketMutations() {
         sla_first_response_due_at: sla ? new Date(now + sla.firstResponseMins * 60000).toISOString() : null,
         sla_resolution_due_at: sla ? new Date(now + sla.resolutionMins * 60000).toISOString() : null,
       };
-      const { data, error } = await db.from('support_tickets').insert(payload).select('id').single();
+      // Gera protocolo no client via RPC (atômico). Trigger no banco serve como fallback.
+      let protocol: string | null = null;
+      try {
+        const { protocolService } = await import('@/lib/protocol');
+        protocol = await protocolService.generateForSupportTicket();
+      } catch { /* fallback no trigger */ }
+      const finalPayload = protocol ? { ...payload, protocol } : payload;
+      const { data, error } = await db.from('support_tickets').insert(finalPayload).select('id').single();
       if (error) throw error;
       await logEvent(data.id, 'created', 'Chamado aberto');
       return data.id as string;
