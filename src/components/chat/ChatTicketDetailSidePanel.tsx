@@ -87,7 +87,6 @@ function Body({ ticketId, onClose }: { ticketId: string; onClose: () => void }) 
   const [categoryId, setCategoryId] = useState<string>('');
   const [assignedName, setAssignedName] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [confirmDeleteStep, setConfirmDeleteStep] = useState<0 | 1 | 2>(0);
   const [confirmResolveOpen, setConfirmResolveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
