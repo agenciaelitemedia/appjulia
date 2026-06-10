@@ -166,11 +166,11 @@ function ChatTicketForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Nome</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <Input value={name} onChange={(e) => setName(e.target.value)} disabled />
         </div>
         <div className="space-y-1">
           <Label>Telefone</Label>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(opcional)" />
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(opcional)" disabled />
         </div>
       </div>
 
