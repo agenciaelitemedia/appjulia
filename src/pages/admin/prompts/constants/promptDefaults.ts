@@ -59,6 +59,8 @@ export const DEFAULT_CONTRACT_FIELDS: ContractField[] = [
   { label: 'Nome do Filho', value: 'nome_filho', checked: false },
   { label: 'CPF do Filho', value: 'cpf_filho', checked: false },
   { label: 'Data de Nascimento do Filho', value: 'nascimento_filho', checked: false },
+  { label: 'Estado Civil', value: '{{Estado Civil}}', checked: false },
+  { label: 'Nacionalidade', value: '{{Naturalidade}}', checked: false },
 ];
 
 export function processNegotiationText(
