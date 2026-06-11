@@ -43,10 +43,16 @@ export function CaseCustomizeDialog({ open, onOpenChange, caseData, onSave, temp
 
   useEffect(() => {
     if (caseData) {
+      const existing = caseData.contract_fields?.length ? caseData.contract_fields : [];
+      const existingValues = new Set(existing.map(f => f.value));
+      const merged = [
+        ...existing,
+        ...DEFAULT_CONTRACT_FIELDS.filter(f => !existingValues.has(f.value)),
+      ];
       setData({
         ...caseData,
         zapsign_token: caseData.zapsign_token || DEFAULT_ZAPSIGN_TOKEN,
-        contract_fields: caseData.contract_fields?.length ? caseData.contract_fields : DEFAULT_CONTRACT_FIELDS,
+        contract_fields: merged.length ? merged : DEFAULT_CONTRACT_FIELDS,
         fees_text: caseData.fees_text || DEFAULT_FEES_TEXT,
         closing_model_text: caseData.closing_model_text || templateClosingModel,
       });
