@@ -1,29 +1,49 @@
 ## Objetivo
-Permitir o backfill (restauração) de histórico para grupos do WhatsApp **apenas quando** o cliente tem `ALLOW_GROUPS = true` em `chat_client_settings`. Quando o flag estiver desligado, mantém o comportamento atual (grupos são ignorados).
 
-## Onde fica a regra hoje
-Edge Function `supabase/functions/uazapi-chat-backfill/index.ts` (linhas 144–150) descarta sempre o backfill se o `chat_id`/contato for de grupo (`@g.us`), marcando `history_backfilled = true` e retornando `skipped: 'group_history_ignored'`.
+No detalhe do chamado (`/tickets/:id`), permitir colar (Ctrl/Cmd+V) uma imagem dentro do textarea de "Resposta/Nota interna". A imagem aparece como pré-visualização abaixo do texto, é enviada anexada à mensagem do chamado e, se "Enviar para WhatsApp" estiver ligado, também é enviada como mídia na conversa do solicitante.
 
-Adicionalmente, o filtro de mensagens (linha 210) remove qualquer mensagem que `isGroupMessage()` reconheça, mesmo quando a busca for de um grupo.
+Anexos do módulo de chamados ficam **separados** dos anexos do chat: novo bucket `ticket-media` e nova edge function `ticket-media-upload`. A coluna `attachments jsonb` em `support_ticket_messages` já existe — sem migração.
 
-## Mudança proposta
-1. Em `uazapi-chat-backfill`, ao detectar que o chat é grupo:
-   - Buscar `chat_client_settings.settings->>'ALLOW_GROUPS'` do `client_id` da fila.
-   - Se `ALLOW_GROUPS = false` (ou registro inexistente) → manter o skip atual.
-   - Se `ALLOW_GROUPS = true` → seguir o fluxo de backfill em modo grupo:
-     - `targetChatId` = JID de grupo (`<id>@g.us`) em vez de forçar `@s.whatsapp.net`.
-     - Pular as validações de telefone (8–13 dígitos) que só fazem sentido para contatos pessoais.
-     - **Não** aplicar `messages.filter(!isGroupMessage)` quando o próprio chat é grupo (caso contrário tudo seria descartado).
-     - Persistir as mensagens normalmente em `chat_messages`, mantendo `channel_type = 'whatsapp_uazapi'` e marcando `metadata.backfilled = true`.
+## Mudanças
 
-2. Nenhuma mudança de UI nem de schema. A flag `ALLOW_GROUPS` continua sendo gerenciada na tela atual de Configurações > Chat.
+### 1. Storage — novo bucket `ticket-media`
+- Criar bucket público `ticket-media` via tool (`supabase--storage_create_bucket`).
+- Path padrão: `tickets/<ticket_id>/<uuid>-<filename>`.
+- Independente de `chat-media`; políticas RLS em `storage.objects` permitindo upload por `service_role` (a edge function usa service role) e leitura pública (bucket público).
 
-## Itens fora do escopo
-- Não altera o filtro de grupos do webhook em tempo real (`uazapi-chat-webhook`) — só backfill sob demanda.
-- Não altera o `uazapi-history-processor` em massa, que continua ignorando grupos.
-- Não cria toggle por fila — o critério continua sendo por cliente (`ALLOW_GROUPS`).
+### 2. Edge function — `supabase/functions/ticket-media-upload/index.ts`
+- Estrutura espelhada de `chat-media-upload`, mas grava em `ticket-media` e em `tickets/<ticketId>/...`.
+- Input: `{ base64, mimetype, fileName, ticketId, source: 'outgoing' | 'incoming' }`.
+- Retorna `{ url, path, mimetype }` com URL pública.
+- Sem dependência de `contactId`/`clientId` (ticket é a unidade do módulo).
 
-## Riscos / pontos de atenção
-- Volume: grupos podem trazer muitas mensagens; manter o `limit` atual (default 50) por chamada.
-- `sender_name`: em grupo, o autor real vem em `msg.participant`/`key.participant`. Vamos preencher `sender_name` com o melhor disponível (`pushName` → `participant`).
-- Idempotência mantida via `onConflict: 'message_id', ignoreDuplicates: true`.
+### 3. Composer — `src/pages/tickets/TicketDetailPage.tsx`
+- Novo estado: `pastedImage: { file: File; previewUrl: string } | null`.
+- `onPaste` no `<Textarea>`: percorre `clipboardData.items`; se houver `image/*`, captura o `File`, gera `URL.createObjectURL` e armazena (`preventDefault` apenas quando há imagem; texto continua colando normalmente).
+- Abaixo do textarea, quando `pastedImage` existir: thumbnail (~120px) com botão "X" para remover (revoga objectURL).
+- `handleSend`: permite envio quando `draft.trim()` OU `pastedImage` (botão desabilitado só se ambos vazios). Passa `attachment: pastedImage?.file` para `reply.mutateAsync`. Após sucesso limpa `pastedImage`.
+
+### 4. Mutation `reply` — `src/pages/tickets/hooks/useTickets.ts`
+- Aceitar novo campo opcional `attachment?: File`.
+- Quando houver `attachment`:
+  - Ler como base64 e chamar `supabase.functions.invoke('ticket-media-upload', { body: { base64, mimetype, fileName, ticketId, source: 'outgoing' } })`.
+  - Inserir `support_ticket_messages` com `attachments: [{ type: 'image', url, mimetype, file_name }]` (permitir `body` vazio quando houver anexo).
+- Se `sendToWhatsApp` ativo + houver `attachment`: chamar `dispatchToWhatsApp` com `media: { url, mimetype, fileName, type: 'image', caption: body || null, base64 }`.
+
+### 5. `dispatchToWhatsApp` — `src/pages/tickets/hooks/useTickets.ts`
+- Novo parâmetro opcional `media`.
+- Quando `media` presente:
+  - **WABA**: `POST /messages` com `type: 'image'`, `image: { link: media.url, caption }`.
+  - **UaZapi**: `POST /send/media` com `{ number, type: 'image', file: media.url, text: caption, fileName }` (fallback para `data:` base64 se a URL falhar).
+  - Persistir em `chat_messages` com `type: 'image'`, `media_url: media.url`, `caption`, `metadata: { support_ticket_id, mimetype, attachment_bucket: 'ticket-media' }`.
+- Sem `media`: comportamento de texto atual inalterado.
+
+### 6. Renderização — `src/pages/tickets/components/TicketTimeline.tsx`
+- Se `m.attachments` for array, renderizar miniaturas: `<img src={a.url} className="mt-2 max-h-64 rounded-md border cursor-zoom-in" />`, click abre em nova aba. Tipos não-imagem viram link com `file_name`.
+- `TicketMessage` em `src/pages/tickets/types.ts`: adicionar `attachments?: Array<{ type: string; url: string; mimetype?: string; file_name?: string }>`.
+
+## Observações
+- Sem migração SQL (`attachments jsonb` já existe; bucket criado por tool, não por SQL).
+- Drag-and-drop e botão de "anexar arquivo" ficam fora — somente colar imagem, como solicitado.
+- Upload é best-effort para o registro do ticket (fallback inline data URL), mas obrigatório para envio ao WhatsApp (sem URL → toast de erro e mensagem permanece só no ticket, padrão `WhatsappDispatchError` atual).
+- Memória nova a registrar após implementação: "Anexos de /tickets vivem em bucket `ticket-media`; chat usa `chat-media`."
