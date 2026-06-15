@@ -183,8 +183,9 @@ async function dispatchToWhatsApp(params: {
   conversationId: string | null;
   body: string;
   senderName: string | null;
+  media?: { url: string; mimetype: string; fileName: string; type: 'image'; caption?: string | null } | null;
 }): Promise<{ queueName: string | null }> {
-  const { ticketId, queueId, contactId, conversationId, body, senderName } = params;
+  const { ticketId, queueId, contactId, conversationId, body, senderName, media } = params;
   const { data: queue, error: qerr } = await db
     .from('queues')
     .select('id, name, channel_type, evo_url, evo_apikey, waba_token, waba_number_id')
@@ -205,15 +206,23 @@ async function dispatchToWhatsApp(params: {
       if (!queue.waba_token || !queue.waba_number_id) {
         throw new WhatsappDispatchError('Credenciais WABA ausentes na fila');
       }
+      const wabaPayload = media
+        ? {
+            messaging_product: 'whatsapp',
+            to: contact.phone,
+            type: 'image',
+            image: { link: media.url, caption: media.caption || body || undefined },
+          }
+        : {
+            messaging_product: 'whatsapp',
+            to: contact.phone,
+            type: 'text',
+            text: { body },
+          };
       const r = await fetch(`https://graph.facebook.com/v22.0/${queue.waba_number_id}/messages`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${queue.waba_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: contact.phone,
-          type: 'text',
-          text: { body },
-        }),
+        body: JSON.stringify(wabaPayload),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new WhatsappDispatchError(`WABA ${r.status}: ${j?.error?.message || 'falha no envio'}`);
@@ -223,10 +232,20 @@ async function dispatchToWhatsApp(params: {
         throw new WhatsappDispatchError('Credenciais UaZapi ausentes na fila');
       }
       const baseUrl = String(queue.evo_url).replace(/\/+$/, '');
-      const r = await fetch(`${baseUrl}/send/text`, {
+      const endpoint = media ? `${baseUrl}/send/media` : `${baseUrl}/send/text`;
+      const reqBody = media
+        ? {
+            number: contact.phone,
+            type: 'image',
+            file: media.url,
+            text: media.caption || body || '',
+            fileName: media.fileName,
+          }
+        : { number: contact.phone, text: body, linkPreview: true };
+      const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', token: String(queue.evo_apikey) },
-        body: JSON.stringify({ number: contact.phone, text: body, linkPreview: true }),
+        body: JSON.stringify(reqBody),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new WhatsappDispatchError(`UaZapi ${r.status}: ${j?.error || j?.message || 'falha no envio'}`);
@@ -239,23 +258,28 @@ async function dispatchToWhatsApp(params: {
 
   // Persistir na conversa para aparecer no histórico do chat
   try {
+    const previewText = media ? (media.caption || body || '📷 Imagem') : body;
     await db.from('chat_messages').insert({
       contact_id: contactId,
       client_id: contact.client_id,
       conversation_id: conversationId,
-      text: body,
-      type: 'text',
+      text: media ? (media.caption || body || null) : body,
+      caption: media ? (media.caption || body || null) : null,
+      type: media ? media.type : 'text',
+      media_url: media?.url ?? null,
       from_me: true,
       status: 'sent',
       message_id: externalMessageId,
       external_id: externalMessageId,
       timestamp: new Date().toISOString(),
       sender_name: senderName || 'Suporte',
-      metadata: { support_ticket_id: ticketId },
+      metadata: media
+        ? { support_ticket_id: ticketId, mimetype: media.mimetype, attachment_bucket: 'ticket-media' }
+        : { support_ticket_id: ticketId },
     });
     await db.from('chat_contacts').update({
       last_message_at: new Date().toISOString(),
-      last_message_text: body,
+      last_message_text: previewText,
     }).eq('id', contactId);
   } catch (e) {
     console.error('[dispatchToWhatsApp] persist failed', e);
