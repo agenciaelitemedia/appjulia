@@ -403,9 +403,45 @@ export default function TicketDetailPage() {
               <Textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                onPaste={(e) => {
+                  const items = e.clipboardData?.items;
+                  if (!items) return;
+                  for (let i = 0; i < items.length; i++) {
+                    const it = items[i];
+                    if (it.kind === 'file' && it.type.startsWith('image/')) {
+                      const f = it.getAsFile();
+                      if (f) {
+                        e.preventDefault();
+                        if (pastedImage?.previewUrl) URL.revokeObjectURL(pastedImage.previewUrl);
+                        setPastedImage({ file: f, previewUrl: URL.createObjectURL(f) });
+                      }
+                      break;
+                    }
+                  }
+                }}
                 placeholder={internal ? 'Nota interna (não visível ao solicitante)' : 'Escreva uma resposta…'}
                 className="min-h-[70px]"
               />
+              {pastedImage && (
+                <div className="relative inline-block">
+                  <img
+                    src={pastedImage.previewUrl}
+                    alt="Imagem colada"
+                    className="max-h-32 rounded-md border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      URL.revokeObjectURL(pastedImage.previewUrl);
+                      setPastedImage(null);
+                    }}
+                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border shadow flex items-center justify-center hover:bg-muted"
+                    aria-label="Remover imagem"
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 {isAgent && !internal ? (
                   (() => {
@@ -438,7 +474,7 @@ export default function TicketDetailPage() {
                     );
                   })()
                 ) : <span />}
-                <Button onClick={handleSend} disabled={sending || !draft.trim()}>
+                <Button onClick={handleSend} disabled={sending || (!draft.trim() && !pastedImage)}>
                   <Send className="h-4 w-4 mr-1" /> {sending ? 'Enviando…' : internal ? 'Salvar nota' : 'Responder'}
                 </Button>
               </div>
