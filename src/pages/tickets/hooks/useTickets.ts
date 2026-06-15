@@ -405,52 +405,59 @@ export function useTicketMutations() {
 
   const reply = useMutation({
     mutationFn: async ({
-      ticketId, body, internal, sendToWhatsApp, attachment,
+      ticketId, body, internal, sendToWhatsApp, attachment, attachments,
     }: {
       ticketId: string;
       body: string;
       internal: boolean;
       sendToWhatsApp?: { contactId: string; queueId: string; conversationId: string | null };
       attachment?: File | null;
+      attachments?: File[];
     }) => {
-      // Upload do anexo (best-effort para registro do ticket; obrigatório para WhatsApp)
-      let uploaded:
-        | { url: string; mimetype: string; fileName: string; type: 'image'; base64?: string }
-        | null = null;
-      if (attachment) {
+      // Normaliza lista de anexos (suporta múltiplas imagens; compat: `attachment`).
+      const files: File[] = [
+        ...(attachments ?? []),
+        ...(attachment ? [attachment] : []),
+      ];
+      type UploadedMedia = { url: string; mimetype: string; fileName: string; type: 'image' };
+      const uploaded: UploadedMedia[] = [];
+      let uploadFailed = false;
+      for (const file of files) {
         const base64 = await new Promise<string>((resolve, reject) => {
           const r = new FileReader();
           r.onload = () => resolve((r.result as string).split(',')[1] ?? '');
           r.onerror = reject;
-          r.readAsDataURL(attachment);
+          r.readAsDataURL(file);
         });
         try {
           const { data, error } = await db.functions.invoke('ticket-media-upload', {
             body: {
               base64,
-              mimetype: attachment.type || 'application/octet-stream',
-              fileName: attachment.name,
+              mimetype: file.type || 'application/octet-stream',
+              fileName: file.name,
               ticketId,
               source: 'outgoing',
             },
           });
           if (error) throw error;
           if (data?.url) {
-            uploaded = {
+            uploaded.push({
               url: data.url as string,
-              mimetype: (data.mimetype as string) || attachment.type || 'application/octet-stream',
-              fileName: attachment.name,
+              mimetype: (data.mimetype as string) || file.type || 'application/octet-stream',
+              fileName: file.name,
               type: 'image',
-              base64,
-            };
+            });
+          } else {
+            uploadFailed = true;
           }
         } catch (e) {
+          uploadFailed = true;
           console.warn('[ticket reply] upload failed (continuing):', e);
         }
       }
 
-      const attachmentsForRow = uploaded
-        ? [{ type: uploaded.type, url: uploaded.url, mimetype: uploaded.mimetype, file_name: uploaded.fileName }]
+      const attachmentsForRow = uploaded.length > 0
+        ? uploaded.map((u) => ({ type: u.type, url: u.url, mimetype: u.mimetype, file_name: u.fileName }))
         : null;
 
       const { data: inserted, error: insertError } = await db
@@ -480,24 +487,41 @@ export function useTicketMutations() {
       }
       // Envio opcional ao WhatsApp do solicitante
       if (!internal && sendToWhatsApp?.queueId && sendToWhatsApp?.contactId) {
-        if (attachment && !uploaded) {
-          throw new WhatsappDispatchError('Falha ao subir imagem para envio ao WhatsApp');
+        if (files.length > 0 && uploaded.length !== files.length) {
+          throw new WhatsappDispatchError('Falha ao subir uma ou mais imagens para envio ao WhatsApp');
         }
-        const { queueName } = await dispatchToWhatsApp({
-          ticketId,
-          queueId: sendToWhatsApp.queueId,
-          contactId: sendToWhatsApp.contactId,
-          conversationId: sendToWhatsApp.conversationId,
-          body,
-          senderName: actor.name,
-          media: uploaded
-            ? { url: uploaded.url, mimetype: uploaded.mimetype, fileName: uploaded.fileName, type: 'image', caption: body || null }
-            : null,
-        });
+        let queueLabel: string | null = null;
+        if (uploaded.length > 0) {
+          // Envia cada imagem como mensagem de mídia. Caption só na primeira (com o texto).
+          for (let i = 0; i < uploaded.length; i++) {
+            const u = uploaded[i];
+            const caption = i === 0 ? (body || null) : null;
+            const { queueName } = await dispatchToWhatsApp({
+              ticketId,
+              queueId: sendToWhatsApp.queueId,
+              contactId: sendToWhatsApp.contactId,
+              conversationId: sendToWhatsApp.conversationId,
+              body: caption ?? '',
+              senderName: actor.name,
+              media: { url: u.url, mimetype: u.mimetype, fileName: u.fileName, type: 'image', caption },
+            });
+            queueLabel = queueName;
+          }
+        } else {
+          const { queueName } = await dispatchToWhatsApp({
+            ticketId,
+            queueId: sendToWhatsApp.queueId,
+            contactId: sendToWhatsApp.contactId,
+            conversationId: sendToWhatsApp.conversationId,
+            body,
+            senderName: actor.name,
+          });
+          queueLabel = queueName;
+        }
         await logEvent(
           ticketId,
           'whatsapp_sent',
-          `Resposta${uploaded ? ' com imagem' : ''} enviada ao WhatsApp do solicitante${queueName ? ` via fila ${queueName}` : ''}`,
+          `Resposta${uploaded.length > 0 ? ` com ${uploaded.length} imagem(ns)` : ''} enviada ao WhatsApp do solicitante${queueLabel ? ` via fila ${queueLabel}` : ''}`,
         );
       }
       return inserted?.id as string | undefined;
