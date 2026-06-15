@@ -405,19 +405,62 @@ export function useTicketMutations() {
 
   const reply = useMutation({
     mutationFn: async ({
-      ticketId, body, internal, sendToWhatsApp,
+      ticketId, body, internal, sendToWhatsApp, attachment,
     }: {
       ticketId: string;
       body: string;
       internal: boolean;
       sendToWhatsApp?: { contactId: string; queueId: string; conversationId: string | null };
+      attachment?: File | null;
     }) => {
+      // Upload do anexo (best-effort para registro do ticket; obrigatório para WhatsApp)
+      let uploaded:
+        | { url: string; mimetype: string; fileName: string; type: 'image'; base64?: string }
+        | null = null;
+      if (attachment) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve((r.result as string).split(',')[1] ?? '');
+          r.onerror = reject;
+          r.readAsDataURL(attachment);
+        });
+        try {
+          const { data, error } = await db.functions.invoke('ticket-media-upload', {
+            body: {
+              base64,
+              mimetype: attachment.type || 'application/octet-stream',
+              fileName: attachment.name,
+              ticketId,
+              source: 'outgoing',
+            },
+          });
+          if (error) throw error;
+          if (data?.url) {
+            uploaded = {
+              url: data.url as string,
+              mimetype: (data.mimetype as string) || attachment.type || 'application/octet-stream',
+              fileName: attachment.name,
+              type: 'image',
+              base64,
+            };
+          }
+        } catch (e) {
+          console.warn('[ticket reply] upload failed (continuing):', e);
+        }
+      }
+
+      const attachmentsForRow = uploaded
+        ? [{ type: uploaded.type, url: uploaded.url, mimetype: uploaded.mimetype, file_name: uploaded.fileName }]
+        : null;
+
       const { data: inserted, error: insertError } = await db
         .from('support_ticket_messages')
         .insert({
           ticket_id: ticketId, author_user_id: actor.id, author_name: actor.name,
           author_role: role === 'agent' ? 'agent' : 'requester',
-          kind: internal ? 'internal' : 'public', body,
+          kind: internal ? 'internal' : 'public',
+          body: body || null,
+          attachments: attachmentsForRow as unknown as object | null,
         })
         .select('id')
         .single();
@@ -437,6 +480,9 @@ export function useTicketMutations() {
       }
       // Envio opcional ao WhatsApp do solicitante
       if (!internal && sendToWhatsApp?.queueId && sendToWhatsApp?.contactId) {
+        if (attachment && !uploaded) {
+          throw new WhatsappDispatchError('Falha ao subir imagem para envio ao WhatsApp');
+        }
         const { queueName } = await dispatchToWhatsApp({
           ticketId,
           queueId: sendToWhatsApp.queueId,
@@ -444,11 +490,14 @@ export function useTicketMutations() {
           conversationId: sendToWhatsApp.conversationId,
           body,
           senderName: actor.name,
+          media: uploaded
+            ? { url: uploaded.url, mimetype: uploaded.mimetype, fileName: uploaded.fileName, type: 'image', caption: body || null }
+            : null,
         });
         await logEvent(
           ticketId,
           'whatsapp_sent',
-          `Resposta enviada ao WhatsApp do solicitante${queueName ? ` via fila ${queueName}` : ''}`,
+          `Resposta${uploaded ? ' com imagem' : ''} enviada ao WhatsApp do solicitante${queueName ? ` via fila ${queueName}` : ''}`,
         );
       }
       return inserted?.id as string | undefined;
