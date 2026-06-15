@@ -405,7 +405,7 @@ export function useTicketMutations() {
 
   const reply = useMutation({
     mutationFn: async ({
-      ticketId, body, internal, sendToWhatsApp, attachment, attachments,
+      ticketId, body, internal, sendToWhatsApp, attachment, attachments, whatsappBody,
     }: {
       ticketId: string;
       body: string;
@@ -413,6 +413,7 @@ export function useTicketMutations() {
       sendToWhatsApp?: { contactId: string; queueId: string; conversationId: string | null };
       attachment?: File | null;
       attachments?: File[];
+      whatsappBody?: string;
     }) => {
       // Normaliza lista de anexos (suporta múltiplas imagens; compat: `attachment`).
       const files: File[] = [
