@@ -1,49 +1,73 @@
-## Objetivo
+# Fix: trigger quebrado bloqueando criação de conversas
 
-No detalhe do chamado (`/tickets/:id`), permitir colar (Ctrl/Cmd+V) uma imagem dentro do textarea de "Resposta/Nota interna". A imagem aparece como pré-visualização abaixo do texto, é enviada anexada à mensagem do chamado e, se "Enviar para WhatsApp" estiver ligado, também é enviada como mídia na conversa do solicitante.
+## Causa raiz
 
-Anexos do módulo de chamados ficam **separados** dos anexos do chat: novo bucket `ticket-media` e nova edge function `ticket-media-upload`. A coluna `attachments jsonb` em `support_ticket_messages` já existe — sem migração.
+A função `inherit_open_ticket_on_new_conversation()` referencia `support_tickets.client_id`, mas essa coluna não existe — o nome real é `requester_client_id`. Como o trigger roda em `AFTER INSERT` em `chat_conversations`, todo INSERT de conversa falha desde 15/06 14:14 (instalação do trigger). Mensagens continuam sendo inseridas mas com `conversation_id = NULL`.
 
-## Mudanças
+Sintoma: **117 mensagens órfãs hoje só no cliente 196**, em 5 contatos. Bug é global (afeta todos os clientes desde 14:14 BRT).
 
-### 1. Storage — novo bucket `ticket-media`
-- Criar bucket público `ticket-media` via tool (`supabase--storage_create_bucket`).
-- Path padrão: `tickets/<ticket_id>/<uuid>-<filename>`.
-- Independente de `chat-media`; políticas RLS em `storage.objects` permitindo upload por `service_role` (a edge function usa service role) e leitura pública (bucket público).
+## Etapa 1 — Corrigir o trigger (migração SQL)
 
-### 2. Edge function — `supabase/functions/ticket-media-upload/index.ts`
-- Estrutura espelhada de `chat-media-upload`, mas grava em `ticket-media` e em `tickets/<ticketId>/...`.
-- Input: `{ base64, mimetype, fileName, ticketId, source: 'outgoing' | 'incoming' }`.
-- Retorna `{ url, path, mimetype }` com URL pública.
-- Sem dependência de `contactId`/`clientId` (ticket é a unidade do módulo).
+Recriar `public.inherit_open_ticket_on_new_conversation()` trocando `client_id` por `requester_client_id`:
 
-### 3. Composer — `src/pages/tickets/TicketDetailPage.tsx`
-- Novo estado: `pastedImage: { file: File; previewUrl: string } | null`.
-- `onPaste` no `<Textarea>`: percorre `clipboardData.items`; se houver `image/*`, captura o `File`, gera `URL.createObjectURL` e armazena (`preventDefault` apenas quando há imagem; texto continua colando normalmente).
-- Abaixo do textarea, quando `pastedImage` existir: thumbnail (~120px) com botão "X" para remover (revoga objectURL).
-- `handleSend`: permite envio quando `draft.trim()` OU `pastedImage` (botão desabilitado só se ambos vazios). Passa `attachment: pastedImage?.file` para `reply.mutateAsync`. Após sucesso limpa `pastedImage`.
+```sql
+CREATE OR REPLACE FUNCTION public.inherit_open_ticket_on_new_conversation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+DECLARE
+  v_open_statuses constant text[] := ARRAY['open','pending','in_progress','waiting_customer'];
+  v_ticket record;
+BEGIN
+  IF NEW.contact_id IS NULL OR NEW.client_id IS NULL THEN
+    RETURN NEW;
+  END IF;
 
-### 4. Mutation `reply` — `src/pages/tickets/hooks/useTickets.ts`
-- Aceitar novo campo opcional `attachment?: File`.
-- Quando houver `attachment`:
-  - Ler como base64 e chamar `supabase.functions.invoke('ticket-media-upload', { body: { base64, mimetype, fileName, ticketId, source: 'outgoing' } })`.
-  - Inserir `support_ticket_messages` com `attachments: [{ type: 'image', url, mimetype, file_name }]` (permitir `body` vazio quando houver anexo).
-- Se `sendToWhatsApp` ativo + houver `attachment`: chamar `dispatchToWhatsApp` com `media: { url, mimetype, fileName, type: 'image', caption: body || null, base64 }`.
+  SELECT id, number, protocol
+    INTO v_ticket
+    FROM public.support_tickets
+   WHERE contact_id = NEW.contact_id
+     AND requester_client_id = NEW.client_id          -- ✅ corrigido
+     AND status = ANY (v_open_statuses)
+     AND (conversation_id IS NULL OR conversation_id <> NEW.id)
+   ORDER BY created_at DESC
+   LIMIT 1;
 
-### 5. `dispatchToWhatsApp` — `src/pages/tickets/hooks/useTickets.ts`
-- Novo parâmetro opcional `media`.
-- Quando `media` presente:
-  - **WABA**: `POST /messages` com `type: 'image'`, `image: { link: media.url, caption }`.
-  - **UaZapi**: `POST /send/media` com `{ number, type: 'image', file: media.url, text: caption, fileName }` (fallback para `data:` base64 se a URL falhar).
-  - Persistir em `chat_messages` com `type: 'image'`, `media_url: media.url`, `caption`, `metadata: { support_ticket_id, mimetype, attachment_bucket: 'ticket-media' }`.
-- Sem `media`: comportamento de texto atual inalterado.
+  IF NOT FOUND THEN
+    RETURN NEW;
+  END IF;
 
-### 6. Renderização — `src/pages/tickets/components/TicketTimeline.tsx`
-- Se `m.attachments` for array, renderizar miniaturas: `<img src={a.url} className="mt-2 max-h-64 rounded-md border cursor-zoom-in" />`, click abre em nova aba. Tipos não-imagem viram link com `file_name`.
-- `TicketMessage` em `src/pages/tickets/types.ts`: adicionar `attachments?: Array<{ type: string; url: string; mimetype?: string; file_name?: string }>`.
+  UPDATE public.support_tickets
+     SET conversation_id = NEW.id,
+         updated_at = now()
+   WHERE id = v_ticket.id;
 
-## Observações
-- Sem migração SQL (`attachments jsonb` já existe; bucket criado por tool, não por SQL).
-- Drag-and-drop e botão de "anexar arquivo" ficam fora — somente colar imagem, como solicitado.
-- Upload é best-effort para o registro do ticket (fallback inline data URL), mas obrigatório para envio ao WhatsApp (sem URL → toast de erro e mensagem permanece só no ticket, padrão `WhatsappDispatchError` atual).
-- Memória nova a registrar após implementação: "Anexos de /tickets vivem em bucket `ticket-media`; chat usa `chat-media`."
+  RETURN NEW;
+END;
+$$;
+```
+
+## Etapa 2 — Backfill das mensagens órfãs (mesma migração)
+
+Para cada `(contact_id, client_id, queue_id, channel)` distinto que tem mensagens com `conversation_id IS NULL` desde 15/06 14:00:
+
+1. Verificar se já existe conversa ativa para o contato/fila/canal — se sim, vincular as mensagens órfãs a ela.
+2. Caso contrário, criar uma nova `chat_conversations` (status `pending`, `metadata = {recovered_orphan: true}`) e atribuir todas as mensagens órfãs a ela. Como o trigger já estará corrigido, o INSERT vai funcionar.
+3. Inserir um registro em `chat_conversation_history` com `action='recovered'`.
+
+A migração faz isso em uma CTE/loop limitado para evitar timeout, escopo global (todos clientes afetados).
+
+## Etapa 3 — Validação
+
+Após a migração, conferir:
+- `SELECT COUNT(*) FROM chat_messages WHERE conversation_id IS NULL AND created_at >= '2026-06-15 14:00'` → deve cair para 0 ou perto.
+- Criar manualmente uma conversa de teste para garantir que o trigger não quebra mais.
+- Verificar nos logs de edge function que novos webhooks param de gerar mensagens órfãs.
+
+## Notas técnicas
+
+- O trigger `sync_conversation_active_ticket` (em `support_tickets`) usa as colunas certas e continua intacto.
+- Não há alteração de schema, apenas redefinição de função + UPDATE em dados.
+- Não vamos mexer em `support_tickets` nem em outras triggers.
