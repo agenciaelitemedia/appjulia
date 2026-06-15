@@ -141,16 +141,27 @@ Deno.serve(async (req) => {
       return respond({ ok: true, skipped: 'already_backfilled' });
     }
 
-    if (isGroupChatId(chat_id) || contact.is_group || isGroupChatId(contact.remote_jid)) {
-      await supabase
-        .from('chat_contacts')
-        .update({ history_backfilled: true })
-        .eq('id', contact_id);
-      return respond({ ok: true, skipped: 'group_history_ignored' });
+    const isGroup = isGroupChatId(chat_id) || contact.is_group || isGroupChatId(contact.remote_jid);
+
+    // For groups: only proceed when the client has ALLOW_GROUPS = true.
+    if (isGroup) {
+      const { data: settingsRow } = await supabase
+        .from('chat_client_settings')
+        .select('settings')
+        .eq('client_id', String(queue.client_id))
+        .maybeSingle();
+      const allowGroups = !!(settingsRow?.settings as any)?.ALLOW_GROUPS;
+      if (!allowGroups) {
+        await supabase
+          .from('chat_contacts')
+          .update({ history_backfilled: true })
+          .eq('id', contact_id);
+        return respond({ ok: true, skipped: 'group_history_ignored' });
+      }
     }
 
     // Reject LinkedIDs as a phone source — they are not real WhatsApp numbers.
-    if (isLidJid(chat_id) || isLidJid(contact.remote_jid)) {
+    if (!isGroup && (isLidJid(chat_id) || isLidJid(contact.remote_jid))) {
       await supabase
         .from('chat_contacts')
         .update({ history_backfilled: true })
@@ -159,19 +170,31 @@ Deno.serve(async (req) => {
       return respond({ ok: true, skipped: 'lid_chat_ignored' });
     }
 
-    // Prefer the explicit phone arg, then fall back to chat_id only if it's
-    // a real @s.whatsapp.net JID or pure digits — never a @lid.
-    const phoneSource = phone && !isLidJid(phone) ? phone
-      : (chat_id && !isLidJid(chat_id) ? chat_id : '');
-    const senderPhone = normalizePhone(phoneSource);
-    if (!senderPhone || senderPhone.length < 8 || senderPhone.length > 13) {
-      await supabase
-        .from('chat_contacts')
-        .update({ history_backfilled: true })
-        .eq('id', contact_id);
-      return respond({ ok: true, skipped: 'invalid_phone' });
+    // Resolve target chat id (group JID vs personal JID).
+    let targetChatId = '';
+    let senderPhone = '';
+    if (isGroup) {
+      const groupJid = [chat_id, contact.remote_jid].find((v) => isGroupChatId(v)) as string | undefined;
+      if (!groupJid) {
+        await supabase.from('chat_contacts').update({ history_backfilled: true }).eq('id', contact_id);
+        return respond({ ok: true, skipped: 'invalid_group_jid' });
+      }
+      targetChatId = groupJid;
+    } else {
+      // Prefer the explicit phone arg, then fall back to chat_id only if it's
+      // a real @s.whatsapp.net JID or pure digits — never a @lid.
+      const phoneSource = phone && !isLidJid(phone) ? phone
+        : (chat_id && !isLidJid(chat_id) ? chat_id : '');
+      senderPhone = normalizePhone(phoneSource);
+      if (!senderPhone || senderPhone.length < 8 || senderPhone.length > 13) {
+        await supabase
+          .from('chat_contacts')
+          .update({ history_backfilled: true })
+          .eq('id', contact_id);
+        return respond({ ok: true, skipped: 'invalid_phone' });
+      }
+      targetChatId = `${senderPhone}@s.whatsapp.net`;
     }
-    const targetChatId = `${senderPhone}@s.whatsapp.net`;
 
     // Call UaZapi /message/find endpoint
     const url = `${queue.evo_url.replace(/\/$/, '')}/message/find`;
@@ -207,7 +230,11 @@ Deno.serve(async (req) => {
         : Array.isArray(data?.messages) ? data.messages
         : Array.isArray(data?.data) ? data.data
         : [];
-      messages = messages.filter((msg) => !isGroupMessage(msg));
+      // For personal chats, strip any group messages that leaked in.
+      // For group backfill, keep everything (it's all group msgs by definition).
+      if (!isGroup) {
+        messages = messages.filter((msg) => !isGroupMessage(msg));
+      }
     } catch (fetchErr) {
       console.error('[uazapi-chat-backfill] fetch error:', fetchErr);
       await supabase
@@ -217,7 +244,7 @@ Deno.serve(async (req) => {
       return respond({ ok: true, imported: 0, error: 'fetch failed' });
     }
 
-    console.log(`[uazapi-chat-backfill] Got ${messages.length} messages for ${senderPhone}`);
+    console.log(`[uazapi-chat-backfill] Got ${messages.length} messages for ${isGroup ? targetChatId : senderPhone}`);
 
     // Resolve current open conversation (if any) to attach historical messages
     let conversationId: string | null = null;
@@ -243,7 +270,9 @@ Deno.serve(async (req) => {
         const type = extractType(msg);
         const mediaUrl = extractMediaUrl(msg);
         const isoTs = tsToIso(msg.messageTimestamp || msg.timestamp);
-        const pushName = msg.pushName || msg.senderName || msg.wa_contactName || '';
+        const participant = msg.participant || msg.key?.participant || msg.sender || '';
+        const pushName = msg.pushName || msg.senderName || msg.wa_contactName
+          || (isGroup && participant ? normalizePhone(participant) : '') || '';
 
         const { error } = await supabase
           .from('chat_messages')
