@@ -171,7 +171,7 @@ export default function TicketDetailPage() {
   };
 
   const handleSend = async () => {
-    if (!draft.trim() || !id) return;
+    if ((!draft.trim() && !pastedImage) || !id) return;
     setSending(true);
     const wantsWhatsApp =
       sendWhatsApp && !internal && !!chatTarget?.queueId && !!chatTarget?.contactId;
@@ -180,6 +180,7 @@ export default function TicketDetailPage() {
         ticketId: id,
         body: draft.trim(),
         internal: internal && isAgent,
+        attachment: pastedImage?.file ?? null,
         sendToWhatsApp: wantsWhatsApp
           ? {
               contactId: chatTarget!.contactId!,
@@ -191,6 +192,8 @@ export default function TicketDetailPage() {
       setDraft('');
       setInternal(false);
       setSendWhatsApp(false);
+      if (pastedImage?.previewUrl) URL.revokeObjectURL(pastedImage.previewUrl);
+      setPastedImage(null);
       if (wantsWhatsApp) toast.success('Resposta registrada e enviada ao WhatsApp');
     } catch (err) {
       if (err instanceof WhatsappDispatchError) {
@@ -199,6 +202,8 @@ export default function TicketDetailPage() {
         setDraft('');
         setInternal(false);
         setSendWhatsApp(false);
+        if (pastedImage?.previewUrl) URL.revokeObjectURL(pastedImage.previewUrl);
+        setPastedImage(null);
       } else {
         toast.error('Erro ao enviar resposta');
       }
