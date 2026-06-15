@@ -194,6 +194,13 @@ export default function TicketDetailPage() {
     setSending(true);
     const wantsWhatsApp =
       sendWhatsApp && !internal && !!chatTarget?.queueId && !!chatTarget?.contactId;
+    let whatsappBody: string | undefined;
+    if (wantsWhatsApp && ticket) {
+      const statusLabel = STATUS_LABEL[ticket.status];
+      const protocolo = ticket.protocol ?? String(ticket.number ?? '');
+      const apendice = `\n\n*Seu atendimento já está ${statusLabel}* \n> Protocolo: *${protocolo}*\n> Assunto: *${ticket.subject}*`;
+      whatsappBody = (draft.trim() || '') + apendice;
+    }
     try {
       await reply.mutateAsync({
         ticketId: id,
@@ -207,6 +214,7 @@ export default function TicketDetailPage() {
               conversationId: chatTarget!.conversationId ?? null,
             }
           : undefined,
+        whatsappBody,
       });
       setDraft('');
       setInternal(false);
