@@ -491,12 +491,13 @@ export function useTicketMutations() {
         if (files.length > 0 && uploaded.length !== files.length) {
           throw new WhatsappDispatchError('Falha ao subir uma ou mais imagens para envio ao WhatsApp');
         }
-        let queueLabel: string | null = null;
+      let queueLabel: string | null = null;
+        const dispatchBody = (whatsappBody ?? body) || '';
         if (uploaded.length > 0) {
           // Envia cada imagem como mensagem de mídia. Caption só na primeira (com o texto).
           for (let i = 0; i < uploaded.length; i++) {
             const u = uploaded[i];
-            const caption = i === 0 ? (body || null) : null;
+            const caption = i === 0 ? (dispatchBody || null) : null;
             const { queueName } = await dispatchToWhatsApp({
               ticketId,
               queueId: sendToWhatsApp.queueId,
@@ -514,7 +515,7 @@ export function useTicketMutations() {
             queueId: sendToWhatsApp.queueId,
             contactId: sendToWhatsApp.contactId,
             conversationId: sendToWhatsApp.conversationId,
-            body,
+            body: dispatchBody,
             senderName: actor.name,
           });
           queueLabel = queueName;
