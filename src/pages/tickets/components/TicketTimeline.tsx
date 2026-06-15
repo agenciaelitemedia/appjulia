@@ -6,7 +6,13 @@ import {
   StickyNote, CircleDot, ArrowRightLeft, Flag, UserCheck, Reply,
   Star as StarIcon, Pencil, X, Check, Trash2,
 } from 'lucide-react';
-import type { TicketMessage } from '../types';
+import type { TicketMessage, TicketAttachment } from '../types';
+
+function getAttachments(m: TicketMessage): TicketAttachment[] {
+  const raw = m.attachments;
+  if (Array.isArray(raw)) return raw as TicketAttachment[];
+  return [];
+}
 
 function eventIcon(m: TicketMessage) {
   if (m.kind === 'public') return Reply;
@@ -143,7 +149,42 @@ export function TicketTimeline({ messages, edit }: { messages: TicketMessage[]; 
                   </div>
                 </div>
               ) : (
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.body}</p>
+                <>
+                  {m.body ? (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.body}</p>
+                  ) : null}
+                  {getAttachments(m).map((a, idx) => {
+                    const isImage = a.type === 'image' || (a.mimetype || '').startsWith('image/');
+                    if (isImage) {
+                      return (
+                        <a
+                          key={idx}
+                          href={a.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block mt-2"
+                        >
+                          <img
+                            src={a.url}
+                            alt={a.file_name || 'anexo'}
+                            className="max-h-64 rounded-md border cursor-zoom-in"
+                          />
+                        </a>
+                      );
+                    }
+                    return (
+                      <a
+                        key={idx}
+                        href={a.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-block text-xs underline text-primary"
+                      >
+                        {a.file_name || a.url}
+                      </a>
+                    );
+                  })}
+                </>
               )}
             </div>
           </li>

@@ -183,8 +183,9 @@ async function dispatchToWhatsApp(params: {
   conversationId: string | null;
   body: string;
   senderName: string | null;
+  media?: { url: string; mimetype: string; fileName: string; type: 'image'; caption?: string | null } | null;
 }): Promise<{ queueName: string | null }> {
-  const { ticketId, queueId, contactId, conversationId, body, senderName } = params;
+  const { ticketId, queueId, contactId, conversationId, body, senderName, media } = params;
   const { data: queue, error: qerr } = await db
     .from('queues')
     .select('id, name, channel_type, evo_url, evo_apikey, waba_token, waba_number_id')
@@ -205,15 +206,23 @@ async function dispatchToWhatsApp(params: {
       if (!queue.waba_token || !queue.waba_number_id) {
         throw new WhatsappDispatchError('Credenciais WABA ausentes na fila');
       }
+      const wabaPayload = media
+        ? {
+            messaging_product: 'whatsapp',
+            to: contact.phone,
+            type: 'image',
+            image: { link: media.url, caption: media.caption || body || undefined },
+          }
+        : {
+            messaging_product: 'whatsapp',
+            to: contact.phone,
+            type: 'text',
+            text: { body },
+          };
       const r = await fetch(`https://graph.facebook.com/v22.0/${queue.waba_number_id}/messages`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${queue.waba_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: contact.phone,
-          type: 'text',
-          text: { body },
-        }),
+        body: JSON.stringify(wabaPayload),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new WhatsappDispatchError(`WABA ${r.status}: ${j?.error?.message || 'falha no envio'}`);
@@ -223,10 +232,20 @@ async function dispatchToWhatsApp(params: {
         throw new WhatsappDispatchError('Credenciais UaZapi ausentes na fila');
       }
       const baseUrl = String(queue.evo_url).replace(/\/+$/, '');
-      const r = await fetch(`${baseUrl}/send/text`, {
+      const endpoint = media ? `${baseUrl}/send/media` : `${baseUrl}/send/text`;
+      const reqBody = media
+        ? {
+            number: contact.phone,
+            type: 'image',
+            file: media.url,
+            text: media.caption || body || '',
+            fileName: media.fileName,
+          }
+        : { number: contact.phone, text: body, linkPreview: true };
+      const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', token: String(queue.evo_apikey) },
-        body: JSON.stringify({ number: contact.phone, text: body, linkPreview: true }),
+        body: JSON.stringify(reqBody),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new WhatsappDispatchError(`UaZapi ${r.status}: ${j?.error || j?.message || 'falha no envio'}`);
@@ -239,23 +258,28 @@ async function dispatchToWhatsApp(params: {
 
   // Persistir na conversa para aparecer no histórico do chat
   try {
+    const previewText = media ? (media.caption || body || '📷 Imagem') : body;
     await db.from('chat_messages').insert({
       contact_id: contactId,
       client_id: contact.client_id,
       conversation_id: conversationId,
-      text: body,
-      type: 'text',
+      text: media ? (media.caption || body || null) : body,
+      caption: media ? (media.caption || body || null) : null,
+      type: media ? media.type : 'text',
+      media_url: media?.url ?? null,
       from_me: true,
       status: 'sent',
       message_id: externalMessageId,
       external_id: externalMessageId,
       timestamp: new Date().toISOString(),
       sender_name: senderName || 'Suporte',
-      metadata: { support_ticket_id: ticketId },
+      metadata: media
+        ? { support_ticket_id: ticketId, mimetype: media.mimetype, attachment_bucket: 'ticket-media' }
+        : { support_ticket_id: ticketId },
     });
     await db.from('chat_contacts').update({
       last_message_at: new Date().toISOString(),
-      last_message_text: body,
+      last_message_text: previewText,
     }).eq('id', contactId);
   } catch (e) {
     console.error('[dispatchToWhatsApp] persist failed', e);
@@ -381,19 +405,62 @@ export function useTicketMutations() {
 
   const reply = useMutation({
     mutationFn: async ({
-      ticketId, body, internal, sendToWhatsApp,
+      ticketId, body, internal, sendToWhatsApp, attachment,
     }: {
       ticketId: string;
       body: string;
       internal: boolean;
       sendToWhatsApp?: { contactId: string; queueId: string; conversationId: string | null };
+      attachment?: File | null;
     }) => {
+      // Upload do anexo (best-effort para registro do ticket; obrigatório para WhatsApp)
+      let uploaded:
+        | { url: string; mimetype: string; fileName: string; type: 'image'; base64?: string }
+        | null = null;
+      if (attachment) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve((r.result as string).split(',')[1] ?? '');
+          r.onerror = reject;
+          r.readAsDataURL(attachment);
+        });
+        try {
+          const { data, error } = await db.functions.invoke('ticket-media-upload', {
+            body: {
+              base64,
+              mimetype: attachment.type || 'application/octet-stream',
+              fileName: attachment.name,
+              ticketId,
+              source: 'outgoing',
+            },
+          });
+          if (error) throw error;
+          if (data?.url) {
+            uploaded = {
+              url: data.url as string,
+              mimetype: (data.mimetype as string) || attachment.type || 'application/octet-stream',
+              fileName: attachment.name,
+              type: 'image',
+              base64,
+            };
+          }
+        } catch (e) {
+          console.warn('[ticket reply] upload failed (continuing):', e);
+        }
+      }
+
+      const attachmentsForRow = uploaded
+        ? [{ type: uploaded.type, url: uploaded.url, mimetype: uploaded.mimetype, file_name: uploaded.fileName }]
+        : null;
+
       const { data: inserted, error: insertError } = await db
         .from('support_ticket_messages')
         .insert({
           ticket_id: ticketId, author_user_id: actor.id, author_name: actor.name,
           author_role: role === 'agent' ? 'agent' : 'requester',
-          kind: internal ? 'internal' : 'public', body,
+          kind: internal ? 'internal' : 'public',
+          body: body || null,
+          attachments: attachmentsForRow as unknown as object | null,
         })
         .select('id')
         .single();
@@ -413,6 +480,9 @@ export function useTicketMutations() {
       }
       // Envio opcional ao WhatsApp do solicitante
       if (!internal && sendToWhatsApp?.queueId && sendToWhatsApp?.contactId) {
+        if (attachment && !uploaded) {
+          throw new WhatsappDispatchError('Falha ao subir imagem para envio ao WhatsApp');
+        }
         const { queueName } = await dispatchToWhatsApp({
           ticketId,
           queueId: sendToWhatsApp.queueId,
@@ -420,11 +490,14 @@ export function useTicketMutations() {
           conversationId: sendToWhatsApp.conversationId,
           body,
           senderName: actor.name,
+          media: uploaded
+            ? { url: uploaded.url, mimetype: uploaded.mimetype, fileName: uploaded.fileName, type: 'image', caption: body || null }
+            : null,
         });
         await logEvent(
           ticketId,
           'whatsapp_sent',
-          `Resposta enviada ao WhatsApp do solicitante${queueName ? ` via fila ${queueName}` : ''}`,
+          `Resposta${uploaded ? ' com imagem' : ''} enviada ao WhatsApp do solicitante${queueName ? ` via fila ${queueName}` : ''}`,
         );
       }
       return inserted?.id as string | undefined;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ChatSidePanel, type ChatSidePanelTarget } from '@/components/chat/ChatSidePanel';
@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
+  ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2, X as XIcon,
   Activity, History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -62,6 +62,7 @@ export default function TicketDetailPage() {
   const [internal, setInternal] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
+  const [pastedImage, setPastedImage] = useState<{ file: File; previewUrl: string } | null>(null);
   const [csat, setCsatScore] = useState(0);
   const [csatComment, setCsatComment] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -69,6 +70,13 @@ export default function TicketDetailPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [deleteMsg, setDeleteMsg] = useState<TicketMessage | null>(null);
+
+  // Cleanup do objectURL quando trocar/remover a imagem
+  useEffect(() => {
+    return () => {
+      if (pastedImage?.previewUrl) URL.revokeObjectURL(pastedImage.previewUrl);
+    };
+  }, [pastedImage?.previewUrl]);
 
   // Resolve queue_id do ticket: via conversation_id se houver, senão pega a
   // conversa mais recente do contato.
@@ -163,7 +171,7 @@ export default function TicketDetailPage() {
   };
 
   const handleSend = async () => {
-    if (!draft.trim() || !id) return;
+    if ((!draft.trim() && !pastedImage) || !id) return;
     setSending(true);
     const wantsWhatsApp =
       sendWhatsApp && !internal && !!chatTarget?.queueId && !!chatTarget?.contactId;
@@ -172,6 +180,7 @@ export default function TicketDetailPage() {
         ticketId: id,
         body: draft.trim(),
         internal: internal && isAgent,
+        attachment: pastedImage?.file ?? null,
         sendToWhatsApp: wantsWhatsApp
           ? {
               contactId: chatTarget!.contactId!,
@@ -183,6 +192,8 @@ export default function TicketDetailPage() {
       setDraft('');
       setInternal(false);
       setSendWhatsApp(false);
+      if (pastedImage?.previewUrl) URL.revokeObjectURL(pastedImage.previewUrl);
+      setPastedImage(null);
       if (wantsWhatsApp) toast.success('Resposta registrada e enviada ao WhatsApp');
     } catch (err) {
       if (err instanceof WhatsappDispatchError) {
@@ -191,6 +202,8 @@ export default function TicketDetailPage() {
         setDraft('');
         setInternal(false);
         setSendWhatsApp(false);
+        if (pastedImage?.previewUrl) URL.revokeObjectURL(pastedImage.previewUrl);
+        setPastedImage(null);
       } else {
         toast.error('Erro ao enviar resposta');
       }
@@ -390,9 +403,45 @@ export default function TicketDetailPage() {
               <Textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                onPaste={(e) => {
+                  const items = e.clipboardData?.items;
+                  if (!items) return;
+                  for (let i = 0; i < items.length; i++) {
+                    const it = items[i];
+                    if (it.kind === 'file' && it.type.startsWith('image/')) {
+                      const f = it.getAsFile();
+                      if (f) {
+                        e.preventDefault();
+                        if (pastedImage?.previewUrl) URL.revokeObjectURL(pastedImage.previewUrl);
+                        setPastedImage({ file: f, previewUrl: URL.createObjectURL(f) });
+                      }
+                      break;
+                    }
+                  }
+                }}
                 placeholder={internal ? 'Nota interna (não visível ao solicitante)' : 'Escreva uma resposta…'}
                 className="min-h-[70px]"
               />
+              {pastedImage && (
+                <div className="relative inline-block">
+                  <img
+                    src={pastedImage.previewUrl}
+                    alt="Imagem colada"
+                    className="max-h-32 rounded-md border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      URL.revokeObjectURL(pastedImage.previewUrl);
+                      setPastedImage(null);
+                    }}
+                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border shadow flex items-center justify-center hover:bg-muted"
+                    aria-label="Remover imagem"
+                  >
+                    <XIcon className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 {isAgent && !internal ? (
                   (() => {
@@ -425,7 +474,7 @@ export default function TicketDetailPage() {
                     );
                   })()
                 ) : <span />}
-                <Button onClick={handleSend} disabled={sending || !draft.trim()}>
+                <Button onClick={handleSend} disabled={sending || (!draft.trim() && !pastedImage)}>
                   <Send className="h-4 w-4 mr-1" /> {sending ? 'Enviando…' : internal ? 'Salvar nota' : 'Responder'}
                 </Button>
               </div>

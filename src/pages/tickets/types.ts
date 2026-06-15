@@ -45,8 +45,15 @@ export interface TicketMessage {
   kind: 'public' | 'internal' | 'event';
   event_type: string | null;
   body: string | null;
-  attachments: unknown;
+  attachments: TicketAttachment[] | null | unknown;
   created_at: string;
+}
+
+export interface TicketAttachment {
+  type: 'image' | string;
+  url: string;
+  mimetype?: string;
+  file_name?: string;
 }
 
 export interface SupportDepartment { id: string; name: string; is_active: boolean; sort_order: number; }
