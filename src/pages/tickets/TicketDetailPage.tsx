@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ChatSidePanel, type ChatSidePanelTarget } from '@/components/chat/ChatSidePanel';
@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2,
+  ArrowLeft, Send, StickyNote, MessageSquare, Star, MessageCircle, Trash2, X as XIcon,
   Activity, History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -62,6 +62,7 @@ export default function TicketDetailPage() {
   const [internal, setInternal] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendWhatsApp, setSendWhatsApp] = useState(false);
+  const [pastedImage, setPastedImage] = useState<{ file: File; previewUrl: string } | null>(null);
   const [csat, setCsatScore] = useState(0);
   const [csatComment, setCsatComment] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -69,6 +70,13 @@ export default function TicketDetailPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
   const [deleteMsg, setDeleteMsg] = useState<TicketMessage | null>(null);
+
+  // Cleanup do objectURL quando trocar/remover a imagem
+  useEffect(() => {
+    return () => {
+      if (pastedImage?.previewUrl) URL.revokeObjectURL(pastedImage.previewUrl);
+    };
+  }, [pastedImage?.previewUrl]);
 
   // Resolve queue_id do ticket: via conversation_id se houver, senão pega a
   // conversa mais recente do contato.
