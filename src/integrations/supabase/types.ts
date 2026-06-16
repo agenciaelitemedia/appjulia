@@ -2170,6 +2170,7 @@ export type Database = {
           conditions: Json
           created_at: string
           description: string | null
+          excluded_agents: string[]
           execution_count: number
           fallback_assigned_to: string | null
           id: string
@@ -2177,6 +2178,7 @@ export type Database = {
           last_assigned_to: string | null
           last_executed_at: string | null
           name: string
+          online_only: boolean
           only_business_hours: boolean
           position: number
           strategy: string
@@ -2190,6 +2192,7 @@ export type Database = {
           conditions?: Json
           created_at?: string
           description?: string | null
+          excluded_agents?: string[]
           execution_count?: number
           fallback_assigned_to?: string | null
           id?: string
@@ -2197,6 +2200,7 @@ export type Database = {
           last_assigned_to?: string | null
           last_executed_at?: string | null
           name: string
+          online_only?: boolean
           only_business_hours?: boolean
           position?: number
           strategy?: string
@@ -2210,6 +2214,7 @@ export type Database = {
           conditions?: Json
           created_at?: string
           description?: string | null
+          excluded_agents?: string[]
           execution_count?: number
           fallback_assigned_to?: string | null
           id?: string
@@ -2217,6 +2222,7 @@ export type Database = {
           last_assigned_to?: string | null
           last_executed_at?: string | null
           name?: string
+          online_only?: boolean
           only_business_hours?: boolean
           position?: number
           strategy?: string
