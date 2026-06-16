@@ -154,7 +154,9 @@ export class UaZapiAdapter {
   ): Promise<SendResult> {
     try {
       const data = await this.request<Record<string, unknown>>('POST', '/send/media', {
-        number, mediaUrl, caption: caption || '', mediaType: type,
+        number, mediaUrl, mediaType: type,
+        text: type === 'audio' ? undefined : (caption || ''),
+        caption: caption || '',
       });
       return {
         success: true,
