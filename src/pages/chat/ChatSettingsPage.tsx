@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Settings, Timer, Tag as TagIcon, Cog, Radio, Zap, Activity, FileText } from 'lucide-react';
+import { ArrowLeft, Settings, Timer, Tag as TagIcon, Cog, Radio, Zap, Activity, FileText, GitFork } from 'lucide-react';
 import { TagsManagerContent } from '@/components/chat/TagsManagerDialog';
 import { ChatSlaConfigContent } from './ChatSlaConfigPage';
 import { WhatsAppDataProvider } from '@/contexts/WhatsAppDataContext';
@@ -11,6 +11,7 @@ import ChatAutomationsPage from './ChatAutomationsPage';
 import { ChatGeneralSettings } from './components/ChatGeneralSettings';
 import { ChatReturnChatMonitor } from './components/ChatReturnChatMonitor';
 import { WabaTemplatesPanel } from './waba-templates/WabaTemplatesPanel';
+import { ChatAutoDistributionTab } from './components/ChatAutoDistributionTab';
 
 function ChatSettingsContent() {
   const navigate = useNavigate();
@@ -32,7 +33,7 @@ function ChatSettingsContent() {
       </div>
 
       <Tabs defaultValue="geral" className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'max-w-5xl grid-cols-7' : 'max-w-xl grid-cols-3'}`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'max-w-6xl grid-cols-8' : 'max-w-2xl grid-cols-4'}`}>
           <TabsTrigger value="geral" className="gap-1.5">
             <Cog className="h-3.5 w-3.5" /> Geral
           </TabsTrigger>
@@ -41,6 +42,9 @@ function ChatSettingsContent() {
           </TabsTrigger>
           <TabsTrigger value="etiquetas" className="gap-1.5">
             <TagIcon className="h-3.5 w-3.5" /> Etiquetas
+          </TabsTrigger>
+          <TabsTrigger value="distribuicao" className="gap-1.5">
+            <GitFork className="h-3.5 w-3.5" /> Distribuição Automática
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="monitor" className="gap-1.5">
@@ -74,6 +78,10 @@ function ChatSettingsContent() {
 
         <TabsContent value="etiquetas" className="mt-6">
           <TagsManagerContent />
+        </TabsContent>
+
+        <TabsContent value="distribuicao" className="mt-6">
+          <ChatAutoDistributionTab />
         </TabsContent>
 
         {isAdmin && (
