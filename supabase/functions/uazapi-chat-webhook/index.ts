@@ -1571,6 +1571,8 @@ Deno.serve(async (req) => {
                 actor_name: 'Sistema (webhook)',
                 to_value: 'pending',
               });
+              // Distribuição automática (se ativada para o client_id).
+              if (!fromMe) triggerAutoRoute(newConv.id);
             } else {
               // INSERT bloqueado pelo índice único parcial (race: outro worker
               // criou em paralelo). Recupera a conversa ativa que já existe.
