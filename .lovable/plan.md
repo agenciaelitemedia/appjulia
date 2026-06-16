@@ -1,73 +1,90 @@
-# Fix: trigger quebrado bloqueando criação de conversas
+## Objetivo
 
-## Causa raiz
+Transformar `/mensagens-rapidas` em um gerenciador completo de respostas prontas para o Chat, com suporte a múltiplos tipos de conteúdo (texto, áudio, vídeo, imagem, documento, link com preview) e variáveis dinâmicas resolvidas no momento da seleção. Remover a noção de "onde usar" — toda mensagem rápida passa a ser usada exclusivamente no Chat.
 
-A função `inherit_open_ticket_on_new_conversation()` referencia `support_tickets.client_id`, mas essa coluna não existe — o nome real é `requester_client_id`. Como o trigger roda em `AFTER INSERT` em `chat_conversations`, todo INSERT de conversa falha desde 15/06 14:14 (instalação do trigger). Mensagens continuam sendo inseridas mas com `conversation_id = NULL`.
+## Mudanças no banco (nova migration)
 
-Sintoma: **117 mensagens órfãs hoje só no cliente 196**, em 5 contatos. Bug é global (afeta todos os clientes desde 14:14 BRT).
+Adicionar colunas à tabela `quick_messages`:
 
-## Etapa 1 — Corrigir o trigger (migração SQL)
+- `kind text not null default 'text'` — um de `text | image | video | audio | document | link`
+- `media_url text` — URL pública do anexo no bucket `chat-media` (subpasta `quick-messages/<user_id>/...`)
+- `media_path text` — caminho interno no bucket (para deletar quando a mensagem for removida)
+- `media_mime text`, `media_size bigint`, `media_filename text`
+- `link_url text`, `link_title text`, `link_description text`, `link_image text` — metadados do preview de link
 
-Recriar `public.inherit_open_ticket_on_new_conversation()` trocando `client_id` por `requester_client_id`:
+`use_locations` deixa de ser usado pela UI mas permanece na tabela por compatibilidade. Default passa a `{chat_module}` para registros novos.
 
-```sql
-CREATE OR REPLACE FUNCTION public.inherit_open_ticket_on_new_conversation()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-DECLARE
-  v_open_statuses constant text[] := ARRAY['open','pending','in_progress','waiting_customer'];
-  v_ticket record;
-BEGIN
-  IF NEW.contact_id IS NULL OR NEW.client_id IS NULL THEN
-    RETURN NEW;
-  END IF;
+Bucket de mídia: reutilizar `chat-media` (já existe e é público). Sem mudança de policies.
 
-  SELECT id, number, protocol
-    INTO v_ticket
-    FROM public.support_tickets
-   WHERE contact_id = NEW.contact_id
-     AND requester_client_id = NEW.client_id          -- ✅ corrigido
-     AND status = ANY (v_open_statuses)
-     AND (conversation_id IS NULL OR conversation_id <> NEW.id)
-   ORDER BY created_at DESC
-   LIMIT 1;
+## Engine de variáveis (`src/lib/messageVariables.ts`)
 
-  IF NOT FOUND THEN
-    RETURN NEW;
-  END IF;
+Todas as variáveis usam sintaxe `{{...}}`. Expandir `interpolateVariables`:
 
-  UPDATE public.support_tickets
-     SET conversation_id = NEW.id,
-         updated_at = now()
-   WHERE id = v_ticket.id;
+- `{{Saudacao_dia_tarde_noite}}` → "Bom dia" (<12h), "Boa tarde" (12-18h), "Boa noite" (≥18h), no fuso `America/Sao_Paulo`.
+- `{{nome}}` → nome do lead (já existe).
+- `{{primeiro_nome}}` → primeiro nome (já existe).
+- `{{data_hoje}}` → `dd/MM/yyyy`.
+- `{{hora_agora}}` → `HH:mm`.
+- `{{data_hoje+Xd}}` → data de hoje + X dias corridos no formato `dd/MM/yyyy` (regex `\{\{\s*data_hoje\+(\d+)d\s*\}\}`).
+- Mantém `{{protocolo}}`, `{{atendente}}`, `{{data}}`, `{{hora}}` legados.
 
-  RETURN NEW;
-END;
-$$;
+Atualizar `AVAILABLE_VARIABLES` com os novos tokens. Match exclusivamente em `{{var}}` (chaves duplas).
+
+## Página `/mensagens-rapidas` reformulada
+
+### Lista (cards)
+
+Cada card mostra ícone do tipo, título, atalho, preview (thumbnail para imagem/vídeo, player compacto para áudio, ícone+filename para documento, card de link com og:image, primeiras linhas para texto), badge "Ativo/Inativo", ações editar/excluir.
+
+Remover totalmente a seção/badges de "Onde usar".
+
+### Dialog Criar/Editar
+
+Topo: segmented control com 6 tipos:
+
+```text
+[Texto] [Imagem] [Vídeo] [Áudio] [Documento] [Link]
 ```
 
-## Etapa 2 — Backfill das mensagens órfãs (mesma migração)
+Campos comuns: Título, Atalho, Ativo.
 
-Para cada `(contact_id, client_id, queue_id, channel)` distinto que tem mensagens com `conversation_id IS NULL` desde 15/06 14:00:
+Campos por tipo:
 
-1. Verificar se já existe conversa ativa para o contato/fila/canal — se sim, vincular as mensagens órfãs a ela.
-2. Caso contrário, criar uma nova `chat_conversations` (status `pending`, `metadata = {recovered_orphan: true}`) e atribuir todas as mensagens órfãs a ela. Como o trigger já estará corrigido, o INSERT vai funcionar.
-3. Inserir um registro em `chat_conversation_history` com `action='recovered'`.
+- **Texto**: textarea + toolbar de chips que inserem `{{Saudacao_dia_tarde_noite}}`, `{{nome}}`, `{{data_hoje}}`, `{{hora_agora}}`, `{{data_hoje+Xd}}` (com input numérico para X). Pré-visualização renderizada abaixo com valores de exemplo.
+- **Imagem / Vídeo / Áudio / Documento**: dropzone + upload, preview, legenda opcional (com as mesmas variáveis). Upload via `supabase.storage.from('chat-media').upload('quick-messages/<user_id>/<uuid>.<ext>')`.
+- **Link**: input de URL + botão "Buscar preview" (usa `useLinkPreview`/edge `link-preview` existentes). Campos editáveis após fetch. Legenda opcional.
 
-A migração faz isso em uma CTE/loop limitado para evitar timeout, escopo global (todos clientes afetados).
+Validação no Salvar: `text` exige `message_text`; mídia exige `media_url`; `link` exige `link_url`.
 
-## Etapa 3 — Validação
+### Hook `useQuickMessages`
 
-Após a migração, conferir:
-- `SELECT COUNT(*) FROM chat_messages WHERE conversation_id IS NULL AND created_at >= '2026-06-15 14:00'` → deve cair para 0 ou perto.
-- Criar manualmente uma conversa de teste para garantir que o trigger não quebra mais.
-- Verificar nos logs de edge function que novos webhooks param de gerar mensagens órfãs.
+Adicionar campos novos ao tipo `QuickMessage`. Remover parâmetro/filtro `location` (chat-only). Manter ordenação por `position`.
 
-## Notas técnicas
+## QuickMessagePicker (no Chat)
 
-- O trigger `sync_conversation_active_ticket` (em `support_tickets`) usa as colunas certas e continua intacto.
-- Não há alteração de schema, apenas redefinição de função + UPDATE em dados.
-- Não vamos mexer em `support_tickets` nem em outras triggers.
+`src/components/chat/QuickMessagePicker.tsx`:
+
+1. Busca mensagens do usuário sem filtro de `use_locations`.
+2. Renderiza item conforme `kind` (ícone + preview compacto).
+3. Ao clicar:
+   - **text**: chama `onSelect(interpolated_text)` — interpolação acontece AQUI (no momento da seleção), conforme pedido. Contexto vem de props novas (`contactName`, `protocol`, `agentName`).
+   - **image/video/audio/document**: chama `onSelectMedia({ url, mime, filename, kind, caption })` com legenda já interpolada.
+   - **link**: chama `onSelect(interpolated_text + '\n' + link_url)` — WhatsApp gera o preview a partir do URL.
+
+## ChatInput
+
+`handleQuickMessageSelect(text)` continua igual. Adicionar `handleQuickMessageMedia({url, mime, filename, kind, caption})`: `fetch(url)` → `Blob` → `File`, abre o modal `pendingMedia` existente já pré-preenchido. Passar `contactName`, `protocol`, `agentName` como props ao `QuickMessagePicker`.
+
+## Arquivos afetados
+
+- `supabase/migrations/<novo>.sql` — alterações em `quick_messages`.
+- `src/lib/messageVariables.ts` — novas variáveis em `{{...}}`.
+- `src/hooks/useQuickMessages.ts` — tipos novos, remover filtro location.
+- `src/pages/mensagens-rapidas/QuickMessagesPage.tsx` — UI reformulada.
+- `src/components/chat/QuickMessagePicker.tsx` — render por tipo + interpolação na seleção.
+- `src/components/chat/ChatInput.tsx` — handler de mídia rápida e passagem de contexto.
+
+## Fora de escopo
+
+- Backfill de mensagens antigas (todas viram `text` por default).
+- Drag-and-drop de reordenação.

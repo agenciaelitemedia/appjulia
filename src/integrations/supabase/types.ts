@@ -5584,7 +5584,17 @@ export type Database = {
           created_at: string | null
           id: string
           is_active: boolean | null
-          message_text: string
+          kind: string
+          link_description: string | null
+          link_image: string | null
+          link_title: string | null
+          link_url: string | null
+          media_filename: string | null
+          media_mime: string | null
+          media_path: string | null
+          media_size: number | null
+          media_url: string | null
+          message_text: string | null
           position: number | null
           shortcut: string | null
           title: string
@@ -5597,7 +5607,17 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
-          message_text: string
+          kind?: string
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
+          link_url?: string | null
+          media_filename?: string | null
+          media_mime?: string | null
+          media_path?: string | null
+          media_size?: number | null
+          media_url?: string | null
+          message_text?: string | null
           position?: number | null
           shortcut?: string | null
           title: string
@@ -5610,7 +5630,17 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
-          message_text?: string
+          kind?: string
+          link_description?: string | null
+          link_image?: string | null
+          link_title?: string | null
+          link_url?: string | null
+          media_filename?: string | null
+          media_mime?: string | null
+          media_path?: string | null
+          media_size?: number | null
+          media_url?: string | null
+          message_text?: string | null
           position?: number | null
           shortcut?: string | null
           title?: string
