@@ -85,11 +85,14 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
     <Card className={`hover:shadow-md transition-shadow ${queue.is_deleted ? 'opacity-60 border-dashed' : ''}`}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <h3 className="font-semibold text-foreground truncate">{queue.name}</h3>
-            <Badge variant={queue.is_active && !queue.is_deleted ? 'default' : 'secondary'}>
-              {queue.is_deleted ? 'Excluída' : queue.is_active ? 'Ativa' : 'Inativa'}
-            </Badge>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-foreground truncate">{queue.name}</h3>
+              <Badge variant={queue.is_active && !queue.is_deleted ? 'default' : 'secondary'}>
+                {queue.is_deleted ? 'Excluída' : queue.is_active ? 'Ativa' : 'Inativa'}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">ID: {queue.id}</p>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
