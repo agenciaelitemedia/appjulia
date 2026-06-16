@@ -37,23 +37,31 @@ Deno.serve(async (req) => {
     // Strip codec parameters (e.g. "audio/ogg;codecs=opus" → "audio/ogg").
     // Supabase Storage rejects MIME types with parameters.
     const cleanMime = String(mimetype).split(";")[0].trim();
-    const ext = cleanMime.split("/")[1] || "bin";
-    const safeName = (fileName || `media_${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const mimeExt = (cleanMime.split("/")[1] || "bin").replace(/[^a-zA-Z0-9]/g, "");
+    const rawName = (fileName || `media_${Date.now()}`).toString();
+    // Strip path separators and unsafe chars; keep a single extension at most.
+    let safeName = rawName.replace(/[\\/]/g, "_").replace(/[^a-zA-Z0-9._-]/g, "_");
+    // If filename has no extension, append one derived from mimetype.
+    if (!/\.[a-zA-Z0-9]{1,8}$/.test(safeName)) {
+      safeName = `${safeName}.${mimeExt}`;
+    }
+    const safeClient = String(clientId || "unknown").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const safeContact = String(contactId || "general").replace(/[^a-zA-Z0-9._-]/g, "_");
     const timestamp = Date.now();
-    const storagePath = `${clientId || "unknown"}/${contactId || "general"}/${timestamp}_${safeName}.${ext}`;
+    const storagePath = `${safeClient}/${safeContact}/${timestamp}_${safeName}`;
 
     // Upload to chat-media bucket
     const { data, error } = await supabase.storage
       .from("chat-media")
       .upload(storagePath, bytes, {
         contentType: cleanMime,
-        upsert: false,
+        upsert: true,
       });
 
     if (error) {
-      console.error("Storage upload error:", error);
+      console.error("Storage upload error:", error, "path:", storagePath, "mime:", cleanMime);
       return new Response(
-        JSON.stringify({ error: `Upload failed: ${error.message}` }),
+        JSON.stringify({ error: `Upload failed: ${error.message}`, path: storagePath, mime: cleanMime }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
