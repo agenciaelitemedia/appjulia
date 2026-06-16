@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
 import { toast } from 'sonner';
+import { useEffect, useState } from 'react';
 
 export interface RoutingCondition {
-  field: 'channel' | 'tag' | 'priority' | 'keyword' | 'business_hours';
+  field: 'channel' | 'tag' | 'priority' | 'keyword' | 'business_hours' | 'queue' | 'contact_is_new';
   op: 'equals' | 'contains' | 'in' | 'not_in';
   value: string;
 }
@@ -18,8 +20,10 @@ export interface RoutingRule {
   is_active: boolean;
   position: number;
   conditions: RoutingCondition[];
-  strategy: 'round_robin' | 'least_busy' | 'specific_agent' | 'manual_pool';
+  strategy: 'round_robin' | 'least_busy' | 'specific_agent' | 'manual_pool' | 'random';
   agent_pool: string[];
+  excluded_agents: string[];
+  online_only: boolean;
   target_queue_id: string | null;
   fallback_assigned_to: string | null;
   only_business_hours: boolean;
@@ -42,18 +46,37 @@ export interface AgentCapacity {
   last_assigned_at: string | null;
 }
 
-export function useChatRouting() {
+/**
+ * Resolve o client_id efetivo do escritório (owner) ao qual o usuário
+ * logado pertence. Sempre retorna string — fallback 'default' apenas
+ * para não quebrar query enquanto carrega.
+ */
+function useEffectiveClientId() {
   const { user } = useAuth();
+  const [clientId, setClientId] = useState<string | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void resolveEffectiveClientId(user, 'useChatRouting').then((cid) => {
+      if (mounted) setClientId(cid || null);
+    });
+    return () => { mounted = false; };
+  }, [user?.id, user?.client_id]);
+  return clientId;
+}
+
+export function useChatRouting() {
   const qc = useQueryClient();
-  const clientId = String(user?.cod_agent || user?.id || 'default');
+  const clientId = useEffectiveClientId();
+  const cid = clientId || '';
 
   const rules = useQuery({
-    queryKey: ['chat-routing-rules', clientId],
+    queryKey: ['chat-routing-rules', cid],
+    enabled: !!cid,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('chat_routing_rules')
         .select('*')
-        .eq('client_id', clientId)
+        .eq('client_id', cid)
         .order('position', { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as RoutingRule[];
@@ -61,12 +84,13 @@ export function useChatRouting() {
   });
 
   const capacities = useQuery({
-    queryKey: ['chat-agent-capacity', clientId],
+    queryKey: ['chat-agent-capacity', cid],
+    enabled: !!cid,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('chat_agent_capacity')
         .select('*')
-        .eq('client_id', clientId)
+        .eq('client_id', cid)
         .order('agent_name', { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as AgentCapacity[];
@@ -76,14 +100,15 @@ export function useChatRouting() {
   const upsertRule = useMutation({
     mutationFn: async (rule: Partial<RoutingRule>) => {
       if (!rule.name) throw new Error('Nome é obrigatório');
-      const payload = { ...rule, client_id: clientId, cod_agent: user?.cod_agent ? String(user.cod_agent) : null };
+      if (!cid) throw new Error('Client ID indisponível');
+      const payload = { ...rule, client_id: cid };
       const { error } = rule.id
         ? await supabase.from('chat_routing_rules').update(payload as never).eq('id', rule.id)
         : await supabase.from('chat_routing_rules').insert(payload as never);
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['chat-routing-rules', clientId] });
+      qc.invalidateQueries({ queryKey: ['chat-routing-rules', cid] });
       toast.success('Regra salva');
     },
     onError: (e: Error) => toast.error(e.message),
@@ -94,20 +119,21 @@ export function useChatRouting() {
       const { error } = await supabase.from('chat_routing_rules').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-routing-rules', clientId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-routing-rules', cid] }),
   });
 
   const upsertCapacity = useMutation({
     mutationFn: async (cap: Partial<AgentCapacity>) => {
       if (!cap.agent_identifier) throw new Error('Identificador é obrigatório');
-      const payload = { ...cap, client_id: clientId };
+      if (!cid) throw new Error('Client ID indisponível');
+      const payload = { ...cap, client_id: cid };
       const { error } = await supabase
         .from('chat_agent_capacity')
         .upsert(payload as never, { onConflict: 'client_id,agent_identifier' });
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['chat-agent-capacity', clientId] });
+      qc.invalidateQueries({ queryKey: ['chat-agent-capacity', cid] });
       toast.success('Capacidade atualizada');
     },
   });
@@ -117,8 +143,8 @@ export function useChatRouting() {
       const { error } = await supabase.from('chat_agent_capacity').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-agent-capacity', clientId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chat-agent-capacity', cid] }),
   });
 
-  return { rules, capacities, upsertRule, removeRule, upsertCapacity, removeCapacity };
+  return { rules, capacities, upsertRule, removeRule, upsertCapacity, removeCapacity, clientId: cid };
 }
