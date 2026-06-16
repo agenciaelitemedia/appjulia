@@ -21,6 +21,8 @@ export interface ChatClientSettingsJson {
   auto_transcribe_audio?: boolean;
   auto_summary_on_resolve?: boolean;
   auto_summary_on_close?: boolean;
+  /** Master switch: ativa o roteamento automático para o client_id. */
+  auto_distribution_enabled?: boolean;
 }
 
 export const DEFAULT_CHAT_SETTINGS: ChatClientSettingsJson = {
@@ -40,6 +42,7 @@ export const DEFAULT_CHAT_SETTINGS: ChatClientSettingsJson = {
   auto_transcribe_audio: false,
   auto_summary_on_resolve: false,
   auto_summary_on_close: false,
+  auto_distribution_enabled: false,
 };
 
 export interface ChatClientSettingRow {
