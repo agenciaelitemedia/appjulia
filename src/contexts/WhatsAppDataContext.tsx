@@ -1908,6 +1908,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
               type: mediaType,
               mediaType,
               mimetype: sendMimetype,
+              text: isAudioMessage ? undefined : (caption || undefined),
               caption,
               fileName: outboundFile.name,
               docName: type === 'document' ? outboundFile.name : undefined,

@@ -1,90 +1,57 @@
-## Objetivo
+## Problema
 
-Transformar `/mensagens-rapidas` em um gerenciador completo de respostas prontas para o Chat, com suporte a múltiplos tipos de conteúdo (texto, áudio, vídeo, imagem, documento, link com preview) e variáveis dinâmicas resolvidas no momento da seleção. Remover a noção de "onde usar" — toda mensagem rápida passa a ser usada exclusivamente no Chat.
+Ao enviar mídia pelo chat com legenda (digitada ou via mensagem rápida), a legenda aparece visualmente como caption na bolha otimista, mas **não chega no WhatsApp do destinatário**.
 
-## Mudanças no banco (nova migration)
+## Causa raiz
 
-Adicionar colunas à tabela `quick_messages`:
+Em `src/contexts/WhatsAppDataContext.tsx`, dentro de `sendMedia`, o body enviado para o endpoint `POST /send/media` da UaZapi via `uazapi-proxy` inclui apenas o campo `caption`. A UaZapi, porém, espera o caption no campo **`text`** — `caption` é silenciosamente ignorado pela API.
 
-- `kind text not null default 'text'` — um de `text | image | video | audio | document | link`
-- `media_url text` — URL pública do anexo no bucket `chat-media` (subpasta `quick-messages/<user_id>/...`)
-- `media_path text` — caminho interno no bucket (para deletar quando a mensagem for removida)
-- `media_mime text`, `media_size bigint`, `media_filename text`
-- `link_url text`, `link_title text`, `link_description text`, `link_image text` — metadados do preview de link
+Mesmo problema, secundário, no helper compartilhado `supabase/functions/_shared/uazapi-adapter.ts` (`sendMedia`), que também só envia `caption`.
 
-`use_locations` deixa de ser usado pela UI mas permanece na tabela por compatibilidade. Default passa a `{chat_module}` para registros novos.
+WABA já está correto (`caption` é o campo oficial da Graph API).
 
-Bucket de mídia: reutilizar `chat-media` (já existe e é público). Sem mudança de policies.
+## Correção
 
-## Engine de variáveis (`src/lib/messageVariables.ts`)
+### 1. `src/contexts/WhatsAppDataContext.tsx` (ramo UaZapi do `sendMedia`)
+Adicionar `text: caption` no body do `/send/media` (manter `caption` por compatibilidade defensiva). Para `ptt`/`audio`, **não** enviar `text` (UaZapi rejeita caption em áudio).
 
-Todas as variáveis usam sintaxe `{{...}}`. Expandir `interpolateVariables`:
-
-- `{{Saudacao_dia_tarde_noite}}` → "Bom dia" (<12h), "Boa tarde" (12-18h), "Boa noite" (≥18h), no fuso `America/Sao_Paulo`.
-- `{{nome}}` → nome do lead (já existe).
-- `{{primeiro_nome}}` → primeiro nome (já existe).
-- `{{data_hoje}}` → `dd/MM/yyyy`.
-- `{{hora_agora}}` → `HH:mm`.
-- `{{data_hoje+Xd}}` → data de hoje + X dias corridos no formato `dd/MM/yyyy` (regex `\{\{\s*data_hoje\+(\d+)d\s*\}\}`).
-- Mantém `{{protocolo}}`, `{{atendente}}`, `{{data}}`, `{{hora}}` legados.
-
-Atualizar `AVAILABLE_VARIABLES` com os novos tokens. Match exclusivamente em `{{var}}` (chaves duplas).
-
-## Página `/mensagens-rapidas` reformulada
-
-### Lista (cards)
-
-Cada card mostra ícone do tipo, título, atalho, preview (thumbnail para imagem/vídeo, player compacto para áudio, ícone+filename para documento, card de link com og:image, primeiras linhas para texto), badge "Ativo/Inativo", ações editar/excluir.
-
-Remover totalmente a seção/badges de "Onde usar".
-
-### Dialog Criar/Editar
-
-Topo: segmented control com 6 tipos:
-
-```text
-[Texto] [Imagem] [Vídeo] [Áudio] [Documento] [Link]
+```ts
+body: {
+  number: target,
+  file: fileField,
+  mediaUrl: persistedUrl,
+  type: mediaType,
+  mediaType,
+  mimetype: sendMimetype,
+  text: isAudioMessage ? undefined : (caption || undefined),  // ← novo (campo correto na UaZapi)
+  caption,                                                     // mantido por compat
+  fileName: outboundFile.name,
+  docName: type === 'document' ? outboundFile.name : undefined,
+  ptt: type === 'ptt' ? true : undefined,
+  forward: options?.forward === true ? true : undefined,
+},
 ```
 
-Campos comuns: Título, Atalho, Ativo.
+### 2. `supabase/functions/_shared/uazapi-adapter.ts` (`sendMedia`)
+Mesmo ajuste no adapter compartilhado:
 
-Campos por tipo:
-
-- **Texto**: textarea + toolbar de chips que inserem `{{Saudacao_dia_tarde_noite}}`, `{{nome}}`, `{{data_hoje}}`, `{{hora_agora}}`, `{{data_hoje+Xd}}` (com input numérico para X). Pré-visualização renderizada abaixo com valores de exemplo.
-- **Imagem / Vídeo / Áudio / Documento**: dropzone + upload, preview, legenda opcional (com as mesmas variáveis). Upload via `supabase.storage.from('chat-media').upload('quick-messages/<user_id>/<uuid>.<ext>')`.
-- **Link**: input de URL + botão "Buscar preview" (usa `useLinkPreview`/edge `link-preview` existentes). Campos editáveis após fetch. Legenda opcional.
-
-Validação no Salvar: `text` exige `message_text`; mídia exige `media_url`; `link` exige `link_url`.
-
-### Hook `useQuickMessages`
-
-Adicionar campos novos ao tipo `QuickMessage`. Remover parâmetro/filtro `location` (chat-only). Manter ordenação por `position`.
-
-## QuickMessagePicker (no Chat)
-
-`src/components/chat/QuickMessagePicker.tsx`:
-
-1. Busca mensagens do usuário sem filtro de `use_locations`.
-2. Renderiza item conforme `kind` (ícone + preview compacto).
-3. Ao clicar:
-   - **text**: chama `onSelect(interpolated_text)` — interpolação acontece AQUI (no momento da seleção), conforme pedido. Contexto vem de props novas (`contactName`, `protocol`, `agentName`).
-   - **image/video/audio/document**: chama `onSelectMedia({ url, mime, filename, kind, caption })` com legenda já interpolada.
-   - **link**: chama `onSelect(interpolated_text + '\n' + link_url)` — WhatsApp gera o preview a partir do URL.
-
-## ChatInput
-
-`handleQuickMessageSelect(text)` continua igual. Adicionar `handleQuickMessageMedia({url, mime, filename, kind, caption})`: `fetch(url)` → `Blob` → `File`, abre o modal `pendingMedia` existente já pré-preenchido. Passar `contactName`, `protocol`, `agentName` como props ao `QuickMessagePicker`.
-
-## Arquivos afetados
-
-- `supabase/migrations/<novo>.sql` — alterações em `quick_messages`.
-- `src/lib/messageVariables.ts` — novas variáveis em `{{...}}`.
-- `src/hooks/useQuickMessages.ts` — tipos novos, remover filtro location.
-- `src/pages/mensagens-rapidas/QuickMessagesPage.tsx` — UI reformulada.
-- `src/components/chat/QuickMessagePicker.tsx` — render por tipo + interpolação na seleção.
-- `src/components/chat/ChatInput.tsx` — handler de mídia rápida e passagem de contexto.
+```ts
+'/send/media', {
+  number, mediaUrl, mediaType: type,
+  text: type === 'audio' ? undefined : (caption || ''),  // ← novo
+  caption: caption || '',                                 // mantido por compat
+}
+```
 
 ## Fora de escopo
 
-- Backfill de mensagens antigas (todas viram `text` por default).
-- Drag-and-drop de reordenação.
+- WABA continua intacto (já usa `caption` corretamente).
+- Áudio (ptt/audio) continua sem caption — restrição da UaZapi e da WABA.
+- Nenhuma mudança na UI; o fluxo de quick messages → `pendingMedia` → preview com caption editável segue igual.
+
+## Validação
+
+Após implementar:
+1. No `/chat`, anexar imagem + digitar caption → enviar → conferir no WhatsApp do destinatário que a legenda chega.
+2. Repetir via `/mensagens-rapidas` com mídia + texto adicional digitado.
+3. Áudio gravado: não deve enviar caption (não regredir).
