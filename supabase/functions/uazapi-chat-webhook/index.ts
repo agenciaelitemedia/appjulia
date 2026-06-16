@@ -1543,6 +1543,8 @@ Deno.serve(async (req) => {
                       ? 'Cliente respondeu após resolução — sem responsável, devolvida à fila; fila atualizada'
                       : 'Cliente respondeu após resolução — sem responsável, devolvida à fila'),
               });
+              // Se reabriu sem responsável, tenta atribuir via regras.
+              if (!hasAssignee) triggerAutoRoute(resolvedConv.id);
             }
             conversationId = resolvedConv.id;
           } else {
