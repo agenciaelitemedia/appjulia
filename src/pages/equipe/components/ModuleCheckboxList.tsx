@@ -20,7 +20,7 @@ const categoryLabels: Record<string, string> = {
 };
 
 // Modules not available for TIME role
-const excludedModules = ['team', 'settings'];
+const excludedModules = ['settings'];
 
 export function ModuleCheckboxList({
   parentPermissions,
