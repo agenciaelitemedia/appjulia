@@ -52,6 +52,26 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Fire-and-forget: aciona o roteador automático de chats. A própria
+// chat-route-conversation valida a flag master por client_id antes de agir.
+function triggerAutoRoute(conversationId: string) {
+  try {
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/chat-route-conversation`;
+    EdgeRuntime.waitUntil(
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({ conversation_id: conversationId }),
+      }).catch(() => {}),
+    );
+  } catch (e) {
+    console.warn('[auto-route] trigger failed', (e as Error).message);
+  }
+}
+
 function getSupabase() {
   return createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -1523,6 +1543,8 @@ Deno.serve(async (req) => {
                       ? 'Cliente respondeu após resolução — sem responsável, devolvida à fila; fila atualizada'
                       : 'Cliente respondeu após resolução — sem responsável, devolvida à fila'),
               });
+              // Se reabriu sem responsável, tenta atribuir via regras.
+              if (!hasAssignee) triggerAutoRoute(resolvedConv.id);
             }
             conversationId = resolvedConv.id;
           } else {
@@ -1551,6 +1573,8 @@ Deno.serve(async (req) => {
                 actor_name: 'Sistema (webhook)',
                 to_value: 'pending',
               });
+              // Distribuição automática (se ativada para o client_id).
+              if (!fromMe) triggerAutoRoute(newConv.id);
             } else {
               // INSERT bloqueado pelo índice único parcial (race: outro worker
               // criou em paralelo). Recupera a conversa ativa que já existe.
