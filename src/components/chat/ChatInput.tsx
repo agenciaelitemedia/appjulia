@@ -317,11 +317,15 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
         type: m.mime || blob.type,
       });
       const type: MessageType = m.kind === 'document' ? 'document' : (m.kind as MessageType);
-      setPendingMedia({ file, type, caption: m.caption || undefined });
+      const typed = text.trim();
+      const quick = (m.caption || '').trim();
+      const merged = [typed, quick].filter(Boolean).join('\n');
+      setPendingMedia({ file, type, caption: merged || undefined });
+      if (typed) setText('');
     } catch (e) {
       console.error('[QuickMessage] media fetch failed', e);
     }
-  }, []);
+  }, [text]);
 
   const handleAudioSend = useCallback(async (audioBlob: Blob) => {
     const blobType = (audioBlob.type || '').toLowerCase();
