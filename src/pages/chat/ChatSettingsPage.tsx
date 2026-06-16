@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Settings, Timer, Tag as TagIcon, Cog, Radio, Zap, Activity, FileText, GitFork } from 'lucide-react';
+import { ArrowLeft, Settings, Timer, Tag as TagIcon, Cog, Radio, Zap, Activity, FileText, GitFork, Shuffle } from 'lucide-react';
 import { TagsManagerContent } from '@/components/chat/TagsManagerDialog';
 import { ChatSlaConfigContent } from './ChatSlaConfigPage';
 import { WhatsAppDataProvider } from '@/contexts/WhatsAppDataContext';
@@ -44,7 +44,7 @@ function ChatSettingsContent() {
             <TagIcon className="h-3.5 w-3.5" /> Etiquetas
           </TabsTrigger>
           <TabsTrigger value="distribuicao" className="gap-1.5">
-            <GitFork className="h-3.5 w-3.5" /> Distribuição Automática
+            <Shuffle className="h-3.5 w-3.5" /> Distribuição Automática
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="monitor" className="gap-1.5">
