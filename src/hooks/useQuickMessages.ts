@@ -6,12 +6,22 @@ export interface QuickMessage {
   id: string;
   user_id: number;
   title: string;
-  message_text: string;
+  message_text: string | null;
   shortcut: string | null;
   category: string;
   use_locations: string[];
   is_active: boolean;
   position: number;
+  kind: 'text' | 'image' | 'video' | 'audio' | 'document' | 'link';
+  media_url: string | null;
+  media_path: string | null;
+  media_mime: string | null;
+  media_size: number | null;
+  media_filename: string | null;
+  link_url: string | null;
+  link_title: string | null;
+  link_description: string | null;
+  link_image: string | null;
   created_at: string;
   updated_at: string;
 }
