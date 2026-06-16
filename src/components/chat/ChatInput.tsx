@@ -305,6 +305,24 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
     textareaRef.current?.focus();
   };
 
+  const handleQuickMessageMedia = useCallback(async (m: {
+    url: string; mime: string | null; filename: string | null;
+    kind: 'image' | 'video' | 'audio' | 'document'; caption: string;
+  }) => {
+    setShowQuickMessages(false);
+    try {
+      const res = await fetch(m.url);
+      const blob = await res.blob();
+      const file = new File([blob], m.filename || `quick.${(m.mime || 'application/octet-stream').split('/')[1] || 'bin'}`, {
+        type: m.mime || blob.type,
+      });
+      const type: MessageType = m.kind === 'document' ? 'document' : (m.kind as MessageType);
+      setPendingMedia({ file, type, caption: m.caption || undefined });
+    } catch (e) {
+      console.error('[QuickMessage] media fetch failed', e);
+    }
+  }, []);
+
   const handleAudioSend = useCallback(async (audioBlob: Blob) => {
     const blobType = (audioBlob.type || '').toLowerCase();
     const extension = blobType.includes('ogg') ? 'ogg' : blobType.includes('mp4') ? 'm4a' : 'webm';
@@ -521,8 +539,14 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
                 <Zap className="h-5 w-5 text-muted-foreground" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" side="top" align="start">
-              <QuickMessagePicker onSelect={handleQuickMessageSelect} />
+            <PopoverContent className="w-96 p-0" side="top" align="start">
+              <QuickMessagePicker
+                onSelect={handleQuickMessageSelect}
+                onSelectMedia={handleQuickMessageMedia}
+                contactName={selectedContact?.name ?? null}
+                protocol={selectedConversation?.protocol ?? null}
+                agentName={user?.name ?? null}
+              />
             </PopoverContent>
           </Popover>
 
