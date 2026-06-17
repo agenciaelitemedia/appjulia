@@ -7792,6 +7792,65 @@ export type Database = {
         }
         Relationships: []
       }
+      mv_user_chat_daily: {
+        Row: {
+          avg_handle_seconds: number | null
+          client_id: string | null
+          day_brt: string | null
+          p50_handle_seconds: number | null
+          p95_handle_seconds: number | null
+          received: number | null
+          resolved: number | null
+          returned: number | null
+          transferred: number | null
+          user_name: string | null
+        }
+        Relationships: []
+      }
+      mv_user_phone_daily: {
+        Row: {
+          avg_call_seconds: number | null
+          calls_answered: number | null
+          calls_inbound: number | null
+          calls_outbound: number | null
+          calls_to_known_leads: number | null
+          calls_total: number | null
+          client_id: string | null
+          day_brt: string | null
+          talk_seconds: number | null
+          unique_numbers: number | null
+          user_id: number | null
+        }
+        Relationships: []
+      }
+      mv_user_phone_top_numbers: {
+        Row: {
+          call_count: number | null
+          client_id: string | null
+          day_brt: string | null
+          is_known_lead: boolean | null
+          last_call_at: string | null
+          phone_display: string | null
+          phone_normalized: string | null
+          rank: number | null
+          total_seconds: number | null
+          user_id: number | null
+        }
+        Relationships: []
+      }
+      mv_user_sessions_daily: {
+        Row: {
+          client_id: number | null
+          day_brt: string | null
+          first_login: string | null
+          last_logout: string | null
+          sessions_count: number | null
+          user_id: number | null
+          user_name: string | null
+          worked_seconds: number | null
+        }
+        Relationships: []
+      }
       uazapi_history_pending_by_client: {
         Row: {
           client_id: string | null
@@ -7949,6 +8008,7 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: number
       }
+      refresh_team_performance_mvs: { Args: never; Returns: undefined }
       server_now_brt: { Args: never; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

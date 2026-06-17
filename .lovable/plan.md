@@ -1,41 +1,104 @@
-# Refinar alerta sonoro de novas mensagens
+# Dashboard de Performance da Equipe
 
-Hoje `useNewMessageSound` (montado no `MainLayout`) toca o som em qualquer mensagem recebida do `client_id` do usuário. Vamos adicionar dois filtros adicionais.
+Nova aba **"Performance"** dentro de `/equipe` (ao lado de Dashboard e Gestão de Equipe). Acesso herdado da permissão do módulo `team` (sem alterações). Filtros: período (Hoje, Ontem, 7d, Mês atual, Mês anterior, Personalizado) + multi-select de usuários da equipe.
 
-## Mudanças
+## Dados que vamos consolidar (por user × dia)
 
-### 1. Não tocar durante gravação/envio de áudio
-Criar um pequeno store de "atividade de áudio" para sinalizar globalmente quando o usuário está gravando ou enviando um áudio no chat.
+**1. Tempo de trabalho** — `user_activity_log` (`login`, `logout_manual`, `logout_inactivity`) + cap em `user_presence.last_seen_at` para sessões abertas.
+- `worked_seconds`, `sessions_count`, `first_login`, `last_logout`, `idle_seconds` (gaps > 15 min entre eventos dentro da sessão).
 
-- Novo arquivo `src/lib/chat/audioActivity.ts`:
-  - Mantém um contador interno (`activeCount`) — suporta múltiplas instâncias eventuais.
-  - Exporta `setAudioActivity(active: boolean)` e `isAudioActive(): boolean`.
-- `src/components/chat/AudioRecorder.tsx`:
-  - `useEffect` que chama `setAudioActivity(true)` ao montar e `setAudioActivity(false)` ao desmontar.
-  - Garante ativação também enquanto `isSending` for verdadeiro (cobre o intervalo entre parar a gravação e o envio concluir).
-- `useNewMessageSound`: antes de tocar, sai cedo se `isAudioActive()` retornar `true`.
+**2. Atendimentos** — `chat_conversations` + `chat_conversation_history`.
+- `received` (eventos `assigned` para o user, ou `opened_at` quando atribuído na criação)
+- `resolved`, `returned_to_queue` (inclui `auto_returned`), `transferred` (assigned com `from_value`=user e `to_value`=outro user)
+- `handle_seconds` por conversa = saída − assigned; agregados `avg`, `p50`, `p95`
+- `first_response_seconds_avg` (`first_response_at − opened_at`)
 
-### 2. Só alertar para conversas pendentes ou atribuídas ao usuário logado
-A regra é: tocar somente se a conversa da mensagem estiver em status `pending` (sem atendente) OU `assigned_to === user.id` do usuário logado. Mensagens de conversas atribuídas a outro atendente são ignoradas.
+**3. Telefonia** — `phone_call_logs`.
+- `calls_total`, `calls_answered`, `calls_outbound`, `calls_inbound`
+- `talk_seconds`, `avg_call_seconds`
+- `unique_numbers`, top 20 `(called_normalized, count, total_seconds)`
+- `calls_to_known_leads` = cruzamento de `called` normalizado com `chat_contacts.phone` do mesmo `client_id`
 
-Como o payload Realtime de `chat_messages` não carrega `assigned_to`/`status`, faremos uma consulta leve a `chat_conversations` no momento do alerta:
+**4. Derivadas** — `occupancy_pct`, `conversations_per_hour`, `resolution_rate`, `return_rate`, `talk_ratio`.
 
-- Em `useNewMessageSound`, dentro do handler `INSERT`:
-  - Após validar dedup/tipo, ler `msg.conversation_id` do payload.
-  - Se não houver `conversation_id`, manter o comportamento atual (tocar — fallback seguro para mensagens fora de ticket).
-  - Caso contrário, `supabase.from('chat_conversations').select('status, assigned_to').eq('id', conversation_id).maybeSingle()`.
-  - Tocar somente se `status === 'pending'` OU `String(assigned_to) === String(user.id)`.
-  - Em erro de consulta, falhar silenciosamente sem tocar (evita ruído indevido).
-- O throttle e o gate de `settings.enabled`/`mutedUsers` permanecem inalterados.
+## Camada SQL (materialized views)
 
-## Detalhes técnicos
+```text
+v_user_sessions_daily   (user_activity_log + user_presence)
+v_user_chat_daily       (chat_conversations + chat_conversation_history)
+v_user_phone_daily      (phone_call_logs + chat_contacts p/ leads)
+v_user_phone_top_numbers (top 20 números por user × dia)
+v_user_performance_daily (join final dos 3 acima)
+```
 
-- O store de áudio é um módulo simples (sem React state) para não exigir Context novo e funcionar a partir do `AudioRecorder` em qualquer página.
-- Nada muda em `ChatInput.tsx` — o `AudioRecorder` é montado/desmontado conforme `isRecording`, então o ciclo de vida cobre toda a janela "gravando + enviando".
-- Não alteramos lógica de negócio do chat (envio, atribuição, status). Mudança fica isolada em alerta sonoro + flag de áudio.
+- Particionadas conceitualmente por `(client_id, day_brt, user_id)` em America/Sao_Paulo.
+- Índice único `(client_id, day_brt, user_id)` em cada MV → permite `REFRESH ... CONCURRENTLY`.
+- `pg_cron` a cada **5 min** para refresh.
+- View regular `v_user_performance_today` lendo dados ao vivo para o dia corrente (UNION no hook quando o range inclui hoje), assim "Hoje" é tempo real e histórico é instantâneo.
+- Cuidado memória do projeto: cast `bigint` em `cod_agent` / `client_id` ao cruzar fontes.
 
-## Arquivos afetados
+## UI — aba "Performance" em `/equipe`
 
-- `src/lib/chat/audioActivity.ts` (novo)
-- `src/components/chat/AudioRecorder.tsx` (efeito de sinalização)
-- `src/hooks/useNewMessageSound.ts` (dois novos gates)
+### Cabeçalho de filtros (sticky)
+- Seletor de período (chips) + date range custom
+- Multi-select de usuários (reusa `AgentMultiSelectPopover` adaptado para members da equipe)
+- Botão Exportar (CSV + PDF, padrão `ChatReportsPage`)
+
+### Linha 1 — KPIs agregados (8 cards compactos com sparkline 14d)
+| KPI | Visual |
+|---|---|
+| Tempo total logado | Card + sparkline |
+| Atendimentos recebidos | Card + sparkline |
+| Taxa de resolução | Card + gauge radial |
+| Tempo médio de atendimento | Card + sparkline |
+| Devoluções p/ fila | Card + delta vs período anterior |
+| Transferências | Card + delta |
+| Ligações realizadas | Card + sparkline |
+| Talk time total | Card + sparkline |
+
+### Linha 2 — Gráficos
+- **Stacked Bar diário** (recharts BarChart): por dia, barras empilhadas `Resolvidas / Devolvidas / Transferidas / Em aberto`. Eixo Y secundário com linha de "Tempo logado (h)".
+- **Heatmap dia da semana × hora** (grid customizado): densidade de mensagens enviadas pelo user → mostra "horários produtivos" da equipe.
+- **Funil de atendimento** (recharts FunnelChart): Recebidas → Respondidas (1ª resposta) → Resolvidas.
+- **Scatter "Ocupação × Resolução"**: cada ponto = um atendente no período; X = ocupação %, Y = taxa de resolução, tamanho = volume. Identifica top performers e ociosos em um olhar.
+
+### Linha 3 — Ranking por atendente (tabela principal)
+Tabela ordenável com todas as colunas-chave, mini-barras inline para comparação visual:
+
+| Atendente | Tempo logado | Ocupação | Receb. | Resolv. | Devol. | Transf. | TMA | 1ª resp | Ligações | Talk time | Leads chamados |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+
+- Linha clicável → abre **Drawer lateral** com:
+  - **Timeline do dia** (lane chart): sessões (verde), conversas em atendimento (azul), chamadas (laranja) — visualiza sobreposição
+  - **Top 20 números chamados** (tabela)
+  - **Lista de conversas** do período com status final, duração e link p/ chat
+  - **Pie**: distribuição do tempo (talk / handle / idle)
+
+### Linha 4 — Telefonia detalhada (colapsável)
+- **Tabela "Top números mais chamados"** consolidada (com flag "é lead?", contagem, talk time)
+- **Bar horizontal** top 10 atendentes por talk time
+- **Line chart** chamadas por hora do dia (média do período)
+
+## Critérios e cuidados
+
+- **Fuso** America/Sao_Paulo em todas agregações
+- **Sessão sem logout**: cap em `last_seen_at + 5min`
+- **Transferência**: só conta quando origem E destino são users (atribuição inicial da fila não conta)
+- **Normalização de telefone**: `phoneNormalize.ts` existente (mesma lógica do CRM)
+- **Performance**: MVs com `CONCURRENTLY`, hook usa MV para histórico + view ao vivo para hoje
+- **Filtro por user**: aplicado no client após query (resultset já pequeno por estar pré-agregado)
+- **Acesso**: aba renderiza dentro de `/equipe`, herda guard de `team` — sem mudança em permissões
+
+## Entregáveis
+
+1. Migration: 5 MVs + 1 view "hoje" + índices únicos + cron de 5min
+2. Hook `useTeamPerformance(filters, userIds)` e `useTeamPerformanceDetail(userId, dateRange)`
+3. Novo arquivo `src/pages/equipe/components/EquipePerformanceTab.tsx`
+4. Subcomponentes: `PerformanceKpis`, `PerformanceDailyChart`, `PerformanceHeatmap`, `PerformanceFunnel`, `PerformanceScatter`, `PerformanceRankingTable`, `PerformanceUserDrawer`, `PerformancePhoneSection`
+5. Atualizar `EquipePage.tsx` para incluir a 3ª aba
+
+## Perguntas finais
+
+1. **"Conversa recebida"** = data de **atribuição ao user** (recomendado, reflete carga real) ou data de **criação da conversa**?
+2. **"Ligou para o lead"** = contato em `chat_contacts` do cliente, ou também `crm_deals` (lead do CRM)?
+3. **Heatmap de produtividade** deve contar **mensagens enviadas** pelo user ou **conversas ativas** por hora?
