@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain, Copy, Check } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Queue } from '../hooks/useQueues';
@@ -11,7 +12,6 @@ import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { QueueAccessDialog } from './QueueAccessDialog';
-import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const DELETE_ALLOWED_ROLES = ['admin', 'colaborador', 'user'] as const;
