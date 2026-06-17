@@ -7816,10 +7816,10 @@ export type Database = {
           calls_to_known_leads: number | null
           calls_total: number | null
           client_id: string | null
-          cod_agent: string | null
           day_brt: string | null
           talk_seconds: number | null
           unique_numbers: number | null
+          user_id: number | null
         }
         Relationships: []
       }
@@ -7827,7 +7827,6 @@ export type Database = {
         Row: {
           call_count: number | null
           client_id: string | null
-          cod_agent: string | null
           day_brt: string | null
           is_known_lead: boolean | null
           last_call_at: string | null
@@ -7835,6 +7834,7 @@ export type Database = {
           phone_normalized: string | null
           rank: number | null
           total_seconds: number | null
+          user_id: number | null
         }
         Relationships: []
       }
