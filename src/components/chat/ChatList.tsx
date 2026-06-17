@@ -1653,7 +1653,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     onClick={() => selectContact(contact.id)}
                     conversation={conv}
                     queueName={convQueue?.name}
-                    assignedAgentName={conv?.assigned_to || undefined}
+                    assignedAgentName={resolveAssigneeName(conv?.assigned_to, assigneeIndex) || undefined}
                     index={virtualItem.index}
                     convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
                     agentCodAgent={agentCodAgent}
