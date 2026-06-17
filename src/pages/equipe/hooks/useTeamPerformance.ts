@@ -133,10 +133,14 @@ export function useTeamPerformance(
     enabled: !!clientIdNum && userIds.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
-      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
-      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+      // Para tempo online: dias passados vêm do agregado `user_presence_daily`;
+      // apenas o dia de hoje (janela "quente") é calculado on the fly nos heartbeats brutos.
+      const todayBrt = new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
+      const hotFromIso = new Date(`${todayBrt}T00:00:00-03:00`).toISOString();
+      const hotToIso = new Date(`${todayBrt}T23:59:59-03:00`).toISOString();
+      const includesToday = period.endDate >= todayBrt;
 
-      const [sessionsRes, chatRes, phoneRes, heartbeatsRes] = await Promise.all([
+      const [sessionsRes, chatRes, phoneRes, heartbeatsRes, presenceDailyRes] = await Promise.all([
         supabase
           .from('mv_user_sessions_daily' as any)
           .select('user_id, user_name, day_brt, worked_seconds, sessions_count')
@@ -160,19 +164,29 @@ export function useTeamPerformance(
           .in('user_id', userIds as any)
           .gte('day_brt', period.startDate)
           .lte('day_brt', period.endDate),
-        // Tempo online real (heartbeats): 1 linha = 30s.
+        // Janela "quente" (hoje): heartbeats brutos = 30s por slot.
+        includesToday
+          ? supabase
+              .from('user_presence_heartbeats' as any)
+              .select('user_id, seen_at')
+              .in('user_id', userIds as any)
+              .gte('seen_at', hotFromIso)
+              .lte('seen_at', hotToIso)
+          : Promise.resolve({ data: [] as any[] }),
+        // Janela "fria" (<= ontem): agregado diário consolidado.
         supabase
-          .from('user_presence_heartbeats' as any)
-          .select('user_id, seen_at')
+          .from('user_presence_daily' as any)
+          .select('user_id, day_brt, online_seconds')
           .in('user_id', userIds as any)
-          .gte('seen_at', fromIso)
-          .lte('seen_at', toIso),
+          .gte('day_brt', period.startDate)
+          .lt('day_brt', todayBrt),
       ]);
 
       const sessions = (sessionsRes as any).data || [];
       const chat = (chatRes as any).data || [];
       const phone = (phoneRes as any).data || [];
       const heartbeats = (heartbeatsRes as any).data || [];
+      const presenceDaily = (presenceDailyRes as any).data || [];
 
       // Initialize per-user accumulator
       const byUser: Record<number, PerformanceUserRow> = {};
@@ -195,10 +209,19 @@ export function useTeamPerformance(
         byUser[uid].sessions_count += Number(r.sessions_count) || 0;
       }
 
-      // Tempo online real (heartbeats): cada slot distinto = 30s.
-      // Slot já vem arredondado a múltiplos de 30s pelo RPC, mas garantimos aqui também.
-      const seenSlots: Record<number, Set<string>> = {};
+      // Tempo online — dias passados (agregado) + hoje (heartbeats).
       const dayOnlineSecs: Record<number, Record<string, number>> = {};
+
+      // 1) Dias frios via agregado já consolidado.
+      for (const r of presenceDaily as Array<{ user_id: number; day_brt: string; online_seconds: number }>) {
+        const uid = Number(r.user_id);
+        if (!byUser[uid]) continue;
+        const userMap = (dayOnlineSecs[uid] ||= {});
+        userMap[r.day_brt] = (userMap[r.day_brt] || 0) + (Number(r.online_seconds) || 0);
+      }
+
+      // 2) Hoje via heartbeats brutos (dedup por slot 30s).
+      const seenSlots: Record<number, Set<string>> = {};
       for (const r of heartbeats as Array<{ user_id: number; seen_at: string }>) {
         const uid = Number(r.user_id);
         if (!byUser[uid]) continue;
@@ -208,11 +231,8 @@ export function useTeamPerformance(
         const set = (seenSlots[uid] ||= new Set());
         if (set.has(slotKey)) continue;
         set.add(slotKey);
-        // dia em BRT (UTC-3)
-        const brt = new Date(t.getTime() - 3 * 3600_000);
-        const d = brt.toISOString().slice(0, 10);
         const userMap = (dayOnlineSecs[uid] ||= {});
-        userMap[d] = (userMap[d] || 0) + 30;
+        userMap[todayBrt] = (userMap[todayBrt] || 0) + 30;
       }
       for (const uid of Object.keys(byUser).map(Number)) {
         const userMap = dayOnlineSecs[uid] || {};

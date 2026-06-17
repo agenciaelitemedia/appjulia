@@ -6959,7 +6959,106 @@ export type Database = {
         }
         Relationships: []
       }
+      user_presence_daily: {
+        Row: {
+          client_id: number
+          day_brt: string
+          online_seconds: number
+          sessions_count: number
+          updated_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          day_brt: string
+          online_seconds?: number
+          sessions_count?: number
+          updated_at?: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          day_brt?: string
+          online_seconds?: number
+          sessions_count?: number
+          updated_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
       user_presence_heartbeats: {
+        Row: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          seen_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      user_presence_heartbeats_202606: {
+        Row: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          seen_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      user_presence_heartbeats_202607: {
+        Row: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          seen_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      user_presence_heartbeats_202608: {
+        Row: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          seen_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      user_presence_heartbeats_202609: {
         Row: {
           client_id: number
           seen_at: string
@@ -7950,8 +8049,18 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: Json
       }
-      cleanup_user_presence_heartbeats: { Args: never; Returns: number }
+      cleanup_user_presence_daily: {
+        Args: { p_retention_days?: number }
+        Returns: number
+      }
+      cleanup_user_presence_heartbeats:
+        | { Args: never; Returns: number }
+        | { Args: { p_retention_days?: number }; Returns: number }
       clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
+      ensure_user_presence_partitions: {
+        Args: { p_months_ahead?: number }
+        Returns: number
+      }
       generate_ticket_protocol: { Args: { p_mask: string }; Returns: string }
       get_db_cache_hit_ratio: {
         Args: never
@@ -8032,6 +8141,7 @@ export type Database = {
         Returns: number
       }
       refresh_team_performance_mvs: { Args: never; Returns: undefined }
+      rollup_user_presence_daily: { Args: { p_day?: string }; Returns: number }
       server_now_brt: { Args: never; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
