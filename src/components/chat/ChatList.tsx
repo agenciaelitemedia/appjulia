@@ -37,6 +37,7 @@ import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
 import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
+import { buildAssigneeIndex, resolveAssigneeName } from '@/hooks/useAssigneeNameResolver';
 import { externalDb } from '@/lib/externalDb';
 import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
