@@ -48,7 +48,7 @@ export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Transferir conversa</DialogTitle>
           <DialogDescription>
