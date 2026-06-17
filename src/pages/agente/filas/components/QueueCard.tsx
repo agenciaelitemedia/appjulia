@@ -99,7 +99,21 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                 {queue.is_deleted ? 'Excluída' : queue.is_active ? 'Ativa' : 'Inativa'}
               </Badge>
             </div>
-            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">ID: {queue.id}</p>
+            <div className="flex items-center gap-1 mt-0.5">
+              <p className="text-[11px] text-muted-foreground font-mono">ID: {queue.id}</p>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-4 w-4 shrink-0 -ml-0.5"
+                onClick={handleCopyId}
+              >
+                {copied ? (
+                  <Check className="h-3 w-3 text-green-500" />
+                ) : (
+                  <Copy className="h-3 w-3 text-muted-foreground" />
+                )}
+              </Button>
+            </div>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
