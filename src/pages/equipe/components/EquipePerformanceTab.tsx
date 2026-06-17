@@ -219,7 +219,7 @@ export function EquipePerformanceTab() {
               <h3 className="font-semibold mb-3 text-sm">Volume diário de atendimentos</h3>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={byDay.map((d) => ({ ...d, day: fmtShortDate(d.day), worked_hours: +(d.worked_seconds / 3600).toFixed(1) }))}>
+                  <ComposedChart data={byDay.map((d) => ({ ...d, day: fmtShortDate(d.day), worked_hours: +(d.worked_seconds / 3600).toFixed(1) }))}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={11} />
                     <YAxis yAxisId="left" stroke="hsl(var(--muted-foreground))" fontSize={11} />
@@ -230,7 +230,7 @@ export function EquipePerformanceTab() {
                     <Bar yAxisId="left" dataKey="returned" name="Devolvidas" stackId="a" fill="hsl(35 90% 55%)" />
                     <Bar yAxisId="left" dataKey="transferred" name="Transferidas" stackId="a" fill="hsl(220 70% 55%)" />
                     <Line yAxisId="right" type="monotone" dataKey="worked_hours" name="Horas logadas" stroke="hsl(280 60% 55%)" strokeWidth={2} dot={false} />
-                  </BarChart>
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </Card>
