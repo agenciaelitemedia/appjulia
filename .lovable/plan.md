@@ -1,49 +1,57 @@
-## Objetivo
-No `EquipePerformanceDrawer`, adicionar um ícone de detalhes no card **Tempo logado** que abre um modal listando todas as sessões (login → logout) do usuário no período selecionado, com duração de cada uma.
+## Backfill aproximado dos heartbeats a partir do histórico de login/logout
 
-## Mudanças
+Há ~33 dias de histórico em `user_activity_log` (2.907 logins / 2.768 logouts de 102 usuários). Vamos gerar **slots sintéticos de 30 s** entre cada par login → logout, gravar em `user_presence_heartbeats` e consolidar em `user_presence_daily` para que o dashboard mostre histórico imediatamente. A partir de amanhã o tempo é 100% real.
 
-### 1. Hook novo — `useUserSessions(userId, period)`
-Arquivo: `src/pages/equipe/hooks/useTeamPerformance.ts` (adicionar export).
+### Regras do backfill
 
-- Lê `user_activity_log` filtrando por `user_id` e `created_at` dentro do período (BRT).
-- Ordena por `created_at` ASC.
-- Pareia cada `login` com o próximo `logout_manual` ou `logout_inactivity` do mesmo usuário, montando linhas:
-  ```ts
-  { login_at: string; logout_at: string | null; logout_type: string | null; duration_seconds: number | null }
-  ```
-- Regras de borda:
-  - Login sem logout no período → `logout_at = null`, duration = `now - login_at` se for o dia corrente; caso contrário `null` (sessão em aberto/desconhecida).
-  - Logout sem login pareado → ignora (orfão), mas conta no resumo como "logout sem login".
-  - Aplica o teto de 12h por sessão (mesma regra da MV) ao calcular `duration_seconds`.
+- **Pares são montados varrendo os eventos por usuário em ordem cronológica**, igual à lógica antiga do `useUserSessions`. Login sem logout pareado é descartado (a antiga UI usava cap de 12h e isso era a fonte do "9h46" — não vamos repetir).
+- **Cap por sessão: 8 h** (mais conservador que os 12 h antigos). Sessões maiores são truncadas no logout virtual (login + 8 h).
+- **Logout sem login pareado** é descartado.
+- **Tudo é arredondado a múltiplos de 30 s** (slot canônico), `ON CONFLICT DO NOTHING` para não duplicar com heartbeats reais já existentes.
+- **Janela: últimos 90 dias** (limite de retenção dos heartbeats brutos). As partições mensais já existem para o período.
+- **Marcação**: dados gerados desta forma ficam em `user_presence_heartbeats` normais (não há flag `synthetic`). Para a UI saber, exposição via `user_presence_daily.metadata` (jsonb) opcional **não** será adicionada — em vez disso, marcamos no front a partir de uma data-limite gravada em `chat_client_settings.settings.presence_backfill_until` (texto YYYY-MM-DD).
 
-### 2. Componente novo — `UserSessionsDialog`
-Arquivo: `src/pages/equipe/components/UserSessionsDialog.tsx`.
+### Passos
 
-- `Dialog` do shadcn (não Sheet, para abrir sobre o drawer existente).
-- Header: nome do usuário + período.
-- Resumo no topo: total de sessões, tempo total logado (soma já formatada), média por sessão.
-- Tabela com colunas:
-  | Login | Logout | Tempo online |
-  Cada linha formatada como `17/06/2026 08:02 | 17/06/2026 10:15 | 1:59`.
-  - `logout_type` exibido como badge sutil ao lado do logout (`Manual` / `Inatividade` / `Em aberto`).
-  - Estado vazio: "Nenhum login registrado no período".
-  - Loading: spinner.
-- Botão "Exportar CSV" no canto (mesma estética dos outros export do módulo).
+1. **Migration: função SQL `backfill_user_presence_heartbeats(p_from timestamptz, p_to timestamptz, p_cap_seconds int default 28800)`**
+   - Varre `user_activity_log` no intervalo, monta pares por usuário com window functions (`LAG`/state machine via subquery ordenada).
+   - Para cada par válido `(login_at, logout_at, user_id, client_id)`:
+     - Trunca a duração ao cap.
+     - Gera série `generate_series(slot_start, slot_end, '30 seconds')` e insere em `user_presence_heartbeats` com `ON CONFLICT DO NOTHING`.
+   - Retorna jsonb `{ pairs, slots_inserted, users }`.
+   - `SECURITY DEFINER`, grant a `service_role` apenas.
 
-### 3. Ajuste no `EquipePerformanceDrawer`
-- Importar `Info` (lucide) e o novo `UserSessionsDialog`.
-- Estender `MiniKpi` para aceitar prop opcional `action?: ReactNode` renderizada no canto superior direito (botão `ghost` `size="icon"` h-6 w-6).
-- No card "Tempo logado", passar um botão com ícone `Info` (ou `List`) que faz `setSessionsOpen(true)`.
-- Renderizar `<UserSessionsDialog open={...} user={user} period={period} />` no final do Sheet.
+2. **Executar o backfill via `supabase--insert`**
+   - `SELECT public.backfill_user_presence_heartbeats(now() - interval '90 days', now())`.
+   - Em seguida, consolidar todos os dias afetados em `user_presence_daily`:
+     ```sql
+     SELECT public.rollup_user_presence_daily(d::date)
+       FROM generate_series((now() - interval '90 days')::date,
+                            (now() AT TIME ZONE 'America/Sao_Paulo')::date - 1,
+                            interval '1 day') d;
+     ```
 
-## Detalhes técnicos
-- Formatação de duração no formato `H:MM` (ex.: `1:59`, `0:45`) — helper local no dialog, separado do `fmtDuration` existente que usa `h`/`m`.
-- Datas exibidas em `dd/MM/yyyy HH:mm` via `date-fns` + `ptBR` (já importado no drawer).
-- Query key: `['user-sessions', userId, period.startDate, period.endDate]`, `staleTime: 60_000`.
-- Permissões: módulo `team` já protege a rota — sem mudanças.
+3. **Marcar a data-limite "estimado" em settings (opcional)**
+   - `UPDATE chat_client_settings SET settings = settings || jsonb_build_object('presence_backfill_until', to_char(now() AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD'))`.
+   - Frontend lê e exibe selo "estimado (login/logout)" em dias `<= presence_backfill_until` no card "Tempo online", na coluna da tabela e no modal de sessões.
 
-## Arquivos
-- editar: `src/pages/equipe/hooks/useTeamPerformance.ts`
-- criar:  `src/pages/equipe/components/UserSessionsDialog.tsx`
-- editar: `src/pages/equipe/components/EquipePerformanceDrawer.tsx`
+4. **Frontend (mínimo, complementa o plano anterior):**
+   - `useTeamPerformance`: ler `presence_backfill_until` do cliente (1 chamada extra cacheada). Adicionar no tooltip do KPI: *"Dias até DD/MM/YYYY são estimados a partir de pares login/logout (cap 8h). Do dia seguinte em diante, medição real por heartbeats."*
+   - `UserSessionsDialog`: badge "Estimado" (cinza) em linhas cujo `login_at <= presence_backfill_until`.
+
+### Estimativa de volume
+
+~5.500 pares × média 2 h cada = ~5.500 × 240 slots ≈ **1,3 M linhas inseridas** distribuídas em 2 partições mensais (maio/2026 e junho/2026). Custo: ~1–2 min de execução, ~40 MB de tabela. Sem impacto em produção (inserts puros, `ON CONFLICT DO NOTHING`).
+
+### O que NÃO vai ser feito
+
+- Não vamos sintetizar atividade fora dos pares login/logout (ex.: aba aberta sem login registrado).
+- Não vamos rodar o backfill em cron — é one-shot.
+- Não vamos modificar `mv_user_sessions_daily`.
+- Não vamos remover o card de sessões antigo nem mudar a UI além dos selos "estimado".
+
+### Arquivos / objetos afetados
+
+- **Migration** (nova função): `public.backfill_user_presence_heartbeats(timestamptz, timestamptz, int)`.
+- **Dados**: inserts em `user_presence_heartbeats` e `user_presence_daily` (via rollup), update em `chat_client_settings`.
+- **Frontend**: `useTeamPerformance.ts` (carregar `presence_backfill_until`), `EquipePerformanceTab.tsx` e `EquipePerformanceDrawer.tsx` (tooltips), `UserSessionsDialog.tsx` (badge "Estimado").

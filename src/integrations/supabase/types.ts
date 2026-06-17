@@ -8049,6 +8049,10 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: Json
       }
+      backfill_user_presence_heartbeats: {
+        Args: { p_cap_seconds?: number; p_from: string; p_to: string }
+        Returns: Json
+      }
       cleanup_user_presence_daily: {
         Args: { p_retention_days?: number }
         Returns: number
