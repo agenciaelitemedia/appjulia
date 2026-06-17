@@ -54,6 +54,8 @@ interface TeamMemberSelectProps {
   hideRoleBadge?: boolean;
   /** Width / size variants */
   size?: 'sm' | 'md';
+  /** Map nome → contagem, exibida como "(N)" ao lado do nome. */
+  memberCounts?: Record<string, number>;
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -125,6 +127,7 @@ export function TeamMemberSelect({
   showCurrentUserShortcut = false,
   hideRoleBadge = false,
   size = 'md',
+  memberCounts,
 }: TeamMemberSelectProps) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
@@ -250,6 +253,11 @@ export function TeamMemberSelect({
                       <Check className={cn('h-4 w-4', value === meName ? 'opacity-100' : 'opacity-0')} />
                       <UserCheck className="h-4 w-4 text-primary" />
                       <span className="flex-1 truncate">Atribuir a mim</span>
+                      {memberCounts && (
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          ({memberCounts[meName.trim()] ?? 0})
+                        </span>
+                      )}
                       <Badge variant="secondary" className="text-[10px] h-5">EU</Badge>
                     </CommandItem>
                   )}
@@ -316,7 +324,14 @@ export function TeamMemberSelect({
                         />
                       </div>
                       <div className="flex flex-col gap-0 min-w-0 flex-1">
-                        <span className="font-medium text-sm truncate">{m.name}</span>
+                        <span className="font-medium text-sm truncate">
+                          {m.name}
+                          {memberCounts && (
+                            <span className="ml-1 text-xs text-muted-foreground tabular-nums">
+                              ({memberCounts[(m.name || '').trim()] ?? 0})
+                            </span>
+                          )}
+                        </span>
                         {m.email && (
                           <span className="text-[11px] text-muted-foreground truncate">{m.email}</span>
                         )}
