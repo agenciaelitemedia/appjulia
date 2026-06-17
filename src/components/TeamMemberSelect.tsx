@@ -203,7 +203,7 @@ export function TeamMemberSelect({
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0 bg-popover border border-border shadow-lg z-[60]" align="start">
+      <PopoverContent className="w-[460px] p-0 bg-popover border border-border shadow-lg z-[60]" align="start">
         <Command className="bg-transparent">
           <CommandInput placeholder="Buscar membro…" className="h-10" />
           <CommandList className="max-h-[320px]">
@@ -324,19 +324,21 @@ export function TeamMemberSelect({
                         />
                       </div>
                       <div className="flex flex-col gap-0 min-w-0 flex-1">
-                        <span className="font-medium text-sm truncate">
-                          {m.name}
-                          {memberCounts && (
-                            <span className="ml-1 text-xs text-muted-foreground tabular-nums">
-                              ({memberCounts[(m.name || '').trim()] ?? 0})
-                            </span>
-                          )}
-                        </span>
+                        <span className="font-medium text-sm truncate">{m.name}</span>
                         {m.email && (
                           <span className="text-[11px] text-muted-foreground truncate">{m.email}</span>
                         )}
                       </div>
-                      <Badge variant="outline" className={cn('text-[10px] h-5 px-1.5', statusBadgeClass)}>
+                      {memberCounts && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] h-5 px-1.5 flex-shrink-0 tabular-nums bg-primary/10 text-primary border-primary/30"
+                          title="Conversas atribuídas"
+                        >
+                          {memberCounts[(m.name || '').trim()] ?? 0}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className={cn('text-[10px] h-5 px-1.5 flex-shrink-0', statusBadgeClass)}>
                         {statusLabel}
                       </Badge>
                       {!hideRoleBadge && roleLabel && (
