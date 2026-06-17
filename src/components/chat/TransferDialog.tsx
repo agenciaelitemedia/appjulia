@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { TeamMemberSelect, type TeamMemberOption } from '@/components/TeamMemberSelect';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
+import { useChatAssignedCountsByMember } from '@/hooks/useChatAssignedCountsByMember';
 import { Loader2 } from 'lucide-react';
 
 interface TransferDialogProps {
@@ -19,6 +20,7 @@ export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialo
   const [isTransferring, setIsTransferring] = useState(false);
 
   const { data: team } = useTeamByClient();
+  const { data: assignedCounts } = useChatAssignedCountsByMember();
   const members: TeamMemberOption[] = useMemo(
     () =>
       (team || []).map((m) => ({
@@ -66,6 +68,7 @@ export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialo
               showCurrentUserShortcut
               placeholder="Selecione um membro da equipe…"
               className="w-full"
+              memberCounts={assignedCounts}
             />
           </div>
 
