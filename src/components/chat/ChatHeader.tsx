@@ -550,10 +550,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                     !slaEvaluation && 'rounded-r',
                     selectedConversation.assigned_to ? 'font-bold' : 'font-normal'
                   )}
-                  title={selectedConversation.assigned_to || 'Não Atribuído'}
+                  title={assignedDisplay || 'Não Atribuído'}
                 >
                   <span className="truncate">
-                    {selectedConversation.assigned_to || 'Não Atribuído'}
+                    {assignedDisplay || 'Não Atribuído'}
                   </span>
                 </span>
               )}
@@ -599,7 +599,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               size="sm"
               className="gap-1.5"
               onClick={handleTakeOver}
-              title={selectedConversation?.assigned_to ? `Assumir de ${selectedConversation.assigned_to}` : 'Assumir conversa'}
+              title={assignedDisplay ? `Assumir de ${assignedDisplay}` : 'Assumir conversa'}
             >
               <UserCheck className="h-4 w-4" />
               Assumir
@@ -792,7 +792,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         open={showReturnDialog}
         onOpenChange={setShowReturnDialog}
         onConfirm={handleReturnToQueue}
-        currentAssignee={selectedConversation?.assigned_to}
+        currentAssignee={assignedDisplay ?? undefined}
       />
 
       {/* Conversation search */}
