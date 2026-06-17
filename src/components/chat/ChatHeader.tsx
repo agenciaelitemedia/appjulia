@@ -393,7 +393,14 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   };
 
   const currentUserName = user?.name || (user?.id ? String(user.id) : '');
-  const isAssignedToMe = !!selectedConversation?.assigned_to && !!currentUserName && selectedConversation.assigned_to === currentUserName;
+  const { resolve: resolveAssignee } = useAssigneeNameResolver();
+  const assignedRaw = selectedConversation?.assigned_to || null;
+  const assignedDisplay = resolveAssignee(assignedRaw);
+  const currentUserId = user?.id ? String(user.id) : '';
+  const isAssignedToMe = !!assignedRaw && (
+    (!!currentUserName && assignedRaw === currentUserName) ||
+    (!!currentUserId && assignedRaw === currentUserId)
+  );
   const canTakeOver = !!selectedConversation
     && ['pending', 'open'].includes(selectedConversation.status)
     && !isAssignedToMe;
