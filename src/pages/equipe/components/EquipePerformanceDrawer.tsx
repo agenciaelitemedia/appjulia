@@ -7,10 +7,14 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell,
 } from 'recharts';
-import { Clock, MessageSquare, Phone, CheckCircle2, RotateCcw, ArrowRightLeft, Loader2 } from 'lucide-react';
+import { Clock, MessageSquare, Phone, CheckCircle2, RotateCcw, ArrowRightLeft, Loader2, ListOrdered } from 'lucide-react';
 import { useUserTopNumbers, type PerformancePeriod, type PerformanceUserRow } from '../hooks/useTeamPerformance';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { UserSessionsDialog } from './UserSessionsDialog';
 
 interface Props {
   open: boolean;
@@ -40,6 +44,7 @@ function fmtDateTime(s: string | null | undefined): string {
 
 export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Props) {
   const { data: topNumbers = [], isLoading: loadingNumbers } = useUserTopNumbers(user.user_id, period);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
 
   // Time distribution donut
   const timeData = [
@@ -70,7 +75,30 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
         <div className="mt-6 space-y-4">
           {/* Resumo */}
           <div className="grid grid-cols-2 gap-2">
-            <MiniKpi icon={Clock} label="Tempo logado" value={fmtDuration(user.worked_seconds)} sub={`${user.sessions_count} sessões`} />
+            <MiniKpi
+              icon={Clock}
+              label="Tempo logado"
+              value={fmtDuration(user.worked_seconds)}
+              sub={`${user.sessions_count} sessões`}
+              action={
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setSessionsOpen(true)}
+                        aria-label="Ver sessões"
+                      >
+                        <ListOrdered className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Ver login/logout do período</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              }
+            />
             <MiniKpi icon={MessageSquare} label="Atendimentos" value={user.received} sub={`${user.resolution_rate}% resolvidos`} />
             <MiniKpi icon={Phone} label="Ligações" value={user.calls_total} sub={`${user.calls_answered} atendidas`} />
             <MiniKpi icon={CheckCircle2} label="Talk time" value={fmtDuration(user.talk_seconds)} sub={`Ocupação ${user.occupancy_pct}%`} />
@@ -171,21 +199,30 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
             )}
           </Card>
         </div>
+
+        <UserSessionsDialog
+          open={sessionsOpen}
+          onOpenChange={setSessionsOpen}
+          userId={user.user_id}
+          userName={user.name}
+          period={period}
+        />
       </SheetContent>
     </Sheet>
   );
 }
 
-function MiniKpi({ icon: Icon, label, value, sub }: { icon: any; label: string; value: any; sub?: string }) {
+function MiniKpi({ icon: Icon, label, value, sub, action }: { icon: any; label: string; value: any; sub?: string; action?: React.ReactNode }) {
   return (
     <Card className="p-3">
       <div className="flex items-start gap-2">
         <Icon className="h-4 w-4 text-muted-foreground mt-0.5" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
           <div className="text-lg font-semibold leading-tight">{value}</div>
           {sub && <div className="text-[10px] text-muted-foreground truncate">{sub}</div>}
         </div>
+        {action && <div className="ml-auto">{action}</div>}
       </div>
     </Card>
   );
