@@ -26,6 +26,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useConversationPresence } from '@/hooks/useConversationPresence';
 import { useChatKeyboardShortcuts } from '@/hooks/useChatKeyboardShortcuts';
 import { useAutoSummaryOnStatusChange } from '@/hooks/useAutoSummaryOnStatusChange';
+import { useAssigneeNameResolver } from '@/hooks/useAssigneeNameResolver';
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
 import { TransferDialog } from './TransferDialog';
