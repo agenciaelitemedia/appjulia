@@ -429,10 +429,6 @@ export interface UserSessionRow {
   open: boolean;
 }
 
-/** Gap máximo (s) entre heartbeats consecutivos para serem considerados a mesma sessão. */
-const SESSION_GAP_SECONDS = 120;
-const SLOT_SECONDS = 30;
-
 export function useUserSessions(userId: number | null, period: PerformancePeriod) {
   return useQuery<UserSessionRow[]>({
     queryKey: ['user-sessions-hb', userId, period.startDate, period.endDate],
