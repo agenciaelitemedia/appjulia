@@ -75,20 +75,11 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureTicketsModule();
   useEnsureHelpCenterModule();
 
-  const isTimeUser = user?.role === "time";
-  
-  // Get sorted groups
-  const sortedGroups = getSortedGroups(groupedModules);
-  
-  // Filter groups for time users (hide team)
-  const filteredGroups = sortedGroups.map(([groupName, modules]) => {
-    const filteredModules = modules.filter(mod => {
-      // Hide team module for time users
-      if (isTimeUser && mod.code === 'team') return false;
-      return true;
-    });
-    return [groupName, filteredModules] as [string, typeof modules];
-  }).filter(([_, modules]) => modules.length > 0);
+  // Get sorted groups — a visibilidade do módulo é decidida pelas
+  // permissões carregadas em `useMenuModules`, sem bloqueios por role
+  // hardcoded (permite delegar o módulo Equipe a um membro `time`).
+  const filteredGroups = getSortedGroups(groupedModules)
+    .filter(([_, modules]) => modules.length > 0);
 
   const toggleMenu = (label: string) => {
     setExpandedMenus((prev) => 
