@@ -8065,6 +8065,10 @@ export type Database = {
         Args: { p_months_ahead?: number }
         Returns: number
       }
+      ensure_user_presence_partitions_range: {
+        Args: { p_from: string; p_to: string }
+        Returns: number
+      }
       generate_ticket_protocol: { Args: { p_mask: string }; Returns: string }
       get_db_cache_hit_ratio: {
         Args: never
