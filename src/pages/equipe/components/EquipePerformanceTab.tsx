@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,11 +10,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  LineChart, Line, ScatterChart, Scatter, ZAxis, Cell, PieChart, Pie,
+  ComposedChart, LineChart, Line, ScatterChart, Scatter, ZAxis, Cell, PieChart, Pie,
 } from 'recharts';
 import {
-  Clock, MessageSquare, CheckCircle2, RotateCcw, ArrowRightLeft,
-  Phone, PhoneCall, Users, Loader2, Download, Filter, TrendingUp, Target,
+  Clock, MessageSquare, CheckCircle2, RotateCcw,
+  Phone, PhoneCall, Loader2, Download, Filter, TrendingUp, Target,
 } from 'lucide-react';
 import { useTeamPerformance, type PerformancePeriod } from '../hooks/useTeamPerformance';
 import { EquipePerformanceDrawer } from './EquipePerformanceDrawer';
