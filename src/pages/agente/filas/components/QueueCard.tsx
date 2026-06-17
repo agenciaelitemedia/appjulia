@@ -47,6 +47,7 @@ interface QueueCardProps {
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { user } = useAuth();
   const canDelete = !!user?.role && (DELETE_ALLOWED_ROLES as readonly string[]).includes(user.role);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
