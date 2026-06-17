@@ -18,6 +18,7 @@ import { ConversationParticipants } from './ConversationParticipants';
 import { PriorityBadge } from './PriorityBadge';
 import { ConversationSummaries } from './ConversationSummaries';
 import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
+import { useAssigneeNameResolver } from '@/hooks/useAssigneeNameResolver';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
