@@ -39,6 +39,12 @@ export default function ProfileSettingsPage() {
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   
+  // Name inline edit state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
