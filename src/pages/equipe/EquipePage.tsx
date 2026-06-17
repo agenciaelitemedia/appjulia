@@ -1,7 +1,8 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutDashboard, Users } from "lucide-react";
+import { LayoutDashboard, Users, BarChart3 } from "lucide-react";
 import { EquipeDashboardTab } from "./components/EquipeDashboardTab";
 import { EquipeManagementTab } from "./components/EquipeManagementTab";
+import { EquipePerformanceTab } from "./components/EquipePerformanceTab";
 
 export default function EquipePage() {
   return (
@@ -12,6 +13,10 @@ export default function EquipePage() {
             <LayoutDashboard className="w-4 h-4" />
             Dashboard
           </TabsTrigger>
+          <TabsTrigger value="performance" className="gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Performance
+          </TabsTrigger>
           <TabsTrigger value="management" className="gap-2">
             <Users className="w-4 h-4" />
             Gestão de Equipe
@@ -20,6 +25,10 @@ export default function EquipePage() {
 
         <TabsContent value="dashboard">
           <EquipeDashboardTab />
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <EquipePerformanceTab />
         </TabsContent>
 
         <TabsContent value="management">
