@@ -39,6 +39,12 @@ export default function ProfileSettingsPage() {
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   
+  // Name inline edit state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -319,6 +325,50 @@ export default function ProfileSettingsPage() {
     }
   };
 
+  // Handle inline name edit
+  const handleStartEditName = () => {
+    setEditedName(user?.name || '');
+    setIsEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 0);
+  };
+
+  const handleSaveName = async () => {
+    if (!user?.id || !editedName.trim() || editedName.trim() === (user.name || '').trim()) {
+      setIsEditingName(false);
+      return;
+    }
+
+    setIsSavingName(true);
+    try {
+      await externalDb.updateUserProfile(user.id, {
+        name: editedName.trim(),
+        email: user.email,
+        role: user.role,
+        isActive: user.is_active !== false,
+      });
+      updateUser({ name: editedName.trim() });
+      toast({
+        title: 'Nome atualizado',
+        description: 'Seu nome foi atualizado com sucesso.',
+      });
+    } catch (error: any) {
+      console.error('Error saving name:', error);
+      toast({
+        title: 'Erro ao salvar',
+        description: error.message || 'Não foi possível atualizar o nome.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingName(false);
+      setIsEditingName(false);
+    }
+  };
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
   // Password validation
   const passwordValidation = {
     minLength: newPassword.length >= 8,
@@ -452,7 +502,51 @@ export default function ProfileSettingsPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <h3 className="font-semibold text-lg">{user?.name}</h3>
+                    {isEditingName ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          ref={nameInputRef}
+                          value={editedName}
+                          onChange={(e) => setEditedName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveName();
+                            if (e.key === 'Escape') handleCancelEditName();
+                          }}
+                          className="h-8 text-lg font-semibold px-2 py-1 w-auto min-w-[200px]"
+                          disabled={isSavingName}
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={handleSaveName}
+                          disabled={isSavingName}
+                        >
+                          {isSavingName ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4 text-green-600" />
+                          )}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={handleCancelEditName}
+                          disabled={isSavingName}
+                        >
+                          <X className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <h3
+                        className="font-semibold text-lg cursor-pointer select-none"
+                        onDoubleClick={handleStartEditName}
+                        title="Duplo clique para editar"
+                      >
+                        {user?.name}
+                      </h3>
+                    )}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Mail className="h-4 w-4" />
                       <span>{user?.email}</span>
