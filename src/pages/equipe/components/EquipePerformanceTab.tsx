@@ -226,14 +226,14 @@ export function EquipePerformanceTab() {
         <>
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <KpiCard icon={Clock} label="Tempo logado" value={fmtDuration(totals.worked_seconds)} sub={`${totals.sessions_count} sessões`} accent="text-blue-600 bg-blue-50 dark:bg-blue-950/30" />
-            <KpiCard icon={MessageSquare} label="Recebidos" value={totals.received} sub={`${members.length} atendentes`} accent="text-violet-600 bg-violet-50 dark:bg-violet-950/30" />
-            <KpiCard icon={CheckCircle2} label="Resolvidos" value={totals.resolved} sub={`${totals.resolution_rate}% de resolução`} accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" />
-            <KpiCard icon={RotateCcw} label="Devolvidos" value={totals.returned} sub={`${totals.transferred} transferidos`} accent="text-amber-600 bg-amber-50 dark:bg-amber-950/30" />
-            <KpiCard icon={Target} label="TMA médio" value={totals.received > 0 && members.length > 0 ? fmtDuration(Math.round(members.reduce((s, m) => s + (m.avg_handle_seconds || 0), 0) / Math.max(1, members.filter((m) => m.avg_handle_seconds).length))) : '—'} sub="tempo p/ resolver" accent="text-cyan-600 bg-cyan-50 dark:bg-cyan-950/30" />
-            <KpiCard icon={Phone} label="Ligações" value={totals.calls_total} sub={`${totals.calls_answered} atendidas`} accent="text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30" />
-            <KpiCard icon={PhoneCall} label="Talk time" value={fmtDuration(totals.talk_seconds)} sub={`${totals.calls_to_known_leads} p/ leads`} accent="text-rose-600 bg-rose-50 dark:bg-rose-950/30" />
-            <KpiCard icon={TrendingUp} label="Ocupação" value={`${totals.occupancy_pct}%`} sub="talk / logado" accent="text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/30" />
+            <KpiCard icon={Clock} label="Tempo logado" value={fmtDuration(totals.worked_seconds)} sub={`${totals.sessions_count} sessões`} accent="text-blue-600 bg-blue-50 dark:bg-blue-950/30" tip="Soma do tempo que a equipe esteve logada na plataforma no período. Sessões em aberto são limitadas a 12h para evitar inflar o total." />
+            <KpiCard icon={MessageSquare} label="Recebidos" value={totals.received} sub={`${members.length} atendentes`} accent="text-violet-600 bg-violet-50 dark:bg-violet-950/30" tip="Número total de conversas/atendimentos atribuídos à equipe no período, independente do desfecho." />
+            <KpiCard icon={CheckCircle2} label="Resolvidos" value={totals.resolved} sub={`${totals.resolution_rate}% de resolução`} accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" tip="Conversas que a equipe finalizou (marcadas como resolvidas) dentro do período. O % é resolvidos ÷ recebidos." />
+            <KpiCard icon={RotateCcw} label="Devolvidos" value={totals.returned} sub={`${totals.transferred} transferidos`} accent="text-amber-600 bg-amber-50 dark:bg-amber-950/30" tip="Conversas devolvidas para a fila. Transferidos mostra quantas foram passadas para outro atendente." />
+            <KpiCard icon={Target} label="TMA médio" value={totals.received > 0 && members.length > 0 ? fmtDuration(Math.round(members.reduce((s, m) => s + (m.avg_handle_seconds || 0), 0) / Math.max(1, members.filter((m) => m.avg_handle_seconds).length))) : '—'} sub="tempo p/ resolver" accent="text-cyan-600 bg-cyan-50 dark:bg-cyan-950/30" tip="Tempo Médio de Atendimento da equipe: média de tempo entre assumir a conversa e finalizá-la (resolver, devolver ou transferir)." />
+            <KpiCard icon={Phone} label="Ligações" value={totals.calls_total} sub={`${totals.calls_answered} atendidas`} accent="text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30" tip="Total de chamadas de voz realizadas/atendidas pelos ramais vinculados à equipe no período." />
+            <KpiCard icon={PhoneCall} label="Talk time" value={fmtDuration(totals.talk_seconds)} sub={`${totals.calls_to_known_leads} p/ leads`} accent="text-rose-600 bg-rose-50 dark:bg-rose-950/30" tip="Tempo total efetivamente falado em chamadas de voz (soma da duração das ligações conectadas). Inclui chamadas para leads identificados." />
+            <KpiCard icon={TrendingUp} label="Ocupação" value={`${totals.occupancy_pct}%`} sub="talk / logado" accent="text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/30" tip="Ocupação da equipe = Talk time ÷ Tempo logado. Indica o percentual do tempo logado que foi gasto efetivamente em chamadas de voz." />
           </div>
 
           {/* Gráficos linha 1: stacked bar + donut */}
