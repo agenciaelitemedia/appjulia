@@ -502,7 +502,51 @@ export default function ProfileSettingsPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <h3 className="font-semibold text-lg">{user?.name}</h3>
+                    {isEditingName ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          ref={nameInputRef}
+                          value={editedName}
+                          onChange={(e) => setEditedName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveName();
+                            if (e.key === 'Escape') handleCancelEditName();
+                          }}
+                          className="h-8 text-lg font-semibold px-2 py-1 w-auto min-w-[200px]"
+                          disabled={isSavingName}
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={handleSaveName}
+                          disabled={isSavingName}
+                        >
+                          {isSavingName ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4 text-green-600" />
+                          )}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={handleCancelEditName}
+                          disabled={isSavingName}
+                        >
+                          <X className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <h3
+                        className="font-semibold text-lg cursor-pointer select-none"
+                        onDoubleClick={handleStartEditName}
+                        title="Duplo clique para editar"
+                      >
+                        {user?.name}
+                      </h3>
+                    )}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Mail className="h-4 w-4" />
                       <span>{user?.email}</span>
