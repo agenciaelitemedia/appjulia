@@ -13,7 +13,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipProvider as UiTooltipProvider, TooltipTrigger as UiTooltipTrigger } from '@/components/ui/tooltip';
 import { UserSessionsDialog } from './UserSessionsDialog';
 
 interface Props {
@@ -81,9 +81,9 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
               value={fmtDuration(user.worked_seconds)}
               sub={`${user.sessions_count} sessões`}
               action={
-                <TooltipProvider delayDuration={150}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                <UiTooltipProvider delayDuration={150}>
+                  <UiTooltip>
+                    <UiTooltipTrigger asChild>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -93,10 +93,10 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
                       >
                         <ListOrdered className="h-4 w-4 text-muted-foreground" />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Ver login/logout do período</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                    </UiTooltipTrigger>
+                    <UiTooltipContent>Ver login/logout do período</UiTooltipContent>
+                  </UiTooltip>
+                </UiTooltipProvider>
               }
             />
             <MiniKpi icon={MessageSquare} label="Atendimentos" value={user.received} sub={`${user.resolution_rate}% resolvidos`} />
