@@ -8184,6 +8184,14 @@ export type Database = {
           user_name: string
         }[]
       }
+      get_team_online_seconds_by_day: {
+        Args: { p_from: string; p_to: string; p_user_ids: number[] }
+        Returns: {
+          day_brt: string
+          online_seconds: number
+          user_id: number
+        }[]
+      }
       get_user_online_seconds: {
         Args: { p_from: string; p_to: string; p_user_id: number }
         Returns: number
