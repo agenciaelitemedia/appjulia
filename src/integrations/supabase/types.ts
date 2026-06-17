@@ -8196,6 +8196,16 @@ export type Database = {
         Args: { p_from: string; p_to: string; p_user_id: number }
         Returns: number
       }
+      get_user_presence_sessions: {
+        Args: { p_from: string; p_to: string; p_user_id: number }
+        Returns: {
+          duration_seconds: number
+          login_at: string
+          logout_at: string
+          logout_type: string
+          open: boolean
+        }[]
+      }
       increment_contact_unread: {
         Args: { p_contact_id: string; p_last_at?: string; p_preview?: string }
         Returns: undefined
