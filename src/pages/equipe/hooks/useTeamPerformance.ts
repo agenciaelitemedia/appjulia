@@ -133,14 +133,11 @@ export function useTeamPerformance(
     enabled: !!clientIdNum && userIds.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
-      // Para tempo online: dias passados vêm do agregado `user_presence_daily`;
-      // apenas o dia de hoje (janela "quente") é calculado on the fly nos heartbeats brutos.
-      const todayBrt = new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
-      const hotFromIso = new Date(`${todayBrt}T00:00:00-03:00`).toISOString();
-      const hotToIso = new Date(`${todayBrt}T23:59:59-03:00`).toISOString();
-      const includesToday = period.endDate >= todayBrt;
+      // Tempo online vem por RPC agregada server-side: evita depender de RLS nos heartbeats crus.
+      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+      const toIsoExclusive = new Date(`${addDays(period.endDate, 1)}T00:00:00-03:00`).toISOString();
 
-      const [sessionsRes, chatRes, phoneRes, heartbeatsRes, presenceDailyRes] = await Promise.all([
+      const [sessionsRes, chatRes, phoneRes, onlineRes] = await Promise.all([
         supabase
           .from('mv_user_sessions_daily' as any)
           .select('user_id, user_name, day_brt, worked_seconds, sessions_count')
@@ -164,29 +161,18 @@ export function useTeamPerformance(
           .in('user_id', userIds as any)
           .gte('day_brt', period.startDate)
           .lte('day_brt', period.endDate),
-        // Janela "quente" (hoje): heartbeats brutos = 30s por slot.
-        includesToday
-          ? supabase
-              .from('user_presence_heartbeats' as any)
-              .select('user_id, seen_at')
-              .in('user_id', userIds as any)
-              .gte('seen_at', hotFromIso)
-              .lte('seen_at', hotToIso)
-          : Promise.resolve({ data: [] as any[] }),
-        // Janela "fria" (<= ontem): agregado diário consolidado.
-        supabase
-          .from('user_presence_daily' as any)
-          .select('user_id, day_brt, online_seconds')
-          .in('user_id', userIds as any)
-          .gte('day_brt', period.startDate)
-          .lt('day_brt', todayBrt),
+        (supabase as any).rpc('get_team_online_seconds_by_day', {
+          p_user_ids: userIds,
+          p_from: fromIso,
+          p_to: toIsoExclusive,
+        }),
       ]);
 
       const sessions = (sessionsRes as any).data || [];
       const chat = (chatRes as any).data || [];
       const phone = (phoneRes as any).data || [];
-      const heartbeats = (heartbeatsRes as any).data || [];
-      const presenceDaily = (presenceDailyRes as any).data || [];
+      if ((onlineRes as any).error) throw (onlineRes as any).error;
+      const onlineRows = (onlineRes as any).data || [];
 
       // Initialize per-user accumulator
       const byUser: Record<number, PerformanceUserRow> = {};
@@ -209,40 +195,15 @@ export function useTeamPerformance(
         byUser[uid].sessions_count += Number(r.sessions_count) || 0;
       }
 
-      // Tempo online — dias passados (agregado) + hoje (heartbeats).
-      const dayOnlineSecs: Record<number, Record<string, number>> = {};
-
-      // 1) Dias frios via agregado já consolidado.
-      for (const r of presenceDaily as Array<{ user_id: number; day_brt: string; online_seconds: number }>) {
+      // Tempo online — agregado server-side por atendente/dia.
+      for (const r of onlineRows as Array<{ user_id: number; day_brt: string; online_seconds: number }>) {
         const uid = Number(r.user_id);
         if (!byUser[uid]) continue;
-        const userMap = (dayOnlineSecs[uid] ||= {});
-        userMap[r.day_brt] = (userMap[r.day_brt] || 0) + (Number(r.online_seconds) || 0);
-      }
-
-      // 2) Hoje via heartbeats brutos (dedup por slot 30s).
-      const seenSlots: Record<number, Set<string>> = {};
-      for (const r of heartbeats as Array<{ user_id: number; seen_at: string }>) {
-        const uid = Number(r.user_id);
-        if (!byUser[uid]) continue;
-        const t = new Date(r.seen_at);
-        if (Number.isNaN(t.getTime())) continue;
-        const slotKey = String(Math.floor(t.getTime() / 30000));
-        const set = (seenSlots[uid] ||= new Set());
-        if (set.has(slotKey)) continue;
-        set.add(slotKey);
-        const userMap = (dayOnlineSecs[uid] ||= {});
-        userMap[todayBrt] = (userMap[todayBrt] || 0) + 30;
-      }
-      for (const uid of Object.keys(byUser).map(Number)) {
-        const userMap = dayOnlineSecs[uid] || {};
-        let total = 0;
-        for (const [d, s] of Object.entries(userMap)) {
-          total += s;
-          if (userDays[uid][d]) userDays[uid][d].worked_seconds += s;
-          if (totalDays[d]) totalDays[d].worked_seconds += s;
-        }
-        byUser[uid].worked_seconds = total;
+        const d = String(r.day_brt);
+        const seconds = Number(r.online_seconds) || 0;
+        byUser[uid].worked_seconds += seconds;
+        if (userDays[uid][d]) userDays[uid][d].worked_seconds += seconds;
+        if (totalDays[d]) totalDays[d].worked_seconds += seconds;
       }
 
       // Chat → match by name
@@ -468,10 +429,6 @@ export interface UserSessionRow {
   open: boolean;
 }
 
-/** Gap máximo (s) entre heartbeats consecutivos para serem considerados a mesma sessão. */
-const SESSION_GAP_SECONDS = 120;
-const SLOT_SECONDS = 30;
-
 export function useUserSessions(userId: number | null, period: PerformancePeriod) {
   return useQuery<UserSessionRow[]>({
     queryKey: ['user-sessions-hb', userId, period.startDate, period.endDate],
@@ -481,52 +438,18 @@ export function useUserSessions(userId: number | null, period: PerformancePeriod
       const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
       const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
 
-      // Sessões reais derivadas de heartbeats: 1 slot = 30s.
-      // Agrupa slots consecutivos com gap <= 2 min como uma única sessão.
-      const { data, error } = await (supabase as any)
-        .from('user_presence_heartbeats')
-        .select('seen_at')
-        .eq('user_id', userId!)
-        .gte('seen_at', fromIso)
-        .lte('seen_at', toIso)
-        .order('seen_at', { ascending: true })
-        .limit(20000);
+      // Sessões reais derivadas de heartbeats no banco: 1 slot = 30s.
+      const { data, error } = await (supabase as any).rpc('get_user_presence_sessions', {
+        p_user_id: userId!,
+        p_from: fromIso,
+        p_to: toIso,
+      });
       if (error) throw error;
-
-      const slots = ((data || []) as Array<{ seen_at: string }>)
-        .map((r) => Math.floor(new Date(r.seen_at).getTime() / 1000))
-        .sort((a, b) => a - b);
-      if (slots.length === 0) return [];
-
-      const rows: UserSessionRow[] = [];
-      const nowSec = Math.floor(Date.now() / 1000);
-      let start = slots[0];
-      let prev = slots[0];
-      let count = 1;
-      const flush = () => {
-        const end = prev + SLOT_SECONDS;
-        const open = nowSec - prev <= SESSION_GAP_SECONDS;
-        rows.push({
-          login_at: new Date(start * 1000).toISOString(),
-          logout_at: open ? null : new Date(end * 1000).toISOString(),
-          logout_type: open ? null : 'logout_inactivity',
-          duration_seconds: count * SLOT_SECONDS,
-          open,
-        });
-      };
-      for (let i = 1; i < slots.length; i++) {
-        const s = slots[i];
-        if (s - prev > SESSION_GAP_SECONDS) {
-          flush();
-          start = s;
-          count = 1;
-        } else if (s !== prev) {
-          count += 1;
-        }
-        prev = s;
-      }
-      flush();
-      return rows.reverse(); // mais recente primeiro
+      return ((data || []) as UserSessionRow[]).map((r) => ({
+        ...r,
+        duration_seconds: r.duration_seconds == null ? null : Number(r.duration_seconds),
+        open: !!r.open,
+      }));
     },
   });
 }

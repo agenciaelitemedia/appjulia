@@ -8184,9 +8184,27 @@ export type Database = {
           user_name: string
         }[]
       }
+      get_team_online_seconds_by_day: {
+        Args: { p_from: string; p_to: string; p_user_ids: number[] }
+        Returns: {
+          day_brt: string
+          online_seconds: number
+          user_id: number
+        }[]
+      }
       get_user_online_seconds: {
         Args: { p_from: string; p_to: string; p_user_id: number }
         Returns: number
+      }
+      get_user_presence_sessions: {
+        Args: { p_from: string; p_to: string; p_user_id: number }
+        Returns: {
+          duration_seconds: number
+          login_at: string
+          logout_at: string
+          logout_type: string
+          open: boolean
+        }[]
       }
       increment_contact_unread: {
         Args: { p_contact_id: string; p_last_at?: string; p_preview?: string }
