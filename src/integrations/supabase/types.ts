@@ -8049,6 +8049,10 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: Json
       }
+      backfill_user_presence_heartbeats: {
+        Args: { p_cap_seconds?: number; p_from: string; p_to: string }
+        Returns: Json
+      }
       cleanup_user_presence_daily: {
         Args: { p_retention_days?: number }
         Returns: number
@@ -8059,6 +8063,10 @@ export type Database = {
       clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
       ensure_user_presence_partitions: {
         Args: { p_months_ahead?: number }
+        Returns: number
+      }
+      ensure_user_presence_partitions_range: {
+        Args: { p_from: string; p_to: string }
         Returns: number
       }
       generate_ticket_protocol: { Args: { p_mask: string }; Returns: string }

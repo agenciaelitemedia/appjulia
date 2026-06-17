@@ -22,7 +22,7 @@ import {
   Clock, MessageSquare, CheckCircle2, RotateCcw,
   Phone, PhoneCall, Loader2, Download, Filter, TrendingUp, Target,
 } from 'lucide-react';
-import { useTeamPerformance, type PerformancePeriod } from '../hooks/useTeamPerformance';
+import { useTeamPerformance, usePresenceBackfillUntil, type PerformancePeriod } from '../hooks/useTeamPerformance';
 import { EquipePerformanceDrawer } from './EquipePerformanceDrawer';
 import { cn } from '@/lib/utils';
 
@@ -118,6 +118,13 @@ export function EquipePerformanceTab() {
     period,
     selectedUserIds.length > 0 ? selectedUserIds : null,
   );
+  const backfillUntil = usePresenceBackfillUntil();
+  const backfillLabel = backfillUntil
+    ? backfillUntil.split('-').reverse().join('/')
+    : null;
+  const onlineSourceTip = backfillLabel
+    ? `Tempo real em que a equipe esteve ativa na plataforma, medido por heartbeats de 30s. Dias até ${backfillLabel} são estimados a partir de pares login/logout (cap 8h); a partir do dia seguinte a medição é totalmente real.`
+    : 'Tempo real em que a equipe esteve ativa na plataforma no período, medido por heartbeats de 30 s (aba visível + interação nos últimos 5 min).';
 
   const totals = data?.totals;
   const members = data?.members || [];
@@ -227,14 +234,14 @@ export function EquipePerformanceTab() {
           {/* KPIs */}
           <UiTooltipProvider delayDuration={150}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <KpiCard icon={Clock} label="Tempo logado" value={fmtDuration(totals.worked_seconds)} sub={`${totals.sessions_count} sessões`} accent="text-blue-600 bg-blue-50 dark:bg-blue-950/30" tip="Soma do tempo que a equipe esteve logada na plataforma no período. Sessões em aberto são limitadas a 12h para evitar inflar o total." />
+            <KpiCard icon={Clock} label="Tempo online" value={fmtDuration(totals.worked_seconds)} sub={`${totals.sessions_count} sessões`} accent="text-blue-600 bg-blue-50 dark:bg-blue-950/30" tip={onlineSourceTip} />
             <KpiCard icon={MessageSquare} label="Recebidos" value={totals.received} sub={`${members.length} atendentes`} accent="text-violet-600 bg-violet-50 dark:bg-violet-950/30" tip="Número total de conversas/atendimentos atribuídos à equipe no período, independente do desfecho." />
             <KpiCard icon={CheckCircle2} label="Resolvidos" value={totals.resolved} sub={`${totals.resolution_rate}% de resolução`} accent="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" tip="Conversas que a equipe finalizou (marcadas como resolvidas) dentro do período. O % é resolvidos ÷ recebidos." />
             <KpiCard icon={RotateCcw} label="Devolvidos" value={totals.returned} sub={`${totals.transferred} transferidos`} accent="text-amber-600 bg-amber-50 dark:bg-amber-950/30" tip="Conversas devolvidas para a fila. Transferidos mostra quantas foram passadas para outro atendente." />
             <KpiCard icon={Target} label="TMA médio" value={totals.received > 0 && members.length > 0 ? fmtDuration(Math.round(members.reduce((s, m) => s + (m.avg_handle_seconds || 0), 0) / Math.max(1, members.filter((m) => m.avg_handle_seconds).length))) : '—'} sub="tempo p/ resolver" accent="text-cyan-600 bg-cyan-50 dark:bg-cyan-950/30" tip="Tempo Médio de Atendimento da equipe: média de tempo entre assumir a conversa e finalizá-la (resolver, devolver ou transferir)." />
             <KpiCard icon={Phone} label="Ligações" value={totals.calls_total} sub={`${totals.calls_answered} atendidas`} accent="text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30" tip="Total de chamadas de voz realizadas/atendidas pelos ramais vinculados à equipe no período." />
             <KpiCard icon={PhoneCall} label="Talk time" value={fmtDuration(totals.talk_seconds)} sub={`${totals.calls_to_known_leads} p/ leads`} accent="text-rose-600 bg-rose-50 dark:bg-rose-950/30" tip="Tempo total efetivamente falado em chamadas de voz (soma da duração das ligações conectadas). Inclui chamadas para leads identificados." />
-            <KpiCard icon={TrendingUp} label="Ocupação" value={`${totals.occupancy_pct}%`} sub="talk / logado" accent="text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/30" tip="Ocupação da equipe = Talk time ÷ Tempo logado. Indica o percentual do tempo logado que foi gasto efetivamente em chamadas de voz." />
+            <KpiCard icon={TrendingUp} label="Ocupação" value={`${totals.occupancy_pct}%`} sub="talk / online" accent="text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/30" tip="Ocupação da equipe = Talk time ÷ Tempo online. Indica o percentual do tempo online que foi gasto efetivamente em chamadas de voz." />
           </div>
           </UiTooltipProvider>
 
@@ -324,8 +331,8 @@ export function EquipePerformanceTab() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Atendente</TableHead>
-                    <HeaderWithTip align="right" label="Tempo logado" tip="Soma do tempo que o atendente esteve logado na plataforma no período (login até logout). Sessões em aberto são limitadas a 12h para evitar inflar o total." />
-                    <HeaderWithTip align="right" label="Ocup." tip="Ocupação = Talk time ÷ Tempo logado. Mostra o percentual do tempo logado que o atendente passou efetivamente em chamadas de voz." />
+                    <HeaderWithTip align="right" label="Tempo online" tip={onlineSourceTip} />
+                    <HeaderWithTip align="right" label="Ocup." tip="Ocupação = Talk time ÷ Tempo online. Mostra o percentual do tempo online que o atendente passou efetivamente em chamadas de voz." />
                     <HeaderWithTip align="right" label="Receb." tip="Conversas recebidas: número de atendimentos atribuídos ao usuário no período (independente de já estarem resolvidos ou não)." />
                     <HeaderWithTip align="right" label="Resolv." tip="Conversas que o atendente finalizou (marcadas como resolvidas) dentro do período." />
                     <HeaderWithTip align="right" label="Devol." tip="Conversas que foram devolvidas para a fila pelo atendente após terem sido atribuídas a ele." />

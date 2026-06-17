@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useUserSessions, useUserAuthEvents, type PerformancePeriod } from '../hooks/useTeamPerformance';
+import { useUserSessions, useUserAuthEvents, usePresenceBackfillUntil, type PerformancePeriod } from '../hooks/useTeamPerformance';
 
 interface Props {
   open: boolean;
@@ -31,13 +31,20 @@ function fmtDateTime(s: string | null): string {
 function logoutLabel(t: string | null, open: boolean): { text: string; cls: string } | null {
   if (open) return { text: 'Em andamento', cls: 'border-emerald-500/40 text-emerald-700' };
   if (t === 'logout_manual') return { text: 'Logout manual', cls: 'border-zinc-400/40 text-zinc-600' };
-  if (t === 'logout_inactivity') return { text: 'Inatividade', cls: 'border-amber-500/40 text-amber-700' };
+  if (t === 'logout_inactivity') return { text: 'Encerrada', cls: 'border-amber-500/40 text-amber-700' };
   return null;
 }
 
 export function UserSessionsDialog({ open, onOpenChange, userId, userName, period }: Props) {
   const { data: sessions = [], isLoading } = useUserSessions(open ? userId : null, period);
   const { data: events = [], isLoading: loadingEvents } = useUserAuthEvents(open ? userId : null, period);
+  const backfillUntil = usePresenceBackfillUntil();
+  const isEstimated = (loginAt: string) => {
+    if (!backfillUntil) return false;
+    // login_at vem em ISO UTC; convertemos para data BRT
+    const d = new Date(new Date(loginAt).getTime() - 3 * 3600_000).toISOString().slice(0, 10);
+    return d <= backfillUntil;
+  };
 
   const totalSec = sessions.reduce((acc, s) => acc + (s.duration_seconds || 0), 0);
   const closed = sessions.filter((s) => !s.open);
@@ -71,6 +78,9 @@ export function UserSessionsDialog({ open, onOpenChange, userId, userName, perio
               <div>Sessões — {userName}</div>
               <div className="text-xs font-normal text-muted-foreground">
                 {period.startDate} → {period.endDate} · tempo medido por heartbeats reais (30s)
+                {backfillUntil && (
+                  <> · dias até {backfillUntil.split('-').reverse().join('/')} são estimados (login/logout, cap 8h)</>
+                )}
               </div>
             </div>
             <Button size="sm" variant="outline" onClick={exportCsv} disabled={sessions.length === 0}>
@@ -112,6 +122,7 @@ export function UserSessionsDialog({ open, onOpenChange, userId, userName, perio
               <TableBody>
                 {sessions.map((s, i) => {
                   const lbl = logoutLabel(s.logout_type, s.open);
+                  const est = isEstimated(s.login_at);
                   return (
                     <TableRow key={i}>
                       <TableCell className="font-mono text-sm">{fmtDateTime(s.login_at)}</TableCell>
@@ -120,6 +131,9 @@ export function UserSessionsDialog({ open, onOpenChange, userId, userName, perio
                           <span>{fmtDateTime(s.logout_at)}</span>
                           {lbl && (
                             <Badge variant="outline" className={`text-[10px] ${lbl.cls}`}>{lbl.text}</Badge>
+                          )}
+                          {est && (
+                            <Badge variant="outline" className="text-[10px] border-zinc-300 text-zinc-500">Estimado</Badge>
                           )}
                         </div>
                       </TableCell>

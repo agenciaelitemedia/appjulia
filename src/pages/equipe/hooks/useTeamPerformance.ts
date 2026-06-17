@@ -558,3 +558,29 @@ export function useUserAuthEvents(userId: number | null, period: PerformancePeri
     },
   });
 }
+
+// ============================================================
+// Data-limite do backfill aproximado (login/logout). Dias <= esta
+// data são "Estimado"; dias posteriores são medidos por heartbeats.
+// ============================================================
+export function usePresenceBackfillUntil(): string | null {
+  const { user } = useAuth();
+  const clientId = user?.client_id ? String(user.client_id) : '';
+  const { data } = useQuery<string | null>({
+    queryKey: ['presence-backfill-until', clientId],
+    enabled: !!clientId,
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('chat_client_settings')
+        .select('settings')
+        .eq('client_id', clientId)
+        .maybeSingle();
+      if (error) return null;
+      const s = (data?.settings as Record<string, unknown> | undefined) || {};
+      const v = s['presence_backfill_until'];
+      return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+    },
+  });
+  return data ?? null;
+}

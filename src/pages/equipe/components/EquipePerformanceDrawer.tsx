@@ -77,7 +77,7 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
           <div className="grid grid-cols-2 gap-2">
             <MiniKpi
               icon={Clock}
-              label="Tempo logado"
+              label="Tempo online"
               value={fmtDuration(user.worked_seconds)}
               sub={`${user.sessions_count} sessões`}
               action={
@@ -94,7 +94,7 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
                         <ListOrdered className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </UiTooltipTrigger>
-                    <UiTooltipContent>Ver login/logout do período</UiTooltipContent>
+                    <UiTooltipContent>Ver sessões reais e eventos de login/logout do período</UiTooltipContent>
                   </UiTooltip>
                 </UiTooltipProvider>
               }
