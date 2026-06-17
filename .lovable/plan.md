@@ -1,144 +1,63 @@
-## Objetivo
+## Problema
 
-Adicionar uma nova aba **"Distribuição Automática"** em `/chat/configuracoes` que permita ao dono do escritório configurar regras de distribuição automática de novos chats entre os atendentes do **mesmo client_id**, com **switch master** para ativar/desativar o sistema todo.
+Após a distribuição automática, `chat_conversations.assigned_to` passou a guardar **`user_id`** (string numérica) em vez do nome do atendente. Os componentes da UI ainda renderizam o valor cru, então aparece algo como `"4821"` no lugar de `"João Silva"`.
 
-A infraestrutura já existe (tabelas `chat_routing_rules`, `chat_agent_capacity`, edge function `chat-route-conversation`, hook `useChatRouting`, página `ChatRoutingPage`), mas está **órfã** — não há rota e ninguém invoca a função. Vamos integrá-la ao fluxo e expor na UI.
+Pontos onde o valor cru vaza hoje:
 
----
+- `src/components/chat/ChatContactItem.tsx:381` — pílula "atribuído".
+- `src/components/chat/ChatHeader.tsx:545-548, 594, 787` — header e modal de transferência.
+- `src/components/chat/ContactDetailPanel.tsx:452-453` — painel de detalhes.
 
-## Identidade dos atendentes (importante)
+A lista do CRM legado e os filtros em `ChatList.tsx` (linhas 588-595, 681-683, etc.) já comparam tanto contra `String(user?.id)` quanto contra `user?.name`, então só precisam ler o valor cru — não a versão "bonita".
 
-A partir desta versão, **nenhuma regra usa `cod_agent`**. Tudo é identificado por:
+## Solução
 
-- **`client_id`** (escritório) — escopo de todas as regras (`chat_routing_rules.client_id`).
-- **`user_id`** (membro do time daquele client_id) — identifica cada atendente dentro dos campos `agent_pool[]`, `excluded_agents[]`, `fallback_assigned_to`, `chat_agent_capacity.agent_identifier`, `chat_conversations.assigned_to`.
+Centralizar a tradução `assigned_to → nome` num único hook reaproveitável, sem mexer na engine de distribuição nem na coluna do banco.
 
-Os seletores de atendentes na UI listam membros via `useTeamByClient(clientId)` e gravam o `user_id` (string). A função `filterPoolByQueueAccess` deixa de mapear `cod_agent → user_id` (passa a comparar `user_id` direto contra `list_users_for_queue`).
+### 1. Novo hook `useAssigneeNameResolver`
 
----
+Arquivo novo: `src/hooks/useAssigneeNameResolver.ts`.
 
-## 1. UI — Nova aba em Configurações do Chat
+- Usa `useTeamByClient()` (já existente, retorna `{ id, name, ... }[]` do mesmo `client_id`).
+- Constrói um `Map<string, string>` de `String(member.id) → member.name`.
+- Exporta `resolveAssigneeName(value: string | null | undefined): string | null`:
+  - `null`/vazio → `null`.
+  - Se for puramente numérico e existir no map → retorna o nome do membro.
+  - Caso contrário (string já é nome — legado / atribuição manual antiga) → devolve o valor original.
+- Retorna `{ resolve, isLoading }` para os componentes consumirem.
 
-Arquivo: `src/pages/chat/ChatSettingsPage.tsx`
+Pequeno utilitário puro `resolveAssigneeName(value, teamIndex)` exportado também, para reuso em loops (ex.: ChatList já monta `convMetaByContact`).
 
-- Adicionar `TabsTrigger value="distribuicao"` (ícone `GitFork`) ao lado de "Automações".
-- Criar `src/pages/chat/components/ChatAutoDistributionTab.tsx`:
-  1. **Card de status** com switch master "Distribuição automática ativada" (persistido em `chat_client_settings.settings.auto_distribution_enabled`, escopado por `client_id`).
-  2. Conteúdo embarcado da `ChatRoutingPage` (extrair em `ChatRoutingContent` exportado, padrão `ChatSlaConfigContent`).
-  3. Quando master desligado: badge "Inativo — regras não serão aplicadas".
+### 2. Aplicar resolver nos pontos de exibição
 
----
+- **`ChatList.tsx`**: ao montar `convMetaByContact` (linha 327) e ao passar `assignedAgentName` para `ChatContactItem` (linha 1653), resolver o `assignedTo` antes de exibir. **Não alterar** os blocos de filtro (`ownerFilter`) — eles continuam comparando contra o valor cru (`String(user?.id)` ou `user?.name`).
+- **`ChatContactItem.tsx`**: nenhum cálculo extra; recebe o nome já resolvido via prop como hoje.
+- **`ChatHeader.tsx`**: usar `resolve(selectedConversation.assigned_to)` nas linhas 545-548, 594 e no `currentAssignee` enviado ao `TransferDialog` (787). Para a comparação `isAssignedToMe` (395) manter a lógica atual mas estender para também aceitar `assigned_to === String(currentUser.id)`.
+- **`ContactDetailPanel.tsx`**: aplicar resolver na linha 453.
 
-## 2. Tipos de regras suportadas
+### 3. Sem mudanças em
 
-### Condições (`conditions`, AND)
-- `channel`, `tag`, `priority`, `keyword`, `business_hours`
-- **Novo** `queue` — id da fila de origem
-- **Novo** `contact_is_new` — primeira conversa do contato
+- Banco de dados / migrations.
+- Engine `chat-route-conversation` (continua escrevendo `user_id`, que é o padrão novo).
+- Filtros e RLS.
+- Webhook UaZapi.
 
-### Estratégias (`strategy`)
-- `round_robin`, `least_busy`, `specific_agent`, `manual_pool`
-- **Novo** `random`
+## Detalhes técnicos
 
-### Filtros de elegibilidade do atendente (NOVO)
-Aplicados **antes** da estratégia, todos por `user_id`:
-
-- **`online_only`** (boolean por regra) — apenas atendentes do `client_id` com presença online: `user_presence.last_seen_at >= now() - 5 min` AND (opcional) `chat_agent_capacity.status='online'`.
-- **`excluded_agents[]`** (NOVO `text[]` de `user_id`) — atendentes ignorados sempre nesta regra (férias, gestor, etc.).
-- Pool vazio após filtros → cai em `fallback_assigned_to`.
-
-### Campos da regra
-- Nome, descrição, ativa/inativa, posição
-- `agent_pool[]` (user_ids), `excluded_agents[]` (user_ids), `fallback_assigned_to` (user_id)
-- `online_only`, `target_queue_id`, `only_business_hours`
-- Capacidade por agente (`chat_agent_capacity` chaveada por `client_id` + `agent_identifier=user_id`)
-
-### Métricas
-- `execution_count`, `last_executed_at`, `last_assigned_to` (já existem).
-
----
-
-## 3. UI dos novos campos (editor da regra)
-
-- Switch **"Somente atendentes online"**.
-- Multi-select **"Ignorar atendentes"** (mesmo componente do `agent_pool`, grava em `excluded_agents`). Tooltip: "Estes atendentes nunca receberão chats por esta regra."
-- Todos os selects de atendente leem de `useTeamByClient(clientId)` e gravam `user_id`.
-
----
-
-## 4. Wire-up — Disparar a distribuição
-
-Hoje `chat-route-conversation` não é chamada:
-
-- Em `supabase/functions/uazapi-chat-webhook/index.ts`, após criar/atualizar `chat_conversations` em `pending` sem `assigned_to`:
-  1. Ler flag `auto_distribution_enabled` via `fetchClientAutomationFlags(client_id)` (estender `_shared/agentSettings.ts`).
-  2. Se ligada, `waitUntil(fetch /functions/v1/chat-route-conversation { conversation_id })`.
-- Guard no início de `chat-route-conversation/index.ts` revalida a flag por `client_id`.
-
----
-
-## 5. Banco de dados
-
-Migration:
-```sql
-ALTER TABLE public.chat_routing_rules
-  ADD COLUMN excluded_agents text[] NOT NULL DEFAULT '{}',
-  ADD COLUMN online_only boolean NOT NULL DEFAULT false;
-```
-- `chat_routing_rules.cod_agent` permanece apenas como metadado (não usado pela engine).
-- `auto_distribution_enabled` mora em `chat_client_settings.settings` (JSONB, sem schema change).
-
----
-
-## 6. Hook e tipos
-
-- `src/hooks/useChatRouting.ts`: adicionar `excluded_agents: string[]`, `online_only: boolean`; estender `field` com `'queue' | 'contact_is_new'`; estender `strategy` com `'random'`. Remover qualquer referência implícita a `cod_agent`.
-- `src/pages/configuracoes/hooks/useChatClientSettings.ts`: `auto_distribution_enabled?: boolean` (default `false`).
-
----
-
-## 7. Lógica no edge function (`chat-route-conversation`)
-
-Em `pickAgent(rule)`:
-```
-pool = rule.agent_pool                            // user_ids
-pool -= rule.excluded_agents                      // user_ids
-pool = filterPoolByQueueAccess(pool, rule.target_queue_id, rule.client_id)
-if rule.online_only:
-  pool = filterByOnlinePresence(pool, rule.client_id)
-if empty(pool): return rule.fallback_assigned_to
-apply strategy
-```
-
-- `filterPoolByQueueAccess`: usa `list_users_for_queue` (que já retorna `user_id` no escopo do `client_id`) e intersecta direto com o pool. **Mapeamento `cod_agent → user_id` removido.**
-- `filterByOnlinePresence`: `db-query` raw → `SELECT user_id FROM user_presence WHERE user_id = ANY($1) AND client_id = $2 AND last_seen_at >= now() - interval '5 minutes'`.
-
----
-
-## 8. Permissões
-
-- Aba visível com `hasPermission('chat','can_edit')`.
-- Owner pode delegar via módulo `team`.
-
----
+- `useTeamByClient` já cacheia por 5 min via React Query, então o overhead extra é desprezível mesmo em listas grandes.
+- O resolver é tolerante: enquanto o time ainda está carregando, devolve o valor original — evita "flash" de "Não Atribuído".
+- Mantém retrocompatibilidade com conversas antigas onde `assigned_to` é o nome em texto.
 
 ## Arquivos tocados
 
 ```
-src/pages/chat/ChatSettingsPage.tsx                            (add tab)
-src/pages/chat/components/ChatAutoDistributionTab.tsx          (new)
-src/pages/chat/ChatRoutingPage.tsx                             (extract embeddable + novos campos + selects por user_id)
-src/hooks/useChatRouting.ts                                    (extend types, remover cod_agent)
-src/pages/configuracoes/hooks/useChatClientSettings.ts         (add flag)
-supabase/functions/_shared/agentSettings.ts                    (expose new flag)
-supabase/functions/uazapi-chat-webhook/index.ts                (invoke router)
-supabase/functions/chat-route-conversation/index.ts            (guard + filtros + 'random' + remover map cod_agent)
-supabase/migrations/<ts>_routing_rule_filters.sql              (excluded_agents + online_only)
+src/hooks/useAssigneeNameResolver.ts          (novo)
+src/components/chat/ChatList.tsx              (resolve antes do display)
+src/components/chat/ChatHeader.tsx            (resolve em 3 lugares + isAssignedToMe)
+src/components/chat/ContactDetailPanel.tsx    (resolve em 1 lugar)
 ```
-
----
 
 ## Fora do escopo
 
-- WABA webhook wire-up (próxima iteração).
-- Painel gráfico de auditoria — `chat_conversation_history` já registra `auto_routed`.
+- Backfill de conversas antigas com nome no `assigned_to`.
+- Mostrar avatar do atendente atribuído (próxima iteração se quiser).

@@ -18,6 +18,7 @@ import { ConversationParticipants } from './ConversationParticipants';
 import { PriorityBadge } from './PriorityBadge';
 import { ConversationSummaries } from './ConversationSummaries';
 import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
+import { useAssigneeNameResolver } from '@/hooks/useAssigneeNameResolver';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -177,6 +178,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   // Show "Resumos" tab only if AUTO_SUMMARY_ON_RESOLVE or AUTO_SUMMARY_ON_CLOSE
   // is enabled for ANY agent of the logged-in user's client_id.
   const { flags: automationFlags } = useClientAutomationFlags();
+  const { resolve: resolveAssignee } = useAssigneeNameResolver();
   const showResumosTab = automationFlags.autoSummaryOnResolve || automationFlags.autoSummaryOnClose;
 
   // Past conversations — cached by React Query, avoids re-fetch on every re-render
@@ -450,7 +452,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                           <UserCheck className="h-3 w-3" /> Atribuído
                         </span>
                         <span className={cn('text-xs', selectedConversation.assigned_to ? 'font-medium' : 'text-muted-foreground')}>
-                          {selectedConversation.assigned_to || 'Não atribuído'}
+                          {resolveAssignee(selectedConversation.assigned_to) || 'Não atribuído'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">

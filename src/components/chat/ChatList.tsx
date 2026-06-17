@@ -37,6 +37,7 @@ import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
 import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
+import { buildAssigneeIndex, resolveAssigneeName } from '@/hooks/useAssigneeNameResolver';
 import { externalDb } from '@/lib/externalDb';
 import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
@@ -450,6 +451,8 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   const { data: teamMembers = [] } = useTeamByClient();
   const { data: stages = [] } = useCRMStages();
   const { aliasMap } = useAgentAliases();
+
+  const assigneeIndex = React.useMemo(() => buildAssigneeIndex(teamMembers), [teamMembers]);
 
   // cod_agent → business name (fallback when no alias configured)
   const agentBusinessNameMap = React.useMemo(() => {
@@ -1650,7 +1653,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     onClick={() => selectContact(contact.id)}
                     conversation={conv}
                     queueName={convQueue?.name}
-                    assignedAgentName={conv?.assigned_to || undefined}
+                    assignedAgentName={resolveAssigneeName(conv?.assigned_to, assigneeIndex) || undefined}
                     index={virtualItem.index}
                     convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
                     agentCodAgent={agentCodAgent}
