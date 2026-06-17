@@ -6,6 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Tooltip as UiTooltip,
+  TooltipContent as UiTooltipContent,
+  TooltipProvider as UiTooltipProvider,
+  TooltipTrigger as UiTooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -21,6 +27,23 @@ import { EquipePerformanceDrawer } from './EquipePerformanceDrawer';
 import { cn } from '@/lib/utils';
 
 type PeriodKey = 'today' | 'yesterday' | '7d' | 'month' | 'last_month' | 'custom';
+
+function HeaderWithTip({ label, tip, align, className }: { label: string; tip: string; align?: 'right' | 'left'; className?: string }) {
+  return (
+    <TableHead className={cn(align === 'right' && 'text-right', className)}>
+      <UiTooltip>
+        <UiTooltipTrigger asChild>
+          <span className="cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-4">
+            {label}
+          </span>
+        </UiTooltipTrigger>
+        <UiTooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+          {tip}
+        </UiTooltipContent>
+      </UiTooltip>
+    </TableHead>
+  );
+}
 
 function computePeriod(key: PeriodKey, custom?: PerformancePeriod): PerformancePeriod {
   const now = new Date();
@@ -294,21 +317,22 @@ export function EquipePerformanceTab() {
               <p className="text-xs text-muted-foreground">Clique em uma linha para ver detalhes.</p>
             </div>
             <div className="overflow-x-auto">
+              <UiTooltipProvider delayDuration={150}>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Atendente</TableHead>
-                    <TableHead className="text-right">Tempo logado</TableHead>
-                    <TableHead className="text-right">Ocup.</TableHead>
-                    <TableHead className="text-right">Receb.</TableHead>
-                    <TableHead className="text-right">Resolv.</TableHead>
-                    <TableHead className="text-right">Devol.</TableHead>
-                    <TableHead className="text-right">Transf.</TableHead>
-                    <TableHead className="text-right">TMA</TableHead>
-                    <TableHead className="text-right">Ligações</TableHead>
-                    <TableHead className="text-right">Talk time</TableHead>
-                    <TableHead className="text-right">Leads chamados</TableHead>
-                    <TableHead className="w-32">Tendência</TableHead>
+                    <HeaderWithTip align="right" label="Tempo logado" tip="Soma do tempo que o atendente esteve logado na plataforma no período (login até logout). Sessões em aberto são limitadas a 12h para evitar inflar o total." />
+                    <HeaderWithTip align="right" label="Ocup." tip="Ocupação = Talk time ÷ Tempo logado. Mostra o percentual do tempo logado que o atendente passou efetivamente em chamadas de voz." />
+                    <HeaderWithTip align="right" label="Receb." tip="Conversas recebidas: número de atendimentos atribuídos ao usuário no período (independente de já estarem resolvidos ou não)." />
+                    <HeaderWithTip align="right" label="Resolv." tip="Conversas que o atendente finalizou (marcadas como resolvidas) dentro do período." />
+                    <HeaderWithTip align="right" label="Devol." tip="Conversas que foram devolvidas para a fila pelo atendente após terem sido atribuídas a ele." />
+                    <HeaderWithTip align="right" label="Transf." tip="Conversas que o atendente transferiu para outro usuário do time." />
+                    <HeaderWithTip align="right" label="TMA" tip="Tempo Médio de Atendimento: média de tempo entre o atendente assumir a conversa e finalizá-la (resolver, devolver ou transferir)." />
+                    <HeaderWithTip align="right" label="Ligações" tip="Total de chamadas de voz realizadas/atendidas pelo ramal vinculado ao atendente no período." />
+                    <HeaderWithTip align="right" label="Talk time" tip="Tempo total efetivamente falado em chamadas de voz (soma da duração das ligações conectadas)." />
+                    <HeaderWithTip align="right" label="Leads chamados" tip="Quantidade de ligações feitas para números que existem como contato/lead do cliente. Indica esforço de contato ativo com a base." />
+                    <HeaderWithTip className="w-32" label="Tendência" tip="Mini-gráfico com a evolução diária de conversas resolvidas no período selecionado." />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -360,6 +384,7 @@ export function EquipePerformanceTab() {
                   ))}
                 </TableBody>
               </Table>
+              </UiTooltipProvider>
             </div>
           </Card>
         </>
