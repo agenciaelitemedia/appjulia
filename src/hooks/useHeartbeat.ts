@@ -3,7 +3,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { STORAGE_KEYS } from '@/lib/constants';
 
-const HEARTBEAT_INTERVAL_MS = 30_000;
+const SLOT_SECONDS = 30;
+/** Coleta 1 slot a cada 30s e dá flush a cada 2 min (4 slots por chamada). */
+const SLOT_INTERVAL_MS = SLOT_SECONDS * 1000;
+const FLUSH_INTERVAL_MS = 2 * 60_000;
 /** Após 5 min sem interação (mouse/teclado), paramos de pingar — usuário fica "ausente". */
 const ACTIVITY_GRACE_MS = 5 * 60_000;
 
@@ -28,8 +31,10 @@ function isUserActive(): boolean {
  */
 export function useHeartbeat() {
   const { user } = useAuth();
-  const intervalRef = useRef<number | null>(null);
+  const slotTimerRef = useRef<number | null>(null);
+  const flushTimerRef = useRef<number | null>(null);
   const inflightRef = useRef(false);
+  const slotsRef = useRef<number[]>([]); // epoch seconds (rounded to 30s)
 
   useEffect(() => {
     if (!user?.id || !user?.client_id) return;
@@ -39,19 +44,30 @@ export function useHeartbeat() {
 
     let cancelled = false;
 
-    const ping = async () => {
-      if (cancelled || inflightRef.current) return;
+    const captureSlot = () => {
+      if (cancelled) return;
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       if (!isUserActive()) return;
+      const slot = Math.floor(Date.now() / 1000 / SLOT_SECONDS) * SLOT_SECONDS;
+      const arr = slotsRef.current;
+      if (arr.length === 0 || arr[arr.length - 1] !== slot) arr.push(slot);
+    };
+
+    const flush = async () => {
+      if (cancelled || inflightRef.current) return;
+      const pending = slotsRef.current;
+      if (pending.length === 0) return;
+      const batch = pending.splice(0, pending.length);
       inflightRef.current = true;
       try {
-        // Server-side timestamp evita clock skew do navegador.
-        await (supabase as any).rpc('touch_user_presence', {
+        await (supabase as any).rpc('touch_user_presence_batch', {
           p_user_id: userId,
           p_client_id: clientId,
+          p_slots: batch.map((s) => new Date(s * 1000).toISOString()),
         });
       } catch {
-        // ignore; next tick retries
+        // Em caso de erro, devolve os slots para retry na próxima janela (cap em 20).
+        slotsRef.current = batch.concat(slotsRef.current).slice(-20);
       } finally {
         inflightRef.current = false;
       }
@@ -59,6 +75,8 @@ export function useHeartbeat() {
 
     // Limpeza explícita ao fechar/navegar — evita "online fantasma" por até 5 min.
     const clearViaBeacon = () => {
+      // tenta liberar slots pendentes antes de sair (best-effort)
+      void flush();
       try {
         const url = `${(import.meta as any).env?.VITE_SUPABASE_URL || ''}/rest/v1/rpc/clear_user_presence`;
         const apikey = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY || '';
@@ -79,10 +97,11 @@ export function useHeartbeat() {
       } catch { /* ignore */ }
     };
 
-    void ping();
-    intervalRef.current = window.setInterval(ping, HEARTBEAT_INTERVAL_MS);
+    captureSlot();
+    slotTimerRef.current = window.setInterval(captureSlot, SLOT_INTERVAL_MS);
+    flushTimerRef.current = window.setInterval(flush, FLUSH_INTERVAL_MS);
 
-    const onWake = () => { void ping(); };
+    const onWake = () => { captureSlot(); void flush(); };
     window.addEventListener('focus', onWake);
     window.addEventListener('online', onWake);
     document.addEventListener('visibilitychange', onWake);
@@ -91,8 +110,12 @@ export function useHeartbeat() {
 
     return () => {
       cancelled = true;
-      if (intervalRef.current != null) window.clearInterval(intervalRef.current);
-      intervalRef.current = null;
+      if (slotTimerRef.current != null) window.clearInterval(slotTimerRef.current);
+      if (flushTimerRef.current != null) window.clearInterval(flushTimerRef.current);
+      slotTimerRef.current = null;
+      flushTimerRef.current = null;
+      // flush final dos slots pendentes
+      void flush();
       window.removeEventListener('focus', onWake);
       window.removeEventListener('online', onWake);
       document.removeEventListener('visibilitychange', onWake);
