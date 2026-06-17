@@ -22,7 +22,7 @@ import {
   Clock, MessageSquare, CheckCircle2, RotateCcw,
   Phone, PhoneCall, Loader2, Download, Filter, TrendingUp, Target,
 } from 'lucide-react';
-import { useTeamPerformance, type PerformancePeriod } from '../hooks/useTeamPerformance';
+import { useTeamPerformance, usePresenceBackfillUntil, type PerformancePeriod } from '../hooks/useTeamPerformance';
 import { EquipePerformanceDrawer } from './EquipePerformanceDrawer';
 import { cn } from '@/lib/utils';
 
