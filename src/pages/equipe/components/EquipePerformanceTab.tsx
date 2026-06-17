@@ -225,6 +225,7 @@ export function EquipePerformanceTab() {
       {!isLoading && totals && (
         <>
           {/* KPIs */}
+          <UiTooltipProvider delayDuration={150}>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KpiCard icon={Clock} label="Tempo logado" value={fmtDuration(totals.worked_seconds)} sub={`${totals.sessions_count} sessões`} accent="text-blue-600 bg-blue-50 dark:bg-blue-950/30" tip="Soma do tempo que a equipe esteve logada na plataforma no período. Sessões em aberto são limitadas a 12h para evitar inflar o total." />
             <KpiCard icon={MessageSquare} label="Recebidos" value={totals.received} sub={`${members.length} atendentes`} accent="text-violet-600 bg-violet-50 dark:bg-violet-950/30" tip="Número total de conversas/atendimentos atribuídos à equipe no período, independente do desfecho." />
@@ -235,6 +236,7 @@ export function EquipePerformanceTab() {
             <KpiCard icon={PhoneCall} label="Talk time" value={fmtDuration(totals.talk_seconds)} sub={`${totals.calls_to_known_leads} p/ leads`} accent="text-rose-600 bg-rose-50 dark:bg-rose-950/30" tip="Tempo total efetivamente falado em chamadas de voz (soma da duração das ligações conectadas). Inclui chamadas para leads identificados." />
             <KpiCard icon={TrendingUp} label="Ocupação" value={`${totals.occupancy_pct}%`} sub="talk / logado" accent="text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/30" tip="Ocupação da equipe = Talk time ÷ Tempo logado. Indica o percentual do tempo logado que foi gasto efetivamente em chamadas de voz." />
           </div>
+          </UiTooltipProvider>
 
           {/* Gráficos linha 1: stacked bar + donut */}
           <div className="grid gap-4 lg:grid-cols-3">
