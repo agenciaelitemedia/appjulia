@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSoundAlertSettings } from '@/hooks/useSoundAlertSettings';
+import { isAudioActive } from '@/lib/chat/audioActivity';
 
 const SOUND_URL = '/som/nova-mensagem.mp3';
 const THROTTLE_MS = 2000;
@@ -28,6 +29,11 @@ export function useNewMessageSound() {
   const lastPlayedAtRef = useRef(0);
   const knownIdsRef = useRef<Set<string>>(new Set());
   const allowedRef = useRef(true);
+  const userIdRef = useRef<string>('');
+
+  useEffect(() => {
+    userIdRef.current = String(user?.id ?? '');
+  }, [user?.id]);
 
   // Gate: só toca se o alerta do cliente estiver ativo e o usuário não estiver silenciado.
   // Mantido em ref para não reassinar o canal Realtime a cada mudança.
@@ -76,6 +82,8 @@ export function useNewMessageSound() {
 
     const playAlert = () => {
       if (!allowedRef.current) return;
+      // Não alerta enquanto o usuário estiver gravando/enviando áudio
+      if (isAudioActive()) return;
       const now = Date.now();
       if (now - lastPlayedAtRef.current < THROTTLE_MS) return;
       lastPlayedAtRef.current = now;
@@ -108,6 +116,7 @@ export function useNewMessageSound() {
             from_me?: boolean;
             internal_note?: boolean;
             type?: string;
+            conversation_id?: string | null;
           };
 
           // Apenas mensagens recebidas, não notas internas
@@ -126,7 +135,27 @@ export function useNewMessageSound() {
             }
           }
 
-          playAlert();
+          // Só alerta para conversas pendentes ou atribuídas ao usuário logado.
+          // Mensagens sem conversation_id mantêm o comportamento atual (toca).
+          if (!msg.conversation_id) {
+            playAlert();
+            return;
+          }
+
+          supabase
+            .from('chat_conversations')
+            .select('status, assigned_to')
+            .eq('id', msg.conversation_id)
+            .maybeSingle()
+            .then(({ data, error }) => {
+              if (error || !data) return;
+              const myId = userIdRef.current;
+              const assignedToMe =
+                !!data.assigned_to && !!myId && String(data.assigned_to) === myId;
+              if (data.status === 'pending' || assignedToMe) {
+                playAlert();
+              }
+            });
         }
       )
       .subscribe();

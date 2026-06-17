@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Square, Trash2, Send, Loader2, Play, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { setAudioActivity } from '@/lib/chat/audioActivity';
 
 interface AudioRecorderProps {
   onSend: (audioBlob: Blob) => Promise<void>;
@@ -16,6 +17,13 @@ export function AudioRecorder({ onSend, onCancel }: AudioRecorderProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
+
+  // Silencia o alerta sonoro de novas mensagens enquanto este componente
+  // estiver montado (gravando, com preview ou enviando áudio).
+  useEffect(() => {
+    setAudioActivity(true);
+    return () => setAudioActivity(false);
+  }, []);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
