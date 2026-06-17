@@ -95,6 +95,7 @@ interface AuthContextType {
   logout: () => void;
   refreshPermissions: () => Promise<void>;
   hasPermission: (moduleCode: ModuleCode, action?: 'view' | 'create' | 'edit' | 'delete') => boolean;
+  updateUser: (patch: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -452,6 +453,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isAdmin, permissions]);
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch } as User;
+      try {
+        localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -464,6 +476,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       refreshPermissions,
       hasPermission,
+      updateUser,
     }}>
       {children}
     </AuthContext.Provider>
