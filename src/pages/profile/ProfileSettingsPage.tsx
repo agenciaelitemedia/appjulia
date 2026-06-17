@@ -286,7 +286,22 @@ export default function ProfileSettingsPage() {
     try {
       const updatedClient = await externalDb.updateClient<Client>(user.client_id, formData);
       setClientData(updatedClient);
-      
+
+      // Also sync the user's profile name when the client name changes
+      const newName = (formData.name || '').trim();
+      if (user?.id && newName && newName !== (user.name || '').trim()) {
+        try {
+          await externalDb.updateUserProfile(user.id, {
+            name: newName,
+            email: user.email,
+            role: user.role,
+            isActive: user.is_active !== false,
+          });
+        } catch (e) {
+          console.warn('[Profile] Failed to sync user profile name', e);
+        }
+      }
+
       toast({
         title: 'Dados salvos',
         description: 'Os dados do cliente foram atualizados com sucesso.',
