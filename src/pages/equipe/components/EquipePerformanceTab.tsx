@@ -402,7 +402,22 @@ export function EquipePerformanceTab() {
   );
 }
 
-function KpiCard({ icon: Icon, label, value, sub, accent }: { icon: any; label: string; value: any; sub?: string; accent?: string }) {
+function KpiCard({ icon: Icon, label, value, sub, accent, tip }: { icon: any; label: string; value: any; sub?: string; accent?: string; tip?: string }) {
+  const labelNode = (
+    <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
+      {tip ? (
+        <UiTooltip>
+          <UiTooltipTrigger asChild>
+            <span className="cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-4">{label}</span>
+          </UiTooltipTrigger>
+          <UiTooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+            {tip}
+          </UiTooltipContent>
+        </UiTooltip>
+      ) : label}
+    </div>
+  );
+
   return (
     <Card className="p-3">
       <div className="flex items-start gap-3">
@@ -410,7 +425,7 @@ function KpiCard({ icon: Icon, label, value, sub, accent }: { icon: any; label: 
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <div className="text-[11px] text-muted-foreground uppercase tracking-wide">{label}</div>
+          {labelNode}
           <div className="text-xl font-semibold leading-tight truncate">{value}</div>
           {sub && <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{sub}</div>}
         </div>
