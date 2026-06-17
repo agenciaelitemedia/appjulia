@@ -95,6 +95,7 @@ interface AuthContextType {
   logout: () => void;
   refreshPermissions: () => Promise<void>;
   hasPermission: (moduleCode: ModuleCode, action?: 'view' | 'create' | 'edit' | 'delete') => boolean;
+  updateUser: (patch: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
