@@ -442,52 +442,18 @@ export function useUserSessions(userId: number | null, period: PerformancePeriod
       const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
       const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
 
-      // Sessões reais derivadas de heartbeats: 1 slot = 30s.
-      // Agrupa slots consecutivos com gap <= 2 min como uma única sessão.
-      const { data, error } = await (supabase as any)
-        .from('user_presence_heartbeats')
-        .select('seen_at')
-        .eq('user_id', userId!)
-        .gte('seen_at', fromIso)
-        .lte('seen_at', toIso)
-        .order('seen_at', { ascending: true })
-        .limit(20000);
+      // Sessões reais derivadas de heartbeats no banco: 1 slot = 30s.
+      const { data, error } = await (supabase as any).rpc('get_user_presence_sessions', {
+        p_user_id: userId!,
+        p_from: fromIso,
+        p_to: toIso,
+      });
       if (error) throw error;
-
-      const slots = ((data || []) as Array<{ seen_at: string }>)
-        .map((r) => Math.floor(new Date(r.seen_at).getTime() / 1000))
-        .sort((a, b) => a - b);
-      if (slots.length === 0) return [];
-
-      const rows: UserSessionRow[] = [];
-      const nowSec = Math.floor(Date.now() / 1000);
-      let start = slots[0];
-      let prev = slots[0];
-      let count = 1;
-      const flush = () => {
-        const end = prev + SLOT_SECONDS;
-        const open = nowSec - prev <= SESSION_GAP_SECONDS;
-        rows.push({
-          login_at: new Date(start * 1000).toISOString(),
-          logout_at: open ? null : new Date(end * 1000).toISOString(),
-          logout_type: open ? null : 'logout_inactivity',
-          duration_seconds: count * SLOT_SECONDS,
-          open,
-        });
-      };
-      for (let i = 1; i < slots.length; i++) {
-        const s = slots[i];
-        if (s - prev > SESSION_GAP_SECONDS) {
-          flush();
-          start = s;
-          count = 1;
-        } else if (s !== prev) {
-          count += 1;
-        }
-        prev = s;
-      }
-      flush();
-      return rows.reverse(); // mais recente primeiro
+      return ((data || []) as UserSessionRow[]).map((r) => ({
+        ...r,
+        duration_seconds: r.duration_seconds == null ? null : Number(r.duration_seconds),
+        open: !!r.open,
+      }));
     },
   });
 }
