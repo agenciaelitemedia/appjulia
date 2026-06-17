@@ -325,6 +325,50 @@ export default function ProfileSettingsPage() {
     }
   };
 
+  // Handle inline name edit
+  const handleStartEditName = () => {
+    setEditedName(user?.name || '');
+    setIsEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 0);
+  };
+
+  const handleSaveName = async () => {
+    if (!user?.id || !editedName.trim() || editedName.trim() === (user.name || '').trim()) {
+      setIsEditingName(false);
+      return;
+    }
+
+    setIsSavingName(true);
+    try {
+      await externalDb.updateUserProfile(user.id, {
+        name: editedName.trim(),
+        email: user.email,
+        role: user.role,
+        isActive: user.is_active !== false,
+      });
+      updateUser({ name: editedName.trim() });
+      toast({
+        title: 'Nome atualizado',
+        description: 'Seu nome foi atualizado com sucesso.',
+      });
+    } catch (error: any) {
+      console.error('Error saving name:', error);
+      toast({
+        title: 'Erro ao salvar',
+        description: error.message || 'Não foi possível atualizar o nome.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingName(false);
+      setIsEditingName(false);
+    }
+  };
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
   // Password validation
   const passwordValidation = {
     minLength: newPassword.length >= 8,
