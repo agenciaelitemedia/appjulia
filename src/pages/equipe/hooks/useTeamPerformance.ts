@@ -398,3 +398,81 @@ export function useUserTopNumbers(userId: number | null, period: PerformancePeri
     },
   });
 }
+
+// ============================================================
+// User sessions (login/logout pairs) for the period
+// ============================================================
+
+export interface UserSessionRow {
+  login_at: string;
+  logout_at: string | null;
+  logout_type: 'logout_manual' | 'logout_inactivity' | null;
+  duration_seconds: number | null;
+  open: boolean;
+}
+
+const MAX_SESSION_SECONDS = 12 * 3600;
+
+export function useUserSessions(userId: number | null, period: PerformancePeriod) {
+  return useQuery<UserSessionRow[]>({
+    queryKey: ['user-sessions', userId, period.startDate, period.endDate],
+    enabled: !!userId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+
+      const { data, error } = await (supabase as any)
+        .from('user_activity_log')
+        .select('event_type, occurred_at, created_at')
+        .eq('user_id', userId!)
+        .gte('created_at', fromIso)
+        .lte('created_at', toIso)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+
+      const events = ((data || []) as Array<{ event_type: string; occurred_at: string | null; created_at: string }>)
+        .map((e) => ({ type: e.event_type, at: e.occurred_at || e.created_at }))
+        .sort((a, b) => a.at.localeCompare(b.at));
+
+      const rows: UserSessionRow[] = [];
+      let pendingLogin: string | null = null;
+      const now = new Date().toISOString();
+
+      for (const ev of events) {
+        if (ev.type === 'login') {
+          if (pendingLogin) {
+            // login sem logout pareado anterior — fecha como aberto/desconhecido
+            rows.push({ login_at: pendingLogin, logout_at: null, logout_type: null, duration_seconds: null, open: true });
+          }
+          pendingLogin = ev.at;
+        } else if (ev.type === 'logout_manual' || ev.type === 'logout_inactivity') {
+          if (pendingLogin) {
+            const dur = Math.min(
+              MAX_SESSION_SECONDS,
+              Math.max(0, Math.floor((new Date(ev.at).getTime() - new Date(pendingLogin).getTime()) / 1000)),
+            );
+            rows.push({
+              login_at: pendingLogin,
+              logout_at: ev.at,
+              logout_type: ev.type as any,
+              duration_seconds: dur,
+              open: false,
+            });
+            pendingLogin = null;
+          }
+          // logout órfão é ignorado
+        }
+      }
+      if (pendingLogin) {
+        const dur = Math.min(
+          MAX_SESSION_SECONDS,
+          Math.max(0, Math.floor((new Date(now).getTime() - new Date(pendingLogin).getTime()) / 1000)),
+        );
+        rows.push({ login_at: pendingLogin, logout_at: null, logout_type: null, duration_seconds: dur, open: true });
+      }
+
+      return rows.reverse(); // mais recente primeiro
+    },
+  });
+}
