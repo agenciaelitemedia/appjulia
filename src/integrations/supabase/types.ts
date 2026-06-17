@@ -6959,6 +6959,24 @@ export type Database = {
         }
         Relationships: []
       }
+      user_presence_heartbeats: {
+        Row: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          seen_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
       vellip_call_logs: {
         Row: {
           cd_called_status: string | null
@@ -7932,6 +7950,7 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: Json
       }
+      cleanup_user_presence_heartbeats: { Args: never; Returns: number }
       clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
       generate_ticket_protocol: { Args: { p_mask: string }; Returns: string }
       get_db_cache_hit_ratio: {
@@ -7994,6 +8013,10 @@ export type Database = {
           user_name: string
         }[]
       }
+      get_user_online_seconds: {
+        Args: { p_from: string; p_to: string; p_user_id: number }
+        Returns: number
+      }
       increment_contact_unread: {
         Args: { p_contact_id: string; p_last_at?: string; p_preview?: string }
         Returns: undefined
@@ -8015,6 +8038,10 @@ export type Database = {
       touch_user_presence: {
         Args: { p_client_id: number; p_user_id: number }
         Returns: string
+      }
+      touch_user_presence_batch: {
+        Args: { p_client_id: number; p_slots: string[]; p_user_id: number }
+        Returns: number
       }
       uazapi_pick_pending_items: {
         Args: { p_limit?: number; p_worker_id: number }

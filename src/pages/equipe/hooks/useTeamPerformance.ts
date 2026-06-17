@@ -133,7 +133,10 @@ export function useTeamPerformance(
     enabled: !!clientIdNum && userIds.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
-      const [sessionsRes, chatRes, phoneRes] = await Promise.all([
+      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+
+      const [sessionsRes, chatRes, phoneRes, heartbeatsRes] = await Promise.all([
         supabase
           .from('mv_user_sessions_daily' as any)
           .select('user_id, user_name, day_brt, worked_seconds, sessions_count')
@@ -157,11 +160,19 @@ export function useTeamPerformance(
           .in('user_id', userIds as any)
           .gte('day_brt', period.startDate)
           .lte('day_brt', period.endDate),
+        // Tempo online real (heartbeats): 1 linha = 30s.
+        supabase
+          .from('user_presence_heartbeats' as any)
+          .select('user_id, seen_at')
+          .in('user_id', userIds as any)
+          .gte('seen_at', fromIso)
+          .lte('seen_at', toIso),
       ]);
 
       const sessions = (sessionsRes as any).data || [];
       const chat = (chatRes as any).data || [];
       const phone = (phoneRes as any).data || [];
+      const heartbeats = (heartbeatsRes as any).data || [];
 
       // Initialize per-user accumulator
       const byUser: Record<number, PerformanceUserRow> = {};
@@ -176,16 +187,42 @@ export function useTeamPerformance(
       for (const m of allMembers) userDays[m.id] = dayInit();
       const totalDays: Record<string, PerformanceDailyRow> = dayInit();
 
-      // Sessions → user + day
+      // Sessions (login/logout) — usados apenas para sessions_count.
       const handleAvgAcc: Record<number, { sum: number; count: number }> = {};
       for (const r of sessions as any[]) {
         const uid = Number(r.user_id);
         if (!byUser[uid]) continue;
-        const d = String(r.day_brt);
-        byUser[uid].worked_seconds += Number(r.worked_seconds) || 0;
         byUser[uid].sessions_count += Number(r.sessions_count) || 0;
-        if (userDays[uid][d]) userDays[uid][d].worked_seconds += Number(r.worked_seconds) || 0;
-        if (totalDays[d]) totalDays[d].worked_seconds += Number(r.worked_seconds) || 0;
+      }
+
+      // Tempo online real (heartbeats): cada slot distinto = 30s.
+      // Slot já vem arredondado a múltiplos de 30s pelo RPC, mas garantimos aqui também.
+      const seenSlots: Record<number, Set<string>> = {};
+      const dayOnlineSecs: Record<number, Record<string, number>> = {};
+      for (const r of heartbeats as Array<{ user_id: number; seen_at: string }>) {
+        const uid = Number(r.user_id);
+        if (!byUser[uid]) continue;
+        const t = new Date(r.seen_at);
+        if (Number.isNaN(t.getTime())) continue;
+        const slotKey = String(Math.floor(t.getTime() / 30000));
+        const set = (seenSlots[uid] ||= new Set());
+        if (set.has(slotKey)) continue;
+        set.add(slotKey);
+        // dia em BRT (UTC-3)
+        const brt = new Date(t.getTime() - 3 * 3600_000);
+        const d = brt.toISOString().slice(0, 10);
+        const userMap = (dayOnlineSecs[uid] ||= {});
+        userMap[d] = (userMap[d] || 0) + 30;
+      }
+      for (const uid of Object.keys(byUser).map(Number)) {
+        const userMap = dayOnlineSecs[uid] || {};
+        let total = 0;
+        for (const [d, s] of Object.entries(userMap)) {
+          total += s;
+          if (userDays[uid][d]) userDays[uid][d].worked_seconds += s;
+          if (totalDays[d]) totalDays[d].worked_seconds += s;
+        }
+        byUser[uid].worked_seconds = total;
       }
 
       // Chat → match by name
@@ -411,68 +448,93 @@ export interface UserSessionRow {
   open: boolean;
 }
 
-const MAX_SESSION_SECONDS = 12 * 3600;
+/** Gap máximo (s) entre heartbeats consecutivos para serem considerados a mesma sessão. */
+const SESSION_GAP_SECONDS = 120;
+const SLOT_SECONDS = 30;
 
 export function useUserSessions(userId: number | null, period: PerformancePeriod) {
   return useQuery<UserSessionRow[]>({
-    queryKey: ['user-sessions', userId, period.startDate, period.endDate],
+    queryKey: ['user-sessions-hb', userId, period.startDate, period.endDate],
     enabled: !!userId,
     staleTime: 60_000,
     queryFn: async () => {
       const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
       const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
 
+      // Sessões reais derivadas de heartbeats: 1 slot = 30s.
+      // Agrupa slots consecutivos com gap <= 2 min como uma única sessão.
+      const { data, error } = await (supabase as any)
+        .from('user_presence_heartbeats')
+        .select('seen_at')
+        .eq('user_id', userId!)
+        .gte('seen_at', fromIso)
+        .lte('seen_at', toIso)
+        .order('seen_at', { ascending: true })
+        .limit(20000);
+      if (error) throw error;
+
+      const slots = ((data || []) as Array<{ seen_at: string }>)
+        .map((r) => Math.floor(new Date(r.seen_at).getTime() / 1000))
+        .sort((a, b) => a - b);
+      if (slots.length === 0) return [];
+
+      const rows: UserSessionRow[] = [];
+      const nowSec = Math.floor(Date.now() / 1000);
+      let start = slots[0];
+      let prev = slots[0];
+      let count = 1;
+      const flush = () => {
+        const end = prev + SLOT_SECONDS;
+        const open = nowSec - prev <= SESSION_GAP_SECONDS;
+        rows.push({
+          login_at: new Date(start * 1000).toISOString(),
+          logout_at: open ? null : new Date(end * 1000).toISOString(),
+          logout_type: open ? null : 'logout_inactivity',
+          duration_seconds: count * SLOT_SECONDS,
+          open,
+        });
+      };
+      for (let i = 1; i < slots.length; i++) {
+        const s = slots[i];
+        if (s - prev > SESSION_GAP_SECONDS) {
+          flush();
+          start = s;
+          count = 1;
+        } else if (s !== prev) {
+          count += 1;
+        }
+        prev = s;
+      }
+      flush();
+      return rows.reverse(); // mais recente primeiro
+    },
+  });
+}
+
+// ============================================================
+// Eventos brutos de auth (login/logout) — auditoria secundária
+// ============================================================
+
+export interface AuthEventRow { type: string; at: string }
+
+export function useUserAuthEvents(userId: number | null, period: PerformancePeriod) {
+  return useQuery<AuthEventRow[]>({
+    queryKey: ['user-auth-events', userId, period.startDate, period.endDate],
+    enabled: !!userId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
       const { data, error } = await (supabase as any)
         .from('user_activity_log')
         .select('event_type, occurred_at, created_at')
         .eq('user_id', userId!)
         .gte('created_at', fromIso)
         .lte('created_at', toIso)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
       if (error) throw error;
-
-      const events = ((data || []) as Array<{ event_type: string; occurred_at: string | null; created_at: string }>)
-        .map((e) => ({ type: e.event_type, at: e.occurred_at || e.created_at }))
-        .sort((a, b) => a.at.localeCompare(b.at));
-
-      const rows: UserSessionRow[] = [];
-      let pendingLogin: string | null = null;
-      const now = new Date().toISOString();
-
-      for (const ev of events) {
-        if (ev.type === 'login') {
-          if (pendingLogin) {
-            // login sem logout pareado anterior — fecha como aberto/desconhecido
-            rows.push({ login_at: pendingLogin, logout_at: null, logout_type: null, duration_seconds: null, open: true });
-          }
-          pendingLogin = ev.at;
-        } else if (ev.type === 'logout_manual' || ev.type === 'logout_inactivity') {
-          if (pendingLogin) {
-            const dur = Math.min(
-              MAX_SESSION_SECONDS,
-              Math.max(0, Math.floor((new Date(ev.at).getTime() - new Date(pendingLogin).getTime()) / 1000)),
-            );
-            rows.push({
-              login_at: pendingLogin,
-              logout_at: ev.at,
-              logout_type: ev.type as any,
-              duration_seconds: dur,
-              open: false,
-            });
-            pendingLogin = null;
-          }
-          // logout órfão é ignorado
-        }
-      }
-      if (pendingLogin) {
-        const dur = Math.min(
-          MAX_SESSION_SECONDS,
-          Math.max(0, Math.floor((new Date(now).getTime() - new Date(pendingLogin).getTime()) / 1000)),
-        );
-        rows.push({ login_at: pendingLogin, logout_at: null, logout_type: null, duration_seconds: dur, open: true });
-      }
-
-      return rows.reverse(); // mais recente primeiro
+      return ((data || []) as Array<{ event_type: string; occurred_at: string | null; created_at: string }>)
+        .map((e) => ({ type: e.event_type, at: e.occurred_at || e.created_at }));
     },
   });
 }
