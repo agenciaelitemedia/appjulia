@@ -67,6 +67,12 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
     updateQueue.mutate({ queue_id: queue.id, settings: nextSettings } as never);
   };
 
+  const handleCopyId = async () => {
+    await navigator.clipboard.writeText(queue.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const channelBadgeClass =
     queue.channel_type === 'waba'
       ? 'border-blue-500/40 text-blue-700 dark:text-blue-300'
