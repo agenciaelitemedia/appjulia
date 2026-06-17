@@ -25,7 +25,7 @@ interface ViaCEPResponse {
 }
 
 export default function ProfileSettingsPage() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const canEditClient = user?.role === 'user';
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -297,6 +297,7 @@ export default function ProfileSettingsPage() {
             role: user.role,
             isActive: user.is_active !== false,
           });
+          updateUser({ name: newName });
         } catch (e) {
           console.warn('[Profile] Failed to sync user profile name', e);
         }
