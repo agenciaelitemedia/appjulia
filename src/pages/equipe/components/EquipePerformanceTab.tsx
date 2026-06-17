@@ -28,6 +28,23 @@ import { cn } from '@/lib/utils';
 
 type PeriodKey = 'today' | 'yesterday' | '7d' | 'month' | 'last_month' | 'custom';
 
+function HeaderWithTip({ label, tip, align, className }: { label: string; tip: string; align?: 'right' | 'left'; className?: string }) {
+  return (
+    <TableHead className={cn(align === 'right' && 'text-right', className)}>
+      <UiTooltip>
+        <UiTooltipTrigger asChild>
+          <span className="cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-4">
+            {label}
+          </span>
+        </UiTooltipTrigger>
+        <UiTooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+          {tip}
+        </UiTooltipContent>
+      </UiTooltip>
+    </TableHead>
+  );
+}
+
 function computePeriod(key: PeriodKey, custom?: PerformancePeriod): PerformancePeriod {
   const now = new Date();
   const today = toBrtDateStr(now);
