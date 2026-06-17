@@ -331,8 +331,8 @@ export function EquipePerformanceTab() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Atendente</TableHead>
-                    <HeaderWithTip align="right" label="Tempo logado" tip="Soma do tempo que o atendente esteve logado na plataforma no período (login até logout). Sessões em aberto são limitadas a 12h para evitar inflar o total." />
-                    <HeaderWithTip align="right" label="Ocup." tip="Ocupação = Talk time ÷ Tempo logado. Mostra o percentual do tempo logado que o atendente passou efetivamente em chamadas de voz." />
+                    <HeaderWithTip align="right" label="Tempo online" tip={onlineSourceTip} />
+                    <HeaderWithTip align="right" label="Ocup." tip="Ocupação = Talk time ÷ Tempo online. Mostra o percentual do tempo online que o atendente passou efetivamente em chamadas de voz." />
                     <HeaderWithTip align="right" label="Receb." tip="Conversas recebidas: número de atendimentos atribuídos ao usuário no período (independente de já estarem resolvidos ou não)." />
                     <HeaderWithTip align="right" label="Resolv." tip="Conversas que o atendente finalizou (marcadas como resolvidas) dentro do período." />
                     <HeaderWithTip align="right" label="Devol." tip="Conversas que foram devolvidas para a fila pelo atendente após terem sido atribuídas a ele." />
