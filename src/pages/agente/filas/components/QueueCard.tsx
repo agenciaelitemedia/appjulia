@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain, Copy, Check } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Queue } from '../hooks/useQueues';
@@ -11,7 +12,6 @@ import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { QueueAccessDialog } from './QueueAccessDialog';
-import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const DELETE_ALLOWED_ROLES = ['admin', 'colaborador', 'user'] as const;
@@ -47,6 +47,7 @@ interface QueueCardProps {
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { user } = useAuth();
   const canDelete = !!user?.role && (DELETE_ALLOWED_ROLES as readonly string[]).includes(user.role);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
@@ -64,6 +65,12 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
   const toggleQueueFlag = (key: string, value: boolean) => {
     const nextSettings = { ...qs, [key]: value };
     updateQueue.mutate({ queue_id: queue.id, settings: nextSettings } as never);
+  };
+
+  const handleCopyId = async () => {
+    await navigator.clipboard.writeText(queue.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const channelBadgeClass =
@@ -92,7 +99,21 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                 {queue.is_deleted ? 'Excluída' : queue.is_active ? 'Ativa' : 'Inativa'}
               </Badge>
             </div>
-            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">ID: {queue.id}</p>
+            <div className="flex items-center gap-1 mt-0.5">
+              <p className="text-[11px] text-muted-foreground font-mono">ID: {queue.id}</p>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-4 w-4 shrink-0 -ml-0.5"
+                onClick={handleCopyId}
+              >
+                {copied ? (
+                  <Check className="h-3 w-3 text-green-500" />
+                ) : (
+                  <Copy className="h-3 w-3 text-muted-foreground" />
+                )}
+              </Button>
+            </div>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
