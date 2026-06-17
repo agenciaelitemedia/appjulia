@@ -332,7 +332,7 @@ export function TeamMemberSelect({
                       {memberCounts && (
                         <Badge
                           variant="outline"
-                          className="text-[10px] h-5 px-1.5 flex-shrink-0 tabular-nums bg-primary/10 text-primary border-primary/30"
+                          className="text-[10px] h-5 px-1.5 flex-shrink-0 tabular-nums bg-white text-black border-gray-200"
                           title="Conversas atribuídas"
                         >
                           {memberCounts[(m.name || '').trim()] ?? 0}
