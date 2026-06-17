@@ -133,7 +133,10 @@ export function useTeamPerformance(
     enabled: !!clientIdNum && userIds.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
-      const [sessionsRes, chatRes, phoneRes] = await Promise.all([
+      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+
+      const [sessionsRes, chatRes, phoneRes, heartbeatsRes] = await Promise.all([
         supabase
           .from('mv_user_sessions_daily' as any)
           .select('user_id, user_name, day_brt, worked_seconds, sessions_count')
@@ -157,11 +160,19 @@ export function useTeamPerformance(
           .in('user_id', userIds as any)
           .gte('day_brt', period.startDate)
           .lte('day_brt', period.endDate),
+        // Tempo online real (heartbeats): 1 linha = 30s.
+        supabase
+          .from('user_presence_heartbeats' as any)
+          .select('user_id, seen_at')
+          .in('user_id', userIds as any)
+          .gte('seen_at', fromIso)
+          .lte('seen_at', toIso),
       ]);
 
       const sessions = (sessionsRes as any).data || [];
       const chat = (chatRes as any).data || [];
       const phone = (phoneRes as any).data || [];
+      const heartbeats = (heartbeatsRes as any).data || [];
 
       // Initialize per-user accumulator
       const byUser: Record<number, PerformanceUserRow> = {};
@@ -176,16 +187,42 @@ export function useTeamPerformance(
       for (const m of allMembers) userDays[m.id] = dayInit();
       const totalDays: Record<string, PerformanceDailyRow> = dayInit();
 
-      // Sessions → user + day
+      // Sessions (login/logout) — usados apenas para sessions_count.
       const handleAvgAcc: Record<number, { sum: number; count: number }> = {};
       for (const r of sessions as any[]) {
         const uid = Number(r.user_id);
         if (!byUser[uid]) continue;
-        const d = String(r.day_brt);
-        byUser[uid].worked_seconds += Number(r.worked_seconds) || 0;
         byUser[uid].sessions_count += Number(r.sessions_count) || 0;
-        if (userDays[uid][d]) userDays[uid][d].worked_seconds += Number(r.worked_seconds) || 0;
-        if (totalDays[d]) totalDays[d].worked_seconds += Number(r.worked_seconds) || 0;
+      }
+
+      // Tempo online real (heartbeats): cada slot distinto = 30s.
+      // Slot já vem arredondado a múltiplos de 30s pelo RPC, mas garantimos aqui também.
+      const seenSlots: Record<number, Set<string>> = {};
+      const dayOnlineSecs: Record<number, Record<string, number>> = {};
+      for (const r of heartbeats as Array<{ user_id: number; seen_at: string }>) {
+        const uid = Number(r.user_id);
+        if (!byUser[uid]) continue;
+        const t = new Date(r.seen_at);
+        if (Number.isNaN(t.getTime())) continue;
+        const slotKey = String(Math.floor(t.getTime() / 30000));
+        const set = (seenSlots[uid] ||= new Set());
+        if (set.has(slotKey)) continue;
+        set.add(slotKey);
+        // dia em BRT (UTC-3)
+        const brt = new Date(t.getTime() - 3 * 3600_000);
+        const d = brt.toISOString().slice(0, 10);
+        const userMap = (dayOnlineSecs[uid] ||= {});
+        userMap[d] = (userMap[d] || 0) + 30;
+      }
+      for (const uid of Object.keys(byUser).map(Number)) {
+        const userMap = dayOnlineSecs[uid] || {};
+        let total = 0;
+        for (const [d, s] of Object.entries(userMap)) {
+          total += s;
+          if (userDays[uid][d]) userDays[uid][d].worked_seconds += s;
+          if (totalDays[d]) totalDays[d].worked_seconds += s;
+        }
+        byUser[uid].worked_seconds = total;
       }
 
       // Chat → match by name
