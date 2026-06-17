@@ -7004,6 +7004,60 @@ export type Database = {
         }
         Relationships: []
       }
+      user_presence_heartbeats_202603: {
+        Row: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          seen_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      user_presence_heartbeats_202604: {
+        Row: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          seen_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
+      user_presence_heartbeats_202605: {
+        Row: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          seen_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
       user_presence_heartbeats_202606: {
         Row: {
           client_id: number
