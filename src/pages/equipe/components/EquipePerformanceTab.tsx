@@ -300,6 +300,7 @@ export function EquipePerformanceTab() {
               <p className="text-xs text-muted-foreground">Clique em uma linha para ver detalhes.</p>
             </div>
             <div className="overflow-x-auto">
+              <UiTooltipProvider delayDuration={150}>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -366,6 +367,7 @@ export function EquipePerformanceTab() {
                   ))}
                 </TableBody>
               </Table>
+              </UiTooltipProvider>
             </div>
           </Card>
         </>
