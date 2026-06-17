@@ -452,6 +452,8 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   const { data: stages = [] } = useCRMStages();
   const { aliasMap } = useAgentAliases();
 
+  const assigneeIndex = React.useMemo(() => buildAssigneeIndex(teamMembers), [teamMembers]);
+
   // cod_agent → business name (fallback when no alias configured)
   const agentBusinessNameMap = React.useMemo(() => {
     const map = new Map<string, string>();
