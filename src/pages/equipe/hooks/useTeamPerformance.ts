@@ -456,46 +456,45 @@ export function useUserConversations(userId: number | null, userName: string | n
       const uid = userId ? Number(userId) : null;
 
       const baseCols = 'id, contact_id, assigned_to, assigned_user_id, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at';
-      // Prefer assigned_user_id quando disponível; só cai no nome se uid for nulo.
-      const applyFilter = (q: any) => {
-        if (uid) return q.eq('assigned_user_id', uid);
-        return q.ilike('assigned_to', `%${name}%`);
-      };
 
-      // 1) Conversas criadas no período
-      const { data: periodData, error: err1 } = await applyFilter(
-        supabase
-          .from('chat_conversations')
-          .select(baseCols)
-          .eq('client_id', clientIdText),
-      )
+      // Conversas RECEBIDAS no período: eventos `assigned` em chat_conversation_history
+      // cuja atribuição apontou para este usuário (to_user_id == uid, ou fallback por nome
+      // em to_value/actor_name para registros antigos sem user_id).
+      let histQuery = supabase
+        .from('chat_conversation_history')
+        .select('conversation_id, to_user_id, to_value, actor_name, created_at')
+        .eq('action', 'assigned')
         .gte('created_at', fromIso)
         .lte('created_at', toIso)
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (err1) throw err1;
+        .limit(2000);
+      if (uid) {
+        histQuery = histQuery.or(`to_user_id.eq.${uid},and(to_user_id.is.null,to_value.ilike.%${name}%)`);
+      } else {
+        histQuery = histQuery.or(`to_value.ilike.%${name}%,actor_name.ilike.%${name}%`);
+      }
+      const { data: histRows, error: errH } = await histQuery;
+      if (errH) throw errH;
 
-      // 2) Conversas ainda abertas/pendentes com esse usuário (sem limite de data)
-      const { data: openData, error: err2 } = await applyFilter(
-        supabase
-          .from('chat_conversations')
-          .select(baseCols)
-          .eq('client_id', clientIdText),
-      )
-        .in('status', ['open', 'pending'])
-        .order('opened_at', { ascending: false })
-        .limit(500);
-      if (err2) throw err2;
-
-      const matches = (r: any) => {
-        if (uid && Number(r.assigned_user_id) === uid) return true;
-        if (r.assigned_user_id == null && normName(r.assigned_to) === nameNorm) return true;
+      const matchesAssign = (r: any) => {
+        if (uid && Number(r.to_user_id) === uid) return true;
+        if (r.to_user_id == null) {
+          const tv = normName(r.to_value);
+          if (tv && tv === nameNorm) return true;
+          if (!tv && normName(r.actor_name) === nameNorm) return true;
+        }
         return false;
       };
-      const map = new Map<string, any>();
-      for (const r of (periodData || []) as any[]) if (matches(r)) map.set(r.id, r);
-      for (const r of (openData || []) as any[]) if (matches(r)) map.set(r.id, r);
-      const rows = Array.from(map.values()).sort((a, b) => {
+      const convIds = [...new Set((histRows || []).filter(matchesAssign).map((r: any) => r.conversation_id).filter(Boolean))];
+      if (convIds.length === 0) return [];
+
+      // Buscar dados das conversas (status atual, contato, etc.)
+      const { data: convData, error: errC } = await supabase
+        .from('chat_conversations')
+        .select(baseCols)
+        .eq('client_id', clientIdText)
+        .in('id', convIds);
+      if (errC) throw errC;
+      const rows = ((convData || []) as any[]).sort((a, b) => {
         const da = new Date(b.opened_at || b.created_at).getTime();
         const db = new Date(a.opened_at || a.created_at).getTime();
         return da - db;
