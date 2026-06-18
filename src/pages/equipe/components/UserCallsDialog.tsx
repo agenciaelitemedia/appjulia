@@ -99,7 +99,7 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
 
         <div className="grid grid-cols-4 gap-2 mb-2">
           <SummaryBox label="Total" value={total} active={filter === 'all'} onClick={() => setFilter('all')} />
-          <SummaryBox label="Saída" value={outbound} active={filter === 'outbound'} onClick={() => setFilter('outbound')} />
+          <SummaryBox label="EFETUADAS" value={outbound} active={filter === 'outbound'} onClick={() => setFilter('outbound')} />
           <SummaryBox label="Atendidas" value={answered} active={filter === 'answered'} onClick={() => setFilter('answered')} />
           <SummaryBox label="Perdidas" value={missed} active={filter === 'missed'} onClick={() => setFilter('missed')} />
         </div>
