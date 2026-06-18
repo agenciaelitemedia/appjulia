@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useUserConversations, type PerformancePeriod } from '../hooks/useTeamPerformance';
+import { OpenChatButton } from './OpenChatButton';
 
 type FilterStatus = 'all' | 'resolved' | 'open' | 'pending';
 
@@ -116,6 +117,7 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
                   <TableHead>Atribuído em</TableHead>
                   <TableHead>Última msg</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -133,6 +135,9 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
                       <TableCell className="font-mono text-sm">{fmtDateTime(r.last_customer_message_at)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`text-[10px] ${lbl.cls}`}>{lbl.text}</Badge>
+                      </TableCell>
+                      <TableCell className="w-10 p-1 text-right">
+                        <OpenChatButton conversationId={r.id} />
                       </TableCell>
                     </TableRow>
                   );
