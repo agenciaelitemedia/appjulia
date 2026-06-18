@@ -17,7 +17,7 @@ interface Props {
   period: PerformancePeriod;
 }
 
-type CallFilter = 'all' | 'inbound' | 'outbound' | 'answered' | 'missed';
+type CallFilter = 'all' | 'outbound' | 'answered' | 'missed';
 
 function fmtHMS(seconds: number | null): string {
   if (seconds === null || seconds < 0) return '—';
