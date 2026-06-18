@@ -587,7 +587,7 @@ export function DealCard({
           initialName={deal.contact_name || ''}
           lockContact
           clientId={user?.client_id ? String(user.client_id) : undefined}
-          currentUser={user?.cod_agent ? { codAgent: String(user.cod_agent), name: user?.name || '' } : undefined}
+          currentUser={user?.cod_agent ? { codAgent: String(user.cod_agent), name: user?.name || '', id: user?.id } : undefined}
         />
       )}
     </Card>
