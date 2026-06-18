@@ -7,20 +7,28 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { getMemberInitials, getAvatarBgFromName } from '@/components/TeamMemberSelect';
+import { useTeamHeartbeat } from '@/hooks/useTeamHeartbeat';
+import {
   Tooltip as UiTooltip,
   TooltipContent as UiTooltipContent,
   TooltipProvider as UiTooltipProvider,
   TooltipTrigger as UiTooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   ComposedChart, LineChart, Line, ScatterChart, Scatter, ZAxis, Cell, PieChart, Pie,
 } from 'recharts';
 import {
   Clock, MessageSquare, CheckCircle2, RotateCcw,
-  Phone, PhoneCall, Loader2, Download, Filter, TrendingUp, Target,
+  Phone, PhoneCall, Loader2, Download, Filter, TrendingUp, Target, Check,
 } from 'lucide-react';
 import { useTeamPerformance, usePresenceBackfillUntil, type PerformancePeriod } from '../hooks/useTeamPerformance';
 import { EquipePerformanceDrawer } from './EquipePerformanceDrawer';
@@ -457,12 +465,30 @@ function MiniSparkline({ data }: { data: number[] }) {
 }
 
 function UserMultiSelect({ members, selected, onChange }: {
-  members: { id: number; name: string }[];
+  members: { id: number; name: string; email?: string; photo?: string | null }[];
   selected: number[];
   onChange: (ids: number[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { isOnline, isAway } = useTeamHeartbeat();
   const label = selected.length === 0 ? 'Todos atendentes' : `${selected.length} selecionado(s)`;
+
+  const sorted = useMemo(() => {
+    const rank = (m: { id: number }) => {
+      if (isOnline(m.id)) return 0;
+      if (isAway(m.id)) return 1;
+      return 2;
+    };
+    return [...members].sort(
+      (a, b) => rank(a) - rank(b) || (a.name || '').localeCompare(b.name || '', 'pt-BR'),
+    );
+  }, [members, isOnline, isAway]);
+
+  const toggle = (id: number) => {
+    if (selected.includes(id)) onChange(selected.filter((x) => x !== id));
+    else onChange([...selected, id]);
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -470,32 +496,84 @@ function UserMultiSelect({ members, selected, onChange }: {
           <Filter className="h-4 w-4 mr-2" /> {label}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="end">
+      <PopoverContent className="w-[380px] p-0 bg-popover border border-border shadow-lg z-[60]" align="end">
         <div className="p-2 border-b flex items-center justify-between">
           <span className="text-xs font-medium">Filtrar atendentes</span>
-          {selected.length > 0 && (
-            <Button size="sm" variant="ghost" onClick={() => onChange([])} className="h-6 text-xs">Limpar</Button>
-          )}
-        </div>
-        <ScrollArea className="h-64">
-          <div className="p-2 space-y-1">
-            {members.map((m) => {
-              const checked = selected.includes(m.id);
-              return (
-                <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer">
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={(v) => {
-                      if (v) onChange([...selected, m.id]);
-                      else onChange(selected.filter((x) => x !== m.id));
-                    }}
-                  />
-                  <span className="text-sm truncate">{m.name}</span>
-                </label>
-              );
-            })}
+          <div className="flex items-center gap-1">
+            {selected.length < members.length && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onChange(members.map((m) => m.id))}
+                className="h-6 text-xs"
+              >
+                Todos
+              </Button>
+            )}
+            {selected.length > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => onChange([])} className="h-6 text-xs">
+                Limpar
+              </Button>
+            )}
           </div>
-        </ScrollArea>
+        </div>
+        <Command className="bg-transparent">
+          <CommandInput placeholder="Buscar membro…" className="h-10" />
+          <CommandList className="max-h-[320px]">
+            <CommandEmpty>Nenhum membro encontrado.</CommandEmpty>
+            <CommandGroup heading="Equipe">
+              {sorted.map((m) => {
+                const checked = selected.includes(m.id);
+                const online = isOnline(m.id);
+                const away = !online && isAway(m.id);
+                const statusLabel = online ? 'Online' : away ? 'Ausente' : 'Offline';
+                const dotClass = online
+                  ? 'bg-emerald-500'
+                  : away
+                  ? 'bg-amber-500'
+                  : 'bg-muted-foreground/40';
+                const statusBadgeClass = online
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                  : away
+                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                  : 'bg-muted text-muted-foreground border-border';
+                return (
+                  <CommandItem
+                    key={m.id}
+                    value={`${m.name} ${m.email || ''} ${statusLabel}`}
+                    onSelect={() => toggle(m.id)}
+                    className="cursor-pointer gap-2"
+                  >
+                    <Check className={cn('h-4 w-4 flex-shrink-0', checked ? 'opacity-100' : 'opacity-0')} />
+                    <div className="relative flex-shrink-0">
+                      <Avatar className="h-6 w-6 text-[10px]">
+                        {m.photo && <AvatarImage src={m.photo} alt={m.name || ''} />}
+                        <AvatarFallback className={cn('font-semibold', getAvatarBgFromName(m.name))}>
+                          {getMemberInitials(m.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span
+                        className={cn(
+                          'absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-popover',
+                          dotClass,
+                        )}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0 min-w-0 flex-1">
+                      <span className="font-medium text-sm truncate">{m.name}</span>
+                      {m.email && (
+                        <span className="text-[11px] text-muted-foreground truncate">{m.email}</span>
+                      )}
+                    </div>
+                    <Badge variant="outline" className={cn('text-[10px] h-5 px-1.5 flex-shrink-0', statusBadgeClass)}>
+                      {statusLabel}
+                    </Badge>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );
