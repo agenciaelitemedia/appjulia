@@ -112,7 +112,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
     if (!selectedConversation || !currentUserName || isClaiming) return;
     setIsClaiming(true);
     try {
-      await assignConversation(selectedConversation.id, currentUserName);
+      await assignConversation(selectedConversation.id, currentUserName, user?.id ? Number(user.id) : null);
       if (selectedConversation.status === 'pending') {
         await updateConversationStatus(selectedConversation.id, 'open');
       }
@@ -130,7 +130,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
     try {
       await updateConversationStatus(selectedConversation.id, 'open');
       if (currentUserName) {
-        await assignConversation(selectedConversation.id, currentUserName);
+        await assignConversation(selectedConversation.id, currentUserName, user?.id ? Number(user.id) : null);
       }
       setTimeout(() => textareaRef.current?.focus(), 0);
     } finally {

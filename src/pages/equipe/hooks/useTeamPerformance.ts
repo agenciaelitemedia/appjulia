@@ -447,13 +447,21 @@ export function useUserConversations(userId: number | null, userName: string | n
       const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
       const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
       const nameNorm = normName(name);
+      const uid = userId ? Number(userId) : null;
+
+      const baseCols = 'id, contact_id, assigned_to, assigned_user_id, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at';
+      // Dual-read: prefer assigned_user_id; cair no nome quando o id ainda não estiver populado.
+      const buildOr = () => {
+        if (uid) return `assigned_user_id.eq.${uid},and(assigned_user_id.is.null,assigned_to.ilike.%${name}%)`;
+        return `assigned_to.ilike.%${name}%`;
+      };
 
       // 1) Conversas criadas no período
       const { data: periodData, error: err1 } = await supabase
         .from('chat_conversations')
-        .select('id, contact_id, assigned_to, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at')
+        .select(baseCols)
         .eq('client_id', clientIdText)
-        .ilike('assigned_to', `%${name}%`)
+        .or(buildOr())
         .gte('created_at', fromIso)
         .lte('created_at', toIso)
         .order('created_at', { ascending: false })
@@ -463,21 +471,22 @@ export function useUserConversations(userId: number | null, userName: string | n
       // 2) Conversas ainda abertas/pendentes com esse usuário (sem limite de data)
       const { data: openData, error: err2 } = await supabase
         .from('chat_conversations')
-        .select('id, contact_id, assigned_to, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at')
+        .select(baseCols)
         .eq('client_id', clientIdText)
-        .ilike('assigned_to', `%${name}%`)
+        .or(buildOr())
         .in('status', ['open', 'pending'])
         .order('opened_at', { ascending: false })
         .limit(500);
       if (err2) throw err2;
 
+      const matches = (r: any) => {
+        if (uid && Number(r.assigned_user_id) === uid) return true;
+        if (r.assigned_user_id == null && normName(r.assigned_to) === nameNorm) return true;
+        return false;
+      };
       const map = new Map<string, any>();
-      for (const r of (periodData || []) as any[]) {
-        if (normName(r.assigned_to) === nameNorm) map.set(r.id, r);
-      }
-      for (const r of (openData || []) as any[]) {
-        if (normName(r.assigned_to) === nameNorm) map.set(r.id, r);
-      }
+      for (const r of (periodData || []) as any[]) if (matches(r)) map.set(r.id, r);
+      for (const r of (openData || []) as any[]) if (matches(r)) map.set(r.id, r);
       const rows = Array.from(map.values()).sort((a, b) => {
         const da = new Date(b.opened_at || b.created_at).getTime();
         const db = new Date(a.opened_at || a.created_at).getTime();

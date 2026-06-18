@@ -407,7 +407,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
 
   const handleTakeOver = async () => {
     if (!selectedConversation || !currentUserName) return;
-    await assignConversation(selectedConversation.id, currentUserName);
+    await assignConversation(selectedConversation.id, currentUserName, user?.id ? Number(user.id) : null);
     if (selectedConversation.status === 'pending') {
       await updateConversationStatus(selectedConversation.id, 'open');
     }
@@ -428,9 +428,9 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     await updateConversationStatus(selectedConversation.id, 'open');
   };
 
-  const handleTransfer = async (assignedTo: string, note?: string) => {
+  const handleTransfer = async (assignedTo: string, assignedUserId: number | null, note?: string) => {
     if (!selectedConversation) return;
-    await assignConversation(selectedConversation.id, assignedTo);
+    await assignConversation(selectedConversation.id, assignedTo, assignedUserId);
   };
 
   const handleReturnToQueue = async (note?: string) => {
