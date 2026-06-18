@@ -1039,6 +1039,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             action: 'reopened',
             actor_name: user?.name || 'Sistema',
             to_value: newStatus,
+            user_id: user?.id ? Number(user.id) : null,
             notes: hasAssignee
               ? 'Conversa reaberta pelo painel — atribuição mantida'
               : 'Conversa reaberta pelo painel — sem responsável, devolvida à fila',
@@ -1073,6 +1074,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           action: 'opened',
           actor_name: user?.name || 'Sistema',
           to_value: 'pending',
+          user_id: user?.id ? Number(user.id) : null,
         });
 
         // Fire-and-forget automation engine
@@ -1126,6 +1128,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         action: status === 'closed' ? 'closed' : status === 'resolved' ? 'resolved' : 'reopened',
         actor_name: user?.name || 'Sistema',
         to_value: status,
+        user_id: user?.id ? Number(user.id) : null,
         notes: note,
       });
 
@@ -1280,6 +1283,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       action: 'tag_added',
       actor_name: user?.name || user?.email || 'Sistema',
       to_value: name,
+      user_id: user?.id ? Number(user.id) : null,
     }).then();
   }, [tags, user]);
 
@@ -1295,6 +1299,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       action: 'tag_removed',
       actor_name: user?.name || user?.email || 'Sistema',
       to_value: name,
+      user_id: user?.id ? Number(user.id) : null,
     }).then();
   }, [tags, user]);
 
@@ -1395,6 +1400,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         action: 'note_added',
         actor_name: senderName || user?.name || user?.email || 'Sistema',
         notes: text,
+        user_id: user?.id ? Number(user.id) : null,
       }).then();
     }
   }, [clientId, conversations, user]);

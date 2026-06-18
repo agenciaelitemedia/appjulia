@@ -23,6 +23,7 @@ interface Body {
   queue_id?: string | null;
   actor_identifier?: string | null;
   actor_name?: string | null;
+  actor_user_id?: number | null;
 }
 
 const BATCH_SIZE = 200;
@@ -139,6 +140,10 @@ async function runCommit(supabase: any, body: Body) {
   const batchId = crypto.randomUUID();
   const actorName = (body.actor_name ?? 'Sistema').toString();
   const actorIdent = body.actor_identifier ?? null;
+  const actorUserId =
+    body.actor_user_id != null && Number.isFinite(Number(body.actor_user_id))
+      ? Number(body.actor_user_id)
+      : null;
   const filtersJson = {
     start: body.start,
     end: body.end,
@@ -189,6 +194,7 @@ async function runCommit(supabase: any, body: Body) {
         conversation_id: r.id,
         action: 'bulk_closed',
         actor_name: actorName,
+        user_id: actorUserId,
         from_value: r.status,
         to_value: 'closed',
         notes: `Encerrado em lote por ${actorName} (batch ${batchId})`,

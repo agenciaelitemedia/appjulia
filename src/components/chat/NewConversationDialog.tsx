@@ -193,6 +193,7 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
             conversation_id: row.id,
             action: 'manual_closed_for_new_conversation',
             actor_name: currentUser.name,
+            user_id: currentUser?.id ? Number(currentUser.id) : null,
             notes: `Encerrada manualmente para novo atendimento na fila ${selectedQueue.name}`,
           });
         }
