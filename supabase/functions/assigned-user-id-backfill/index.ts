@@ -33,6 +33,7 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const clientId = body?.client_id != null ? String(body.client_id) : null;
     const dryRun = body?.dry_run === true;
+    const skipMvRefresh = body?.skip_mv_refresh === true;
     const tablesArg: string[] = Array.isArray(body?.tables) && body.tables.length > 0
       ? body.tables.filter((t: string) => (TABLES as readonly string[]).includes(t))
       : [...TABLES];
@@ -134,7 +135,7 @@ serve(async (req) => {
     // 3) Refresh das MVs de performance para refletir o user_id recém populado.
     let mvsRefreshed = false;
     let mvsError: string | null = null;
-    if (!dryRun) {
+    if (!dryRun && !skipMvRefresh) {
       const { error: rpcErr } = await supabase.rpc("refresh_team_performance_mvs");
       if (rpcErr) {
         mvsError = rpcErr.message || String(rpcErr);

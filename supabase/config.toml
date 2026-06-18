@@ -95,6 +95,12 @@ verify_jwt = false
 [functions.ai-provider-key-set]
 verify_jwt = false
 
+[functions.assigned-user-id-backfill]
+verify_jwt = false
+
+[functions.assigned-user-id-backfill-cron]
+verify_jwt = false
+
 [functions.internal-notification-dispatch]
 verify_jwt = false
 
