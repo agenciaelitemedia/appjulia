@@ -148,9 +148,9 @@ export function useTeamPerformance(
         userNames.length > 0
           ? supabase
               .from('mv_user_chat_daily' as any)
-              .select('user_name, day_brt, received, resolved, returned, transferred, avg_handle_seconds')
+              .select('user_name, user_id, day_brt, received, resolved, returned, transferred, avg_handle_seconds')
               .eq('client_id', clientIdText)
-              .in('user_name', userNames)
+              .or(`user_id.in.(${userIds.join(',') || '0'}),and(user_id.is.null,user_name.in.(${userNames.map((n) => `"${n.replace(/"/g, '\\"')}"`).join(',')}))`)
               .gte('day_brt', period.startDate)
               .lte('day_brt', period.endDate)
           : Promise.resolve({ data: [] as any[] }),
@@ -208,7 +208,13 @@ export function useTeamPerformance(
 
       // Chat → match by name
       for (const r of chat as any[]) {
-        const uid = nameToId[normName(r.user_name)];
+        // Prefer stable user_id; fall back to name match for legacy rows.
+        let uid: number | undefined;
+        if (r.user_id != null) {
+          const candidate = Number(r.user_id);
+          if (byUser[candidate]) uid = candidate;
+        }
+        if (uid === undefined) uid = nameToId[normName(r.user_name)];
         if (!uid || !byUser[uid]) continue;
         const d = String(r.day_brt);
         byUser[uid].received += Number(r.received) || 0;
