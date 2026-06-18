@@ -166,10 +166,11 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 text-xs"
+                className="h-6 w-6 p-0"
                 onClick={() => openOutcomes('all')}
+                title="Ver lista"
               >
-                <ListOrdered className="h-3.5 w-3.5 mr-1" /> Ver lista
+                <ListOrdered className="h-3.5 w-3.5" />
               </Button>
             </div>
             <div className="grid grid-cols-3 gap-3">
