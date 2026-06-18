@@ -17,7 +17,7 @@ interface Props {
   period: PerformancePeriod;
 }
 
-type CallFilter = 'all' | 'inbound' | 'outbound' | 'answered' | 'missed';
+type CallFilter = 'all' | 'outbound' | 'answered' | 'missed';
 
 function fmtHMS(seconds: number | null): string {
   if (seconds === null || seconds < 0) return '—';
@@ -43,7 +43,6 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
     const isOut = (r.direction || '').toLowerCase() === 'outbound';
     const isAns = !!r.answered_at;
     switch (filter) {
-      case 'inbound': return !isOut;
       case 'outbound': return isOut;
       case 'answered': return isAns;
       case 'missed': return !isAns;
@@ -52,7 +51,6 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
   });
 
   const total = rows.length;
-  const inbound = rows.filter((r) => (r.direction || '').toLowerCase() !== 'outbound').length;
   const outbound = rows.filter((r) => (r.direction || '').toLowerCase() === 'outbound').length;
   const answered = rows.filter((r) => !!r.answered_at).length;
   const missed = rows.filter((r) => !r.answered_at).length;
@@ -99,9 +97,8 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-5 gap-2 mb-2">
+        <div className="grid grid-cols-4 gap-2 mb-2">
           <SummaryBox label="Total" value={total} active={filter === 'all'} onClick={() => setFilter('all')} />
-          <SummaryBox label="Entrada" value={inbound} active={filter === 'inbound'} onClick={() => setFilter('inbound')} />
           <SummaryBox label="Saída" value={outbound} active={filter === 'outbound'} onClick={() => setFilter('outbound')} />
           <SummaryBox label="Atendidas" value={answered} active={filter === 'answered'} onClick={() => setFilter('answered')} />
           <SummaryBox label="Perdidas" value={missed} active={filter === 'missed'} onClick={() => setFilter('missed')} />
