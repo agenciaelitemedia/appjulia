@@ -196,8 +196,13 @@ export default function BoardPage() {
       }
 
       // My cards filter
-      if (filters.myCards && user?.name && deal.assigned_to !== user.name) {
-        return false;
+      if (filters.myCards) {
+        const uid = user?.id ? Number(user.id) : null;
+        const mineById = uid != null && (deal as any).assigned_user_id === uid;
+        const mineByName = (deal as any).assigned_user_id == null
+          && !!user?.name
+          && deal.assigned_to === user.name;
+        if (!mineById && !mineByName) return false;
       }
 
       return true;

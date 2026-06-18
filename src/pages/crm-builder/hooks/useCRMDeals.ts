@@ -96,6 +96,7 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
         expected_close_date: data.expected_close_date || null,
         tags: data.tags || [],
         assigned_to: data.assigned_to || null,
+        assigned_user_id: data.assigned_user_id ?? null,
         position: maxPosition,
         custom_fields: JSON.parse(JSON.stringify((data as unknown as Record<string, unknown>).custom_fields || {})) as Json,
         created_by: userName || null,
@@ -148,6 +149,7 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
         due_date: data.due_date,
         tags: data.tags,
         assigned_to: data.assigned_to,
+        assigned_user_id: data.assigned_user_id,
         updated_by: userName || null,
       };
 

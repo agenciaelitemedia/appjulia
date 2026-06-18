@@ -351,6 +351,7 @@ export function useTicketMutations() {
         contact_id: input.contact_id ?? null,
         assigned_to: input.assigned_to ?? null,
         assigned_to_name: input.assigned_to_name ?? null,
+        assigned_user_id: input.assigned_to ? Number(input.assigned_to) || null : null,
         metadata: input.metadata ?? {},
         sla_first_response_due_at: sla ? new Date(now + sla.firstResponseMins * 60000).toISOString() : null,
         sla_resolution_due_at: sla ? new Date(now + sla.resolutionMins * 60000).toISOString() : null,
@@ -603,7 +604,11 @@ export function useTicketMutations() {
 
   const assign = useMutation({
     mutationFn: async ({ ticketId, assignedTo, assignedToName }: { ticketId: string; assignedTo: string | null; assignedToName: string | null }) => {
-      await db.from('support_tickets').update({ assigned_to: assignedTo, assigned_to_name: assignedToName }).eq('id', ticketId);
+      await db.from('support_tickets').update({
+        assigned_to: assignedTo,
+        assigned_to_name: assignedToName,
+        assigned_user_id: assignedTo ? Number(assignedTo) || null : null,
+      }).eq('id', ticketId);
       await logEvent(ticketId, 'assigned', assignedToName ? `Atribuído a ${assignedToName}` : 'Atribuição removida');
     },
     onSuccess: (_d, v) => invalidate(v.ticketId),

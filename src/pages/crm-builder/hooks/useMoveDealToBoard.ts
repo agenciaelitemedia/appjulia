@@ -86,6 +86,7 @@ export function useMoveDealToBoard() {
         due_date: deal.due_date ?? null,
         tags: deal.tags ?? [],
         assigned_to: deal.assigned_to ?? null,
+        assigned_user_id: (deal as any).assigned_user_id ?? null,
         position: nextPosition,
         custom_fields: JSON.parse(JSON.stringify(deal.custom_fields ?? {})),
         // Preserva data original de criação para que o card "movido" mantenha

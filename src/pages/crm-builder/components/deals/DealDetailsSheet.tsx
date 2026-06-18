@@ -311,7 +311,9 @@ export function DealDetailsSheet({
     const next = assigneeDraft.trim() || undefined;
     if (next === (deal.assigned_to || undefined)) { setEditingAssignee(false); return; }
     setSavingField('assignee');
-    await onUpdate({ assigned_to: next });
+    // Quando o nome muda manualmente, zera o id para não manter vínculo desatualizado.
+    // O backfill / próxima atribuição estruturada repopula o id corretamente.
+    await onUpdate({ assigned_to: next, assigned_user_id: null });
     setSavingField(null);
     setEditingAssignee(false);
   };

@@ -158,6 +158,7 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
         category: tpl.category,
         category_id: (tpl as any).category_id ?? null,
         assigned_to: aTo,
+        assigned_user_id: aTo ? Number(aTo) || null : null,
         assigned_name: assignedName,
         status: 'pending' as TaskStatus,
         due_date: dueDate ?? null,
@@ -227,7 +228,12 @@ export function useTasks({ clientId, dealId, assignedTo, status, onlyMine }: Use
     mutationFn: async ({ id, assignedTo: aTo, assignedName }: { id: string; assignedTo: string; assignedName: string }) => {
       const { error } = await supabase
         .from('tasks')
-        .update({ assigned_to: aTo, assigned_name: assignedName, updated_at: new Date().toISOString() })
+        .update({
+          assigned_to: aTo,
+          assigned_user_id: aTo ? Number(aTo) || null : null,
+          assigned_name: assignedName,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', id);
       if (error) throw error;
     },

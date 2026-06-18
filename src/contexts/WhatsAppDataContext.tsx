@@ -1175,6 +1175,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         action: 'assigned',
         actor_name: user?.name || 'Sistema',
         to_value: assignedTo,
+        to_user_id: assignedUserId ?? null,
+        user_id: user?.id ? Number(user.id) : null,
       });
 
       toast.success('Conversa transferida');
@@ -1631,6 +1633,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             action: 'assigned',
             actor_name: senderName,
             to_value: senderName,
+            to_user_id: senderUserId && Number.isFinite(senderUserId) ? senderUserId : null,
+            user_id: senderUserId && Number.isFinite(senderUserId) ? senderUserId : null,
             notes: 'Atribuído automaticamente ao enviar a primeira resposta',
           });
         }

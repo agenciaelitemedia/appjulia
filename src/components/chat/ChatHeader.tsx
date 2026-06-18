@@ -436,11 +436,14 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const handleReturnToQueue = async (note?: string) => {
     if (!selectedConversation) return;
     const removedAgent = (selectedConversation.assigned_to || '').trim() || null;
+    const removedUserId = (selectedConversation as any)?.assigned_user_id
+      ? Number((selectedConversation as any).assigned_user_id)
+      : null;
     const actor = currentUserName || 'Sistema';
     try {
       const { error: updErr } = await supabase
         .from('chat_conversations')
-        .update({ assigned_to: null, status: 'pending' })
+        .update({ assigned_to: null, assigned_user_id: null, status: 'pending' })
         .eq('id', selectedConversation.id);
       if (updErr) throw updErr;
 
@@ -464,6 +467,8 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
           action: 'returned_to_queue',
           actor_name: actor,
           from_value: removedAgent,
+          from_user_id: removedUserId,
+          user_id: user?.id ? Number(user.id) : null,
           to_value: 'pending',
           notes: note?.trim() || null,
         });
