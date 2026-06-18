@@ -5,7 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useState } from 'react';
+import { cn } from '@/lib/utils';
 import { useUserConversations, type PerformancePeriod } from '../hooks/useTeamPerformance';
+
+type FilterStatus = 'all' | 'resolved' | 'open' | 'pending';
 
 interface Props {
   open: boolean;
