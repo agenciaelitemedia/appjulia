@@ -42,12 +42,12 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
   const pending = rows.filter((r) => (r.status || '').toLowerCase() === 'pending').length;
 
   const exportCsv = () => {
-    const header = 'Contato;Telefone;Início;Última msg cliente;Status;Motivo\n';
+    const header = 'Contato;Telefone;Atribuído em;Última msg cliente;Status;Motivo\n';
     const lines = rows.map((r) =>
       [
         r.contact_name || '',
         r.phone || '',
-        fmtDateTime(r.opened_at),
+        fmtDateTime(r.assigned_at),
         fmtDateTime(r.last_customer_message_at),
         r.status || '',
         r.close_reason || '',
