@@ -418,6 +418,136 @@ export function useUserTopNumbers(userId: number | null, period: PerformancePeri
 }
 
 // ============================================================
+// Atendimentos (conversas) do usuário no período
+// ============================================================
+
+export interface UserConversationRow {
+  id: string;
+  contact_name: string | null;
+  phone: string | null;
+  status: string | null;
+  opened_at: string | null;
+  closed_at: string | null;
+  last_customer_message_at: string | null;
+  close_reason: string | null;
+}
+
+export function useUserConversations(userId: number | null, period: PerformancePeriod) {
+  const { user } = useAuth();
+  const clientIdText = user?.client_id ? String(user.client_id) : '';
+
+  return useQuery<UserConversationRow[]>({
+    queryKey: ['user-conversations', clientIdText, userId, period.startDate, period.endDate],
+    enabled: !!userId && !!clientIdText,
+    staleTime: 60_000,
+    queryFn: async () => {
+      // Resolver nome do usuário pelo id
+      const { data: profile } = await (supabase as any)
+        .from('chat_user_security')
+        .select('user_name')
+        .eq('user_id', userId!)
+        .maybeSingle();
+      const userName = (profile?.user_name as string | undefined)?.trim();
+      if (!userName) return [];
+
+      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .select('id, contact_id, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at')
+        .eq('client_id', clientIdText)
+        .eq('assigned_to', userName)
+        .gte('created_at', fromIso)
+        .lte('created_at', toIso)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+
+      const rows = (data || []) as any[];
+      const contactIds = [...new Set(rows.map((r) => r.contact_id).filter(Boolean))];
+      const contactMap = new Map<string, { name: string | null; phone: string | null }>();
+      if (contactIds.length > 0) {
+        const { data: contacts } = await supabase
+          .from('chat_contacts')
+          .select('id, name, phone')
+          .in('id', contactIds);
+        for (const c of (contacts || []) as any[]) {
+          contactMap.set(c.id, { name: c.name, phone: c.phone });
+        }
+      }
+
+      return rows.map((r) => {
+        const c = contactMap.get(r.contact_id);
+        return {
+          id: r.id,
+          contact_name: c?.name ?? null,
+          phone: c?.phone ?? null,
+          status: r.status,
+          opened_at: r.opened_at || r.created_at,
+          closed_at: r.closed_at,
+          last_customer_message_at: r.last_customer_message_at,
+          close_reason: r.close_reason,
+        };
+      });
+    },
+  });
+}
+
+// ============================================================
+// Ligações do usuário no período
+// ============================================================
+
+export interface UserCallRow {
+  id: number;
+  direction: string | null;
+  caller: string | null;
+  called: string | null;
+  started_at: string;
+  answered_at: string | null;
+  duration_seconds: number | null;
+  hangup_cause: string | null;
+}
+
+export function useUserCalls(userId: number | null, period: PerformancePeriod) {
+  const { user } = useAuth();
+  const clientIdText = user?.client_id ? String(user.client_id) : '';
+
+  return useQuery<UserCallRow[]>({
+    queryKey: ['user-calls', clientIdText, userId, period.startDate, period.endDate],
+    enabled: !!userId && !!clientIdText,
+    staleTime: 60_000,
+    queryFn: async () => {
+      // Resolver ramais do usuário
+      const { data: exts } = await (supabase as any)
+        .from('phone_extensions')
+        .select('extension_number')
+        .eq('client_id', clientIdText)
+        .eq('assigned_member_id', userId!);
+      const extNumbers = ((exts || []) as Array<{ extension_number: string }>)
+        .map((e) => e.extension_number)
+        .filter(Boolean);
+      if (extNumbers.length === 0) return [];
+
+      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+
+      const { data, error } = await (supabase as any)
+        .from('phone_call_logs')
+        .select('id, direction, caller, called, started_at, answered_at, duration_seconds, hangup_cause')
+        .eq('client_id', clientIdText)
+        .in('extension_number', extNumbers)
+        .gte('started_at', fromIso)
+        .lte('started_at', toIso)
+        .order('started_at', { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data || []) as UserCallRow[];
+    },
+  });
+}
+
+// ============================================================
 // User sessions (login/logout pairs) for the period
 // ============================================================
 
