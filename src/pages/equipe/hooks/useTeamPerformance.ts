@@ -145,12 +145,12 @@ export function useTeamPerformance(
           .in('user_id', userIds as any)
           .gte('day_brt', period.startDate)
           .lte('day_brt', period.endDate),
-        userNames.length > 0
+        userIds.length > 0
           ? supabase
               .from('mv_user_chat_daily' as any)
               .select('user_name, user_id, day_brt, received, resolved, returned, transferred, avg_handle_seconds')
               .eq('client_id', clientIdText)
-              .or(`user_id.in.(${userIds.join(',') || '0'}),and(user_id.is.null,user_name.in.(${userNames.map((n) => `"${n.replace(/"/g, '\\"')}"`).join(',')}))`)
+              .in('user_id', userIds as any)
               .gte('day_brt', period.startDate)
               .lte('day_brt', period.endDate)
           : Promise.resolve({ data: [] as any[] }),
@@ -456,18 +456,19 @@ export function useUserConversations(userId: number | null, userName: string | n
       const uid = userId ? Number(userId) : null;
 
       const baseCols = 'id, contact_id, assigned_to, assigned_user_id, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at';
-      // Dual-read: prefer assigned_user_id; cair no nome quando o id ainda não estiver populado.
-      const buildOr = () => {
-        if (uid) return `assigned_user_id.eq.${uid},and(assigned_user_id.is.null,assigned_to.ilike.%${name}%)`;
-        return `assigned_to.ilike.%${name}%`;
+      // Prefer assigned_user_id quando disponível; só cai no nome se uid for nulo.
+      const applyFilter = (q: any) => {
+        if (uid) return q.eq('assigned_user_id', uid);
+        return q.ilike('assigned_to', `%${name}%`);
       };
 
       // 1) Conversas criadas no período
-      const { data: periodData, error: err1 } = await supabase
-        .from('chat_conversations')
-        .select(baseCols)
-        .eq('client_id', clientIdText)
-        .or(buildOr())
+      const { data: periodData, error: err1 } = await applyFilter(
+        supabase
+          .from('chat_conversations')
+          .select(baseCols)
+          .eq('client_id', clientIdText),
+      )
         .gte('created_at', fromIso)
         .lte('created_at', toIso)
         .order('created_at', { ascending: false })
@@ -475,11 +476,12 @@ export function useUserConversations(userId: number | null, userName: string | n
       if (err1) throw err1;
 
       // 2) Conversas ainda abertas/pendentes com esse usuário (sem limite de data)
-      const { data: openData, error: err2 } = await supabase
-        .from('chat_conversations')
-        .select(baseCols)
-        .eq('client_id', clientIdText)
-        .or(buildOr())
+      const { data: openData, error: err2 } = await applyFilter(
+        supabase
+          .from('chat_conversations')
+          .select(baseCols)
+          .eq('client_id', clientIdText),
+      )
         .in('status', ['open', 'pending'])
         .order('opened_at', { ascending: false })
         .limit(500);
