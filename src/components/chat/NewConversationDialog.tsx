@@ -35,7 +35,7 @@ interface Props {
   /** Client id of the current user (required to enable conflict pre-check). */
   clientId?: string;
   /** Current user (required to enable conflict pre-check + assignment). */
-  currentUser?: { codAgent: string; name: string };
+  currentUser?: { codAgent: string; name: string; id?: number | string };
 }
 
 interface ActiveConv {

@@ -239,7 +239,7 @@ interface ExtendedContextValue extends ChatContextValue {
   loadConversations: () => Promise<void>;
   getOrCreateConversation: (contactId: string) => Promise<ChatConversation | null>;
   updateConversationStatus: (conversationId: string, status: ConversationStatus, note?: string) => Promise<void>;
-  assignConversation: (conversationId: string, assignedTo: string) => Promise<void>;
+  assignConversation: (conversationId: string, assignedTo: string, assignedUserId?: number | null) => Promise<void>;
   pendingConvCount: number;
   openConvCount: number;
 
