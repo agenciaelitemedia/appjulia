@@ -43,7 +43,6 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
     const isOut = (r.direction || '').toLowerCase() === 'outbound';
     const isAns = !!r.answered_at;
     switch (filter) {
-      case 'inbound': return !isOut;
       case 'outbound': return isOut;
       case 'answered': return isAns;
       case 'missed': return !isAns;
