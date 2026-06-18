@@ -5,7 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useState } from 'react';
+import { cn } from '@/lib/utils';
 import { useUserConversations, type PerformancePeriod } from '../hooks/useTeamPerformance';
+
+type FilterStatus = 'all' | 'resolved' | 'open' | 'pending';
 
 interface Props {
   open: boolean;
@@ -32,6 +36,16 @@ function statusBadge(status: string | null, closeReason: string | null) {
 
 export function UserConversationsDialog({ open, onOpenChange, userId, userName, period }: Props) {
   const { data: rows = [], isLoading } = useUserConversations(open ? userId : null, open ? userName : null, period);
+  const [filter, setFilter] = useState<FilterStatus>('all');
+
+  const filteredRows = rows.filter((r) => {
+    if (filter === 'all') return true;
+    const s = (r.status || '').toLowerCase();
+    if (filter === 'resolved') return s === 'resolved' || s === 'closed';
+    if (filter === 'open') return s === 'open';
+    if (filter === 'pending') return s === 'pending';
+    return true;
+  });
 
   const total = rows.length;
   const resolved = rows.filter((r) => {
@@ -43,7 +57,7 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
 
   const exportCsv = () => {
     const header = 'Contato;Telefone;Atribuído em;Última msg cliente;Status;Motivo\n';
-    const lines = rows.map((r) =>
+    const lines = filteredRows.map((r) =>
       [
         r.contact_name || '',
         r.phone || '',
@@ -73,26 +87,26 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
                 {period.startDate} → {period.endDate} · 1 linha por atribuição (mesma conversa pode aparecer mais de uma vez)
               </div>
             </div>
-            <Button size="sm" variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
+            <Button size="sm" variant="outline" onClick={exportCsv} disabled={filteredRows.length === 0}>
               <Download className="h-4 w-4 mr-1" /> CSV
             </Button>
           </DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-4 gap-2 mb-2">
-          <SummaryBox label="Total" value={total} />
-          <SummaryBox label="Resolvidas" value={resolved} />
-          <SummaryBox label="Abertas" value={open_} />
-          <SummaryBox label="Pendentes" value={pending} />
+          <SummaryBox label="Total" value={total} active={filter === 'all'} onClick={() => setFilter('all')} />
+          <SummaryBox label="Resolvidas" value={resolved} active={filter === 'resolved'} onClick={() => setFilter('resolved')} />
+          <SummaryBox label="Abertas" value={open_} active={filter === 'open'} onClick={() => setFilter('open')} />
+          <SummaryBox label="Pendentes" value={pending} active={filter === 'pending'} onClick={() => setFilter('pending')} />
         </div>
         <div className="max-h-[55vh] overflow-y-auto border rounded-md">
           {isLoading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : rows.length === 0 ? (
+          ) : filteredRows.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-10">
-              Nenhum atendimento atribuído no período
+              {filter === 'all' ? 'Nenhum atendimento atribuído no período' : `Nenhum atendimento com status "${filter}" no período`}
             </div>
           ) : (
             <Table>
@@ -105,7 +119,7 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r) => {
+                {filteredRows.map((r) => {
                   const lbl = statusBadge(r.status, r.close_reason);
                   return (
                     <TableRow key={r.event_key}>
@@ -132,11 +146,18 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
   );
 }
 
-function SummaryBox({ label, value }: { label: string; value: string | number }) {
+function SummaryBox({ label, value, active, onClick }: { label: string; value: string | number; active?: boolean; onClick?: () => void }) {
   return (
-    <div className="rounded-md border bg-muted/20 px-3 py-2">
+    <button
+      onClick={onClick}
+      className={cn(
+        'w-full text-left rounded-md border bg-muted/20 px-3 py-2 transition-colors',
+        active && 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-800',
+        onClick && 'cursor-pointer hover:bg-muted/40',
+      )}
+    >
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="text-base font-semibold">{value}</div>
-    </div>
+    </button>
   );
 }
