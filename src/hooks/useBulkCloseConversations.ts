@@ -11,6 +11,7 @@ export interface BulkCloseFilters {
   queue_id?: string | null;
   actor_identifier?: string | null;
   actor_name?: string | null;
+  actor_user_id?: number | null;
 }
 
 export interface BulkClosePreview {

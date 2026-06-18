@@ -1,72 +1,60 @@
-
 ## Objetivo
+Gravar **id do usuário** (além do nome) em toda nova ação de `chat_conversation_history`, fazer **backfill** das ~36k linhas antigas e usar o `user_id` como chave canônica em equipe/performance.
 
-Eliminar a fragilidade de filtrar atribuições por **nome** (`assigned_to`) introduzindo um identificador estável do usuário (`assigned_user_id`, bigint = `agents.cod_agent`) ao lado do nome atual. O nome continua sendo gravado para exibição e compatibilidade; o id passa a ser a fonte de verdade para joins, filtros e métricas.
+## Estado atual
+A tabela já tem `user_id`, `from_user_id`, `to_user_id` (bigint) — criados em migrações anteriores. Hoje **nenhuma linha está preenchida**. Alguns write paths já gravam (assign em `ChatHeader` e dois pontos do `WhatsAppDataContext`); a maioria ainda escreve só `actor_name`. A MV `mv_user_chat_daily` já consome esses ids com fallback para nome, então o refresh pós-backfill basta para os agregados.
 
----
+## 1. Backfill (migração SQL)
+Migração única, idempotente (só atualiza linhas com id alvo NULL), sem `ALTER TABLE`. Estratégia em duas passadas, priorizando a fonte mais confiável:
 
-## 1. Migração de schema
+### Passada A — via a própria conversa (preferida)
+Usa `chat_conversations.assigned_user_id / assigned_to` da conversa correspondente. Resolve o caso mais comum sem ambiguidade entre tenants.
 
-Adicionar coluna `assigned_user_id bigint NULL` em:
+- `h.user_id`: quando `action ∈ ('resolved','closed','reopened','assigned','tag_added','tag_removed','note_added','snoozed','priority_changed','manual_closed_for_new_conversation','returned_to_queue')` e `lower(btrim(h.actor_name)) = lower(btrim(c.assigned_to))` → copia `c.assigned_user_id`.
+- `h.to_user_id`: quando `action = 'assigned'` e `lower(btrim(h.to_value)) = lower(btrim(c.assigned_to))` → copia `c.assigned_user_id`.
+- `h.from_user_id`: quando `action ∈ ('returned_to_queue','auto_returned')` e `lower(btrim(coalesce(h.from_value, h.actor_name))) = lower(btrim(c.assigned_to))` → copia `c.assigned_user_id`.
 
-- `chat_conversations`
-- `crm_deals`
-- `support_tickets`
-- `tasks` (e considerar `task_items` se houver atribuição individual)
+### Passada B — fallback via mapa global `(client_id, nome) → user_id`
+Para linhas que sobrarem (ex.: ação posterior à substituição do responsável). O escopo por `client_id` evita match cruzado entre tenants quando o mesmo nome existe em clientes diferentes.
 
-Para cada tabela:
-- Índice `(client_id, assigned_user_id)` para acelerar dashboards.
-- Sem FK rígida para `agents` (evita travar inserts em cenários legados); validação fica na aplicação.
-- Manter `assigned_to`/`assigned_to_name`/`assigned_name` como estão.
+Fonte do mapa: união de
+1. `chat_conversations(client_id, assigned_to, assigned_user_id)` onde id não é nulo.
+2. `user_activity_log(client_id, user_name, user_id)`.
 
-Atualizar triggers que sincronizam atribuição entre módulos para propagar também o id:
-- `sync_conversation_to_deal` e `sync_deal_to_conversation` passam a copiar `assigned_user_id` junto com `assigned_to`/`priority`.
+Agrupa por `(client_id, lower(btrim(name)))` e mantém apenas pares onde **só existe 1 `user_id` distinto** (descarta ambíguos).
 
-## 2. Backfill (match exato por nome)
+Aplica em `user_id`, `to_user_id`, `from_user_id` seguindo os mesmos critérios da passada A.
 
-Rodar um `UPDATE ... FROM agents` por tabela usando match **exato** após normalização (`trim` + `lower`) entre `assigned_to` e o nome do agente (campo de exibição já usado pelo app), restrito ao mesmo `client_id`. Linhas sem match único ficam `NULL` e seguem caindo no fallback por nome até serem reatribuídas.
+### Ações de sistema
+`actor_name ILIKE 'Sistema%'` ou `'system'` permanecem com `user_id = NULL` por design (assim a MV já as ignora corretamente).
 
-## 3. Escrita (dual-write no frontend/edge)
+### Refresh
+Ao fim: `SELECT public.refresh_team_performance_mvs();` para que os agregados de equipe passem a usar os ids recém-preenchidos.
 
-Onde hoje gravamos `assigned_to = "Nome"`, passar a gravar também `assigned_user_id = <id>`:
-- Atribuição manual no chat (transferir/assumir conversa).
-- Atribuição no CRM (drag-and-drop, edição de card, automações).
-- Criação/atribuição de ticket de suporte.
-- Criação/atribuição de task.
-- Roteamento automático (`chat_routing_rules`, automações) — incluir id quando o destino for um agente identificável.
+## 2. Write paths — passar a gravar `user_id`
+Pequenos ajustes para adicionar `user_id: user?.id ? Number(user.id) : null` (e `to_user_id`/`from_user_id` quando aplicável), mantendo `actor_name`:
 
-## 4. Leitura (dual-read)
+- `src/contexts/WhatsAppDataContext.tsx`: inserts de `opened`, `reopened`, `closed/resolved`, `tag_added`, `tag_removed`, `note_added` (linhas 1037, 1071, 1124, 1278, 1293, 1393). Os de `assigned` (1173, 1631) já estão OK.
+- `src/components/chat/SnoozeDialog.tsx` (`snoozed`).
+- `src/components/chat/PriorityBadge.tsx` (`priority_changed`).
+- `src/components/chat/NewConversationDialog.tsx` (`manual_closed_for_new_conversation`).
+- `supabase/functions/chat-bulk-close/index.ts`: aceitar `actor_user_id` no body e gravar em `user_id` (frontend que chama passa a enviar `actor_user_id: user.id`).
 
-Padronizar as consultas para preferir id e cair no nome quando o id estiver `NULL`:
+Edge functions de webhook (`uazapi-chat-webhook`, `meta-webhook`, `instagram-webhook`, `chat-route-conversation`, `chat-return-chat`) continuam com `actor_name = 'Sistema*'` e `user_id` nulo — coerente.
 
-```
-.or(`assigned_user_id.eq.${id},and(assigned_user_id.is.null,assigned_to.ilike.%${name}%)`)
-```
-
-Pontos a atualizar:
-- `useUserConversations` (origem desta conversa) e demais hooks de `/equipe`.
-- Filtros “meus” em chat, CRM, suporte e tasks.
-- Views/queries de dashboard que agrupam por atendente.
-
-## 5. Rollout
-
-1. Migração + índices.
-2. Backfill em uma transação por tabela.
-3. Deploy do dual-write.
-4. Deploy do dual-read (chat → CRM → suporte → tasks).
-5. Monitorar % de linhas novas com `assigned_user_id IS NULL`; quando estável próximo de 0, planejar etapa futura para remover o fallback por nome (fora deste plano).
-
----
+## 3. Equipe / Performance — usar `user_id`
+- `src/pages/equipe/hooks/useTeamPerformance.ts`
+  - `mv_user_chat_daily`: trocar o `.or(...)` por `in('user_id', userIds)`. Manter o casamento por nome apenas como tolerância para linhas legacy enquanto a MV não tiver sido refrescada.
+  - `useUserConversations`: quando `uid` existir, priorizar `assigned_user_id.eq.<uid>` e dispensar o `ilike` por nome; manter o `ilike` só como fallback quando `uid` é nulo.
 
 ## Detalhes técnicos
+- Tudo na migração roda em UPDATE com guarda `WHERE h.<col> IS NULL`, então pode ser reexecutada com segurança.
+- Não há alteração de schema; índices/colunas já existem.
+- Após o refresh, "Recebidas/Concluídas/Devolvidas" do `/equipe` passam a contar por `user_id`, corrigindo divergências causadas por aliases/variações de nome.
+- `actor_name` continua sendo gravado (auditoria humana legível).
 
-- Tipo: `bigint` para casar com `agents.cod_agent` (regra do projeto).
-- Sem alteração em RLS (políticas atuais não dependem de assigned_to).
-- Triggers de sync entre `chat_conversations` e `crm_deals` precisam ser ajustadas no mesmo migration para não “zerar” o id ao propagar mudanças.
-- Nenhuma quebra de contrato com integrações externas (UaZapi/WABA/n8n) — o nome continua presente.
-
-## Fora de escopo
-
-- Remover `assigned_to` (nome) — fica para depois do período de coexistência.
-- Reescrever automações/n8n que ainda referenciam só nome.
-- Atribuição de múltiplos responsáveis.
+## Entregáveis
+1. `supabase/migrations/<ts>_backfill_chat_conversation_history_user_ids.sql` (passada A + passada B + refresh).
+2. Ajustes nos 4 componentes/contexto da seção 2.
+3. Atualização em `chat-bulk-close/index.ts` (+ chamadores) para `actor_user_id`.
+4. Ajuste em `useTeamPerformance.ts` (MV + `useUserConversations`).

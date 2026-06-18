@@ -64,6 +64,7 @@ export function SnoozeDialog({ open, onOpenChange, conversationId, onSnoozed }: 
         action: 'snoozed',
         actor_name: user?.name || user?.email || 'Sistema',
         to_value: untilStr,
+        user_id: user?.id ? Number(user.id) : null,
         notes: reason || null,
       }).then();
       onSnoozed?.();

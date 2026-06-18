@@ -52,6 +52,7 @@ export function PriorityBadge({ conversationId, currentPriority, compact }: Prio
         actor_name: user?.name || user?.email || 'Sistema',
         from_value: oldLabel,
         to_value: newLabel,
+        user_id: user?.id ? Number(user.id) : null,
       }).then();
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['chat-contacts'] });
