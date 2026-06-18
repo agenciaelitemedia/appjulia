@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Download, PhoneIncoming, PhoneOutgoing } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils';
 import { useUserCalls, type PerformancePeriod } from '../hooks/useTeamPerformance';
 
 interface Props {
@@ -14,6 +16,8 @@ interface Props {
   userName: string;
   period: PerformancePeriod;
 }
+
+type CallFilter = 'all' | 'inbound' | 'outbound' | 'answered' | 'missed';
 
 function fmtHMS(seconds: number | null): string {
   if (seconds === null || seconds < 0) return '—';
@@ -31,9 +35,27 @@ function fmtDateTime(s: string | null): string {
 
 export function UserCallsDialog({ open, onOpenChange, userId, userName, period }: Props) {
   const { data: rows = [], isLoading } = useUserCalls(open ? userId : null, period);
+  const [filter, setFilter] = useState<CallFilter>('all');
+
+  useEffect(() => { if (open) setFilter('all'); }, [open]);
+
+  const filteredRows = rows.filter((r) => {
+    const isOut = (r.direction || '').toLowerCase() === 'outbound';
+    const isAns = !!r.answered_at;
+    switch (filter) {
+      case 'inbound': return !isOut;
+      case 'outbound': return isOut;
+      case 'answered': return isAns;
+      case 'missed': return !isAns;
+      default: return true;
+    }
+  });
 
   const total = rows.length;
+  const inbound = rows.filter((r) => (r.direction || '').toLowerCase() !== 'outbound').length;
+  const outbound = rows.filter((r) => (r.direction || '').toLowerCase() === 'outbound').length;
   const answered = rows.filter((r) => !!r.answered_at).length;
+  const missed = rows.filter((r) => !r.answered_at).length;
   const talkSec = rows.reduce((acc, r) => acc + (r.duration_seconds || 0), 0);
   const uniqueNumbers = new Set(
     rows.map((r) => (r.called || r.caller || '').replace(/[^0-9]/g, '')).filter(Boolean),
@@ -41,7 +63,7 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
 
   const exportCsv = () => {
     const header = 'Início;Direção;Número;Atendida;Duração;Causa\n';
-    const lines = rows.map((r) =>
+    const lines = filteredRows.map((r) =>
       [
         fmtDateTime(r.started_at),
         r.direction || '',
@@ -71,24 +93,31 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
                 {period.startDate} → {period.endDate} · chamadas dos ramais atribuídos
               </div>
             </div>
-            <Button size="sm" variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
+            <Button size="sm" variant="outline" onClick={exportCsv} disabled={filteredRows.length === 0}>
               <Download className="h-4 w-4 mr-1" /> CSV
             </Button>
           </DialogTitle>
         </DialogHeader>
 
+        <div className="grid grid-cols-5 gap-2 mb-2">
+          <SummaryBox label="Total" value={total} active={filter === 'all'} onClick={() => setFilter('all')} />
+          <SummaryBox label="Entrada" value={inbound} active={filter === 'inbound'} onClick={() => setFilter('inbound')} />
+          <SummaryBox label="Saída" value={outbound} active={filter === 'outbound'} onClick={() => setFilter('outbound')} />
+          <SummaryBox label="Atendidas" value={answered} active={filter === 'answered'} onClick={() => setFilter('answered')} />
+          <SummaryBox label="Perdidas" value={missed} active={filter === 'missed'} onClick={() => setFilter('missed')} />
+        </div>
+
         <div className="grid grid-cols-4 gap-2 mb-2">
-          <SummaryBox label="Total" value={total} />
-          <SummaryBox label="Atendidas" value={answered} />
           <SummaryBox label="Talk time" value={fmtHMS(talkSec)} />
           <SummaryBox label="Números únicos" value={uniqueNumbers} />
         </div>
+
         <div className="max-h-[55vh] overflow-y-auto border rounded-md">
           {isLoading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : rows.length === 0 ? (
+          ) : filteredRows.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-10">
               Nenhuma ligação no período
             </div>
@@ -104,7 +133,7 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r) => {
+                {filteredRows.map((r) => {
                   const isOut = (r.direction || '').toLowerCase() === 'outbound';
                   const Icon = isOut ? PhoneOutgoing : PhoneIncoming;
                   const number = isOut ? r.called : r.caller;
@@ -138,11 +167,18 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
   );
 }
 
-function SummaryBox({ label, value }: { label: string; value: string | number }) {
+function SummaryBox({ label, value, active, onClick }: { label: string; value: string | number; active?: boolean; onClick?: () => void }) {
   return (
-    <div className="rounded-md border bg-muted/20 px-3 py-2">
+    <button
+      onClick={onClick}
+      className={cn(
+        'w-full text-left rounded-md border bg-muted/20 px-3 py-2 transition-colors',
+        active && 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-800',
+        onClick && 'cursor-pointer hover:bg-muted/40',
+      )}
+    >
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="text-base font-semibold">{value}</div>
-    </div>
+    </button>
   );
 }
