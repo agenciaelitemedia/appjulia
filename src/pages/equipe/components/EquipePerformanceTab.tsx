@@ -22,7 +22,6 @@ import {
   TooltipProvider as UiTooltipProvider,
   TooltipTrigger as UiTooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   ComposedChart, LineChart, Line, ScatterChart, Scatter, ZAxis, Cell, PieChart, Pie,
