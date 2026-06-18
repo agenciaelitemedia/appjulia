@@ -441,24 +441,25 @@ export function useUserConversations(userId: number | null, userName: string | n
     enabled: !!userId && !!clientIdText && !!userName,
     staleTime: 60_000,
     queryFn: async () => {
-      const name = (userName || '').trim();
-      if (!name) return [];
+    const name = (userName || '').trim();
+    if (!name) return [];
 
-      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
-      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+    const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+    const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
 
-      const { data, error } = await supabase
-        .from('chat_conversations')
-        .select('id, contact_id, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at')
-        .eq('client_id', clientIdText)
-        .eq('assigned_to', name)
-        .gte('created_at', fromIso)
-        .lte('created_at', toIso)
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
+    const { data, error } = await supabase
+      .from('chat_conversations')
+      .select('id, contact_id, assigned_to, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at')
+      .eq('client_id', clientIdText)
+      .ilike('assigned_to', `%${name}%`)
+      .gte('created_at', fromIso)
+      .lte('created_at', toIso)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
 
-      const rows = (data || []) as any[];
+    const nameNorm = normName(name);
+    const rows = ((data || []) as any[]).filter((r) => normName(r.assigned_to) === nameNorm);
       const contactIds = [...new Set(rows.map((r) => r.contact_id).filter(Boolean))];
       const contactMap = new Map<string, { name: string | null; phone: string | null }>();
       if (contactIds.length > 0) {
