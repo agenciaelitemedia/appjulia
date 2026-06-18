@@ -1,20 +1,20 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell,
 } from 'recharts';
-import { Clock, MessageSquare, Phone, CheckCircle2, RotateCcw, ArrowRightLeft, Loader2, ListOrdered } from 'lucide-react';
-import { useUserTopNumbers, type PerformancePeriod, type PerformanceUserRow } from '../hooks/useTeamPerformance';
+import { Clock, MessageSquare, Phone, CheckCircle2, RotateCcw, ArrowRightLeft, ListOrdered } from 'lucide-react';
+import { type PerformancePeriod, type PerformanceUserRow } from '../hooks/useTeamPerformance';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipProvider as UiTooltipProvider, TooltipTrigger as UiTooltipTrigger } from '@/components/ui/tooltip';
 import { UserSessionsDialog } from './UserSessionsDialog';
+import { UserConversationsDialog } from './UserConversationsDialog';
+import { UserCallsDialog } from './UserCallsDialog';
 
 interface Props {
   open: boolean;
@@ -43,8 +43,9 @@ function fmtDateTime(s: string | null | undefined): string {
 }
 
 export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Props) {
-  const { data: topNumbers = [], isLoading: loadingNumbers } = useUserTopNumbers(user.user_id, period);
   const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [convOpen, setConvOpen] = useState(false);
+  const [callsOpen, setCallsOpen] = useState(false);
 
   // Time distribution donut
   const timeData = [
@@ -99,8 +100,54 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
                 </UiTooltipProvider>
               }
             />
-            <MiniKpi icon={MessageSquare} label="Atendimentos" value={user.received} sub={`${user.resolution_rate}% resolvidos`} />
-            <MiniKpi icon={Phone} label="Ligações" value={user.calls_total} sub={`${user.calls_answered} atendidas`} />
+            <MiniKpi
+              icon={MessageSquare}
+              label="Atendimentos"
+              value={user.received}
+              sub={`${user.resolution_rate}% resolvidos`}
+              action={
+                <UiTooltipProvider delayDuration={150}>
+                  <UiTooltip>
+                    <UiTooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setConvOpen(true)}
+                        aria-label="Ver atendimentos"
+                      >
+                        <ListOrdered className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </UiTooltipTrigger>
+                    <UiTooltipContent>Ver atendimentos do período</UiTooltipContent>
+                  </UiTooltip>
+                </UiTooltipProvider>
+              }
+            />
+            <MiniKpi
+              icon={Phone}
+              label="Ligações"
+              value={user.calls_total}
+              sub={`${user.calls_answered} atendidas`}
+              action={
+                <UiTooltipProvider delayDuration={150}>
+                  <UiTooltip>
+                    <UiTooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setCallsOpen(true)}
+                        aria-label="Ver ligações"
+                      >
+                        <ListOrdered className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </UiTooltipTrigger>
+                    <UiTooltipContent>Ver ligações do período</UiTooltipContent>
+                  </UiTooltip>
+                </UiTooltipProvider>
+              }
+            />
             <MiniKpi icon={CheckCircle2} label="Talk time" value={fmtDuration(user.talk_seconds)} sub={`Ocupação ${user.occupancy_pct}%`} />
           </div>
 
@@ -156,53 +203,25 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
               </div>
             </Card>
           )}
-
-          {/* Top números */}
-          <Card>
-            <div className="p-3 border-b">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Top 20 números chamados</div>
-            </div>
-            {loadingNumbers ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-              </div>
-            ) : topNumbers.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-6">Nenhuma ligação no período</div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Número</TableHead>
-                    <TableHead className="text-right">Chamadas</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Última</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topNumbers.map((n) => (
-                    <TableRow key={n.phone_normalized}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">{n.phone_display}</span>
-                          {n.is_known_lead && (
-                            <Badge variant="outline" className="border-rose-500/40 text-rose-700 text-[10px]">Lead</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{n.call_count}</TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">{fmtDuration(n.total_seconds)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{fmtDateTime(n.last_call_at)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </Card>
         </div>
 
         <UserSessionsDialog
           open={sessionsOpen}
           onOpenChange={setSessionsOpen}
+          userId={user.user_id}
+          userName={user.name}
+          period={period}
+        />
+        <UserConversationsDialog
+          open={convOpen}
+          onOpenChange={setConvOpen}
+          userId={user.user_id}
+          userName={user.name}
+          period={period}
+        />
+        <UserCallsDialog
+          open={callsOpen}
+          onOpenChange={setCallsOpen}
           userId={user.user_id}
           userName={user.name}
           period={period}
