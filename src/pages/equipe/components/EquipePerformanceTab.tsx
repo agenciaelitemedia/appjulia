@@ -7,20 +7,29 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { getMemberInitials, getAvatarBgFromName } from '@/components/TeamMemberSelect';
+import { useTeamHeartbeat } from '@/hooks/useTeamHeartbeat';
+import {
   Tooltip as UiTooltip,
   TooltipContent as UiTooltipContent,
   TooltipProvider as UiTooltipProvider,
   TooltipTrigger as UiTooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   ComposedChart, LineChart, Line, ScatterChart, Scatter, ZAxis, Cell, PieChart, Pie,
 } from 'recharts';
 import {
   Clock, MessageSquare, CheckCircle2, RotateCcw,
-  Phone, PhoneCall, Loader2, Download, Filter, TrendingUp, Target,
+  Phone, PhoneCall, Loader2, Download, Filter, TrendingUp, Target, Check,
 } from 'lucide-react';
 import { useTeamPerformance, usePresenceBackfillUntil, type PerformancePeriod } from '../hooks/useTeamPerformance';
 import { EquipePerformanceDrawer } from './EquipePerformanceDrawer';
