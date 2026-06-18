@@ -1278,30 +1278,39 @@ export type Database = {
           actor_name: string | null
           conversation_id: string
           created_at: string
+          from_user_id: number | null
           from_value: string | null
           id: string
           notes: string | null
+          to_user_id: number | null
           to_value: string | null
+          user_id: number | null
         }
         Insert: {
           action: string
           actor_name?: string | null
           conversation_id: string
           created_at?: string
+          from_user_id?: number | null
           from_value?: string | null
           id?: string
           notes?: string | null
+          to_user_id?: number | null
           to_value?: string | null
+          user_id?: number | null
         }
         Update: {
           action?: string
           actor_name?: string | null
           conversation_id?: string
           created_at?: string
+          from_user_id?: number | null
           from_value?: string | null
           id?: string
           notes?: string | null
+          to_user_id?: number | null
           to_value?: string | null
+          user_id?: number | null
         }
         Relationships: [
           {
@@ -7986,6 +7995,7 @@ export type Database = {
           resolved: number | null
           returned: number | null
           transferred: number | null
+          user_id: number | null
           user_name: string | null
         }
         Relationships: []
