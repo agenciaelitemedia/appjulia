@@ -547,6 +547,129 @@ export function useUserConversations(userId: number | null, userName: string | n
 // Ligações do usuário no período
 // ============================================================
 
+// ============================================================
+// Desfechos (resolved/returned/transferred) do usuário no período
+// ============================================================
+
+export type OutcomeKind = 'resolved' | 'returned' | 'transferred';
+
+export interface UserOutcomeRow {
+  event_key: string;
+  conversation_id: string;
+  kind: OutcomeKind;
+  action: string;
+  at: string;
+  actor_name: string | null;
+  contact_name: string | null;
+  phone: string | null;
+  close_reason: string | null;
+  to_value: string | null;
+}
+
+export function useUserOutcomes(userId: number | null, userName: string | null, period: PerformancePeriod) {
+  const { user } = useAuth();
+  const clientIdText = user?.client_id ? String(user.client_id) : '';
+
+  return useQuery<UserOutcomeRow[]>({
+    queryKey: ['user-outcomes', clientIdText, userId, userName, period.startDate, period.endDate],
+    enabled: !!userId && !!clientIdText && !!userName,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const name = (userName || '').trim();
+      const nameNorm = normName(name);
+      const uid = userId ? Number(userId) : null;
+      if (!uid && !nameNorm) return [];
+
+      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+
+      const RESOLVED = ['resolved', 'closed', 'auto_resolved_queue_switch', 'manual_closed_for_new_conversation'];
+      const RETURNED = ['auto_returned', 'returned_to_queue'];
+      const TRANSFERRED = ['assigned'];
+      const allActions = [...RESOLVED, ...RETURNED, ...TRANSFERRED];
+
+      const { data: histRows, error: errH } = await supabase
+        .from('chat_conversation_history')
+        .select('id, conversation_id, action, actor_name, user_id, from_user_id, to_user_id, from_value, to_value, created_at')
+        .in('action', allActions)
+        .gte('created_at', fromIso)
+        .lte('created_at', toIso)
+        .limit(5000);
+      if (errH) throw errH;
+
+      const classify = (r: any): OutcomeKind | null => {
+        const act = String(r.action || '');
+        if (RESOLVED.includes(act)) {
+          if (uid && Number(r.user_id) === uid) return 'resolved';
+          if (!r.user_id && normName(r.actor_name) === nameNorm) return 'resolved';
+          return null;
+        }
+        if (RETURNED.includes(act)) {
+          if (uid && Number(r.from_user_id) === uid) return 'returned';
+          if (!r.from_user_id && normName(r.from_value) === nameNorm) return 'returned';
+          return null;
+        }
+        if (act === 'assigned') {
+          // Transferida = saiu deste usuário para outro atendente
+          const fromMatches = (uid && Number(r.from_user_id) === uid)
+            || (!r.from_user_id && normName(r.from_value) === nameNorm);
+          if (!fromMatches) return null;
+          // ignora reatribuição para o próprio usuário
+          if (uid && Number(r.to_user_id) === uid) return null;
+          if (!r.to_user_id && normName(r.to_value) === nameNorm) return null;
+          return 'transferred';
+        }
+        return null;
+      };
+
+      const classified = ((histRows || []) as any[])
+        .map((r) => ({ row: r, kind: classify(r) }))
+        .filter((x) => x.kind && x.row.conversation_id) as Array<{ row: any; kind: OutcomeKind }>;
+      if (classified.length === 0) return [];
+
+      const convIds = [...new Set(classified.map((x) => x.row.conversation_id))];
+      const { data: convData } = await supabase
+        .from('chat_conversations')
+        .select('id, contact_id, close_reason')
+        .eq('client_id', clientIdText)
+        .in('id', convIds);
+      const convMap = new Map<string, any>();
+      for (const c of (convData || []) as any[]) convMap.set(c.id, c);
+
+      const contactIds = [...new Set(((convData || []) as any[]).map((r) => r.contact_id).filter(Boolean))];
+      const contactMap = new Map<string, { name: string | null; phone: string | null }>();
+      if (contactIds.length > 0) {
+        const { data: contacts } = await supabase
+          .from('chat_contacts')
+          .select('id, name, phone')
+          .in('id', contactIds);
+        for (const c of (contacts || []) as any[]) {
+          contactMap.set(c.id, { name: c.name, phone: c.phone });
+        }
+      }
+
+      const rows: UserOutcomeRow[] = classified.map(({ row, kind }) => {
+        const conv = convMap.get(row.conversation_id);
+        const c = conv ? contactMap.get(conv.contact_id) : null;
+        return {
+          event_key: `${row.id}`,
+          conversation_id: row.conversation_id,
+          kind,
+          action: row.action,
+          at: row.created_at,
+          actor_name: row.actor_name ?? null,
+          contact_name: c?.name ?? null,
+          phone: c?.phone ?? null,
+          close_reason: conv?.close_reason ?? null,
+          to_value: row.to_value ?? null,
+        };
+      }).sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+      return rows;
+    },
+  });
+}
+
 export interface UserCallRow {
   id: number;
   direction: string | null;
