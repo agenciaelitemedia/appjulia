@@ -131,6 +131,19 @@ serve(async (req) => {
       report[table] = r;
     }
 
+    // 3) Refresh das MVs de performance para refletir o user_id recém populado.
+    let mvsRefreshed = false;
+    let mvsError: string | null = null;
+    if (!dryRun) {
+      const { error: rpcErr } = await supabase.rpc("refresh_team_performance_mvs");
+      if (rpcErr) {
+        mvsError = rpcErr.message || String(rpcErr);
+        console.error("[assigned-user-id-backfill] refresh MVs failed", rpcErr);
+      } else {
+        mvsRefreshed = true;
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
@@ -139,6 +152,8 @@ serve(async (req) => {
         users_loaded: users.length,
         unique_names: map.size,
         report,
+        mvs_refreshed: mvsRefreshed,
+        mvs_error: mvsError,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
