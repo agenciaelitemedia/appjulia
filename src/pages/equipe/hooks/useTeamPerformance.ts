@@ -436,6 +436,10 @@ export interface UserConversationRow {
   closed_at: string | null;
   last_customer_message_at: string | null;
   close_reason: string | null;
+  /** Momento em que ESTA atribuição ocorreu (chat_conversation_history.created_at). */
+  assigned_at: string | null;
+  /** Chave única do evento (conversation_id + assigned_at) — a mesma conversa pode aparecer várias vezes. */
+  event_key: string;
 }
 
 export function useUserConversations(userId: number | null, userName: string | null, period: PerformancePeriod) {
@@ -484,8 +488,11 @@ export function useUserConversations(userId: number | null, userName: string | n
         }
         return false;
       };
-      const convIds = [...new Set((histRows || []).filter(matchesAssign).map((r: any) => r.conversation_id).filter(Boolean))];
-      if (convIds.length === 0) return [];
+      const events = (histRows || [])
+        .filter(matchesAssign)
+        .filter((r: any) => r.conversation_id);
+      if (events.length === 0) return [];
+      const convIds = [...new Set(events.map((r: any) => r.conversation_id))];
 
       // Buscar dados das conversas (status atual, contato, etc.)
       const { data: convData, error: errC } = await supabase
@@ -494,13 +501,10 @@ export function useUserConversations(userId: number | null, userName: string | n
         .eq('client_id', clientIdText)
         .in('id', convIds);
       if (errC) throw errC;
-      const rows = ((convData || []) as any[]).sort((a, b) => {
-        const da = new Date(b.opened_at || b.created_at).getTime();
-        const db = new Date(a.opened_at || a.created_at).getTime();
-        return da - db;
-      });
+      const convMap = new Map<string, any>();
+      for (const c of (convData || []) as any[]) convMap.set(c.id, c);
 
-      const contactIds = [...new Set(rows.map((r) => r.contact_id).filter(Boolean))];
+      const contactIds = [...new Set(((convData || []) as any[]).map((r) => r.contact_id).filter(Boolean))];
       const contactMap = new Map<string, { name: string | null; phone: string | null }>();
       if (contactIds.length > 0) {
         const { data: contacts } = await supabase
@@ -512,19 +516,29 @@ export function useUserConversations(userId: number | null, userName: string | n
         }
       }
 
-      return rows.map((r) => {
-        const c = contactMap.get(r.contact_id);
-        return {
-          id: r.id,
-          contact_name: c?.name ?? null,
-          phone: c?.phone ?? null,
-          status: r.status,
-          opened_at: r.opened_at || r.created_at,
-          closed_at: r.closed_at,
-          last_customer_message_at: r.last_customer_message_at,
-          close_reason: r.close_reason,
-        };
-      });
+      // Uma linha por evento de atribuição (sem dedupe por conversa).
+      const rows: UserConversationRow[] = events
+        .map((ev: any) => {
+          const conv = convMap.get(ev.conversation_id);
+          if (!conv) return null;
+          const c = contactMap.get(conv.contact_id);
+          return {
+            id: conv.id,
+            contact_name: c?.name ?? null,
+            phone: c?.phone ?? null,
+            status: conv.status,
+            opened_at: conv.opened_at || conv.created_at,
+            closed_at: conv.closed_at,
+            last_customer_message_at: conv.last_customer_message_at,
+            close_reason: conv.close_reason,
+            assigned_at: ev.created_at,
+            event_key: `${conv.id}|${ev.created_at}`,
+          } as UserConversationRow;
+        })
+        .filter((r): r is UserConversationRow => r !== null)
+        .sort((a, b) => new Date(b.assigned_at || 0).getTime() - new Date(a.assigned_at || 0).getTime());
+
+      return rows;
     },
   });
 }
