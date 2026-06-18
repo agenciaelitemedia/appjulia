@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/tooltip';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  ComposedChart, LineChart, Line, ScatterChart, Scatter, ZAxis, Cell, PieChart, Pie,
+  ComposedChart, LineChart, Line, Cell, PieChart, Pie,
 } from 'recharts';
 import {
   Clock, MessageSquare, CheckCircle2, RotateCcw,
