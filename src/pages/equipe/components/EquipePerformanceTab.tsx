@@ -168,18 +168,6 @@ export function EquipePerformanceTab() {
     ].filter((x) => x.value > 0);
   }, [totals]);
 
-  // Scatter: ocupação × resolução
-  const scatterData = useMemo(
-    () => members
-      .filter((m) => m.received > 0 || m.worked_seconds > 0)
-      .map((m) => ({
-        x: m.occupancy_pct,
-        y: m.resolution_rate,
-        z: Math.max(m.received, 5),
-        name: m.name,
-      })),
-    [members],
-  );
 
   return (
     <div className="space-y-4">
@@ -294,38 +282,6 @@ export function EquipePerformanceTab() {
             </Card>
           </div>
 
-          {/* Scatter: Ocupação × Resolução */}
-          <Card className="p-4">
-            <h3 className="font-semibold mb-3 text-sm">Ocupação × Resolução por atendente</h3>
-            <p className="text-xs text-muted-foreground mb-2">Quanto mais para cima e à direita, melhor. Tamanho do ponto = volume recebido.</p>
-            <div className="h-64">
-              {scatterData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <ScatterChart>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis type="number" dataKey="x" name="Ocupação" unit="%" stroke="hsl(var(--muted-foreground))" fontSize={11} domain={[0, 100]} />
-                    <YAxis type="number" dataKey="y" name="Resolução" unit="%" stroke="hsl(var(--muted-foreground))" fontSize={11} domain={[0, 100]} />
-                    <ZAxis type="number" dataKey="z" range={[60, 400]} />
-                    <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ payload }) => {
-                      const p = payload?.[0]?.payload;
-                      if (!p) return null;
-                      return (
-                        <div className="bg-popover border border-border rounded p-2 text-xs">
-                          <div className="font-medium">{p.name}</div>
-                          <div>Ocupação: {p.x}%</div>
-                          <div>Resolução: {p.y}%</div>
-                          <div>Recebidos: {p.z}</div>
-                        </div>
-                      );
-                    }} />
-                    <Scatter data={scatterData} fill="hsl(var(--primary))" />
-                  </ScatterChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Sem dados no período</div>
-              )}
-            </div>
-          </Card>
 
           {/* Ranking */}
           <Card>
