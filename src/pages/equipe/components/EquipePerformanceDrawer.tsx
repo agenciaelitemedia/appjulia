@@ -15,6 +15,7 @@ import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipProvid
 import { UserSessionsDialog } from './UserSessionsDialog';
 import { UserConversationsDialog } from './UserConversationsDialog';
 import { UserCallsDialog } from './UserCallsDialog';
+import { UserOutcomesDialog } from './UserOutcomesDialog';
 
 interface Props {
   open: boolean;
@@ -46,6 +47,13 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [convOpen, setConvOpen] = useState(false);
   const [callsOpen, setCallsOpen] = useState(false);
+  const [outcomesOpen, setOutcomesOpen] = useState(false);
+  const [outcomesFilter, setOutcomesFilter] = useState<'all' | 'resolved' | 'returned' | 'transferred'>('all');
+
+  const openOutcomes = (f: 'all' | 'resolved' | 'returned' | 'transferred') => {
+    setOutcomesFilter(f);
+    setOutcomesOpen(true);
+  };
 
   // Time distribution donut
   const timeData = [
@@ -153,11 +161,21 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
 
           {/* Desfechos */}
           <Card className="p-3">
-            <div className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Desfechos no período</div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Desfechos no período</div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => openOutcomes('all')}
+              >
+                <ListOrdered className="h-3.5 w-3.5 mr-1" /> Ver lista
+              </Button>
+            </div>
             <div className="grid grid-cols-3 gap-3">
-              <OutcomeBox icon={CheckCircle2} label="Resolvidas" value={user.resolved} color="text-emerald-600" />
-              <OutcomeBox icon={RotateCcw} label="Devolvidas" value={user.returned} color="text-amber-600" />
-              <OutcomeBox icon={ArrowRightLeft} label="Transferidas" value={user.transferred} color="text-blue-600" />
+              <OutcomeBox icon={CheckCircle2} label="Resolvidas" value={user.resolved} color="text-emerald-600" onClick={() => openOutcomes('resolved')} />
+              <OutcomeBox icon={RotateCcw} label="Devolvidas" value={user.returned} color="text-amber-600" onClick={() => openOutcomes('returned')} />
+              <OutcomeBox icon={ArrowRightLeft} label="Transferidas" value={user.transferred} color="text-blue-600" onClick={() => openOutcomes('transferred')} />
             </div>
             {user.avg_handle_seconds !== null && (
               <div className="text-xs text-muted-foreground mt-2">
@@ -226,6 +244,14 @@ export function EquipePerformanceDrawer({ open, onOpenChange, user, period }: Pr
           userName={user.name}
           period={period}
         />
+        <UserOutcomesDialog
+          open={outcomesOpen}
+          onOpenChange={setOutcomesOpen}
+          userId={user.user_id}
+          userName={user.name}
+          period={period}
+          initialFilter={outcomesFilter}
+        />
       </SheetContent>
     </Sheet>
   );
@@ -247,12 +273,16 @@ function MiniKpi({ icon: Icon, label, value, sub, action }: { icon: any; label: 
   );
 }
 
-function OutcomeBox({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
+function OutcomeBox({ icon: Icon, label, value, color, onClick }: { icon: any; label: string; value: number; color: string; onClick?: () => void }) {
+  const Comp: any = onClick ? 'button' : 'div';
   return (
-    <div className="flex flex-col items-center justify-center text-center py-2 rounded bg-muted/30">
+    <Comp
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center text-center py-2 rounded bg-muted/30 ${onClick ? 'cursor-pointer transition-colors hover:bg-muted/60' : ''}`}
+    >
       <Icon className={`h-4 w-4 mb-1 ${color}`} />
       <div className="text-lg font-semibold">{value}</div>
       <div className="text-[10px] text-muted-foreground uppercase">{label}</div>
-    </div>
+    </Comp>
   );
 }
