@@ -4,9 +4,6 @@ import { EquipeDashboardTab } from "./components/EquipeDashboardTab";
 import { EquipeManagementTab } from "./components/EquipeManagementTab";
 import { EquipePerformanceTab } from "./components/EquipePerformanceTab";
 
-const isAdvogadoDomain = () =>
-  window.location.hostname === "acesso.atendejulia.com.br";
-
 export default function EquipePage() {
   return (
     <div className="space-y-4">
@@ -16,12 +13,10 @@ export default function EquipePage() {
             <LayoutDashboard className="w-4 h-4" />
             Dashboard
           </TabsTrigger>
-          {!isAdvogadoDomain() && (
-            <TabsTrigger value="performance" className="gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Performance
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="performance" className="gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Performance
+          </TabsTrigger>
           <TabsTrigger value="management" className="gap-2">
             <Users className="w-4 h-4" />
             Gestão de Equipe
@@ -32,11 +27,9 @@ export default function EquipePage() {
           <EquipeDashboardTab />
         </TabsContent>
 
-        {!isAdvogadoDomain() && (
-          <TabsContent value="performance">
-            <EquipePerformanceTab />
-          </TabsContent>
-        )}
+        <TabsContent value="performance">
+          <EquipePerformanceTab />
+        </TabsContent>
 
         <TabsContent value="management">
           <EquipeManagementTab />
