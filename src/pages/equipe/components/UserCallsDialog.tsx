@@ -17,7 +17,7 @@ interface Props {
   period: PerformancePeriod;
 }
 
-type CallFilter = 'all' | 'outbound' | 'answered' | 'missed';
+type CallFilter = 'all' | 'outbound' | 'missed';
 
 function fmtHMS(seconds: number | null): string {
   if (seconds === null || seconds < 0) return '—';
@@ -44,7 +44,6 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
     const isAns = !!r.answered_at;
     switch (filter) {
       case 'outbound': return isOut;
-      case 'answered': return isAns;
       case 'missed': return !isAns;
       default: return true;
     }
@@ -52,7 +51,6 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
 
   const total = rows.length;
   const outbound = rows.filter((r) => (r.direction || '').toLowerCase() === 'outbound').length;
-  const answered = rows.filter((r) => !!r.answered_at).length;
   const missed = rows.filter((r) => !r.answered_at).length;
   const talkSec = rows.reduce((acc, r) => acc + (r.duration_seconds || 0), 0);
   const uniqueNumbers = new Set(
@@ -97,10 +95,9 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-4 gap-2 mb-2">
+        <div className="grid grid-cols-3 gap-2 mb-2">
           <SummaryBox label="Total" value={total} active={filter === 'all'} onClick={() => setFilter('all')} />
           <SummaryBox label="EFETUADAS" value={outbound} active={filter === 'outbound'} onClick={() => setFilter('outbound')} />
-          <SummaryBox label="Atendidas" value={answered} active={filter === 'answered'} onClick={() => setFilter('answered')} />
           <SummaryBox label="Perdidas" value={missed} active={filter === 'missed'} onClick={() => setFilter('missed')} />
         </div>
 
