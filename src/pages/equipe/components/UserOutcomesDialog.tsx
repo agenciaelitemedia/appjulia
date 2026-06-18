@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useUserOutcomes, type PerformancePeriod, type OutcomeKind } from '../hooks/useTeamPerformance';
+import { OpenChatButton } from './OpenChatButton';
 
 type FilterKind = 'all' | OutcomeKind;
 
@@ -105,6 +106,7 @@ export function UserOutcomesDialog({ open, onOpenChange, userId, userName, perio
                   <TableHead>Quando</TableHead>
                   <TableHead>Desfecho</TableHead>
                   <TableHead>Detalhe</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -126,6 +128,9 @@ export function UserOutcomesDialog({ open, onOpenChange, userId, userName, perio
                         <Badge variant="outline" className={`text-[10px] ${meta.cls}`}>{meta.label}</Badge>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{detail}</TableCell>
+                      <TableCell className="w-10 p-1 text-right">
+                        <OpenChatButton conversationId={r.conversation_id} />
+                      </TableCell>
                     </TableRow>
                   );
                 })}

@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useUserCalls, type PerformancePeriod } from '../hooks/useTeamPerformance';
+import { OpenChatButton } from './OpenChatButton';
 
 interface Props {
   open: boolean;
@@ -127,6 +128,7 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
                   <TableHead>Número</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Duração</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -152,6 +154,9 @@ export function UserCallsDialog({ open, onOpenChange, userId, userName, period }
                         )}
                       </TableCell>
                       <TableCell className="text-right font-mono">{fmtHMS(r.duration_seconds)}</TableCell>
+                      <TableCell className="w-10 p-1 text-right">
+                        <OpenChatButton phone={(isOut ? r.called : r.caller) || null} />
+                      </TableCell>
                     </TableRow>
                   );
                 })}
