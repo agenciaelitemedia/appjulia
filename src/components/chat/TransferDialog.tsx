@@ -11,7 +11,7 @@ import { Loader2 } from 'lucide-react';
 interface TransferDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onTransfer: (assignedTo: string, note?: string) => Promise<void>;
+  onTransfer: (assignedTo: string, assignedUserId: number | null, note?: string) => Promise<void>;
 }
 
 export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialogProps) {
@@ -37,7 +37,9 @@ export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialo
     if (!selectedMember) return;
     setIsTransferring(true);
     try {
-      await onTransfer(selectedMember, note || undefined);
+      const member = members.find((m) => m.name === selectedMember);
+      const userId = member ? Number(member.id) : null;
+      await onTransfer(selectedMember, Number.isFinite(userId as number) ? (userId as number) : null, note || undefined);
       onOpenChange(false);
       setSelectedMember(null);
       setNote('');

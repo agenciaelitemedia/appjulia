@@ -1457,6 +1457,7 @@ export type Database = {
           active_ticket_number: number | null
           active_ticket_protocol: string | null
           assigned_to: string | null
+          assigned_user_id: number | null
           channel: string
           client_id: string
           close_note: string | null
@@ -1488,6 +1489,7 @@ export type Database = {
           active_ticket_number?: number | null
           active_ticket_protocol?: string | null
           assigned_to?: string | null
+          assigned_user_id?: number | null
           channel?: string
           client_id: string
           close_note?: string | null
@@ -1519,6 +1521,7 @@ export type Database = {
           active_ticket_number?: number | null
           active_ticket_protocol?: string | null
           assigned_to?: string | null
+          assigned_user_id?: number | null
           channel?: string
           client_id?: string
           close_note?: string | null
@@ -3459,6 +3462,7 @@ export type Database = {
       crm_deals: {
         Row: {
           assigned_to: string | null
+          assigned_user_id: number | null
           board_id: string
           client_id: string | null
           cod_agent: string
@@ -3486,6 +3490,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          assigned_user_id?: number | null
           board_id: string
           client_id?: string | null
           cod_agent: string
@@ -3513,6 +3518,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          assigned_user_id?: number | null
           board_id?: string
           client_id?: string | null
           cod_agent?: string
@@ -5985,6 +5991,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           assigned_to_name: string | null
+          assigned_user_id: number | null
           category_id: string | null
           closed_at: string | null
           contact_id: string | null
@@ -6020,6 +6027,7 @@ export type Database = {
         Insert: {
           assigned_to?: string | null
           assigned_to_name?: string | null
+          assigned_user_id?: number | null
           category_id?: string | null
           closed_at?: string | null
           contact_id?: string | null
@@ -6055,6 +6063,7 @@ export type Database = {
         Update: {
           assigned_to?: string | null
           assigned_to_name?: string | null
+          assigned_user_id?: number | null
           category_id?: string | null
           closed_at?: string | null
           contact_id?: string | null
@@ -6354,6 +6363,7 @@ export type Database = {
         Row: {
           assigned_name: string | null
           assigned_to: string | null
+          assigned_user_id: number | null
           cancelled_at: string | null
           category: string | null
           category_id: string | null
@@ -6376,6 +6386,7 @@ export type Database = {
         Insert: {
           assigned_name?: string | null
           assigned_to?: string | null
+          assigned_user_id?: number | null
           cancelled_at?: string | null
           category?: string | null
           category_id?: string | null
@@ -6398,6 +6409,7 @@ export type Database = {
         Update: {
           assigned_name?: string | null
           assigned_to?: string | null
+          assigned_user_id?: number | null
           cancelled_at?: string | null
           category?: string | null
           category_id?: string | null

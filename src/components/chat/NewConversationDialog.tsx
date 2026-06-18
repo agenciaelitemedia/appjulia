@@ -35,7 +35,7 @@ interface Props {
   /** Client id of the current user (required to enable conflict pre-check). */
   clientId?: string;
   /** Current user (required to enable conflict pre-check + assignment). */
-  currentUser?: { codAgent: string; name: string };
+  currentUser?: { codAgent: string; name: string; id?: number | string };
 }
 
 interface ActiveConv {
@@ -237,7 +237,8 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
           queue_id: targetQueueId,
           channel: channelType,
           status: 'open',
-          assigned_to: currentUser.codAgent,
+          assigned_to: currentUser.name || (currentUser.id ? String(currentUser.id) : null),
+          assigned_user_id: currentUser.id ? Number(currentUser.id) : null,
           opened_at: new Date().toISOString(),
           protocol: '', // trigger generate_conversation_protocol preenche
         })

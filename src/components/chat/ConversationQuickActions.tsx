@@ -49,7 +49,7 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
     }
     setBusy(true);
     try {
-      await assignConversation(conversation.id, currentUserName);
+      await assignConversation(conversation.id, currentUserName, user?.id ? Number(user.id) : null);
       if (conversation.status === 'pending') {
         await updateConversationStatus(conversation.id, 'open');
       }
@@ -85,9 +85,9 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
     }
   };
 
-  const handleTransferConfirm = async (assignedTo: string) => {
+  const handleTransferConfirm = async (assignedTo: string, assignedUserId: number | null) => {
     try {
-      await assignConversation(conversation.id, assignedTo);
+      await assignConversation(conversation.id, assignedTo, assignedUserId);
       toast.success('Conversa transferida');
     } catch (err: any) {
       toast.error(`Não foi possível transferir: ${err?.message || err}`);

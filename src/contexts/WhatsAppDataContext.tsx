@@ -113,7 +113,7 @@ const initialConvGroupMeta = (): ConvGroupMeta => ({
 });
 
 // Lean column list for conversations — avoids transferring unused heavy columns
-const CONV_COLUMNS = 'id,contact_id,client_id,queue_id,status,priority,assigned_to,cod_agent,updated_at,created_at,opened_at,first_response_at,resolved_at,closed_at,snoozed_until,channel,protocol,close_note'
+const CONV_COLUMNS = 'id,contact_id,client_id,queue_id,status,priority,assigned_to,assigned_user_id,cod_agent,updated_at,created_at,opened_at,first_response_at,resolved_at,closed_at,snoozed_until,channel,protocol,close_note'
 
 // Reposition an existing contact in a list ordered by `last_message_at DESC`
 // without re-sorting the entire array. O(n) instead of O(n log n).
@@ -239,7 +239,7 @@ interface ExtendedContextValue extends ChatContextValue {
   loadConversations: () => Promise<void>;
   getOrCreateConversation: (contactId: string) => Promise<ChatConversation | null>;
   updateConversationStatus: (conversationId: string, status: ConversationStatus, note?: string) => Promise<void>;
-  assignConversation: (conversationId: string, assignedTo: string) => Promise<void>;
+  assignConversation: (conversationId: string, assignedTo: string, assignedUserId?: number | null) => Promise<void>;
   pendingConvCount: number;
   openConvCount: number;
 
@@ -1151,17 +1151,23 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     }
   }, [user?.name, clientId]);
 
-  const assignConversation = useCallback(async (conversationId: string, assignedTo: string) => {
+  const assignConversation = useCallback(async (conversationId: string, assignedTo: string, assignedUserId?: number | null) => {
     try {
+      const updates: Record<string, unknown> = { assigned_to: assignedTo };
+      if (assignedUserId !== undefined) {
+        updates.assigned_user_id = assignedUserId;
+      }
       const { error } = await supabase
         .from('chat_conversations')
-        .update({ assigned_to: assignedTo })
+        .update(updates)
         .eq('id', conversationId);
 
       if (error) throw error;
 
       setConversations(prev => prev.map(c =>
-        c.id === conversationId ? { ...c, assigned_to: assignedTo } : c
+        c.id === conversationId
+          ? { ...c, assigned_to: assignedTo, ...(assignedUserId !== undefined ? { assigned_user_id: assignedUserId } : {}) }
+          : c
       ));
 
       await supabase.from('chat_conversation_history').insert({
@@ -1603,6 +1609,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
       if (conversation && !conversation.first_response_at) {
         const senderName = user?.name || (user?.id ? String(user.id) : null);
+        const senderUserId = user?.id ? Number(user.id) : null;
         const needsAssign = !conversation.assigned_to || String(conversation.assigned_to).trim() === '';
         const updates: Record<string, unknown> = {
           first_response_at: new Date().toISOString(),
@@ -1610,6 +1617,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         };
         if (needsAssign && senderName) {
           updates.assigned_to = senderName;
+          if (senderUserId && Number.isFinite(senderUserId)) {
+            updates.assigned_user_id = senderUserId;
+          }
         }
         await supabase
           .from('chat_conversations')
