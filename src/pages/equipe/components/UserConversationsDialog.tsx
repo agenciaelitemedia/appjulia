@@ -42,12 +42,12 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
   const pending = rows.filter((r) => (r.status || '').toLowerCase() === 'pending').length;
 
   const exportCsv = () => {
-    const header = 'Contato;Telefone;Início;Última msg cliente;Status;Motivo\n';
+    const header = 'Contato;Telefone;Atribuído em;Última msg cliente;Status;Motivo\n';
     const lines = rows.map((r) =>
       [
         r.contact_name || '',
         r.phone || '',
-        fmtDateTime(r.opened_at),
+        fmtDateTime(r.assigned_at),
         fmtDateTime(r.last_customer_message_at),
         r.status || '',
         r.close_reason || '',
@@ -70,7 +70,7 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
             <div>
               <div>Atendimentos — {userName}</div>
               <div className="text-xs font-normal text-muted-foreground">
-                {period.startDate} → {period.endDate} · inclui atendimentos atuais em aberto/pendente
+                {period.startDate} → {period.endDate} · 1 linha por atribuição (mesma conversa pode aparecer mais de uma vez)
               </div>
             </div>
             <Button size="sm" variant="outline" onClick={exportCsv} disabled={rows.length === 0}>
@@ -99,7 +99,7 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
               <TableHeader>
                 <TableRow>
                   <TableHead>Contato</TableHead>
-                  <TableHead>Início</TableHead>
+                  <TableHead>Atribuído em</TableHead>
                   <TableHead>Última msg</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -108,14 +108,14 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
                 {rows.map((r) => {
                   const lbl = statusBadge(r.status, r.close_reason);
                   return (
-                    <TableRow key={r.id}>
+                    <TableRow key={r.event_key}>
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="text-sm font-medium">{r.contact_name || '—'}</span>
                           {r.phone && <span className="font-mono text-xs text-muted-foreground">{r.phone}</span>}
                         </div>
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{fmtDateTime(r.opened_at)}</TableCell>
+                      <TableCell className="font-mono text-sm">{fmtDateTime(r.assigned_at)}</TableCell>
                       <TableCell className="font-mono text-sm">{fmtDateTime(r.last_customer_message_at)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`text-[10px] ${lbl.cls}`}>{lbl.text}</Badge>
