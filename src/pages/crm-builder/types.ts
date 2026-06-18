@@ -77,6 +77,7 @@ export interface CRMDeal {
   custom_fields: Record<string, unknown>;
   tags: string[];
   assigned_to?: string;
+  assigned_user_id?: number | null;
   stage_entered_at: string;
   created_at: string;
   updated_at: string;
@@ -96,6 +97,7 @@ export interface CRMDealFormData {
   due_date?: string;
   tags?: string[];
   assigned_to?: string;
+  assigned_user_id?: number | null;
 }
 
 // Deal History - Histórico de movimentações

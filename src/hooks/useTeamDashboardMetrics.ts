@@ -53,42 +53,47 @@ export function useTeamDashboardMetrics(members: TeamMemberRef[]) {
       const chatsP = names.length > 0
         ? supabase
             .from('chat_conversations')
-            .select('assigned_to')
+            .select('assigned_to, assigned_user_id')
             .eq('client_id', clientId)
             .in('status', ['open', 'pending'])
-            .in('assigned_to', names)
+            .or(`assigned_user_id.in.(${idsAsText.join(',') || '0'}),assigned_to.in.(${names.map((n) => `"${n.replace(/"/g, '\\"')}"`).join(',')})`)
         : Promise.resolve({ data: [] as any[] });
 
       const dealsP = names.length > 0
         ? supabase
             .from('crm_deals')
-            .select('assigned_to,status')
-            .in('assigned_to', names)
+            .select('assigned_to,assigned_user_id,status')
+            .or(`assigned_user_id.in.(${idsAsText.join(',') || '0'}),assigned_to.in.(${names.map((n) => `"${n.replace(/"/g, '\\"')}"`).join(',')})`)
         : Promise.resolve({ data: [] as any[] });
 
       const tasksP = supabase
         .from('tasks')
-        .select('assigned_to')
+        .select('assigned_to, assigned_user_id')
         .eq('client_id', clientId)
         .in('status', ['pending', 'in_progress'])
-        .in('assigned_to', idsAsText);
+        .or(`assigned_user_id.in.(${idsAsText.join(',') || '0'}),assigned_to.in.(${idsAsText.map((s) => `"${s}"`).join(',')})`);
 
       const [chats, deals, tasks] = await Promise.all([chatsP, dealsP, tasksP]);
 
-      for (const row of ((chats as any).data ?? []) as Array<{ assigned_to: string | null }>) {
-        const ids = row.assigned_to ? nameToIds[row.assigned_to.trim()] : null;
-        if (!ids) continue;
-        for (const id of ids) map[id].open_chats++;
+      const resolveIds = (row: { assigned_user_id?: number | string | null; assigned_to?: string | null }): string[] => {
+        if (row.assigned_user_id != null) {
+          const id = String(row.assigned_user_id);
+          return map[id] ? [id] : [];
+        }
+        const key = (row.assigned_to || '').trim();
+        return key ? (nameToIds[key] || []) : [];
+      };
+
+      for (const row of ((chats as any).data ?? []) as Array<any>) {
+        for (const id of resolveIds(row)) map[id].open_chats++;
       }
-      for (const row of ((deals as any).data ?? []) as Array<{ assigned_to: string | null; status: string | null }>) {
+      for (const row of ((deals as any).data ?? []) as Array<any>) {
         const s = (row.status || '').toLowerCase();
         if (s === 'won' || s === 'lost') continue;
-        const ids = row.assigned_to ? nameToIds[row.assigned_to.trim()] : null;
-        if (!ids) continue;
-        for (const id of ids) map[id].open_crm_deals++;
+        for (const id of resolveIds(row)) map[id].open_crm_deals++;
       }
-      for (const row of ((tasks as any).data ?? []) as Array<{ assigned_to: string | null }>) {
-        if (row.assigned_to && map[row.assigned_to]) map[row.assigned_to].open_tasks++;
+      for (const row of ((tasks as any).data ?? []) as Array<any>) {
+        for (const id of resolveIds(row)) map[id].open_tasks++;
       }
 
       return map;
