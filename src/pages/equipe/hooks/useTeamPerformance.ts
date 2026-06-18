@@ -432,23 +432,17 @@ export interface UserConversationRow {
   close_reason: string | null;
 }
 
-export function useUserConversations(userId: number | null, period: PerformancePeriod) {
+export function useUserConversations(userId: number | null, userName: string | null, period: PerformancePeriod) {
   const { user } = useAuth();
   const clientIdText = user?.client_id ? String(user.client_id) : '';
 
   return useQuery<UserConversationRow[]>({
-    queryKey: ['user-conversations', clientIdText, userId, period.startDate, period.endDate],
-    enabled: !!userId && !!clientIdText,
+    queryKey: ['user-conversations', clientIdText, userId, userName, period.startDate, period.endDate],
+    enabled: !!userId && !!clientIdText && !!userName,
     staleTime: 60_000,
     queryFn: async () => {
-      // Resolver nome do usuário pelo id
-      const { data: profile } = await (supabase as any)
-        .from('chat_user_security')
-        .select('user_name')
-        .eq('user_id', userId!)
-        .maybeSingle();
-      const userName = (profile?.user_name as string | undefined)?.trim();
-      if (!userName) return [];
+      const name = (userName || '').trim();
+      if (!name) return [];
 
       const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
       const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
@@ -457,7 +451,7 @@ export function useUserConversations(userId: number | null, period: PerformanceP
         .from('chat_conversations')
         .select('id, contact_id, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at')
         .eq('client_id', clientIdText)
-        .eq('assigned_to', userName)
+        .eq('assigned_to', name)
         .gte('created_at', fromIso)
         .lte('created_at', toIso)
         .order('created_at', { ascending: false })
@@ -512,17 +506,18 @@ export interface UserCallRow {
 export function useUserCalls(userId: number | null, period: PerformancePeriod) {
   const { user } = useAuth();
   const clientIdText = user?.client_id ? String(user.client_id) : '';
+  const clientIdNum = user?.client_id ? Number(user.client_id) : null;
 
   return useQuery<UserCallRow[]>({
     queryKey: ['user-calls', clientIdText, userId, period.startDate, period.endDate],
-    enabled: !!userId && !!clientIdText,
+    enabled: !!userId && !!clientIdNum,
     staleTime: 60_000,
     queryFn: async () => {
       // Resolver ramais do usuário
       const { data: exts } = await (supabase as any)
         .from('phone_extensions')
         .select('extension_number')
-        .eq('client_id', clientIdText)
+        .eq('client_id', clientIdNum!)
         .eq('assigned_member_id', userId!);
       const extNumbers = ((exts || []) as Array<{ extension_number: string }>)
         .map((e) => e.extension_number)
