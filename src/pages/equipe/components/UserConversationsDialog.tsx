@@ -70,7 +70,7 @@ export function UserConversationsDialog({ open, onOpenChange, userId, userName, 
             <div>
               <div>Atendimentos — {userName}</div>
               <div className="text-xs font-normal text-muted-foreground">
-                {period.startDate} → {period.endDate} · conversas atribuídas no período
+                {period.startDate} → {period.endDate} · inclui atendimentos atuais em aberto/pendente
               </div>
             </div>
             <Button size="sm" variant="outline" onClick={exportCsv} disabled={rows.length === 0}>

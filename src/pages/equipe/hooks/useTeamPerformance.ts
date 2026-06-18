@@ -441,25 +441,49 @@ export function useUserConversations(userId: number | null, userName: string | n
     enabled: !!userId && !!clientIdText && !!userName,
     staleTime: 60_000,
     queryFn: async () => {
-    const name = (userName || '').trim();
-    if (!name) return [];
+      const name = (userName || '').trim();
+      if (!name) return [];
 
-    const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
-    const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+      const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
+      const toIso = new Date(`${period.endDate}T23:59:59-03:00`).toISOString();
+      const nameNorm = normName(name);
 
-    const { data, error } = await supabase
-      .from('chat_conversations')
-      .select('id, contact_id, assigned_to, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at')
-      .eq('client_id', clientIdText)
-      .ilike('assigned_to', `%${name}%`)
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso)
-      .order('created_at', { ascending: false })
-      .limit(500);
-    if (error) throw error;
+      // 1) Conversas criadas no período
+      const { data: periodData, error: err1 } = await supabase
+        .from('chat_conversations')
+        .select('id, contact_id, assigned_to, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at')
+        .eq('client_id', clientIdText)
+        .ilike('assigned_to', `%${name}%`)
+        .gte('created_at', fromIso)
+        .lte('created_at', toIso)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (err1) throw err1;
 
-    const nameNorm = normName(name);
-    const rows = ((data || []) as any[]).filter((r) => normName(r.assigned_to) === nameNorm);
+      // 2) Conversas ainda abertas/pendentes com esse usuário (sem limite de data)
+      const { data: openData, error: err2 } = await supabase
+        .from('chat_conversations')
+        .select('id, contact_id, assigned_to, status, opened_at, closed_at, last_customer_message_at, close_reason, created_at')
+        .eq('client_id', clientIdText)
+        .ilike('assigned_to', `%${name}%`)
+        .in('status', ['open', 'pending'])
+        .order('opened_at', { ascending: false })
+        .limit(500);
+      if (err2) throw err2;
+
+      const map = new Map<string, any>();
+      for (const r of (periodData || []) as any[]) {
+        if (normName(r.assigned_to) === nameNorm) map.set(r.id, r);
+      }
+      for (const r of (openData || []) as any[]) {
+        if (normName(r.assigned_to) === nameNorm) map.set(r.id, r);
+      }
+      const rows = Array.from(map.values()).sort((a, b) => {
+        const da = new Date(b.opened_at || b.created_at).getTime();
+        const db = new Date(a.opened_at || a.created_at).getTime();
+        return da - db;
+      });
+
       const contactIds = [...new Set(rows.map((r) => r.contact_id).filter(Boolean))];
       const contactMap = new Map<string, { name: string | null; phone: string | null }>();
       if (contactIds.length > 0) {
