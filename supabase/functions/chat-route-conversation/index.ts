@@ -259,10 +259,14 @@ Deno.serve(async (req) => {
       const agent = await pickAgent(rule);
       if (!agent) continue;
 
+      const agentUserId = Number(agent);
+      const agentUserIdSafe = Number.isFinite(agentUserId) ? agentUserId : null;
+
       await supabase
         .from('chat_conversations')
         .update({
           assigned_to: agent,
+          assigned_user_id: agentUserIdSafe,
           status: conv.status === 'pending' ? 'open' : conv.status,
         })
         .eq('id', conversation_id);
@@ -287,6 +291,8 @@ Deno.serve(async (req) => {
         action: 'auto_routed',
         actor_name: 'Sistema',
         to_value: agent,
+        to_user_id: agentUserIdSafe,
+        user_id: agentUserIdSafe,
         notes: `Regra: ${rule.name}`,
       });
 
