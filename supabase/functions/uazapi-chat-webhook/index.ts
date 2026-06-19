@@ -9,6 +9,7 @@ import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsa
 import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
 import { logDroppedMessage } from "../_shared/droppedLogger.ts";
 import { resolveQuotedMeta } from "../_shared/quotedMessage.ts";
+import { disableJuliaOnHumanSend } from "../_shared/disableJuliaOnHumanSend.ts";
 
 // ─── Avatar refresh helper (fire-and-forget) ───
 // Marks a contact as needing an avatar refresh and triggers the
