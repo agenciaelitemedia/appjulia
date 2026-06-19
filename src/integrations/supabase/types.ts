@@ -8214,6 +8214,16 @@ export type Database = {
           user_id: number
         }[]
       }
+      get_team_work_window_by_day: {
+        Args: { p_from: string; p_to: string; p_user_ids: number[] }
+        Returns: {
+          day_brt: string
+          first_seen_at: string
+          last_seen_at: string
+          span_seconds: number
+          user_id: number
+        }[]
+      }
       get_user_online_seconds: {
         Args: { p_from: string; p_to: string; p_user_id: number }
         Returns: number

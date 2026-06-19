@@ -102,6 +102,13 @@ function fmtShortDate(day: string): string {
   return `${d}/${m}`;
 }
 
+function fmtMinuteOfDay(min: number | null): string {
+  if (min == null || !Number.isFinite(min)) return '—';
+  const h = Math.floor(min / 60);
+  const m = Math.floor(min % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
   { key: 'today', label: 'Hoje' },
   { key: 'yesterday', label: 'Ontem' },
@@ -141,10 +148,15 @@ export function EquipePerformanceTab() {
   const exportCSV = () => {
     if (!data) return;
     const rows: string[] = [];
-    rows.push('Atendente,Tempo logado,Ocupação %,Recebidas,Resolvidas,Devolvidas,Transferidas,TMA,Ligações,Atendidas,Talk time,Números únicos,Leads chamados');
+    rows.push('Atendente,Tempo logado,Período médio,Dias trabalhados,Ocupação %,Recebidas,Resolvidas,Devolvidas,Transferidas,TMA,Ligações,Atendidas,Talk time,Números únicos,Leads chamados');
     for (const m of members) {
       rows.push([
-        m.name, fmtDuration(m.worked_seconds), m.occupancy_pct, m.received, m.resolved,
+        m.name, fmtDuration(m.worked_seconds),
+        m.avg_first_minute != null && m.avg_last_minute != null
+          ? `${fmtMinuteOfDay(m.avg_first_minute)} - ${fmtMinuteOfDay(m.avg_last_minute)}`
+          : '—',
+        m.days_worked,
+        m.occupancy_pct, m.received, m.resolved,
         m.returned, m.transferred, m.avg_handle_seconds ? fmtDuration(m.avg_handle_seconds) : '—',
         m.calls_total, m.calls_answered, fmtDuration(m.talk_seconds), m.unique_numbers, m.calls_to_known_leads,
       ].map(v => `"${v}"`).join(','));
@@ -296,6 +308,15 @@ export function EquipePerformanceTab() {
                   <TableRow>
                     <TableHead>Atendente</TableHead>
                     <HeaderWithTip align="right" label="Tempo online" tip={onlineSourceTip} />
+                    <HeaderWithTip
+                      label="Período trabalhado"
+                      tip="Horário médio do primeiro e do último heartbeat de presença no período (BRT). Reflete o horário em que o atendente efetivamente esteve ativo na plataforma, sem descontar pausas."
+                    />
+                    <HeaderWithTip
+                      align="right"
+                      label="Dias"
+                      tip="Quantidade de dias do período em que houve pelo menos um heartbeat de presença."
+                    />
                     <HeaderWithTip align="right" label="Ocup." tip="Ocupação = Talk time ÷ Tempo online. Mostra o percentual do tempo online que o atendente passou efetivamente em chamadas de voz." />
                     <HeaderWithTip align="right" label="Receb." tip="Conversas recebidas: número de atendimentos atribuídos ao usuário no período (independente de já estarem resolvidos ou não)." />
                     <HeaderWithTip align="right" label="Resolv." tip="Conversas que o atendente finalizou (marcadas como resolvidas) dentro do período." />
@@ -311,7 +332,7 @@ export function EquipePerformanceTab() {
                 <TableBody>
                   {members.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
                         Nenhum dado no período
                       </TableCell>
                     </TableRow>
@@ -329,6 +350,20 @@ export function EquipePerformanceTab() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right text-sm">{fmtDuration(m.worked_seconds)}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {m.avg_first_minute != null && m.avg_last_minute != null ? (
+                          <span className="font-mono">
+                            {fmtMinuteOfDay(m.avg_first_minute)}
+                            <span className="text-muted-foreground mx-1">→</span>
+                            {fmtMinuteOfDay(m.avg_last_minute)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {m.days_worked > 0 ? m.days_worked : '—'}
+                      </TableCell>
                       <TableCell className="text-right">
                         <Badge variant="outline" className={cn('font-mono text-xs', m.occupancy_pct >= 50 ? 'border-emerald-500/40 text-emerald-700' : 'text-muted-foreground')}>
                           {m.occupancy_pct}%
