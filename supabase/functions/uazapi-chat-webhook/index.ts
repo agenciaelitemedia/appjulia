@@ -1734,6 +1734,20 @@ Deno.serve(async (req) => {
           audioMessageIdsToTranscribe.push(insertedMsg.id);
         }
 
+        // Human override: if a human attendant sent this message (fromMe) to a
+        // direct chat (not a group), deactivate the Julia AI session for the
+        // contact so the bot stops auto-replying. Fire-and-forget.
+        if (fromMe && !isGroup && senderPhone) {
+          // @ts-ignore EdgeRuntime exists at runtime
+          (globalThis as any).EdgeRuntime?.waitUntil?.(
+            disableJuliaOnHumanSend({
+              clientId: queue.client_id,
+              queueId: queue.id,
+              contactPhone: senderPhone,
+            }),
+          );
+        }
+
         processed++;
       } catch (msgErr) {
         console.error('[uazapi-chat-webhook] Error processing message:', msgErr);
