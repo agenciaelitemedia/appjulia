@@ -327,7 +327,7 @@ export function EquipePerformanceTab() {
                 <TableBody>
                   {members.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
                         Nenhum dado no período
                       </TableCell>
                     </TableRow>
