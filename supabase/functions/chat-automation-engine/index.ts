@@ -181,7 +181,16 @@ async function executeAction(supabase: any, rule: Rule, conv: any) {
     case "auto_assign": {
       const target = cfg.assigned_to;
       if (!target) return;
-      await supabase.from("chat_conversations").update({ assigned_to: target, status: conv.status === "pending" ? "open" : conv.status }).eq("id", conv.id);
+      const targetUserId = Number(target);
+      const targetUserIdSafe = Number.isFinite(targetUserId) ? targetUserId : null;
+      await supabase
+        .from("chat_conversations")
+        .update({
+          assigned_to: target,
+          assigned_user_id: targetUserIdSafe,
+          status: conv.status === "pending" ? "open" : conv.status,
+        })
+        .eq("id", conv.id);
       break;
     }
     case "auto_tag": {
