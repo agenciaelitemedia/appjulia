@@ -346,6 +346,9 @@ export function useTeamPerformance(
           calls_to_known_leads: acc.calls_to_known_leads + m.calls_to_known_leads,
           occupancy_pct: 0,
           resolution_rate: 0,
+          avg_first_minute: null as number | null,
+          avg_last_minute: null as number | null,
+          days_worked: 0,
         }),
         {
           worked_seconds: 0, sessions_count: 0, received: 0, resolved: 0, returned: 0,
