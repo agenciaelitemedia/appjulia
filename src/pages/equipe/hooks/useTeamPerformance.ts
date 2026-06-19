@@ -275,6 +275,27 @@ export function useTeamPerformance(
       }
 
       // Compute derived metrics
+      // Aggregate work-window per user (média do horário do primeiro/último heartbeat
+      // entre os dias do período em que houve atividade).
+      const windowAcc: Record<number, { firstMinSum: number; lastMinSum: number; days: number }> = {};
+      for (const r of windowRows) {
+        const uid = Number(r.user_id);
+        if (!byUser[uid]) continue;
+        const first = new Date(r.first_seen_at);
+        const last = new Date(r.last_seen_at);
+        // Minutos desde 00:00 BRT (UTC-3, sem DST nos fusos atuais do Brasil)
+        const toBrtMinutes = (d: Date) => {
+          const ms = d.getTime() - 3 * 3600_000;
+          const dayMs = ((ms % 86400_000) + 86400_000) % 86400_000;
+          return Math.floor(dayMs / 60_000);
+        };
+        const a = windowAcc[uid] || { firstMinSum: 0, lastMinSum: 0, days: 0 };
+        a.firstMinSum += toBrtMinutes(first);
+        a.lastMinSum  += toBrtMinutes(last);
+        a.days += 1;
+        windowAcc[uid] = a;
+      }
+
       for (const uid of Object.keys(byUser).map(Number)) {
         const u = byUser[uid];
         const acc = handleAvgAcc[uid];
@@ -287,6 +308,16 @@ export function useTeamPerformance(
         const days = Object.values(userDays[uid]).sort((a, b) => a.day.localeCompare(b.day));
         u.trend_received = days.slice(-14).map((d) => d.received);
         u.byDay = days;
+        const wa = windowAcc[uid];
+        if (wa && wa.days > 0) {
+          u.avg_first_minute = Math.round(wa.firstMinSum / wa.days);
+          u.avg_last_minute  = Math.round(wa.lastMinSum / wa.days);
+          u.days_worked = wa.days;
+        } else {
+          u.avg_first_minute = null;
+          u.avg_last_minute  = null;
+          u.days_worked = 0;
+        }
       }
 
       // Filter selection
@@ -321,6 +352,7 @@ export function useTeamPerformance(
           transferred: 0, avg_handle_seconds: null, calls_total: 0, calls_answered: 0,
           calls_outbound: 0, talk_seconds: 0, unique_numbers: 0, calls_to_known_leads: 0,
           occupancy_pct: 0, resolution_rate: 0,
+          avg_first_minute: null, avg_last_minute: null, days_worked: 0,
         },
       );
       totals.occupancy_pct = totals.worked_seconds > 0
@@ -372,6 +404,7 @@ function emptyUserRow(id: number, name: string, photo?: string | null): Performa
     talk_seconds: 0, unique_numbers: 0, calls_to_known_leads: 0,
     occupancy_pct: 0, resolution_rate: 0,
     trend_received: [], byDay: [],
+    avg_first_minute: null, avg_last_minute: null, days_worked: 0,
   };
 }
 
