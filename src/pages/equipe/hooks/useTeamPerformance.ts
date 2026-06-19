@@ -52,6 +52,12 @@ export interface PerformanceUserRow {
   trend_received: number[];
   /** per-day breakdown for this user (period range) */
   byDay: PerformanceDailyRow[];
+  /** Média do horário do primeiro heartbeat (minutos desde 00:00 BRT) entre os dias trabalhados. null se sem dado. */
+  avg_first_minute: number | null;
+  /** Média do horário do último heartbeat (minutos desde 00:00 BRT). */
+  avg_last_minute: number | null;
+  /** Quantidade de dias com pelo menos 1 heartbeat. */
+  days_worked: number;
 }
 
 export interface PerformanceResult {
@@ -166,6 +172,11 @@ export function useTeamPerformance(
           p_from: fromIso,
           p_to: toIsoExclusive,
         }),
+        (supabase as any).rpc('get_team_work_window_by_day', {
+          p_user_ids: userIds,
+          p_from: fromIso,
+          p_to: toIsoExclusive,
+        }),
       ]);
 
       const sessions = (sessionsRes as any).data || [];
@@ -173,6 +184,9 @@ export function useTeamPerformance(
       const phone = (phoneRes as any).data || [];
       if ((onlineRes as any).error) throw (onlineRes as any).error;
       const onlineRows = (onlineRes as any).data || [];
+      // 5º item do Promise.all
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const windowRes: any = (arguments as any); // placeholder noop
 
       // Initialize per-user accumulator
       const byUser: Record<number, PerformanceUserRow> = {};
