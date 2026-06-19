@@ -1738,12 +1738,20 @@ Deno.serve(async (req) => {
         // direct chat (not a group), deactivate the Julia AI session for the
         // contact so the bot stops auto-replying. Fire-and-forget.
         if (fromMe && !isGroup && senderPhone) {
+          const { data: existing } = await supabase
+            .from('chat_messages')
+            .select('metadata')
+            .eq('conversation_id', conversationId)
+            .eq('external_id', msg.id)
+            .maybeSingle();
+          const source = (existing?.metadata as any)?.source as string | undefined;
           // @ts-ignore EdgeRuntime exists at runtime
           (globalThis as any).EdgeRuntime?.waitUntil?.(
             disableJuliaOnHumanSend({
               clientId: queue.client_id,
               queueId: queue.id,
               contactPhone: senderPhone,
+              messageSource: source ?? null,
             }),
           );
         }
