@@ -303,6 +303,15 @@ export function EquipePerformanceTab() {
                   <TableRow>
                     <TableHead>Atendente</TableHead>
                     <HeaderWithTip align="right" label="Tempo online" tip={onlineSourceTip} />
+                    <HeaderWithTip
+                      label="Período trabalhado"
+                      tip="Horário médio do primeiro e do último heartbeat de presença no período (BRT). Reflete o horário em que o atendente efetivamente esteve ativo na plataforma, sem descontar pausas."
+                    />
+                    <HeaderWithTip
+                      align="right"
+                      label="Dias"
+                      tip="Quantidade de dias do período em que houve pelo menos um heartbeat de presença."
+                    />
                     <HeaderWithTip align="right" label="Ocup." tip="Ocupação = Talk time ÷ Tempo online. Mostra o percentual do tempo online que o atendente passou efetivamente em chamadas de voz." />
                     <HeaderWithTip align="right" label="Receb." tip="Conversas recebidas: número de atendimentos atribuídos ao usuário no período (independente de já estarem resolvidos ou não)." />
                     <HeaderWithTip align="right" label="Resolv." tip="Conversas que o atendente finalizou (marcadas como resolvidas) dentro do período." />
@@ -336,6 +345,20 @@ export function EquipePerformanceTab() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right text-sm">{fmtDuration(m.worked_seconds)}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {m.avg_first_minute != null && m.avg_last_minute != null ? (
+                          <span className="font-mono">
+                            {fmtMinuteOfDay(m.avg_first_minute)}
+                            <span className="text-muted-foreground mx-1">→</span>
+                            {fmtMinuteOfDay(m.avg_last_minute)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {m.days_worked > 0 ? m.days_worked : '—'}
+                      </TableCell>
                       <TableCell className="text-right">
                         <Badge variant="outline" className={cn('font-mono text-xs', m.occupancy_pct >= 50 ? 'border-emerald-500/40 text-emerald-700' : 'text-muted-foreground')}>
                           {m.occupancy_pct}%
