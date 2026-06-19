@@ -148,10 +148,15 @@ export function EquipePerformanceTab() {
   const exportCSV = () => {
     if (!data) return;
     const rows: string[] = [];
-    rows.push('Atendente,Tempo logado,Ocupação %,Recebidas,Resolvidas,Devolvidas,Transferidas,TMA,Ligações,Atendidas,Talk time,Números únicos,Leads chamados');
+    rows.push('Atendente,Tempo logado,Período médio,Dias trabalhados,Ocupação %,Recebidas,Resolvidas,Devolvidas,Transferidas,TMA,Ligações,Atendidas,Talk time,Números únicos,Leads chamados');
     for (const m of members) {
       rows.push([
-        m.name, fmtDuration(m.worked_seconds), m.occupancy_pct, m.received, m.resolved,
+        m.name, fmtDuration(m.worked_seconds),
+        m.avg_first_minute != null && m.avg_last_minute != null
+          ? `${fmtMinuteOfDay(m.avg_first_minute)} - ${fmtMinuteOfDay(m.avg_last_minute)}`
+          : '—',
+        m.days_worked,
+        m.occupancy_pct, m.received, m.resolved,
         m.returned, m.transferred, m.avg_handle_seconds ? fmtDuration(m.avg_handle_seconds) : '—',
         m.calls_total, m.calls_answered, fmtDuration(m.talk_seconds), m.unique_numbers, m.calls_to_known_leads,
       ].map(v => `"${v}"`).join(','));
