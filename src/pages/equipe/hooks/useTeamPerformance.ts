@@ -143,7 +143,7 @@ export function useTeamPerformance(
       const fromIso = new Date(`${period.startDate}T00:00:00-03:00`).toISOString();
       const toIsoExclusive = new Date(`${addDays(period.endDate, 1)}T00:00:00-03:00`).toISOString();
 
-      const [sessionsRes, chatRes, phoneRes, onlineRes] = await Promise.all([
+      const [sessionsRes, chatRes, phoneRes, onlineRes, windowRes] = await Promise.all([
         supabase
           .from('mv_user_sessions_daily' as any)
           .select('user_id, user_name, day_brt, worked_seconds, sessions_count')
@@ -184,12 +184,8 @@ export function useTeamPerformance(
       const phone = (phoneRes as any).data || [];
       if ((onlineRes as any).error) throw (onlineRes as any).error;
       const onlineRows = (onlineRes as any).data || [];
-      const windowRows = ((): Array<{ user_id: number; day_brt: string; first_seen_at: string; last_seen_at: string; span_seconds: number }> => {
-        // 5º item do Promise.all
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const res = (arguments as any)[0]; // ignored — real assignment below
-        return [];
-      })();
+      const windowRows: Array<{ user_id: number; day_brt: string; first_seen_at: string; last_seen_at: string; span_seconds: number }> =
+        ((windowRes as any)?.data) || [];
 
       // Initialize per-user accumulator
       const byUser: Record<number, PerformanceUserRow> = {};
