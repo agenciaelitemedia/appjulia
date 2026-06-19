@@ -151,6 +151,12 @@ export function PromptsTab() {
       if (!safeSettings || typeof safeSettings !== 'object' || Array.isArray(safeSettings)) {
         safeSettings = {};
       }
+      // Sobrescreve START_CAMPAIGN com todas as CTAs dos casos vinculados, separadas por ||
+      const allCtas = (viewCases ?? [])
+        .flatMap(c => Array.isArray(c.ctas) ? (c.ctas as string[]) : [])
+        .map(s => String(s ?? '').trim())
+        .filter(Boolean);
+      safeSettings.START_CAMPAIGN = allCtas.join('||');
       await externalDb.updateAgent(agent.id, {
         settings: safeSettings,
         prompt: viewing.generated_prompt,

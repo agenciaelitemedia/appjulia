@@ -86,6 +86,12 @@ export function StepFinalPrompt({
       if (!safeSettings || typeof safeSettings !== 'object' || Array.isArray(safeSettings)) {
         safeSettings = {};
       }
+      // Sobrescreve START_CAMPAIGN com todas as CTAs dos casos, separadas por ||
+      const allCtas = (cases ?? [])
+        .flatMap((c: any) => Array.isArray(c?.ctas) ? (c.ctas as string[]) : [])
+        .map((s: any) => String(s ?? '').trim())
+        .filter(Boolean);
+      safeSettings.START_CAMPAIGN = allCtas.join('||');
       await externalDb.updateAgent(agent.id, {
         settings: safeSettings,
         prompt: generatedPrompt,
