@@ -138,7 +138,11 @@ Deno.serve(async (req) => {
       const update: Record<string, unknown> = {};
       if (body.status) update.status = body.status;
       if (body.priority) update.priority = body.priority;
-      if (body.assigned_to !== undefined) update.assigned_to = body.assigned_to;
+      if (body.assigned_to !== undefined) {
+        update.assigned_to = body.assigned_to;
+        const n = Number(body.assigned_to);
+        update.assigned_user_id = Number.isFinite(n) ? n : null;
+      }
       if (body.tags) update.tags = body.tags;
       if (body.status === "resolved") update.resolved_at = new Date().toISOString();
       if (body.status === "closed") update.closed_at = new Date().toISOString();
