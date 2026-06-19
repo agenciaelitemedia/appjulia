@@ -156,7 +156,6 @@ export function useTeamPerformance(
               .from('mv_user_chat_daily' as any)
               .select('user_name, user_id, day_brt, received, resolved, returned, transferred, avg_handle_seconds')
               .eq('client_id', clientIdText)
-              .in('user_id', userIds as any)
               .gte('day_brt', period.startDate)
               .lte('day_brt', period.endDate)
           : Promise.resolve({ data: [] as any[] }),
