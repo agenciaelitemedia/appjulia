@@ -184,9 +184,12 @@ export function useTeamPerformance(
       const phone = (phoneRes as any).data || [];
       if ((onlineRes as any).error) throw (onlineRes as any).error;
       const onlineRows = (onlineRes as any).data || [];
-      // 5º item do Promise.all
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const windowRes: any = (arguments as any); // placeholder noop
+      const windowRows = ((): Array<{ user_id: number; day_brt: string; first_seen_at: string; last_seen_at: string; span_seconds: number }> => {
+        // 5º item do Promise.all
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const res = (arguments as any)[0]; // ignored — real assignment below
+        return [];
+      })();
 
       // Initialize per-user accumulator
       const byUser: Record<number, PerformanceUserRow> = {};
