@@ -102,6 +102,13 @@ function fmtShortDate(day: string): string {
   return `${d}/${m}`;
 }
 
+function fmtMinuteOfDay(min: number | null): string {
+  if (min == null || !Number.isFinite(min)) return '—';
+  const h = Math.floor(min / 60);
+  const m = Math.floor(min % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
   { key: 'today', label: 'Hoje' },
   { key: 'yesterday', label: 'Ontem' },
