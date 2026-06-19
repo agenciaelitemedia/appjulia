@@ -1,36 +1,66 @@
 ## Objetivo
 
-Aplicar no filtro **"Filtrar atendentes"** da aba Desempenho (`EquipePerformanceTab`) o mesmo visual usado no filtro de respons\u00e1veis do chat (`TeamMemberSelect`), mantendo o comportamento de **multi-sele\u00e7\u00e3o**.
+Mostrar, na aba **Performance** de `/equipe`, o **período de trabalho real** de cada membro no dia (com base nos heartbeats de presença) e os indicadores de **atraso** e **saída antecipada** em relação a um horário de referência opcional — sem precisar cadastrar escala por usuário.
 
-## Por que
+## Como vamos medir (sem escala fixa)
 
-Hoje o `UserMultiSelect` mostra apenas nome + checkbox. O chat usa `TeamMemberSelect` com busca, avatar com iniciais coloridas, badge de papel (Admin / Propriet\u00e1rio / Advogado / etc.) e indicador de online \u2014 muito mais informativo e consistente.
+A definição de "horário trabalhado" sai diretamente dos logs já existentes em `user_presence_heartbeats`:
 
-## Plano
+- **Início do expediente (dia D)** = primeiro heartbeat do usuário em D (BRT).
+- **Fim do expediente (dia D)** = último heartbeat do usuário em D (BRT) + 30s (granularidade do slot).
+- **Janela bruta** = `fim - início` (inclui pausas).
+- **Tempo efetivo online** = continua vindo de `get_team_online_seconds_by_day` (já calcula slots únicos).
+- **Pausas** = `janela bruta - tempo efetivo` (almoço, ausências, etc.).
 
-Editar **`src/pages/equipe/components/EquipePerformanceTab.tsx`**, no componente local `UserMultiSelect`:
+Para **atraso / saída antecipada** precisamos de um horário-alvo. Como você não quer cadastrar escala por pessoa, usamos um **horário de referência único do cliente** (ex.: 09:00–18:00) já disponível em `chat_client_settings.settings.BUSINESS_HOURS_SCHEDULE` (lib `businessHoursUtils`). Se o cliente não tiver Business Hours configurado, esses dois indicadores aparecem como "—".
 
-1. **Manter** a assinatura externa (`members`, `selected`, `onChange`) e o trigger (`Button` com \u00edcone Filter + label "Todos atendentes" / "N selecionado(s)").
-2. **Trocar o conte\u00fado do Popover** por um `Command` (mesmos prim\u00edrios do `TeamMemberSelect`):
-   - `CommandInput` para buscar por nome/email.
-   - `CommandList` + `CommandGroup` listando os membros.
-   - Cada `CommandItem`:
-     - `Avatar` com foto ou iniciais (paleta determin\u00edstica por nome, igual `TeamMemberSelect`).
-     - Nome + email (truncado).
-     - `Badge` de papel (cores semelhantes ao chat).
-     - Ponto verde de online via `useTeamHeartbeat`.
-     - `Check` esquerdo indicando sele\u00e7\u00e3o (no lugar do checkbox).
-     - `onSelect` faz toggle no array `selected` (multi).
-3. **Cabe\u00e7alho do popover** mantido com t\u00edtulo "Filtrar atendentes" + bot\u00e3o "Limpar" quando houver sele\u00e7\u00e3o.
-4. **Rodap\u00e9** opcional com bot\u00e3o "Selecionar todos" / "Aplicar".
-5. Largura do popover ajustada (`w-80`) para acomodar avatar + badge.
+- **Atraso** = `max(0, primeiro_heartbeat - inicio_previsto_do_dia)`
+- **Saída antecipada** = `max(0, fim_previsto_do_dia - ultimo_heartbeat)` (somente se houve trabalho no dia)
 
-## Detalhes t\u00e9cnicos
+## Implementação
 
-- Reutilizar helpers visuais copiando o m\u00ednimo do `TeamMemberSelect.tsx` (paleta de avatar, `ROLE_LABEL`, `ROLE_BADGE_CLASS`) \u2014 sem refator de `TeamMemberSelect` (que \u00e9 single-select por design).
-- Nenhuma mudan\u00e7a em hooks de dados (`useTeamPerformance`, `useEquipeData`) nem na assinatura consumida pelo `EquipePerformanceTab`.
-- Sem altera\u00e7\u00f5es nos di\u00e1logs `UserCallsDialog` / `UserConversationsDialog` / `UserOutcomesDialog` (este filtro vive s\u00f3 na aba).
+### 1. Nova RPC `get_team_work_window_by_day`
 
-## Arquivos
+Retorna por `(user_id, day_brt)`:
+- `first_seen_at`, `last_seen_at` (timestamptz, BRT)
+- `span_seconds` (janela bruta)
 
-- `src/pages/equipe/components/EquipePerformanceTab.tsx` (apenas o sub-componente `UserMultiSelect`).
+Consulta `user_presence_heartbeats` (hot) + agregação opcional. Para dias antigos não precisamos de precisão de segundos — usar `min/max(seen_at)` direto na partição mensal já é eficiente (índice BRIN existente).
+
+### 2. Hook `useTeamWorkWindow`
+
+Recebe `userIds`, `from`, `to`. Faz `supabase.rpc('get_team_work_window_by_day', …)` e expõe um mapa `{ [userId]: { firstSeen, lastSeen, span } }` agregado pelo período selecionado (pega `min(first)` e `max(last)` por usuário no range).
+
+### 3. UI em `EquipePerformanceTab.tsx`
+
+Adicionar **3 colunas novas** na tabela "Por atendente":
+
+| Coluna | Conteúdo |
+|---|---|
+| Período trabalhado | `08:42 → 18:13` (ou "—" se sem dados) |
+| Atraso | `+12 min` em vermelho / `No horário` em verde / "—" se sem Business Hours |
+| Saída antecipada | `-25 min` em laranja / `Cumpriu` / "—" |
+
+Tooltip na coluna "Período trabalhado" explicando que é `primeiro → último heartbeat do dia` e que pausas não são descontadas.
+
+Adicionar um card-resumo no topo (ao lado dos KPIs atuais): **"Janela média da equipe"** = média de `span_seconds`.
+
+### 4. Detalhe diário (opcional, mesmo PR)
+
+No drawer/expansor do membro (se existir), mostrar uma linha por dia com:
+`18/06 · 08:42 → 18:13 · 7h 51min online · atraso +12min`
+
+Reaproveita a RPC já existente `get_user_presence_sessions` para detalhar logins/logouts se o usuário expandir.
+
+## Considerações técnicas
+
+- Performance: a RPC roda `min/max` por `(user_id, day_brt)` em partições mensais com índice `(client_id, seen_at DESC)`. Para 30 dias × 20 usuários custa milissegundos.
+- Timezone: tudo convertido para `America/Sao_Paulo` no servidor (igual ao padrão das outras RPCs).
+- Sem nova tabela, sem migration de schema fora da função.
+- Não altera o cálculo de "Tempo online" atual — apenas adiciona métricas.
+
+## Fora de escopo
+
+- Cadastro de escala individual (turnos, dias da semana por usuário).
+- Edição inline do horário-alvo na própria tela (continua vindo do Business Hours global).
+- Exportação CSV das novas colunas (pode ser próximo passo se quiser).
