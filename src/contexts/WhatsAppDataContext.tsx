@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
 import { getServerNowBRT, ensureServerClock } from '@/lib/serverClock';
@@ -326,6 +327,7 @@ interface WhatsAppDataProviderProps {
 
 export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   // Sincroniza relógio do servidor (BRT) para timestamps de envio
   useEffect(() => { ensureServerClock(); }, []);
