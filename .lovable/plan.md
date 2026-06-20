@@ -1,41 +1,33 @@
-## Problema
+## Objetivo
+Quando o usuário envia a primeira mensagem pelo diálogo "Nova conversa" no /chat, a conversa já deve aparecer imediatamente na lista e na aba **Meu atendimento**, atribuída ao usuário que iniciou.
 
-Sim — hoje a IA Julia está sendo desligada quando ela mesma envia uma mensagem via UaZapi.
+## Diagnóstico
+Em `src/components/chat/NewConversationDialog.tsx`, o fluxo **sem conflito** (`handleSend`) hoje apenas dispara `sendUaZapiMessage()` e espera o webhook do UaZapi criar contato + conversa. Resultado: a conversa entra como `pending` sem `assigned_to`, então não aparece em "Meu atendimento" e demora para surgir.
 
-No `uazapi-chat-webhook/index.ts` (linha 1740), a regra dispara `disableJuliaOnHumanSend` para **qualquer** `fromMe=true` em chat direto. O helper só ignora se receber `messageSource` em `['bot','campaign','autoreply','ai']`, mas o webhook **não passa** `messageSource` (diferente do `waba-send`, que passa `args.source`).
+O fluxo de conflito (`handleCloseAndStartNew`) já faz exatamente o que queremos: garante contato, cria `chat_conversations` com `status='open'`, `assigned_to`, `assigned_user_id` e foca a conversa. Vamos reaproveitar essa lógica no caminho normal.
 
-Resultado: quando Julia envia uma resposta pelo UaZapi, o webhook recebe o echo `fromMe=true` e desativa a sessão dela mesma.
+## Mudanças
 
-## Correção
+### `src/components/chat/NewConversationDialog.tsx` — `handleSend`
+Após o pré-check de conflito (mantido) e antes de enviar a mensagem, executar a mesma sequência usada em `handleCloseAndStartNew` (sem o passo 1 de encerramento):
 
-Detectar mensagens da própria Julia consultando `chat_messages.metadata->>source` antes de chamar o helper. As mensagens enviadas pela IA são persistidas pelo path de envio (uazapi-send / bot) com `metadata.source` em `bot|ai|autoreply|campaign`. Quando o echo chega no webhook como duplicado, a row já existe com esse source.
+1. Garantir contato (`chat_contacts` find-or-create por `client_id` + `channel_source=queueId` + `phone`).
+2. Inserir `chat_conversations` com:
+   - `client_id`, `contact_id`, `queue_id`, `channel='whatsapp_uazapi'`
+   - `status='open'`
+   - `assigned_to = currentUser.name`
+   - `assigned_user_id = Number(currentUser.id)`
+   - `opened_at = now`, `protocol=''` (trigger preenche)
+3. Enviar a mensagem via `sendUaZapiMessage()`.
+4. Chamar `goToChatWithSelection(contact_id, queue_id)` para focar a nova conversa.
+5. Toast de sucesso e fechar diálogo.
 
-**Arquivo:** `supabase/functions/uazapi-chat-webhook/index.ts` (bloco linha 1737-1749)
+Guardas:
+- Só executa a criação up-front quando `clientId` e `currentUser?.codAgent` estiverem disponíveis (props já existentes). Sem eles, mantém o comportamento legado de só enviar a mensagem (fallback seguro).
+- Refatorar a parte de "garantir contato + criar conversa atribuída" em uma helper interna compartilhada por `handleSend` e `handleCloseAndStartNew` para evitar duplicação.
 
-Alterar para, antes do `waitUntil`, buscar o source da mensagem por `external_id` (msg.id) na conversation atual e só disparar o helper se source não estiver em `('bot','ai','autoreply','campaign')`. Se `insertedMsg?.id` existir e for um insert novo sem source bot, é mensagem humana (WhatsApp Web/App ou echo de UI sem marca → tratado como humano). Se row já existe (duplicate) com source automatizado → no-op.
-
-```ts
-if (fromMe && !isGroup && senderPhone) {
-  const { data: existing } = await supabase
-    .from('chat_messages')
-    .select('metadata')
-    .eq('conversation_id', conversationId)
-    .eq('external_id', msg.id)
-    .maybeSingle();
-  const source = (existing?.metadata as any)?.source as string | undefined;
-  EdgeRuntime.waitUntil(
-    disableJuliaOnHumanSend({
-      clientId: queue.client_id,
-      queueId: queue.id,
-      contactPhone: senderPhone,
-      messageSource: source ?? null,
-    }),
-  );
-}
-```
-
-O helper já trata `messageSource` automatizado como no-op, então Julia não desliga a si mesma; mensagens humanas (sem source ou source manual) continuam desligando como esperado.
-
-## Verificação
-
-Após deploy: enviar mensagem pela IA Julia e confirmar que `agent_session.active` permanece `true`; enviar pelo WhatsApp Web/App e confirmar que vai para `false`.
+## Resultado esperado
+- A conversa aparece instantaneamente na lista do `/chat`.
+- Já entra na aba **Meu atendimento** porque `assigned_to`/`assigned_user_id` apontam para o usuário atual.
+- O trigger `auto_open_on_insert_assignment` mantém `status='open'`.
+- O webhook subsequente do UaZapi só atualiza a conversa existente (mesma fila + contato), sem duplicar.
