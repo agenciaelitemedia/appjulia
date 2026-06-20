@@ -2072,7 +2072,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, queryClient, user?.id, user?.name]);
+  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
 
   // ============================================
   // Download Media (decrypt UaZapi + persist)
