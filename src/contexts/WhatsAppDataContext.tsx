@@ -1647,6 +1647,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
+      await disableJuliaForManualUserSend({
+        contactPhone: contact.phone,
+        queueId: queue.id,
+        userId: user?.id ?? null,
+      });
+
       if (conversation && !conversation.first_response_at) {
         const senderName = user?.name || (user?.id ? String(user.id) : null);
         const senderUserId = user?.id ? Number(user.id) : null;
@@ -1698,7 +1704,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           console.warn('[Chat] Failed to update stage_entered_at:', e);
         }
       }
-
     } catch (error) {
       const { message, code } = normalizeSendError(error);
       if (code) console.warn('[chat][send] provider error', code, error);
@@ -1712,7 +1717,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.name]);
+  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
 
   // ============================================
   // Edit an already-sent text message (UaZapi only)
@@ -2012,6 +2017,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
+      await disableJuliaForManualUserSend({
+        contactPhone: contact.phone,
+        queueId: queue.id,
+        userId: user?.id ?? null,
+      });
+
       // Auto-transcribe outgoing audio when AUTO_TRANSCRIBE_AUDIO is enabled
       // for the client. The webhook only handles incoming/echoed audios, so
       // optimistic outgoing audios need an explicit trigger here.
@@ -2061,7 +2072,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.name]);
+  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, queryClient, user?.id, user?.name]);
 
   // ============================================
   // Download Media (decrypt UaZapi + persist)
