@@ -569,6 +569,36 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     return selectedQueue;
   }, [conversations, allQueues, contacts, clientId, selectedQueue, buildSelectedQueue]);
 
+  const disableJuliaForManualUserSend = useCallback(async (args: {
+    contactPhone?: string | null;
+    queueId?: string | null;
+    userId?: number | null;
+  }) => {
+    const cleanPhone = args.contactPhone?.replace(/\D/g, '') ?? '';
+    if (!cleanPhone || !args.queueId || !args.userId) return;
+
+    try {
+      const { data: links, error } = await supabase
+        .from('queue_agent_links')
+        .select('cod_agent, is_primary')
+        .eq('queue_id', args.queueId);
+      if (error) throw error;
+      if (!links || links.length === 0) return;
+
+      const primary = links.find((link) => link.is_primary) || links[0];
+      const codAgent = primary?.cod_agent ? String(primary.cod_agent) : null;
+      if (!codAgent) return;
+
+      const session = await externalDb.getSessionStatus(cleanPhone, codAgent);
+      if (!session?.id || session.active === false) return;
+
+      await externalDb.updateSessionStatus(session.id, false);
+      queryClient.invalidateQueries({ queryKey: ['agent-session-status', codAgent] });
+    } catch (error) {
+      console.warn('[Chat] Falha ao desativar Julia no envio manual:', error);
+    }
+  }, [queryClient]);
+
   // ============================================
   // Load Contacts from Supabase (filtered by queue via channel_source)
   // ============================================
