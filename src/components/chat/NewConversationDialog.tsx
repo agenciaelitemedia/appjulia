@@ -101,6 +101,64 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
     });
   };
 
+  /**
+   * Garante contato (find-or-create) e cria a conversa já atribuída ao usuário
+   * atual, para que apareça imediatamente em "Meu atendimento".
+   * Retorna { contactId, queueId } para focar a conversa após criação.
+   */
+  const ensureContactAndAssignedConversation = async (
+    targetQueueId: string,
+    fallbackContactName?: string,
+  ): Promise<{ contactId: string; queueId: string } | null> => {
+    if (!clientId || !currentUser?.codAgent) return null;
+    const channelType = 'whatsapp_uazapi';
+
+    let contactId: string | null = null;
+    const { data: existingContact } = await supabase
+      .from('chat_contacts')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('channel_source', targetQueueId)
+      .eq('phone', cleanPhone)
+      .maybeSingle();
+    if (existingContact?.id) {
+      contactId = (existingContact as any).id as string;
+    } else {
+      const finalName = (name.trim() || fallbackContactName || cleanPhone);
+      const { data: created, error: ce } = await supabase
+        .from('chat_contacts')
+        .insert({
+          client_id: clientId,
+          channel_source: targetQueueId,
+          channel_type: channelType,
+          phone: cleanPhone,
+          name: finalName,
+          remote_jid: `${cleanPhone}@s.whatsapp.net`,
+        })
+        .select('id')
+        .single();
+      if (ce) throw ce;
+      contactId = (created as any).id as string;
+    }
+
+    const { error: ne } = await supabase
+      .from('chat_conversations')
+      .insert({
+        client_id: clientId,
+        contact_id: contactId,
+        queue_id: targetQueueId,
+        channel: channelType,
+        status: 'open',
+        assigned_to: currentUser.name || (currentUser.id ? String(currentUser.id) : null),
+        assigned_user_id: currentUser.id ? Number(currentUser.id) : null,
+        opened_at: new Date().toISOString(),
+        protocol: '',
+      });
+    if (ne) throw ne;
+
+    return { contactId: contactId!, queueId: targetQueueId };
+  };
+
   const checkConflicts = async (): Promise<ConflictState | null> => {
     if (!clientId) return null;
     const variants = brPhoneVariants(cleanPhone);
@@ -140,8 +198,22 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
         setSending(false);
         return;
       }
+
+      // Cria a conversa já atribuída ao usuário atual ANTES de enviar a mensagem,
+      // para que apareça instantaneamente em "Meu atendimento".
+      let created: { contactId: string; queueId: string } | null = null;
+      if (clientId && currentUser?.codAgent) {
+        created = await ensureContactAndAssignedConversation(selectedQueue.id);
+      }
+
       await sendUaZapiMessage();
-      toast.success('Mensagem enviada! A conversa aparecerá na lista em instantes.');
+
+      if (created) {
+        goToChatWithSelection(created.contactId, created.queueId);
+        toast.success('Atendimento criado e mensagem enviada.');
+      } else {
+        toast.success('Mensagem enviada! A conversa aparecerá na lista em instantes.');
+      }
       handleClose();
     } catch (err: any) {
       toast.error('Falha ao enviar: ' + (err?.message || 'Tente novamente'));
@@ -168,7 +240,6 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
     setSending(true);
     try {
       const targetQueueId = selectedQueue.id;
-      const channelType = (selectedQueue as any) ? 'whatsapp_uazapi' : 'whatsapp_uazapi'; // dialog hoje só lida com uazapi
       const noteSuffix = ` [manual] Encerrada para novo atendimento na fila "${selectedQueue.name}" por ${currentUser.name}`;
 
       // 1) Encerra conversas em conflito (de qualquer fila, inclusive a mesma — a nova será criada limpa)
@@ -199,59 +270,18 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
         }
       }
 
-      // 2) Garante o contato (find ou cria) para a fila escolhida
-      let contactId: string | null = null;
-      const { data: existingContact } = await supabase
-        .from('chat_contacts')
-        .select('id')
-        .eq('client_id', clientId)
-        .eq('channel_source', targetQueueId)
-        .eq('phone', cleanPhone)
-        .maybeSingle();
-      if (existingContact?.id) {
-        contactId = (existingContact as any).id as string;
-      } else {
-        // Reusa o primeiro contato encontrado (de outra fila) só para extrair o nome se útil
-        const fallbackName = (conflict.contacts[0]?.name) || (name.trim() || cleanPhone);
-        const { data: created, error: ce } = await supabase
-          .from('chat_contacts')
-          .insert({
-            client_id: clientId,
-            channel_source: targetQueueId,
-            channel_type: channelType,
-            phone: cleanPhone,
-            name: name.trim() || fallbackName,
-            remote_jid: `${cleanPhone}@s.whatsapp.net`,
-          })
-          .select('id')
-          .single();
-        if (ce) throw ce;
-        contactId = (created as any).id as string;
-      }
-
-      // 3) Cria nova conversa já atribuída ao usuário atual
-      const { data: newConv, error: ne } = await supabase
-        .from('chat_conversations')
-        .insert({
-          client_id: clientId,
-          contact_id: contactId,
-          queue_id: targetQueueId,
-          channel: channelType,
-          status: 'open',
-          assigned_to: currentUser.name || (currentUser.id ? String(currentUser.id) : null),
-          assigned_user_id: currentUser.id ? Number(currentUser.id) : null,
-          opened_at: new Date().toISOString(),
-          protocol: '', // trigger generate_conversation_protocol preenche
-        })
-        .select('id, contact_id, queue_id')
-        .single();
-      if (ne) throw ne;
+      // 2-3) Garante contato + cria conversa atribuída via helper compartilhada
+      const created = await ensureContactAndAssignedConversation(
+        targetQueueId,
+        conflict.contacts[0]?.name,
+      );
+      if (!created) throw new Error('Não foi possível criar a conversa');
 
       // 4) Envia a mensagem
       await sendUaZapiMessage();
 
       // 5) Foca a nova conversa
-      goToChatWithSelection((newConv as any).contact_id, (newConv as any).queue_id);
+      goToChatWithSelection(created.contactId, created.queueId);
       toast.success('Novo atendimento criado e mensagem enviada.');
       handleClose();
     } catch (err: any) {
