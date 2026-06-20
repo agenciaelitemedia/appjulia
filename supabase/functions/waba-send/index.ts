@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { disableJuliaOnHumanSend } from "../_shared/disableJuliaOnHumanSend.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -170,20 +169,6 @@ async function persistOutbound(args: {
     });
     console.log(`[waba-send] persisted outbound msg meta_id=${args.metaMessageId} conv=${conversationId}`);
 
-    // Human override: if this outbound was sent by a human attendant (not the
-    // AI bot/autoreply), deactivate the Julia session for the contact. Fires
-    // best-effort in the background.
-    if (args.queueId && cleanPhone) {
-      // @ts-ignore EdgeRuntime exists at runtime
-      (globalThis as any).EdgeRuntime?.waitUntil?.(
-        disableJuliaOnHumanSend({
-          clientId,
-          queueId: args.queueId,
-          contactPhone: cleanPhone,
-          messageSource: args.source ?? null,
-        }),
-      );
-    }
   } catch (e) {
     console.error(`[waba-send] persistOutbound error: ${(e as Error).message}`);
   }

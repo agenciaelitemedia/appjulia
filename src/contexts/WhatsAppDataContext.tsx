@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
 import { getServerNowBRT, ensureServerClock } from '@/lib/serverClock';
@@ -326,6 +327,7 @@ interface WhatsAppDataProviderProps {
 
 export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   // Sincroniza relógio do servidor (BRT) para timestamps de envio
   useEffect(() => { ensureServerClock(); }, []);
@@ -566,6 +568,36 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // 5) last resort
     return selectedQueue;
   }, [conversations, allQueues, contacts, clientId, selectedQueue, buildSelectedQueue]);
+
+  const disableJuliaForManualUserSend = useCallback(async (args: {
+    contactPhone?: string | null;
+    queueId?: string | null;
+    userId?: number | null;
+  }) => {
+    const cleanPhone = args.contactPhone?.replace(/\D/g, '') ?? '';
+    if (!cleanPhone || !args.queueId || !args.userId) return;
+
+    try {
+      const { data: links, error } = await supabase
+        .from('queue_agent_links')
+        .select('cod_agent, is_primary')
+        .eq('queue_id', args.queueId);
+      if (error) throw error;
+      if (!links || links.length === 0) return;
+
+      const primary = links.find((link) => link.is_primary) || links[0];
+      const codAgent = primary?.cod_agent ? String(primary.cod_agent) : null;
+      if (!codAgent) return;
+
+      const session = await externalDb.getSessionStatus(cleanPhone, codAgent);
+      if (!session?.id || session.active === false) return;
+
+      await externalDb.updateSessionStatus(session.id, false);
+      queryClient.invalidateQueries({ queryKey: ['agent-session-status', codAgent] });
+    } catch (error) {
+      console.warn('[Chat] Falha ao desativar Julia no envio manual:', error);
+    }
+  }, [queryClient]);
 
   // ============================================
   // Load Contacts from Supabase (filtered by queue via channel_source)
@@ -1615,6 +1647,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
+      await disableJuliaForManualUserSend({
+        contactPhone: contact.phone,
+        queueId: queue.id,
+        userId: user?.id ?? null,
+      });
+
       if (conversation && !conversation.first_response_at) {
         const senderName = user?.name || (user?.id ? String(user.id) : null);
         const senderUserId = user?.id ? Number(user.id) : null;
@@ -1666,7 +1704,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           console.warn('[Chat] Failed to update stage_entered_at:', e);
         }
       }
-
     } catch (error) {
       const { message, code } = normalizeSendError(error);
       if (code) console.warn('[chat][send] provider error', code, error);
@@ -1680,7 +1717,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.name]);
+  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
 
   // ============================================
   // Edit an already-sent text message (UaZapi only)
@@ -1980,6 +2017,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
+      await disableJuliaForManualUserSend({
+        contactPhone: contact.phone,
+        queueId: queue.id,
+        userId: user?.id ?? null,
+      });
+
       // Auto-transcribe outgoing audio when AUTO_TRANSCRIBE_AUDIO is enabled
       // for the client. The webhook only handles incoming/echoed audios, so
       // optimistic outgoing audios need an explicit trigger here.
@@ -2029,7 +2072,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.name]);
+  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
 
   // ============================================
   // Download Media (decrypt UaZapi + persist)

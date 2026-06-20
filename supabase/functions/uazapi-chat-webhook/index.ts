@@ -9,7 +9,6 @@ import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsa
 import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
 import { logDroppedMessage } from "../_shared/droppedLogger.ts";
 import { resolveQuotedMeta } from "../_shared/quotedMessage.ts";
-import { disableJuliaOnHumanSend } from "../_shared/disableJuliaOnHumanSend.ts";
 
 // ─── Avatar refresh helper (fire-and-forget) ───
 // Marks a contact as needing an avatar refresh and triggers the
@@ -1732,28 +1731,6 @@ Deno.serve(async (req) => {
         // Track audio/ptt inserts (both fromMe and !fromMe) for auto-transcription
         if (insertedMsg?.id && (type === 'audio' || type === 'ptt')) {
           audioMessageIdsToTranscribe.push(insertedMsg.id);
-        }
-
-        // Human override: if a human attendant sent this message (fromMe) to a
-        // direct chat (not a group), deactivate the Julia AI session for the
-        // contact so the bot stops auto-replying. Fire-and-forget.
-        if (fromMe && !isGroup && senderPhone) {
-          const { data: existing } = await supabase
-            .from('chat_messages')
-            .select('metadata')
-            .eq('conversation_id', conversationId)
-            .eq('external_id', msg.id)
-            .maybeSingle();
-          const source = (existing?.metadata as any)?.source as string | undefined;
-          // @ts-ignore EdgeRuntime exists at runtime
-          (globalThis as any).EdgeRuntime?.waitUntil?.(
-            disableJuliaOnHumanSend({
-              clientId: queue.client_id,
-              queueId: queue.id,
-              contactPhone: senderPhone,
-              messageSource: source ?? null,
-            }),
-          );
         }
 
         processed++;
