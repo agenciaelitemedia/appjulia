@@ -106,3 +106,6 @@ verify_jwt = false
 
 [functions.internal-notification-scheduler]
 verify_jwt = false
+
+[functions.n8n_execute-followup-stop]
+verify_jwt = false
