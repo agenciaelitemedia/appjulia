@@ -3288,6 +3288,48 @@ serve(async (req) => {
         break;
       }
 
+      case 'followup_stop': {
+        // n8n_execute → Followup Stop
+        // Para follow-ups ativos e limpa pré-followup para uma sessão WhatsApp.
+        // Recebe codAgent e um array de variantes do telefone (13 e 12 dígitos).
+        const codAgent = String(data?.codAgent ?? '').trim();
+        const phones = Array.isArray(data?.phones)
+          ? data.phones.map((p: unknown) => String(p)).filter((p: string) => p.length > 0)
+          : [];
+        if (!codAgent) throw new Error('codAgent obrigatório');
+        if (phones.length === 0) throw new Error('phones obrigatório (array não vazio)');
+
+        const deletedTemp = await sql.unsafe(
+          `DELETE FROM public.followup_queue_temp
+             WHERE cod_agent = $1
+               AND session_id = ANY($2::text[])`,
+          [codAgent, phones],
+        );
+        const updatedQueue = await sql.unsafe(
+          `UPDATE public.followup_queue
+              SET "state" = 'STOP',
+                  send_date = (now() - INTERVAL '3 hours')
+            WHERE "state" = 'SEND'
+              AND name_client = $1
+              AND session_id = ANY($2::text[])`,
+          [codAgent, phones],
+        );
+        const deletedStatus = await sql.unsafe(
+          `DELETE FROM public.agent_processing_status
+             WHERE cod_agent = $1
+               AND session_id = ANY($2::text[])`,
+          [codAgent, phones],
+        );
+
+        result = [{
+          deleted_temp: (deletedTemp as any)?.count ?? 0,
+          updated_queue: (updatedQueue as any)?.count ?? 0,
+          deleted_status: (deletedStatus as any)?.count ?? 0,
+          phones,
+        }];
+        break;
+      }
+
       case 'resolve_module_embed': {
         // Resolve URL final com substituição de variáveis e HMAC opcional.
         // user_id vem do client autenticado; valores sensíveis (clientId, role, etc.)
