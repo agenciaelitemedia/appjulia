@@ -3289,6 +3289,7 @@ serve(async (req) => {
       }
 
       case 'resolve_module_embed': {
+        // placeholder anchor
         // Resolve URL final com substituição de variáveis e HMAC opcional.
         // user_id vem do client autenticado; valores sensíveis (clientId, role, etc.)
         // são buscados do DB — nunca confiamos no que o frontend manda.
