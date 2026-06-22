@@ -3301,8 +3301,8 @@ serve(async (req) => {
 
         const deletedTemp = await sql.unsafe(
           `DELETE FROM public.followup_queue_temp
-             WHERE cod_agent = $1
-               AND session_id = ANY($2::text[])`,
+             WHERE cod_agent = $1::bigint
+               AND session_id = ANY($2::bigint[])`,
           [codAgent, phones],
         );
         const updatedQueue = await sql.unsafe(
@@ -3310,14 +3310,14 @@ serve(async (req) => {
               SET "state" = 'STOP',
                   send_date = (now() - INTERVAL '3 hours')
             WHERE "state" = 'SEND'
-              AND name_client = $1
-              AND session_id = ANY($2::text[])`,
+              AND name_client = $1::bigint
+              AND session_id = ANY($2::bigint[])`,
           [codAgent, phones],
         );
         const deletedStatus = await sql.unsafe(
           `DELETE FROM public.agent_processing_status
-             WHERE cod_agent = $1
-               AND session_id = ANY($2::text[])`,
+             WHERE cod_agent = $1::bigint
+               AND session_id = ANY($2::bigint[])`,
           [codAgent, phones],
         );
 
