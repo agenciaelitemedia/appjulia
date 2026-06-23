@@ -569,7 +569,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     return selectedQueue;
   }, [conversations, allQueues, contacts, clientId, selectedQueue, buildSelectedQueue]);
 
-  const disableJuliaForManualUserSend = useCallback(async (args: {
+  const disableJuliaOnAssignOrTransfer = useCallback(async (args: {
     contactPhone?: string | null;
     queueId?: string | null;
     userId?: number | null;
@@ -590,12 +590,23 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       if (!codAgent) return;
 
       const session = await externalDb.getSessionStatus(cleanPhone, codAgent);
-      if (!session?.id || session.active === false) return;
+      if (session?.id && session.active !== false) {
+        await externalDb.updateSessionStatus(session.id, false);
+        queryClient.invalidateQueries({ queryKey: ['agent-session-status', codAgent] });
+      }
 
-      await externalDb.updateSessionStatus(session.id, false);
-      queryClient.invalidateQueries({ queryKey: ['agent-session-status', codAgent] });
+      // Best-effort: stop any active follow-ups for this contact.
+      try {
+        const { error: fnErr } = await supabase.functions.invoke(
+          'n8n_execute-followup-stop',
+          { body: { codAgent, sessionId: cleanPhone } },
+        );
+        if (fnErr) console.warn('[Chat] followup-stop falhou:', fnErr);
+      } catch (fnErr) {
+        console.warn('[Chat] followup-stop erro:', fnErr);
+      }
     } catch (error) {
-      console.warn('[Chat] Falha ao desativar Julia no envio manual:', error);
+      console.warn('[Chat] Falha ao desativar Julia no assumir/transferir:', error);
     }
   }, [queryClient]);
 
