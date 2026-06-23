@@ -1658,12 +1658,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
-      await disableJuliaForManualUserSend({
-        contactPhone: contact.phone,
-        queueId: queue.id,
-        userId: user?.id ?? null,
-      });
-
       if (conversation && !conversation.first_response_at) {
         const senderName = user?.name || (user?.id ? String(user.id) : null);
         const senderUserId = user?.id ? Number(user.id) : null;
@@ -1728,7 +1722,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
+  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
 
   // ============================================
   // Edit an already-sent text message (UaZapi only)
