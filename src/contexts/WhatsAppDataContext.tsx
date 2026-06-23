@@ -592,7 +592,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       const session = await externalDb.getSessionStatus(cleanPhone, codAgent);
       if (session?.id && session.active !== false) {
         await externalDb.updateSessionStatus(session.id, false);
-        queryClient.invalidateQueries({ queryKey: ['agent-session-status', codAgent] });
       }
 
       // Best-effort: stop any active follow-ups for this contact.
@@ -605,8 +604,15 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       } catch (fnErr) {
         console.warn('[Chat] followup-stop erro:', fnErr);
       }
+
+      // Refresh Julia status badges (header + conversation list) so they
+      // immediately reflect the inactive state after assumir/transferir.
+      queryClient.invalidateQueries({ queryKey: ['agent-session-status', codAgent] });
+      queryClient.invalidateQueries({ queryKey: ['agent-session-statuses-batch'] });
     } catch (error) {
       console.warn('[Chat] Falha ao desativar Julia no assumir/transferir:', error);
+      // Even on failure, try to refresh so UI re-reads from source of truth.
+      queryClient.invalidateQueries({ queryKey: ['agent-session-status'] });
     }
   }, [queryClient]);
 
