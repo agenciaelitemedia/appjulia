@@ -610,8 +610,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       // so badges reflect exactly what the DB currently reports.
       try {
         const fresh = await externalDb.getSessionStatus(cleanPhone, codAgent);
-        queryClient.setQueryData(
-          ['agent-session-status', codAgent, cleanPhone],
+        // Sync every variant of the single-status cache for this codAgent
+        // (different callers pass the phone in different formats).
+        queryClient.setQueriesData(
+          { queryKey: ['agent-session-status', codAgent] },
           fresh ?? null,
         );
         // Update every batch cache entry that contains this (phone, codAgent).
