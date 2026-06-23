@@ -569,7 +569,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     return selectedQueue;
   }, [conversations, allQueues, contacts, clientId, selectedQueue, buildSelectedQueue]);
 
-  const disableJuliaForManualUserSend = useCallback(async (args: {
+  const disableJuliaOnAssignOrTransfer = useCallback(async (args: {
     contactPhone?: string | null;
     queueId?: string | null;
     userId?: number | null;
@@ -590,12 +590,23 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       if (!codAgent) return;
 
       const session = await externalDb.getSessionStatus(cleanPhone, codAgent);
-      if (!session?.id || session.active === false) return;
+      if (session?.id && session.active !== false) {
+        await externalDb.updateSessionStatus(session.id, false);
+        queryClient.invalidateQueries({ queryKey: ['agent-session-status', codAgent] });
+      }
 
-      await externalDb.updateSessionStatus(session.id, false);
-      queryClient.invalidateQueries({ queryKey: ['agent-session-status', codAgent] });
+      // Best-effort: stop any active follow-ups for this contact.
+      try {
+        const { error: fnErr } = await supabase.functions.invoke(
+          'n8n_execute-followup-stop',
+          { body: { codAgent, sessionId: cleanPhone } },
+        );
+        if (fnErr) console.warn('[Chat] followup-stop falhou:', fnErr);
+      } catch (fnErr) {
+        console.warn('[Chat] followup-stop erro:', fnErr);
+      }
     } catch (error) {
-      console.warn('[Chat] Falha ao desativar Julia no envio manual:', error);
+      console.warn('[Chat] Falha ao desativar Julia no assumir/transferir:', error);
     }
   }, [queryClient]);
 
@@ -1214,12 +1225,28 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         user_id: user?.id ? Number(user.id) : null,
       });
 
+      // Manual assign/transfer by an authenticated user → stop Julia + followups.
+      try {
+        const conv = conversations.find((c) => c.id === conversationId);
+        const contact = contacts.find((c) => c.id === conv?.contact_id);
+        const queueId = (conv as any)?.channel_source || contact?.channel_source || null;
+        if (contact?.phone && queueId && user?.id) {
+          await disableJuliaOnAssignOrTransfer({
+            contactPhone: contact.phone,
+            queueId,
+            userId: Number(user.id),
+          });
+        }
+      } catch (e) {
+        console.warn('[assignConversation] disableJulia error:', e);
+      }
+
       toast.success('Conversa transferida');
     } catch (error) {
       console.error('Error assigning conversation:', error);
       toast.error('Erro ao transferir conversa');
     }
-  }, [user?.name]);
+  }, [user?.name, user?.id, conversations, contacts, disableJuliaOnAssignOrTransfer]);
 
   // ============================================
   // Tags
@@ -1647,12 +1674,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
-      await disableJuliaForManualUserSend({
-        contactPhone: contact.phone,
-        queueId: queue.id,
-        userId: user?.id ?? null,
-      });
-
       if (conversation && !conversation.first_response_at) {
         const senderName = user?.name || (user?.id ? String(user.id) : null);
         const senderUserId = user?.id ? Number(user.id) : null;
@@ -1717,7 +1738,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
+  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
 
   // ============================================
   // Edit an already-sent text message (UaZapi only)
@@ -2017,12 +2038,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
-      await disableJuliaForManualUserSend({
-        contactPhone: contact.phone,
-        queueId: queue.id,
-        userId: user?.id ?? null,
-      });
-
       // Auto-transcribe outgoing audio when AUTO_TRANSCRIBE_AUDIO is enabled
       // for the client. The webhook only handles incoming/echoed audios, so
       // optimistic outgoing audios need an explicit trigger here.
@@ -2072,7 +2087,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
+  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
 
   // ============================================
   // Download Media (decrypt UaZapi + persist)

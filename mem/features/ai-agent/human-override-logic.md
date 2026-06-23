@@ -1,19 +1,24 @@
 ---
 name: AI Human Override
-description: Desativa sessão Julia somente quando usuário autenticado envia mensagem manual no chat
+description: Desativa sessão Julia + dispara followup-stop somente em Assumir/Transferir manual no chat
 type: feature
 ---
 
-Somente envio manual feito por usuário autenticado no chat deve desativar a sessão Julia do contato.
+A sessão Julia do contato só é desativada quando o atendente autenticado **assume** ou **transfere manualmente** a conversa. Envio manual de mensagem/mídia NÃO desativa mais a Julia.
 
-**Pontos de entrada:**
-- `src/contexts/WhatsAppDataContext.tsx` — após envio manual de texto/mídia pelo usuário, verifica `queue_agent_links`; se existir IA vinculada e a sessão estiver ativa, chama `update_session_status(active=false)`.
-- Webhooks/edge functions (`uazapi-chat-webhook`, `waba-send`) não devem desativar Julia por `fromMe`, pois ecos, automações e n8n também chegam como outbound.
+**Trigger único:** `assignConversation` em `src/contexts/WhatsAppDataContext.tsx`. Cobre:
+- Botão "Assumir" (`ChatHeader.handleTakeOver`, `ConversationQuickActions.handleAssume`, `ChatInput.handleClaim`/`handleReopen`).
+- TransferDialog (`ChatHeader.handleTransfer`).
 
-**Helper:** `supabase/functions/_shared/disableJuliaOnHumanSend.ts`
-1. Resolve `cod_agent` via `queue_agent_links.queue_id = queueId`.
-2. Chama `db-query` action `get_session_status` (whatsappNumber, codAgent).
-3. Se `active=true`, chama `update_session_status` com `active=false`.
+**Helper interno:** `disableJuliaOnAssignOrTransfer` no mesmo arquivo:
+1. Resolve `cod_agent` via `queue_agent_links` (primary ou primeiro).
+2. Se houver sessão ativa, chama `update_session_status(active=false)`.
+3. Sempre dispara `n8n_execute-followup-stop` (codAgent, sessionId=telefone limpo) para parar followups pendentes.
 
-Filas sem agente IA (`queue_agent_links` ausente), usuário ausente ou sessões inexistentes → no-op silencioso.
-Mensagens enviadas por n8n, bot, campanha, autoreply, webhook ou qualquer integração server-side não podem parar a Julia.
+Webhooks/edge functions (`uazapi-chat-webhook`, `waba-send`, `meta-webhook`) NÃO desativam Julia por `fromMe` — ecos, bots, n8n e automações vêm como outbound.
+
+Transferências automáticas via routing rules server-side (UPDATE direto em `chat_conversations`) NÃO disparam, pois não passam por `assignConversation`.
+
+Filas sem agente IA, usuário não autenticado ou sessão inexistente → followup-stop ainda é tentado, mas update_session é no-op.
+
+**Helper edge legado:** `supabase/functions/_shared/disableJuliaOnHumanSend.ts` mantido (não chamado hoje) para uso futuro em edge functions.

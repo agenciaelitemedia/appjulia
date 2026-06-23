@@ -1,27 +1,37 @@
 ## Objetivo
-Quando um atendente humano envia uma mensagem manual e a Julia é desativada, disparar também a função `n8n_execute-followup-stop` para parar os follow-ups ativos e limpar o pré-followup daquele contato.
+Mudar quando a Julia (sessão IA + followup) é parada: **remover** o disparo atual no envio manual de mensagem/mídia e disparar **somente** quando o atendente:
+1. Clica em "Assumir" (botão do header ou do menu de ações rápidas ou do banner de claim no input).
+2. Transfere a conversa manualmente para outro atendente (TransferDialog).
+
+Não disparar em transferências automáticas (regras de routing server-side, que não passam por `assignConversation`).
 
 ## Mudanças
 
-### 1. `supabase/functions/_shared/disableJuliaOnHumanSend.ts`
-Após desativar a sessão Julia com sucesso (passo 3 atual), adicionar uma chamada fire-and-forget para `n8n_execute-followup-stop`:
+### 1. `src/contexts/WhatsAppDataContext.tsx`
+- **Remover** as duas chamadas atuais de `disableJuliaForManualUserSend` em `sendMessage` (linha ~1650) e `sendMedia` (linha ~2020).
+- **Manter** a função helper, mas renomear conceitualmente para `disableJuliaOnAssignOrTransfer` (mesma lógica de resolver `cod_agent` + desativar sessão).
+- **Adicionar** chamada à edge `n8n_execute-followup-stop` dentro desse helper (fire-and-forget, best-effort, idêntico ao que o helper edge `disableJuliaOnHumanSend` já faz). Assim o frontend para sessão Julia + followups numa só chamada.
+- **Chamar o helper dentro de `assignConversation`**, logo após o UPDATE em `chat_conversations` ter sucesso. Argumentos:
+  - `contactPhone`: buscar via `chat_conversations.contact_id → chat_contacts.phone` (ou usar contato já em memória via `contacts.find`).
+  - `queueId`: pegar de `chat_conversations.channel_source` da conversa (ou do `contacts.channel_source`).
+  - `userId`: usuário autenticado atual (apenas para confirmar que é ação humana — se não houver `user.id`, abortar).
+- Como `assignConversation` é chamada para ambos os casos (assumir e transferir), uma única injeção cobre os dois requisitos.
 
-- Parâmetros:
-  - `codAgent`: o mesmo `cod_agent` já resolvido via `queue_agent_links`
-  - `sessionId`: o `contactPhone` (já normalizado pelo chamador)
-- Invocação via `fetch` para `${SUPABASE_URL}/functions/v1/n8n_execute-followup-stop` usando service role (mesmo padrão do `callDbQuery`)
-- Erros são apenas logados (best-effort), não bloqueiam o fluxo de envio
-- Só dispara quando a desativação da sessão Julia realmente ocorreu (ou seja, dentro do mesmo bloco após `update_session_status`)
+### 2. Comportamento preservado / fora do escopo
+- Webhooks e edge functions de mensagens (`uazapi-chat-webhook`, `waba-send`, `meta-webhook`) continuam **sem** parar Julia.
+- Regras de routing automáticas que atualizam `assigned_to` direto no banco (sem passar pelo frontend `assignConversation`) **não** disparam followup-stop — atende ao requisito.
+- `handleReopen` no `ChatInput` chama `assignConversation` ao reabrir — como é uma ação manual do atendente, será coberta automaticamente (efeito colateral aceitável; se quiser excluir, sinalize).
+- Edge helper `supabase/functions/_shared/disableJuliaOnHumanSend.ts` permanece como está (ainda não é chamado por ninguém; mantemos para uso futuro em edge functions).
 
-### 2. Comportamento preservado
-- Mensagens de bot/campaign/autoreply/ai continuam sendo ignoradas (early-return já existente)
-- Filas sem agente IA (`cod_agent` ausente) continuam no-op — não dispara followup-stop também, pois não há agente
-- Sessão já inativa: mantém o comportamento atual (return antes de desativar). **Decisão a confirmar:** disparar followup-stop mesmo quando a sessão Julia já estava inativa? (caso o atendente continue conversando, pode haver followups antigos pendentes)
-
-## Pergunta antes de implementar
-Se a sessão Julia já estiver inativa (`session.active === false`), devo **mesmo assim** disparar o `followup-stop` para garantir que não sobrem follow-ups pendentes? Ou manter o early-return e só disparar quando há desativação efetiva?
+### 3. Atualizar memória
+- `mem/features/ai-agent/human-override-logic.md`: substituir a regra "envio manual de texto/mídia desativa Julia" pela nova regra "Assumir / Transferir manual desativa Julia + dispara `n8n_execute-followup-stop`".
 
 ## Arquivos
-- editar: `supabase/functions/_shared/disableJuliaOnHumanSend.ts`
+- editar: `src/contexts/WhatsAppDataContext.tsx`
+- editar: `mem/features/ai-agent/human-override-logic.md`
 
-Nenhuma mudança em frontend, config.toml ou na função `n8n_execute-followup-stop` em si.
+Nenhuma mudança em edge functions, config.toml ou backend.
+
+## Pontos a confirmar
+1. **`handleReopen`** (reabrir conversa fechada) também chama `assignConversation` — deve disparar followup-stop também? Padrão proposto: **sim**, pois é ação manual do atendente.
+2. Em transferência **para outro atendente**: a Julia deve ser parada mesmo se o `assigned_to` está mudando de Agente A para Agente B (sem envolver Julia)? Padrão proposto: **sim**, qualquer assign manual dispara.
