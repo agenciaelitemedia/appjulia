@@ -1225,12 +1225,28 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         user_id: user?.id ? Number(user.id) : null,
       });
 
+      // Manual assign/transfer by an authenticated user → stop Julia + followups.
+      try {
+        const conv = conversations.find((c) => c.id === conversationId);
+        const contact = contacts.find((c) => c.id === conv?.contact_id);
+        const queueId = (conv as any)?.channel_source || contact?.channel_source || null;
+        if (contact?.phone && queueId && user?.id) {
+          await disableJuliaOnAssignOrTransfer({
+            contactPhone: contact.phone,
+            queueId,
+            userId: Number(user.id),
+          });
+        }
+      } catch (e) {
+        console.warn('[assignConversation] disableJulia error:', e);
+      }
+
       toast.success('Conversa transferida');
     } catch (error) {
       console.error('Error assigning conversation:', error);
       toast.error('Erro ao transferir conversa');
     }
-  }, [user?.name]);
+  }, [user?.name, user?.id, conversations, contacts, disableJuliaOnAssignOrTransfer]);
 
   // ============================================
   // Tags
