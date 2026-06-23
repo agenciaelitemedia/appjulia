@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useNavigate } from 'react-router-dom';
 import { externalDb } from '@/lib/externalDb';
 import type { SessionStatus } from '@/lib/externalDb';
+import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { useContractInfo } from '@/pages/crm/hooks/useContractInfo';
 import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
@@ -84,23 +85,15 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
   const { data: crmCard } = useCRMCardByWhatsapp(codAgent ? phone : null);
   const { data: stages = [] } = useCRMStages();
 
-  const [sessionData, setSessionData] = useState<SessionStatus | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(false);
+  const {
+    session: sessionData,
+    isLoading: sessionLoading,
+    invalidate: invalidateSession,
+  } = useAgentSessionStatus(phone || null, codAgent);
   const [updatingSession, setUpdatingSession] = useState(false);
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
-
-  useEffect(() => {
-    if (!phone || !codAgent) { setSessionData(null); return; }
-    let cancelled = false;
-    setSessionLoading(true);
-    externalDb.getSessionStatus(phone, codAgent)
-      .then(result => { if (!cancelled) setSessionData(result); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setSessionLoading(false); });
-    return () => { cancelled = true; };
-  }, [phone, codAgent]);
 
   const handleToggleSession = async () => {
     if (!sessionData) return;
@@ -108,7 +101,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
     try {
       const newStatus = !sessionData.active;
       await externalDb.updateSessionStatus(sessionData.id, newStatus);
-      setSessionData({ ...sessionData, active: newStatus });
+      invalidateSession();
     } catch {
       /* noop */
     } finally {
