@@ -36,6 +36,33 @@ async function callDbQuery(action: string, data: unknown) {
   return res.json();
 }
 
+async function triggerFollowupStop(codAgent: string, sessionId: string): Promise<void> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/n8n_execute-followup-stop`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_KEY}`,
+        apikey: SERVICE_KEY,
+      },
+      body: JSON.stringify({ codAgent, sessionId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json?.error) {
+      console.error(
+        `[disableJulia][followup-stop] failed cod_agent=${codAgent} phone=${sessionId}: ${res.status} ${json?.error ?? ""}`,
+      );
+      return;
+    }
+    console.log(
+      `[disableJulia][followup-stop] ok cod_agent=${codAgent} phone=${sessionId} ` +
+        `temp=${json?.data?.deleted_temp ?? 0} queue=${json?.data?.updated_queue ?? 0} status=${json?.data?.deleted_status ?? 0}`,
+    );
+  } catch (err) {
+    console.error(`[disableJulia][followup-stop] error: ${(err as Error).message}`);
+  }
+}
+
 export async function disableJuliaOnHumanSend(args: DisableJuliaArgs): Promise<void> {
   const { clientId, queueId, contactPhone, messageSource } = args;
   try {
@@ -69,18 +96,19 @@ export async function disableJuliaOnHumanSend(args: DisableJuliaArgs): Promise<v
       console.log(`[disableJulia] no session for cod_agent=${codAgent} phone=${contactPhone}`);
       return;
     }
-    if (session.active === false) {
-      return; // already inactive
+    if (session.active !== false) {
+      // 3) Deactivate
+      await callDbQuery("update_session_status", {
+        sessionId: session.id,
+        active: false,
+      });
+      console.log(
+        `[disableJulia] deactivated session=${session.id} cod_agent=${codAgent} phone=${contactPhone}`,
+      );
     }
 
-    // 3) Deactivate
-    await callDbQuery("update_session_status", {
-      sessionId: session.id,
-      active: false,
-    });
-    console.log(
-      `[disableJulia] deactivated session=${session.id} cod_agent=${codAgent} phone=${contactPhone}`,
-    );
+    // 4) Stop any active follow-ups for this contact (best-effort).
+    await triggerFollowupStop(codAgent, contactPhone);
   } catch (err) {
     console.error(`[disableJulia] error: ${(err as Error).message}`);
   }
