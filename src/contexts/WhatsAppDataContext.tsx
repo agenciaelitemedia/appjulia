@@ -605,8 +605,41 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         console.warn('[Chat] followup-stop erro:', fnErr);
       }
 
-      // Refresh Julia status badges (header + conversation list) so they
-      // immediately reflect the inactive state after assumir/transferir.
+      // Re-read the authoritative session state from the backend and sync
+      // both the single-status cache (header) and the batch cache (list)
+      // so badges reflect exactly what the DB currently reports.
+      try {
+        const fresh = await externalDb.getSessionStatus(cleanPhone, codAgent);
+        // Sync every variant of the single-status cache for this codAgent
+        // (different callers pass the phone in different formats).
+        queryClient.setQueriesData(
+          { queryKey: ['agent-session-status', codAgent] },
+          fresh ?? null,
+        );
+        // Update every batch cache entry that contains this (phone, codAgent).
+        const isActive = fresh?.active === true;
+        queryClient.setQueriesData<Map<string, boolean> | undefined>(
+          { queryKey: ['agent-session-statuses-batch'] },
+          (prev) => {
+            if (!prev) return prev;
+            const next = new Map(prev);
+            for (const key of next.keys()) {
+              const sep = key.lastIndexOf(':');
+              const phone = key.slice(0, sep);
+              const agent = key.slice(sep + 1);
+              if (agent === codAgent && phone.replace(/\D/g, '') === cleanPhone) {
+                next.set(key, isActive);
+              }
+            }
+            return next;
+          },
+        );
+      } catch (syncErr) {
+        console.warn('[Chat] Falha ao sincronizar status Julia pós-parada:', syncErr);
+      }
+
+      // Also invalidate so any other consumers (different query keys / variants)
+      // re-fetch from source of truth on next read.
       queryClient.invalidateQueries({ queryKey: ['agent-session-status', codAgent] });
       queryClient.invalidateQueries({ queryKey: ['agent-session-statuses-batch'] });
     } catch (error) {
