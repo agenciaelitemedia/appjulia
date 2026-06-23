@@ -2022,12 +2022,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         sender_name: user?.name,
       });
 
-      await disableJuliaForManualUserSend({
-        contactPhone: contact.phone,
-        queueId: queue.id,
-        userId: user?.id ?? null,
-      });
-
       // Auto-transcribe outgoing audio when AUTO_TRANSCRIBE_AUDIO is enabled
       // for the client. The webhook only handles incoming/echoed audios, so
       // optimistic outgoing audios need an explicit trigger here.
@@ -2077,7 +2071,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         ) || [],
       }));
     }
-  }, [clientId, contacts, disableJuliaForManualUserSend, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
+  }, [clientId, contacts, getEffectiveQueue, getOrCreateConversation, user?.id, user?.name]);
 
   // ============================================
   // Download Media (decrypt UaZapi + persist)
