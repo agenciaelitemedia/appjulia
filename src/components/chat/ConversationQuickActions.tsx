@@ -173,7 +173,7 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
                   <LifeBuoy className="h-4 w-4 mr-2" />
                   Abrir ticket de suporte
                 </DropdownMenuItem>
-              )}
+              ) : null}
             </>
           )}
         </DropdownMenuContent>
