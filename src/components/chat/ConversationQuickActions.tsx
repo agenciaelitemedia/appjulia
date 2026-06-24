@@ -163,7 +163,7 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
                   <Eye className="h-4 w-4 mr-2" />
                   Ver ticket de suporte #{ticketLink.number ?? '—'}
                 </DropdownMenuItem>
-              ) : (
+              ) : canCreateTickets ? (
                 <DropdownMenuItem
                   onClick={(e) => {
                     stop(e);
