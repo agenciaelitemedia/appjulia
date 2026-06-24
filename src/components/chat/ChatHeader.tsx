@@ -723,9 +723,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                         <Search className="h-4 w-4 mr-2" />
                         Buscar nesta conversa
                       </DropdownMenuItem>
-                      const isPrivilegedRole = user?.role === 'admin' || user?.role === 'colaborador';
-                      const canViewTickets = hasPermission('support_tickets', 'view') || isPrivilegedRole;
-                      const canCreateTickets = hasPermission('support_tickets', 'create') || isPrivilegedRole;
                       {(canViewTickets || canCreateTickets) && (
                         ticketLink && canViewTickets ? (
                           <DropdownMenuItem onClick={() => setShowTicketDetail(ticketLink.ticketId)}>
