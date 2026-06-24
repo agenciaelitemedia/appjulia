@@ -265,6 +265,9 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
 
   const { data: ticketLinkMap } = useTicketLinkedConversations();
   const ticketLink = selectedConversation?.id ? ticketLinkMap?.get(selectedConversation.id) : undefined;
+  const isPrivilegedRole = user?.role === 'admin' || user?.role === 'colaborador';
+  const canViewTickets = hasPermission('support_tickets', 'view') || isPrivilegedRole;
+  const canCreateTickets = hasPermission('support_tickets', 'create') || isPrivilegedRole;
 
   const { data: queueLink } = useQueueAgentLink(selectedConversation?.queue_id);
   const queueId = selectedConversation?.queue_id || null;
