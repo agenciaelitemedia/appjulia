@@ -150,10 +150,10 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
             <CheckCircle2 className="h-4 w-4 mr-2" />
             Encerrar conversa
           </DropdownMenuItem>
-          {canSeeTicketAction && (
+          {onOpenTicket && (canViewTickets || canCreateTickets) && (
             <>
               <DropdownMenuSeparator />
-              {ticketLink ? (
+              {ticketLink && canViewTickets ? (
                 <DropdownMenuItem
                   onClick={(e) => {
                     stop(e);
