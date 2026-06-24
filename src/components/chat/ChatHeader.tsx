@@ -228,7 +228,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
 export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter, sendInternalNote } = useWhatsAppData();
   const { triggerAutoSummary } = useAutoSummaryOnStatusChange();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
   const { getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(
     selectedConversation?.id ? [selectedConversation.id] : [],
@@ -265,6 +265,9 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
 
   const { data: ticketLinkMap } = useTicketLinkedConversations();
   const ticketLink = selectedConversation?.id ? ticketLinkMap?.get(selectedConversation.id) : undefined;
+  const isPrivilegedRole = user?.role === 'admin' || user?.role === 'colaborador';
+  const canViewTickets = hasPermission('support_tickets', 'view') || isPrivilegedRole;
+  const canCreateTickets = hasPermission('support_tickets', 'create') || isPrivilegedRole;
 
   const { data: queueLink } = useQueueAgentLink(selectedConversation?.queue_id);
   const queueId = selectedConversation?.queue_id || null;
@@ -720,18 +723,18 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                         <Search className="h-4 w-4 mr-2" />
                         Buscar nesta conversa
                       </DropdownMenuItem>
-                      {(user?.role === 'admin' || user?.role === 'colaborador') && (
-                        ticketLink ? (
+                      {(canViewTickets || canCreateTickets) && (
+                        ticketLink && canViewTickets ? (
                           <DropdownMenuItem onClick={() => setShowTicketDetail(ticketLink.ticketId)}>
                             <Eye className="h-4 w-4 mr-2" />
                             Ver ticket de suporte #{ticketLink.number ?? '—'}
                           </DropdownMenuItem>
-                        ) : (
+                        ) : canCreateTickets ? (
                           <DropdownMenuItem onClick={() => setShowNewTicket(true)}>
                             <LifeBuoy className="h-4 w-4 mr-2" />
                             Abrir ticket de suporte
                           </DropdownMenuItem>
-                        )
+                        ) : null
                       )}
                       <DropdownMenuItem onClick={() => setShowHelp(true)}>
                         <Keyboard className="h-4 w-4 mr-2" />

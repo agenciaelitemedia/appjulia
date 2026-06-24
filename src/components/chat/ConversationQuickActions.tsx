@@ -25,7 +25,7 @@ interface Props {
 }
 
 export function ConversationQuickActions({ conversation, ticketLink, onOpenTicket }: Props) {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { assignConversation, updateConversationStatus, sendInternalNote } = useWhatsAppData();
   const { triggerAutoSummary } = useAutoSummaryOnStatusChange();
   const [open, setOpen] = useState(false);
@@ -34,8 +34,9 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
   const [busy, setBusy] = useState(false);
 
   const currentUserName = user?.name || (user?.id ? String(user.id) : '');
-  const canSeeTicketAction =
-    !!onOpenTicket && (user?.role === 'admin' || user?.role === 'colaborador');
+  const isPrivilegedRole = user?.role === 'admin' || user?.role === 'colaborador';
+  const canViewTickets = hasPermission('support_tickets', 'view') || isPrivilegedRole;
+  const canCreateTickets = hasPermission('support_tickets', 'create') || isPrivilegedRole;
 
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
@@ -149,10 +150,10 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
             <CheckCircle2 className="h-4 w-4 mr-2" />
             Encerrar conversa
           </DropdownMenuItem>
-          {canSeeTicketAction && (
+          {onOpenTicket && (canViewTickets || canCreateTickets) && (
             <>
               <DropdownMenuSeparator />
-              {ticketLink ? (
+              {ticketLink && canViewTickets ? (
                 <DropdownMenuItem
                   onClick={(e) => {
                     stop(e);
@@ -162,7 +163,7 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
                   <Eye className="h-4 w-4 mr-2" />
                   Ver ticket de suporte #{ticketLink.number ?? '—'}
                 </DropdownMenuItem>
-              ) : (
+              ) : canCreateTickets ? (
                 <DropdownMenuItem
                   onClick={(e) => {
                     stop(e);
@@ -172,7 +173,7 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
                   <LifeBuoy className="h-4 w-4 mr-2" />
                   Abrir ticket de suporte
                 </DropdownMenuItem>
-              )}
+              ) : null}
             </>
           )}
         </DropdownMenuContent>
