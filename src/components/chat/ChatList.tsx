@@ -24,6 +24,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ChatContactItem } from './ChatContactItem';
 import { Badge } from '@/components/ui/badge';
 import { useAccessibleQueues } from '@/pages/agente/filas/hooks/useQueues';
+import { useQueueConnectionStatusesBatch } from '@/hooks/useQueueConnectionStatusesBatch';
 import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';
 import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
