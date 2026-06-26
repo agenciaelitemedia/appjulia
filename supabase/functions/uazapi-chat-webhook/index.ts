@@ -335,6 +335,8 @@ function buildLastMessagePreview(text: unknown, type: string, fileName?: string)
 function extractMessageType(msg: any): string {
   // UaZapi uses messageType="ImageMessage"|"AudioMessage"|... AND mediaType="image"|"audio"|...
   const mt = (msg.mediaType || msg.messageType || msg.type || '').toLowerCase();
+  // GIFs are transmitted by WhatsApp as video/mp4 (mediaType="gif", messageType="VideoMessage")
+  if (mt === 'gif' || mt.includes('animated')) return 'video';
   if (mt.includes('image') || msg.message?.imageMessage || msg.isMedia && mt.includes('image')) return 'image';
   if (mt.includes('video') || msg.message?.videoMessage) return 'video';
   if (mt.includes('ptt') || msg.message?.audioMessage?.ptt || msg.isPtt) return 'ptt';
@@ -345,7 +347,32 @@ function extractMessageType(msg: any): string {
   if (mt.includes('contact') || msg.message?.contactMessage) return 'contact';
   if (mt.includes('reaction') || msg.message?.reactionMessage) return 'reaction';
   if (mt.includes('revoked') || mt.includes('protocol') || msg.message?.protocolMessage) return 'revoked';
-  // Fallback: msg.type === 'media' + presence of content.URL → guess image
+  // MIME-based fallback before guessing image. WhatsApp/UaZapi sometimes ship media payloads
+  // without an explicit messageType — inspect the mimetype on the content blob.
+  const mime = String(
+    msg.content?.mimetype
+      || msg.content?.mimeType
+      || msg.mimetype
+      || msg.message?.imageMessage?.mimetype
+      || msg.message?.videoMessage?.mimetype
+      || msg.message?.audioMessage?.mimetype
+      || msg.message?.documentMessage?.mimetype
+      || msg.message?.stickerMessage?.mimetype
+      || ''
+  ).toLowerCase();
+  if (mime) {
+    if (mime.startsWith('video/')) return 'video';
+    if (mime.startsWith('image/')) {
+      // image/gif from WhatsApp animated GIF is delivered as video/mp4, but if a true image/gif
+      // arrives here, treat it as image.
+      return 'image';
+    }
+    if (mime.startsWith('audio/')) {
+      return (msg.isPtt || msg.ptt) ? 'ptt' : 'audio';
+    }
+    if (mime.startsWith('application/') || mime.startsWith('text/')) return 'document';
+  }
+  // Last-resort fallback: msg.type === 'media' + content.URL but no mimetype clues → image.
   if ((msg.type === 'media' || mt === 'media') && msg.content?.URL) return 'image';
   return 'text';
 }
