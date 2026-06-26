@@ -1623,6 +1623,8 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
               const queueIdToShow = conv?.queue_id || contactConvs.find(c => c.queue_id)?.queue_id;
               const convQueue = queueIdToShow ? activeQueues.find(q => q.id === queueIdToShow) : undefined;
               const queueLink = queueIdToShow ? queueAgentMap?.get(queueIdToShow) : undefined;
+              const isQueueDisconnected =
+                !!queueIdToShow && queueConnectionMap.get(queueIdToShow) === false;
               const agentCodAgent = queueLink?.hasAgent ? queueLink.codAgent : null;
               const agentAlias = agentCodAgent
                 ? (aliasMap.get(agentCodAgent) || agentBusinessNameMap.get(agentCodAgent) || null)
@@ -1680,6 +1682,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                           }
                         : undefined
                     }
+                    isQueueDisconnected={isQueueDisconnected}
                   />
                 </div>
               );
