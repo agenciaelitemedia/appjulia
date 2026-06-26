@@ -8,6 +8,16 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
 import type { ChatContact } from '@/types/chat';
@@ -55,6 +65,8 @@ interface ChatContactItemProps {
   lastMessageMeta?: LastMessageMeta;
   /** Acionado pelo menu de contexto para abrir/visualizar ticket de suporte. */
   onOpenTicket?: (mode: 'create' | 'detail', ticketId?: string) => void;
+  /** Quando true, indica que a fila vinculada à conversa está desconectada. */
+  isQueueDisconnected?: boolean;
 }
 
 function ChannelOverlay({ channel }: { channel?: string }) {
@@ -133,6 +145,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   ticketLink,
   lastMessageMeta,
   onOpenTicket,
+  isQueueDisconnected,
 }: ChatContactItemProps) {
   const { configs } = useChatSlaConfigs();
   const { hasPermission, user } = useAuth();
@@ -171,15 +184,25 @@ export const ChatContactItem = React.memo(function ChatContactItem({
 
   const visibleTags = convTags || [];
 
+  const [showDisconnectedDialog, setShowDisconnectedDialog] = React.useState(false);
+
+  const handleItemClick = React.useCallback(() => {
+    if (isQueueDisconnected) {
+      setShowDisconnectedDialog(true);
+      return;
+    }
+    onClick();
+  }, [isQueueDisconnected, onClick]);
+
   const itemContent = (
     <div
       role="button"
       tabIndex={0}
-      onClick={onClick}
+      onClick={handleItemClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onClick();
+          handleItemClick();
         }
       }}
       className={cn(
@@ -189,7 +212,9 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           : cn(
               'border-l-transparent hover:bg-accent/20',
               index % 2 === 0 ? 'bg-background' : 'bg-muted/30'
-            )
+            ),
+        isQueueDisconnected &&
+          '!bg-destructive/10 hover:!bg-destructive/15 border-l-destructive/60',
       )}
     >
       {/* Avatar with channel overlay */}
@@ -431,13 +456,46 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     </div>
   );
 
+  const disconnectedDialog = (
+    <AlertDialog open={showDisconnectedDialog} onOpenChange={setShowDisconnectedDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-2">
+            <AlertTriangle className="h-6 w-6 text-destructive" />
+          </div>
+          <AlertDialogTitle className="text-center">Fila desconectada</AlertDialogTitle>
+          <AlertDialogDescription className="text-center">
+            A fila {queueName ? <span className="font-semibold">"{queueName}"</span> : 'desta conversa'} está
+            desconectada no momento. Não será possível enviar mensagens até que a conexão seja restabelecida.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction
+            onClick={() => {
+              setShowDisconnectedDialog(false);
+              onClick();
+            }}
+          >
+            Entendi, abrir conversa
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   if (!canViewTickets || !onOpenTicket) {
-    return itemContent;
+    return (
+      <>
+        {itemContent}
+        {disconnectedDialog}
+      </>
+    );
   }
 
   const hasTicket = !!ticketLink;
 
   return (
+    <>
     <ContextMenu>
       <ContextMenuTrigger asChild>{itemContent}</ContextMenuTrigger>
       <ContextMenuContent className="w-60">
@@ -467,6 +525,8 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         )}
       </ContextMenuContent>
     </ContextMenu>
+    {disconnectedDialog}
+    </>
   );
 }, (prev, next) => {
   // Custom shallow comparison: avoids re-renders when parent rebuilds
@@ -485,6 +545,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   if (prev.ticketLink?.status !== next.ticketLink?.status) return false;
   if (prev.ticketLink?.number !== next.ticketLink?.number) return false;
   if (prev.onOpenTicket !== next.onOpenTicket) return false;
+  if (prev.isQueueDisconnected !== next.isQueueDisconnected) return false;
   if (prev.index !== next.index) return false;
   if (prev.contact?.id !== next.contact?.id) return false;
   if (prev.contact?.name !== next.contact?.name) return false;
