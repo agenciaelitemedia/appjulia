@@ -266,6 +266,9 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     return () => observer.disconnect();
   }, [hasMoreConversations, loadMoreConversations, isSearching]);
   const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
+  // Connection status (uazapi/waba) per queue — used to flag conversations
+  // whose queue is offline and to block sends behind a warning popup.
+  const { statusMap: queueConnectionMap } = useQueueConnectionStatusesBatch(activeQueues);
 
   // Default = "Todas as filas" (selectedQueue null). No auto-select.
 
