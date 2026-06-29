@@ -484,12 +484,19 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     <>
       <div className="border-b bg-background">
       <div className="flex items-center gap-3 p-3">
-        <Avatar className="h-10 w-10">
-          <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
-          <AvatarFallback className="bg-primary/10 text-primary font-medium">
-            {contact.is_group ? <Users className="h-4 w-4" /> : initials}
-          </AvatarFallback>
-        </Avatar>
+        <button
+          type="button"
+          onClick={() => contact.avatar && setAvatarOpen(true)}
+          className={contact.avatar ? 'cursor-zoom-in' : 'cursor-default'}
+          aria-label="Ver foto do contato"
+        >
+          <Avatar className="h-10 w-10">
+            <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
+            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+              {contact.is_group ? <Users className="h-4 w-4" /> : initials}
+            </AvatarFallback>
+          </Avatar>
+        </button>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
