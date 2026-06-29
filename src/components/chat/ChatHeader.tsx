@@ -259,6 +259,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showSearch, setShowSearch] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
