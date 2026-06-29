@@ -1,53 +1,28 @@
-## Problema
+## Mudanças em /contatos e chat
 
-A mensagem do número **5584986206195** foi um **GIF animado** (que o WhatsApp transmite como `video/mp4`), mas foi salva no banco como `type='image'` com preview "📷 Imagem" — embora o `media_url` aponte para um `.mp4`. Isso quebra a renderização (o componente tenta carregar como imagem em vez de player de vídeo).
+### 1. Exportar contatos para Excel (`/contatos`)
+- Adicionar botão "Exportar Excel" no header de `ContatosPage.tsx`, ao lado do campo de busca.
+- Usar a lib `xlsx` (já comum no projeto; instalar se necessário) para gerar `.xlsx` com colunas: **Nome**, **Telefone**, **Fila**, **Data de cadastro**.
+- Exportar respeitando a aba ativa (Contatos ou Grupos) e o filtro de busca atual.
+- Nome do arquivo: `contatos_YYYY-MM-DD.xlsx` (ou `grupos_…`).
 
-### Causa raiz (em `supabase/functions/uazapi-chat-webhook/index.ts`, função `extractMessageType`)
+### 2. Mostrar nome da fila em vez do ID
+- Hoje `ContactsTable.tsx` renderiza `c.channel_source` na coluna "Fila", e o hook retorna provavelmente o `queue_id`.
+- Ajustar `useContactsList.ts` para fazer join/lookup em `queues` (id → name) e retornar `queue_name`.
+- `ContactsTable` passa a exibir `queue_name`; o mesmo valor vai para o export.
 
-Payload recebido:
-- `messageType: "VideoMessage"`
-- `mediaType: "gif"`
-- `type: "media"`
-- `content.URL` presente
-- `content.mimetype: "video/mp4"`
+### 3. Foto em modal (lightbox) com download
+- Reaproveitar o componente existente `src/components/chat/MediaLightbox.tsx` (já suporta imagem + botão de download).
+- **Em `/contatos`**: tornar o `Avatar` da tabela clicável; ao clicar, abrir `MediaLightbox` com o `avatar` do contato. Quando não houver `avatar`, manter comportamento atual (sem ação).
+- **No header do chat**: localizar `ChatHeader.tsx` (foto do contato) e tornar o avatar clicável, abrindo o mesmo `MediaLightbox` com a URL da foto. Nome do arquivo de download = nome do contato.
 
-Fluxo atual:
-1. `mt = "gif"` (mediaType vence sobre messageType).
-2. Nenhuma das checagens `.includes('image'|'video'|...)` casa com `"gif"`.
-3. Cai no fallback final (linha 349): `msg.type === 'media' && content.URL` → retorna sempre **`'image'`**. Bug.
+### Arquivos afetados
+- `src/pages/contatos/ContatosPage.tsx` — botão export + handler.
+- `src/pages/contatos/components/ContactsTable.tsx` — avatar clicável, coluna passa a usar `queue_name`.
+- `src/pages/contatos/hooks/useContactsList.ts` — resolver nome da fila.
+- `src/components/chat/ChatHeader.tsx` — avatar clicável → `MediaLightbox`.
+- (Reuso) `src/components/chat/MediaLightbox.tsx` — sem alteração.
 
-## Plano
-
-### 1) Corrigir `extractMessageType` (uazapi-chat-webhook)
-
-Tornar a detecção robusta sem quebrar fluxos atuais:
-
-- Tratar `mediaType === 'gif'` (e variantes como `'animated'`) como **`video`** — WhatsApp envia GIF como mp4 e o `messageType` já é `VideoMessage`.
-- Antes do fallback "media → image", inspecionar `content.mimetype` (e `message.*.mimetype`) e mapear pelo prefixo MIME:
-  - `image/*` → `image`
-  - `video/*` → `video`
-  - `audio/*` → `ptt` se `is_ptt`/`ptt`, senão `audio`
-  - `application/*` ou outros → `document`
-- Só usar o fallback "image" se realmente não houver mimetype/messageType identificável (mantém comportamento legado quando não há pistas).
-- Manter a ordem das checagens atuais para casos já funcionando (image, video, ptt, audio, document, sticker, location, contact, reaction, revoked) — apenas inserir os novos ramos antes do fallback genérico.
-
-### 2) Backfill pontual do registro afetado
-
-Atualizar a mensagem `51d9ba91-68d4-425f-87c3-e4e2a7ff65d4` (e, via query defensiva, quaisquer outras onde `type='image'` mas o `metadata->>'mimetype'` ou `raw_payload->>'messageType'` indique vídeo) para `type='video'`, ajustando também `last_message_text` no contato quando for a última mensagem. Sem mexer em mídia já baixada.
-
-### 3) Memória
-
-Atualizar `mem://index.md` adicionando referência e criar `mem://technical/chat/uazapi-message-type-detection.md` documentando:
-- Que `mediaType=gif` no UaZapi = vídeo mp4 (não imagem).
-- Ordem de prioridade da detecção: `messageType` específico → `mediaType` → mimetype do `content` → fallback.
-- Proibido o fallback cego para `image` sem inspecionar mimetype primeiro.
-
-## Arquivos tocados
-
-- `supabase/functions/uazapi-chat-webhook/index.ts` (apenas `extractMessageType` + helpers locais).
-- Migration de backfill (ou `supabase--insert` UPDATE pontual).
-- `mem://index.md` e novo arquivo de memória técnica.
-
-## Riscos
-
-Baixo. A mudança só adiciona ramos antes do fallback genérico atual; tipos já corretamente classificados continuam pelo mesmo caminho.
+### Observações
+- Não altero lógica de negócio do chat nem do listador além do necessário para exibir o nome da fila.
+- Se `xlsx` ainda não estiver instalado no projeto, será adicionado via `bun add xlsx`.
