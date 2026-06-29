@@ -38,6 +38,7 @@ import { ChatSearchDialog } from './ChatSearchDialog';
 import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
+import { MediaLightbox } from './MediaLightbox';
 import { ChatCrmButton } from './ChatCrmButton';
 import { ChatTicketSidePanel } from './ChatTicketSidePanel';
 import { ChatTicketDetailSidePanel } from './ChatTicketDetailSidePanel';
