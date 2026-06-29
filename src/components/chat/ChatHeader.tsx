@@ -854,6 +854,15 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
           ticketId={showTicketDetail}
         />
       )}
+
+      <MediaLightbox
+        open={avatarOpen}
+        onOpenChange={setAvatarOpen}
+        url={contact.avatar ?? null}
+        caption={contact.name}
+        fileName={`${(contact.name || contact.phone).replace(/[^a-zA-Z0-9-_]+/g, '_')}.jpg`}
+        kind="image"
+      />
     </>
   );
 }
