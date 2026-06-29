@@ -8,6 +8,7 @@ export interface ContactRow {
   phone: string;
   avatar: string | null;
   channel_source: string | null;
+  queue_name: string | null;
   channel_type: string;
   is_group: boolean | null;
   last_message_at: string | null;
@@ -32,7 +33,22 @@ export function useContactsList(isGroup: boolean) {
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .limit(5000);
       if (error) throw error;
-      return (data ?? []) as ContactRow[];
+      const rows = (data ?? []) as ContactRow[];
+      const queueIds = Array.from(
+        new Set(rows.map((r) => r.channel_source).filter((v): v is string => !!v))
+      );
+      let nameById = new Map<string, string>();
+      if (queueIds.length) {
+        const { data: queues } = await supabase
+          .from('queues')
+          .select('id,name')
+          .in('id', queueIds);
+        nameById = new Map((queues ?? []).map((q: any) => [String(q.id), q.name as string]));
+      }
+      return rows.map((r) => ({
+        ...r,
+        queue_name: r.channel_source ? nameById.get(r.channel_source) ?? null : null,
+      }));
     },
   });
 }
