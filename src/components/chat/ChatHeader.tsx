@@ -38,6 +38,7 @@ import { ChatSearchDialog } from './ChatSearchDialog';
 import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { SnoozeDialog } from './SnoozeDialog';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
+import { MediaLightbox } from './MediaLightbox';
 import { ChatCrmButton } from './ChatCrmButton';
 import { ChatTicketSidePanel } from './ChatTicketSidePanel';
 import { ChatTicketDetailSidePanel } from './ChatTicketDetailSidePanel';
@@ -258,6 +259,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showSearch, setShowSearch] = useState(false);
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
@@ -482,12 +484,19 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     <>
       <div className="border-b bg-background">
       <div className="flex items-center gap-3 p-3">
-        <Avatar className="h-10 w-10">
-          <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
-          <AvatarFallback className="bg-primary/10 text-primary font-medium">
-            {contact.is_group ? <Users className="h-4 w-4" /> : initials}
-          </AvatarFallback>
-        </Avatar>
+        <button
+          type="button"
+          onClick={() => contact.avatar && setAvatarOpen(true)}
+          className={contact.avatar ? 'cursor-zoom-in' : 'cursor-default'}
+          aria-label="Ver foto do contato"
+        >
+          <Avatar className="h-10 w-10">
+            <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
+            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+              {contact.is_group ? <Users className="h-4 w-4" /> : initials}
+            </AvatarFallback>
+          </Avatar>
+        </button>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -845,6 +854,15 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
           ticketId={showTicketDetail}
         />
       )}
+
+      <MediaLightbox
+        open={avatarOpen}
+        onOpenChange={setAvatarOpen}
+        url={contact.avatar ?? null}
+        caption={contact.name}
+        fileName={`${(contact.name || contact.phone).replace(/[^a-zA-Z0-9-_]+/g, '_')}.jpg`}
+        kind="image"
+      />
     </>
   );
 }

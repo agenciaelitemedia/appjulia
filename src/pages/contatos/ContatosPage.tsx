@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { Search, Users } from 'lucide-react';
+import { Search, Users, Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import * as XLSX from 'xlsx';
+import { format } from 'date-fns';
 import { useContactsList, useContactsCount } from './hooks/useContactsList';
 import { useDebounce } from '@/hooks/useDebounce';
 import { ContactsTable } from './components/ContactsTable';
@@ -25,6 +28,21 @@ export default function ContatosPage() {
     );
   }, [contacts, debouncedSearch]);
 
+  const handleExport = () => {
+    const rows = filtered.map((c) => ({
+      Nome: c.name || '',
+      Telefone: c.phone || '',
+      Fila: c.queue_name || '',
+      'Data de cadastro': c.created_at ? format(new Date(c.created_at), 'dd/MM/yyyy HH:mm') : '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 24 }, { wch: 18 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, isGroup ? 'Grupos' : 'Contatos');
+    const fileName = `${isGroup ? 'grupos' : 'contatos'}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -39,14 +57,24 @@ export default function ContatosPage() {
             </p>
           </div>
         </div>
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar nome ou telefone..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar nome ou telefone..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={isLoading || filtered.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportar Excel
+          </Button>
         </div>
       </div>
 

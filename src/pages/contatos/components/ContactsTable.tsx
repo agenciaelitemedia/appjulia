@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/tooltip';
 import { EditContactDialog } from './EditContactDialog';
 import { DeleteContactDialog } from './DeleteContactDialog';
+import { MediaLightbox } from '@/components/chat/MediaLightbox';
 import type { ContactRow } from '../hooks/useContactsList';
 
 interface Props {
@@ -37,6 +38,7 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<ContactRow | null>(null);
   const [deleting, setDeleting] = useState<ContactRow | null>(null);
+  const [lightbox, setLightbox] = useState<ContactRow | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(contacts.length / PAGE_SIZE));
   const paginated = useMemo(
@@ -92,18 +94,25 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
               paginated.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell>
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={c.avatar ?? undefined} />
-                      <AvatarFallback className="text-xs">
-                        {(c.name || c.phone).slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    <button
+                      type="button"
+                      onClick={() => c.avatar && setLightbox(c)}
+                      className={c.avatar ? 'cursor-zoom-in' : 'cursor-default'}
+                      aria-label="Ver foto"
+                    >
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={c.avatar ?? undefined} />
+                        <AvatarFallback className="text-xs">
+                          {(c.name || c.phone).slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </button>
                   </TableCell>
                   <TableCell className="font-medium">{truncate(c.name || '—')}</TableCell>
                   <TableCell className="font-mono text-sm">{c.phone}</TableCell>
                   <TableCell>
-                    {c.channel_source ? (
-                      <Badge variant="secondary" className="text-xs">{c.channel_source}</Badge>
+                    {c.queue_name ? (
+                      <Badge variant="secondary" className="text-xs">{c.queue_name}</Badge>
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
@@ -162,6 +171,14 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
 
       <EditContactDialog contact={editing} open={!!editing} onOpenChange={(o) => !o && setEditing(null)} />
       <DeleteContactDialog contact={deleting} open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)} />
+      <MediaLightbox
+        open={!!lightbox}
+        onOpenChange={(o) => !o && setLightbox(null)}
+        url={lightbox?.avatar ?? null}
+        caption={lightbox?.name ?? null}
+        fileName={lightbox ? `${(lightbox.name || lightbox.phone).replace(/[^a-zA-Z0-9-_]+/g, '_')}.jpg` : null}
+        kind="image"
+      />
     </TooltipProvider>
   );
 }
