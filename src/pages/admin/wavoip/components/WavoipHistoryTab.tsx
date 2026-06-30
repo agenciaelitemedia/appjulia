@@ -3,6 +3,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useWavoipCallLogs } from '../hooks/useWavoipAdmin';
 import { format } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Copy } from 'lucide-react';
+import { toast } from 'sonner';
 
 function fmtDuration(s: number) {
   const m = Math.floor(s / 60);
@@ -12,7 +15,19 @@ function fmtDuration(s: number) {
 
 export function WavoipHistoryTab() {
   const { data: logs = [], isLoading } = useWavoipCallLogs();
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined;
+  const webhookUrl = projectId ? `https://${projectId}.functions.supabase.co/wavoip-call-webhook` : '';
   return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Webhook de eventos</CardTitle></CardHeader>
+        <CardContent className="flex items-center gap-2">
+          <code className="flex-1 text-xs bg-muted p-2 rounded break-all">{webhookUrl || 'indisponível'}</code>
+          <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success('URL copiada'); }} disabled={!webhookUrl}>
+            <Copy className="h-4 w-4 mr-1" /> Copiar
+          </Button>
+        </CardContent>
+      </Card>
     <Card>
       <CardHeader><CardTitle className="text-lg">Histórico de chamadas</CardTitle></CardHeader>
       <CardContent>
@@ -44,5 +59,6 @@ export function WavoipHistoryTab() {
         </Table>
       </CardContent>
     </Card>
+    </div>
   );
 }
