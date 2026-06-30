@@ -6,10 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useDeleteWavoipPlan, useUpsertWavoipPlan, useWavoipPlans, type WavoipPlan } from '../hooks/useWavoipAdmin';
 import { Badge } from '@/components/ui/badge';
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
 
 const emptyPlan: Partial<WavoipPlan> = {
   name: '',
@@ -28,6 +28,7 @@ export function WavoipPlansTab() {
   const del = useDeleteWavoipPlan();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<WavoipPlan>>(emptyPlan);
+  const [deleteTarget, setDeleteTarget] = useState<WavoipPlan | null>(null);
 
   const startNew = () => { setEditing(emptyPlan); setOpen(true); };
   const startEdit = (p: WavoipPlan) => { setEditing(p); setOpen(true); };
@@ -120,27 +121,26 @@ export function WavoipPlansTab() {
                 <TableCell>{p.active ? <Badge>Ativo</Badge> : <Badge variant="outline">Inativo</Badge>}</TableCell>
                 <TableCell className="text-right">
                   <Button size="icon" variant="ghost" onClick={() => startEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="icon" variant="ghost"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir plano?</AlertDialogTitle>
-                        <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => del.mutate(p.id)}>Excluir</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(p)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </CardContent>
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        title="Excluir plano permanentemente?"
+        description={<>O plano <strong>{deleteTarget?.name}</strong> será removido. Esta ação <strong>não pode ser desfeita</strong>.</>}
+        toggleLabel="Confirmo a exclusão definitiva deste plano"
+        loading={del.isPending}
+        onConfirm={() => {
+          if (deleteTarget) del.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+        }}
+      />
     </Card>
   );
 }
