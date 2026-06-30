@@ -1,0 +1,1 @@
+ALTER TABLE public.wavoip_devices ADD COLUMN IF NOT EXISTS webhook_last_received_at timestamptz;

@@ -7712,6 +7712,7 @@ export type Database = {
           user_plan_id: string | null
           webhook_checked_at: string | null
           webhook_last_error: string | null
+          webhook_last_received_at: string | null
           webhook_status: string | null
           webhook_url: string | null
           whatsapp_jid: string | null
@@ -7738,6 +7739,7 @@ export type Database = {
           user_plan_id?: string | null
           webhook_checked_at?: string | null
           webhook_last_error?: string | null
+          webhook_last_received_at?: string | null
           webhook_status?: string | null
           webhook_url?: string | null
           whatsapp_jid?: string | null
@@ -7764,6 +7766,7 @@ export type Database = {
           user_plan_id?: string | null
           webhook_checked_at?: string | null
           webhook_last_error?: string | null
+          webhook_last_received_at?: string | null
           webhook_status?: string | null
           webhook_url?: string | null
           whatsapp_jid?: string | null
