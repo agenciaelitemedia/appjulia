@@ -69,7 +69,7 @@ export default function WavoipPage() {
     if (!hasActivePlan) { toast.error('Ative um plano antes de provisionar'); return; }
     setProvisioning(true);
     const { data, error } = await (supabase as any).functions.invoke('wavoip-provision-device', {
-      body: { device_name: form.device_name || 'Lovable Device', whatsapp_number: form.whatsapp_number || null },
+      body: { device_name: form.device_name || 'Lovable Device', whatsapp_number: form.whatsapp_number || null, client_id: clientId },
     });
     setProvisioning(false);
     if (error || data?.error) { toast.error(error?.message || data?.error || 'Falha ao provisionar'); return; }
