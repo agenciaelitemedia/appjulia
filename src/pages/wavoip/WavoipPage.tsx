@@ -11,13 +11,16 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Device = { id: string; device_token: string; device_name: string | null; whatsapp_number: string | null; status: string; created_at: string };
 type CallLog = { id: string; created_at: string; direction: string; status: string; from_number: string | null; to_number: string | null; duration_seconds: number };
 
 export default function WavoipPage() {
   const { hasActivePlan, ready, openWidget, refreshDevices } = useWavoip();
+  const { user } = useAuth();
   const [userId, setUserId] = useState<string | null>(null);
+  const clientId = user?.client_id ?? null;
   const [devices, setDevices] = useState<Device[]>([]);
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,24 +33,25 @@ export default function WavoipPage() {
   }, []);
 
   const load = async () => {
-    if (!userId) return;
+    if (!clientId) return;
     setLoading(true);
     const [devRes, callRes] = await Promise.all([
-      (supabase as any).from('wavoip_devices').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-      (supabase as any).from('wavoip_call_logs').select('id,created_at,direction,status,from_number,to_number,duration_seconds').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+      (supabase as any).from('wavoip_devices').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
+      (supabase as any).from('wavoip_call_logs').select('id,created_at,direction,status,from_number,to_number,duration_seconds').eq('client_id', clientId).order('created_at', { ascending: false }).limit(50),
     ]);
     setLoading(false);
     if (devRes.error) { toast.error(devRes.error.message); return; }
     setDevices((devRes.data ?? []) as Device[]);
     setCalls((callRes.data ?? []) as CallLog[]);
   };
-  useEffect(() => { void load(); /* eslint-disable-next-line */ }, [userId]);
+  useEffect(() => { void load(); /* eslint-disable-next-line */ }, [clientId]);
 
   const handleAdd = async () => {
-    if (!userId) return;
+    if (!clientId) { toast.error('Cliente não identificado'); return; }
     if (!form.device_token.trim()) { toast.error('Informe o token do dispositivo'); return; }
     const { error } = await (supabase as any).from('wavoip_devices').insert({
       user_id: userId,
+      client_id: clientId,
       device_token: form.device_token.trim(),
       device_name: form.device_name || null,
       whatsapp_number: form.whatsapp_number || null,
@@ -65,7 +69,7 @@ export default function WavoipPage() {
     if (!hasActivePlan) { toast.error('Ative um plano antes de provisionar'); return; }
     setProvisioning(true);
     const { data, error } = await (supabase as any).functions.invoke('wavoip-provision-device', {
-      body: { device_name: form.device_name || 'Lovable Device', whatsapp_number: form.whatsapp_number || null },
+      body: { device_name: form.device_name || 'Lovable Device', whatsapp_number: form.whatsapp_number || null, client_id: clientId },
     });
     setProvisioning(false);
     if (error || data?.error) { toast.error(error?.message || data?.error || 'Falha ao provisionar'); return; }

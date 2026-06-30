@@ -19,7 +19,15 @@ export type WavoipPlan = {
 
 export type WavoipUserPlan = {
   id: string;
-  user_id: string;
+  user_id: string | null;
+  client_id: number | null;
+  client_name: string | null;
+  business_name: string | null;
+  is_active: boolean;
+  billing_period: string;
+  extra_devices: number;
+  start_date: string | null;
+  due_date: string | null;
   plan_id: string;
   status: string;
   activated_at: string;
@@ -146,11 +154,31 @@ export function useWavoipUserPlans() {
 export function useActivateWavoipForUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ user_id, plan_id }: { user_id: string; plan_id: string }) => {
+    mutationFn: async (params: {
+      client_id: number;
+      plan_id: string;
+      client_name: string;
+      business_name?: string | null;
+      extra_devices?: number;
+      billing_period?: string;
+    }) => {
+      // Deactivate previous plans for this client
+      await (supabase as any)
+        .from('wavoip_user_plans')
+        .update({ is_active: false, status: 'cancelled', cancelled_at: new Date().toISOString() })
+        .eq('client_id', params.client_id)
+        .eq('is_active', true);
+
       const { error } = await (supabase as any).from('wavoip_user_plans').insert({
-        user_id,
-        plan_id,
+        client_id: params.client_id,
+        client_name: params.client_name,
+        business_name: params.business_name ?? null,
+        plan_id: params.plan_id,
+        billing_period: params.billing_period ?? 'monthly',
+        extra_devices: params.extra_devices ?? 0,
         status: 'active',
+        is_active: true,
+        start_date: new Date().toISOString().slice(0, 10),
       });
       if (error) throw error;
     },
@@ -168,7 +196,7 @@ export function useDeactivateWavoipUserPlan() {
     mutationFn: async (id: string) => {
       const { error } = await (supabase as any)
         .from('wavoip_user_plans')
-        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+        .update({ status: 'cancelled', is_active: false, cancelled_at: new Date().toISOString() })
         .eq('id', id);
       if (error) throw error;
     },
@@ -177,6 +205,28 @@ export function useDeactivateWavoipUserPlan() {
       toast.success('Plano desativado');
     },
     onError: (err: any) => toast.error(err?.message || 'Erro ao desativar'),
+  });
+}
+
+export function useToggleWavoipUserPlanActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+      const { error } = await (supabase as any)
+        .from('wavoip_user_plans')
+        .update({
+          is_active,
+          status: is_active ? 'active' : 'cancelled',
+          cancelled_at: is_active ? null : new Date().toISOString(),
+        })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_, v) => {
+      qc.invalidateQueries({ queryKey: ['wavoip', 'user-plans'] });
+      toast.success(v.is_active ? 'Wavoip ativado' : 'Wavoip desativado');
+    },
+    onError: (err: any) => toast.error(err?.message || 'Erro ao alterar status'),
   });
 }
 

@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     }
     const userId = userRes.user.id;
     const body = await req.json().catch(() => ({}));
-    const { device_name, whatsapp_number, user_plan_id } = body ?? {};
+    const { device_name, whatsapp_number, user_plan_id, client_id } = body ?? {};
 
     if (!WAVOIP_KEY) {
       return new Response(JSON.stringify({ error: 'WAVOIP_API_KEY not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -45,6 +45,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
     const { data: inserted, error: insErr } = await admin.from('wavoip_devices').insert({
       user_id: userId,
+      client_id: client_id ?? null,
       user_plan_id: user_plan_id ?? null,
       device_token: token,
       device_name: device_name ?? null,

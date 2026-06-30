@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 type WavoipApi = any;
 
@@ -20,35 +21,24 @@ async function loadWebphone(): Promise<any> {
 }
 
 export function WavoipProvider({ children }: { children: ReactNode }) {
-  const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const clientId = user?.client_id ?? null;
   const [hasActivePlan, setHasActivePlan] = useState(false);
   const [devicesCount, setDevicesCount] = useState(0);
   const [ready, setReady] = useState(false);
   const apiRef = useRef<WavoipApi | null>(null);
 
-  // Resolve current auth user
-  useEffect(() => {
-    let mounted = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (mounted) setAuthUserId(data.user?.id ?? null);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setAuthUserId(session?.user?.id ?? null);
-    });
-    return () => { mounted = false; sub.subscription.unsubscribe(); };
-  }, []);
-
   const loadPlanAndDevices = useCallback(async (): Promise<string[]> => {
-    if (!authUserId) {
+    if (!clientId) {
       setHasActivePlan(false);
       setDevicesCount(0);
       return [];
     }
     const { data: plans } = await (supabase as any)
       .from('wavoip_user_plans')
-      .select('id,status')
-      .eq('user_id', authUserId)
-      .eq('status', 'active');
+      .select('id,is_active,status')
+      .eq('client_id', clientId)
+      .eq('is_active', true);
     const active = (plans ?? []).length > 0;
     setHasActivePlan(active);
     if (!active) {
@@ -58,11 +48,11 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     const { data: devs } = await (supabase as any)
       .from('wavoip_devices')
       .select('device_token,status')
-      .eq('user_id', authUserId);
+      .eq('client_id', clientId);
     const tokens = (devs ?? []).map((d: any) => d.device_token).filter(Boolean);
     setDevicesCount(tokens.length);
     return tokens;
-  }, [authUserId]);
+  }, [clientId]);
 
   // Mount webphone when plan is active
   useEffect(() => {
@@ -93,7 +83,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
               const status = ev.includes('answered') ? 'answered' : ev.includes('ended') ? 'ended' : ev.includes('rejected') ? 'rejected' : 'started';
               const direction = (payload?.direction || payload?.call?.direction || 'outbound').toLowerCase();
               await (supabase as any).from('wavoip_call_logs').insert({
-                user_id: authUserId,
+                user_id: user?.id ?? null,
+                client_id: clientId,
                 direction: direction.includes('in') ? 'inbound' : 'outbound',
                 status,
                 from_number: payload?.from ?? payload?.call?.from ?? null,
@@ -119,7 +110,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasActivePlan, authUserId]);
+  }, [hasActivePlan, clientId]);
 
   const refreshDevices = useCallback(async () => {
     const tokens = await loadPlanAndDevices();
