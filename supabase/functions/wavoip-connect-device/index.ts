@@ -31,23 +31,31 @@ Deno.serve(async (req) => {
 
     await admin.from('wavoip_devices').update({ connection_status: 'connecting', updated_at: new Date().toISOString() }).eq('id', device_id);
 
-    // Tenta consultar status do dispositivo via API Wavoip; tolerante a falhas (mantém otimismo).
     let jids: string[] = [];
-    let status = 'connected';
+    let status: 'connected' | 'connecting' | 'error' = 'connecting';
     let raw: any = null;
+    let apiError: string | null = null;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 8000);
     try {
       const resp = await fetch(`${WAVOIP_BASE}/v1/devices/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${device.device_token}` },
         body: JSON.stringify({ token: device.device_token }),
+        signal: ac.signal,
       });
       const text = await resp.text();
       try { raw = JSON.parse(text); } catch { raw = { raw: text }; }
       const list: any = raw?.numbers ?? raw?.data?.numbers ?? raw?.jids ?? [];
       jids = Array.isArray(list) ? list.map((x: any) => (typeof x === 'string' ? x : x?.jid || x?.number)).filter(Boolean) : [];
-      if (!resp.ok) status = 'error';
-    } catch (_e) {
-      // Mantém connected mesmo sem confirmar — webphone valida no front.
+      if (!resp.ok) { status = 'error'; apiError = `wavoip_status_${resp.status}`; }
+      else if (jids.length > 0) status = 'connected';
+      else status = 'connecting';
+    } catch (e: any) {
+      apiError = e?.name === 'AbortError' ? 'wavoip_api_timeout' : 'wavoip_api_unreachable';
+      status = 'error';
+    } finally {
+      clearTimeout(timer);
     }
 
     const { data: updated, error: updErr } = await admin.from('wavoip_devices').update({
@@ -55,13 +63,16 @@ Deno.serve(async (req) => {
       connected_at: status === 'connected' ? new Date().toISOString() : null,
       last_seen_at: new Date().toISOString(),
       whatsapp_jids: jids,
-      metadata: { ...(device.metadata ?? {}), last_connect: raw },
+      metadata: { ...(device.metadata ?? {}), last_connect: raw, last_error: apiError },
       updated_at: new Date().toISOString(),
     }).eq('id', device_id).select('*').single();
     if (updErr) {
       return new Response(JSON.stringify({ error: updErr.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    if (apiError) {
+      return new Response(JSON.stringify({ ok: false, error: apiError, device: updated }), { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
     return new Response(JSON.stringify({ ok: true, device: updated }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as Error)?.message ?? e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
