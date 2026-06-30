@@ -7689,7 +7689,7 @@ export type Database = {
           provisioned_at: string | null
           status: string
           updated_at: string
-          user_id: string
+          user_id: string | null
           user_plan_id: string | null
           whatsapp_jid: string | null
           whatsapp_number: string | null
@@ -7706,7 +7706,7 @@ export type Database = {
           provisioned_at?: string | null
           status?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
           user_plan_id?: string | null
           whatsapp_jid?: string | null
           whatsapp_number?: string | null
@@ -7723,7 +7723,7 @@ export type Database = {
           provisioned_at?: string | null
           status?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
           user_plan_id?: string | null
           whatsapp_jid?: string | null
           whatsapp_number?: string | null
