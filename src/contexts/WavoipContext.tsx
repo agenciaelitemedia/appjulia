@@ -10,6 +10,7 @@ interface WavoipContextValue {
   devicesCount: number;
   connectedNumbers: string[];
   canDial: boolean;
+  ensureWebphone: () => Promise<WavoipApi | null>;
   startCall: (phoneE164: string, displayName?: string) => Promise<{ ok: boolean; error?: string }>;
   openWidget: () => void;
   refreshDevices: () => Promise<void>;
@@ -30,13 +31,14 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [connectedNumbers, setConnectedNumbers] = useState<string[]>([]);
   const apiRef = useRef<WavoipApi | null>(null);
+  const listenersBoundRef = useRef(false);
 
-  const loadPlanAndDevices = useCallback(async (): Promise<string[]> => {
+  const loadPlanAndDevices = useCallback(async (): Promise<{ active: boolean; tokens: string[] }> => {
     if (!clientId) {
       setHasActivePlan(false);
       setDevicesCount(0);
       setConnectedNumbers([]);
-      return [];
+      return { active: false, tokens: [] };
     }
     const { data: plans } = await (supabase as any)
       .from('wavoip_user_plans')
@@ -48,7 +50,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     if (!active) {
       setDevicesCount(0);
       setConnectedNumbers([]);
-      return [];
+      return { active: false, tokens: [] };
     }
     const { data: devs } = await (supabase as any)
       .from('wavoip_devices')
@@ -63,33 +65,41 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
     setDevicesCount(tokens.length);
     setConnectedNumbers(numbers);
-    return tokens;
+    return { active: true, tokens };
   }, [clientId]);
 
-  // Mount webphone when plan is active
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const tokens = await loadPlanAndDevices();
-      if (cancelled || !hasActivePlan) return;
-      try {
-        const webphone = await loadWebphone();
-        const api = await webphone.render({
-          theme: 'system',
-          buttonPosition: 'bottom-right',
-          position: 'bottom-right',
-          widget: { startOpen: false, showWidgetButton: true },
-          callSettings: { displayName: 'Atendimento' },
-          platform: 'atende-julia',
-        });
-        apiRef.current = api ?? (window as any).wavoip;
-        // Inject persisted device tokens
-        for (const t of tokens) {
-          try { (window as any).wavoip?.device?.add(t, true); } catch {}
-        }
-        // Best-effort: subscribe to webphone events and persist call logs as fallback
+  const ensureWebphone = useCallback(async (): Promise<WavoipApi | null> => {
+    if (apiRef.current || (window as any).wavoip) {
+      apiRef.current = apiRef.current ?? (window as any).wavoip;
+      setReady(true);
+      return apiRef.current;
+    }
+
+    try {
+      const webphone = await loadWebphone();
+      const api = await webphone.render({
+        theme: 'system',
+        buttonPosition: 'bottom-right',
+        position: 'bottom-right',
+        widget: { startOpen: false, showWidgetButton: true },
+        statusBar: { showNotificationsIcon: true, showSettingsIcon: true },
+        settingsMenu: {
+          deviceMenu: {
+            show: true,
+            showAddDevices: true,
+            showEnableDevicesButton: true,
+            showRemoveDevicesButton: true,
+          },
+        },
+        callSettings: { displayName: 'Atendimento' },
+        platform: 'atende-julia',
+      });
+      apiRef.current = api ?? (window as any).wavoip;
+
+      if (!listenersBoundRef.current) {
+        listenersBoundRef.current = true;
         try {
-          const wp: any = (window as any).wavoip;
+          const wp: any = apiRef.current ?? (window as any).wavoip;
           const onEvent = (ev: string) => async (payload: any) => {
             try {
               const status = ev.includes('answered') ? 'answered' : ev.includes('ended') ? 'ended' : ev.includes('rejected') ? 'rejected' : 'started';
@@ -111,35 +121,53 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
               });
             } catch (err) { console.warn('[Wavoip] log insert failed', err); }
           };
-          ['call:started', 'call:answered', 'call:ended', 'call:rejected'].forEach((e) => {
+          ['call:started', 'call:answered', 'call:accepted', 'call:ended', 'call:rejected'].forEach((e) => {
             try { wp?.on?.(e, onEvent(e)); } catch {}
           });
         } catch {}
-        setReady(true);
-      } catch (err) {
-        console.warn('[Wavoip] render failed', err);
+      }
+
+      setReady(true);
+      return apiRef.current;
+    } catch (err) {
+      console.warn('[Wavoip] render failed', err);
+      return null;
+    }
+  }, [clientId, user?.id]);
+
+  // Mount webphone when plan is active
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { active, tokens } = await loadPlanAndDevices();
+      if (cancelled || !active) return;
+      const wp = await ensureWebphone();
+      if (!wp) return;
+      for (const t of tokens) {
+        try { wp?.device?.add?.(t, true); } catch {}
+        try { wp?.device?.enable?.(t); } catch {}
       }
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasActivePlan, clientId]);
+  }, [clientId, ensureWebphone, loadPlanAndDevices]);
 
   const refreshDevices = useCallback(async () => {
-    const tokens = await loadPlanAndDevices();
-    if (!apiRef.current && !(window as any).wavoip) return;
-    const wp: any = (window as any).wavoip;
+    const { tokens } = await loadPlanAndDevices();
+    const wp: any = await ensureWebphone();
+    if (!wp) return;
     const current = (wp?.device?.get?.() ?? []).map((d: any) => d.token);
     for (const t of tokens) {
       if (!current.includes(t)) {
         try { wp.device.add(t, true); } catch {}
       }
+      try { wp.device.enable(t); } catch {}
     }
     for (const t of current) {
       if (!tokens.includes(t)) {
         try { wp.device.remove(t); } catch {}
       }
     }
-  }, [loadPlanAndDevices]);
+  }, [ensureWebphone, loadPlanAndDevices]);
 
   const startCall = useCallback(async (phone: string, displayName?: string) => {
     const wp: any = (window as any).wavoip;
@@ -164,8 +192,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   const canDial = ready && devicesCount > 0;
 
   const value = useMemo<WavoipContextValue>(() => ({
-    ready, hasActivePlan, devicesCount, connectedNumbers, canDial, startCall, openWidget, refreshDevices,
-  }), [ready, hasActivePlan, devicesCount, connectedNumbers, canDial, startCall, openWidget, refreshDevices]);
+    ready, hasActivePlan, devicesCount, connectedNumbers, canDial, ensureWebphone, startCall, openWidget, refreshDevices,
+  }), [ready, hasActivePlan, devicesCount, connectedNumbers, canDial, ensureWebphone, startCall, openWidget, refreshDevices]);
 
   return <WavoipContext.Provider value={value}>{children}</WavoipContext.Provider>;
 }
