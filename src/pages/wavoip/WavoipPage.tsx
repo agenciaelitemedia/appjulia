@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { PhoneCall, Plus, Trash2, RefreshCw } from 'lucide-react';
+import { PhoneCall, Plus, Trash2, RefreshCw, Wand2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
 import { toast } from 'sonner';
@@ -19,6 +19,7 @@ export default function WavoipPage() {
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ device_token: '', device_name: '', whatsapp_number: '' });
+  const [provisioning, setProvisioning] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
@@ -47,6 +48,21 @@ export default function WavoipPage() {
     });
     if (error) { toast.error(error.message); return; }
     toast.success('Dispositivo adicionado');
+    setDialogOpen(false);
+    setForm({ device_token: '', device_name: '', whatsapp_number: '' });
+    await load();
+    await refreshDevices();
+  };
+
+  const handleProvision = async () => {
+    if (!hasActivePlan) { toast.error('Ative um plano antes de provisionar'); return; }
+    setProvisioning(true);
+    const { data, error } = await (supabase as any).functions.invoke('wavoip-provision-device', {
+      body: { device_name: form.device_name || 'Lovable Device', whatsapp_number: form.whatsapp_number || null },
+    });
+    setProvisioning(false);
+    if (error || data?.error) { toast.error(error?.message || data?.error || 'Falha ao provisionar'); return; }
+    toast.success('Dispositivo provisionado');
     setDialogOpen(false);
     setForm({ device_token: '', device_name: '', whatsapp_number: '' });
     await load();
@@ -147,7 +163,10 @@ export default function WavoipPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleAdd}>Adicionar</Button>
+            <Button variant="secondary" onClick={handleProvision} disabled={provisioning}>
+              <Wand2 className="h-4 w-4 mr-1" /> {provisioning ? 'Provisionando…' : 'Provisionar automático'}
+            </Button>
+            <Button onClick={handleAdd}>Adicionar manual</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
