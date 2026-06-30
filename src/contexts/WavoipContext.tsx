@@ -199,7 +199,15 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     if (!digits) return { ok: false, error: 'Telefone inválido' };
     try { wp.widget?.open?.(); } catch {}
 
-    // 1) Tentar APIs públicas do SDK
+    // 1) API oficial do SDK Wavoip
+    try {
+      if (typeof wp?.call?.setInput === 'function') {
+        wp.call.setInput(digits);
+        return { ok: true };
+      }
+    } catch (e) { console.warn('[Wavoip] setInput failed', e); }
+
+    // 2) Fallbacks legados (versões antigas do SDK)
     const sdkAttempts: Array<() => any> = [
       () => wp?.dialer?.setNumber?.(digits),
       () => wp?.dialer?.set?.(digits),
