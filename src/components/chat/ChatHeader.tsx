@@ -17,6 +17,7 @@ import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData
 import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
 import { useQuery } from '@tanstack/react-query';
 import { usePhone } from '@/contexts/PhoneContext';
+import { WavoipCallButton } from '@/components/chat/WavoipCallButton';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
@@ -642,6 +643,8 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                   {phoneReady ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
                   Ligar
                 </Button>
+
+                <WavoipCallButton phone={contact.phone} contactName={contact.name} />
 
                 <div className="inline-flex items-center gap-0.5 border rounded px-1 py-0.5">
                   <Button
