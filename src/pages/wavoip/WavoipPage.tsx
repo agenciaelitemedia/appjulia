@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
 type Device = {
   id: string;
+  client_id: number | null;
   device_token: string;
   device_name: string | null;
   friendly_code: string | null;
@@ -74,7 +75,10 @@ export default function WavoipPage() {
   const intervalRef = useRef<number | null>(null);
   const completedRef = useRef(false);
 
-  const myDevices = useMemo(() => devices.filter((d) => Number(d.app_user_id) === appUserId), [devices, appUserId]);
+  const myDevices = useMemo(
+    () => devices.filter((d) => Number(d.app_user_id) === appUserId || (!d.app_user_id && d.status === 'in_use' && d.client_id === clientId)),
+    [devices, appUserId, clientId]
+  );
 
   const load = useCallback(async () => {
     if (!clientId) return;
@@ -155,6 +159,9 @@ export default function WavoipPage() {
     setConnectError(null);
 
     try {
+      if (!device.app_user_id && appUserId) {
+        await (supabase as any).from('wavoip_devices').update({ app_user_id: appUserId }).eq('id', device.id);
+      }
       const { data: prepared, error: prepareErr } = await supabase.functions.invoke('wavoip-connect-device', {
         body: { device_id: device.id },
       });
@@ -238,7 +245,7 @@ export default function WavoipPage() {
       await markDeviceStatus(device.id, 'error', { metadata: { ...(device.metadata ?? {}), last_error: e?.message || 'sdk_init_error' } });
       await load();
     }
-  }, [ensureWebphone, load, markDeviceStatus, openWidget, refreshDevices, resetConnectionState, syncDeviceAsConnected]);
+  }, [appUserId, ensureWebphone, load, markDeviceStatus, openWidget, refreshDevices, resetConnectionState, syncDeviceAsConnected]);
 
   const closeConnectDialog = useCallback(() => {
     setConnectingDevice(null);
