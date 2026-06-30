@@ -109,3 +109,12 @@ verify_jwt = false
 
 [functions.n8n_execute-followup-stop]
 verify_jwt = false
+
+[functions.wavoip-connect-device]
+verify_jwt = false
+
+[functions.wavoip-provision-device]
+verify_jwt = false
+
+[functions.wavoip-call-webhook]
+verify_jwt = false
