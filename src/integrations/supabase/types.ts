@@ -7710,6 +7710,10 @@ export type Database = {
           updated_at: string
           user_id: string | null
           user_plan_id: string | null
+          webhook_checked_at: string | null
+          webhook_last_error: string | null
+          webhook_status: string | null
+          webhook_url: string | null
           whatsapp_jid: string | null
           whatsapp_jids: Json
           whatsapp_number: string | null
@@ -7732,6 +7736,10 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           user_plan_id?: string | null
+          webhook_checked_at?: string | null
+          webhook_last_error?: string | null
+          webhook_status?: string | null
+          webhook_url?: string | null
           whatsapp_jid?: string | null
           whatsapp_jids?: Json
           whatsapp_number?: string | null
@@ -7754,6 +7762,10 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           user_plan_id?: string | null
+          webhook_checked_at?: string | null
+          webhook_last_error?: string | null
+          webhook_status?: string | null
+          webhook_url?: string | null
           whatsapp_jid?: string | null
           whatsapp_jids?: Json
           whatsapp_number?: string | null

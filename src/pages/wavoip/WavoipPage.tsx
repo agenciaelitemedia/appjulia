@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
 import { toast } from 'sonner';
@@ -32,6 +33,10 @@ type Device = {
   app_user_id?: number | null;
   created_at: string;
   metadata?: any;
+  webhook_status?: string | null;
+  webhook_url?: string | null;
+  webhook_checked_at?: string | null;
+  webhook_last_error?: string | null;
 };
 type CallLog = { id: string; created_at: string; direction: string; status: string; from_number: string | null; to_number: string | null; duration_seconds: number };
 type ConnectStatus = 'idle' | 'preparing' | 'waiting_qr' | 'open' | 'error';
@@ -356,6 +361,15 @@ export default function WavoipPage() {
                 <Button variant="outline" size="sm" onClick={load} disabled={loading}>
                   <RefreshCw className="h-4 w-4 mr-1" /> Atualizar
                 </Button>
+                <Button variant="outline" size="sm" onClick={async () => {
+                  const { data, error } = await supabase.functions.invoke('wavoip-verify-webhook', { body: { client_id: clientId, auto_fix: true } });
+                  if (error) { toast.error(error.message); return; }
+                  const bad = (data?.results ?? []).filter((r: any) => r.status !== 'ok').length;
+                  toast.success(bad === 0 ? 'Todos os webhooks OK' : `${bad} dispositivo(s) reconfigurado(s)/com problema`);
+                  void load();
+                }} disabled={loading}>
+                  <ShieldCheck className="h-4 w-4 mr-1" /> Verificar webhooks
+                </Button>
                 <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!hasActivePlan}>
                   <Plus className="h-4 w-4 mr-1" /> Adicionar dispositivo
                 </Button>
@@ -386,6 +400,34 @@ export default function WavoipPage() {
                           <Badge variant={connected ? 'default' : d.connection_status === 'error' ? 'destructive' : 'outline'}>
                             {connected ? 'conectado' : d.connection_status === 'connecting' ? 'aguardando QR' : d.connection_status === 'error' ? 'erro' : 'desconectado'}
                           </Badge>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge
+                                  variant={d.webhook_status === 'ok' ? 'outline' : 'destructive'}
+                                  className="gap-1 cursor-help"
+                                >
+                                  {d.webhook_status === 'ok' ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+                                  Webhook {d.webhook_status === 'ok' ? 'OK' : d.webhook_status === 'disabled' ? 'desativado' : d.webhook_status === 'misconfigured' ? 'incorreto' : d.webhook_status === 'error' ? 'erro' : d.webhook_status ?? 'não verificado'}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-sm text-xs">
+                                <div><b>URL atual:</b> {d.webhook_url || '—'}</div>
+                                {d.webhook_checked_at && <div><b>Verificado:</b> {format(new Date(d.webhook_checked_at), 'dd/MM HH:mm')}</div>}
+                                {d.webhook_last_error && <div className="text-destructive break-all"><b>Erro:</b> {d.webhook_last_error}</div>}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          {d.webhook_status && d.webhook_status !== 'ok' && (
+                            <Button variant="outline" size="sm" onClick={async () => {
+                              const { error } = await supabase.functions.invoke('wavoip-verify-webhook', { body: { device_token: d.device_token, auto_fix: true } });
+                              if (error) { toast.error(error.message); return; }
+                              toast.success('Webhook reconfigurado');
+                              void load();
+                            }}>
+                              <ShieldCheck className="h-4 w-4 mr-1" /> Corrigir
+                            </Button>
+                          )}
                           <Button variant={connected ? 'outline' : 'default'} size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
                             <Plug className="h-4 w-4 mr-1" /> Conectar
                           </Button>
