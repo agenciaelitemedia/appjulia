@@ -30,12 +30,14 @@ Deno.serve(async (req) => {
 
     let device_id: string | null = null;
     let user_id: string | null = null;
+    let app_user_id: number | null = null;
     let client_id: number | null = null;
     if (token) {
-      const { data: dev } = await admin.from('wavoip_devices').select('id,user_id,client_id').eq('device_token', token).maybeSingle();
+      const { data: dev } = await admin.from('wavoip_devices').select('id,user_id,app_user_id,client_id').eq('device_token', token).maybeSingle();
       if (dev) {
         device_id = dev.id;
         user_id = dev.user_id;
+        app_user_id = (dev as any).app_user_id ?? null;
         client_id = (dev as any).client_id ?? null;
         await admin.from('wavoip_devices').update({ last_seen_at: new Date().toISOString() }).eq('id', dev.id);
       }
@@ -43,6 +45,7 @@ Deno.serve(async (req) => {
 
     const { error } = await admin.from('wavoip_call_logs').insert({
       user_id,
+      app_user_id,
       client_id,
       device_id,
       direction: direction === 'inbound' || direction === 'incoming' ? 'inbound' : 'outbound',
