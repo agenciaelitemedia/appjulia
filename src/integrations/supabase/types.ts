@@ -7605,6 +7605,275 @@ export type Database = {
           },
         ]
       }
+      wavoip_call_logs: {
+        Row: {
+          answered_at: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          device_id: string | null
+          direction: string
+          duration_seconds: number
+          end_reason: string | null
+          ended_at: string | null
+          from_number: string | null
+          id: string
+          metadata: Json
+          started_at: string | null
+          status: string
+          to_number: string | null
+          user_id: string | null
+          whatsapp_jid: string | null
+        }
+        Insert: {
+          answered_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          direction: string
+          duration_seconds?: number
+          end_reason?: string | null
+          ended_at?: string | null
+          from_number?: string | null
+          id?: string
+          metadata?: Json
+          started_at?: string | null
+          status: string
+          to_number?: string | null
+          user_id?: string | null
+          whatsapp_jid?: string | null
+        }
+        Update: {
+          answered_at?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          device_id?: string | null
+          direction?: string
+          duration_seconds?: number
+          end_reason?: string | null
+          ended_at?: string | null
+          from_number?: string | null
+          id?: string
+          metadata?: Json
+          started_at?: string | null
+          status?: string
+          to_number?: string | null
+          user_id?: string | null
+          whatsapp_jid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wavoip_call_logs_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "wavoip_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wavoip_devices: {
+        Row: {
+          created_at: string
+          device_model: string
+          device_name: string | null
+          device_token: string
+          id: string
+          last_seen_at: string | null
+          metadata: Json
+          provisioned_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          user_plan_id: string | null
+          whatsapp_jid: string | null
+          whatsapp_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_model?: string
+          device_name?: string | null
+          device_token: string
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json
+          provisioned_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          user_plan_id?: string | null
+          whatsapp_jid?: string | null
+          whatsapp_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_model?: string
+          device_name?: string | null
+          device_token?: string
+          id?: string
+          last_seen_at?: string | null
+          metadata?: Json
+          provisioned_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          user_plan_id?: string | null
+          whatsapp_jid?: string | null
+          whatsapp_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wavoip_devices_user_plan_id_fkey"
+            columns: ["user_plan_id"]
+            isOneToOne: false
+            referencedRelation: "wavoip_user_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wavoip_orders: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          metadata: Json
+          paid_at: string | null
+          payment_id: string | null
+          payment_provider: string | null
+          plan_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          metadata?: Json
+          paid_at?: string | null
+          payment_id?: string | null
+          payment_provider?: string | null
+          plan_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          metadata?: Json
+          paid_at?: string | null
+          payment_id?: string | null
+          payment_provider?: string | null
+          plan_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wavoip_orders_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "wavoip_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wavoip_plans: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          device_model: string
+          features: Json
+          id: string
+          included_minutes: number
+          max_devices: number
+          monthly_price: number
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          device_model?: string
+          features?: Json
+          id?: string
+          included_minutes?: number
+          max_devices?: number
+          monthly_price?: number
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          device_model?: string
+          features?: Json
+          id?: string
+          included_minutes?: number
+          max_devices?: number
+          monthly_price?: number
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wavoip_user_plans: {
+        Row: {
+          activated_at: string
+          cancelled_at: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          notes: string | null
+          plan_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          activated_at?: string
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          plan_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          activated_at?: string
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          plan_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wavoip_user_plans_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "wavoip_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webchat_config: {
         Row: {
           allowed_domains: string[] | null
