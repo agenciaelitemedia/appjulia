@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CallHistoryTab } from './components/CallHistoryTab';
 
 type Device = {
   id: string;
@@ -341,91 +343,68 @@ export default function WavoipPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Meus dispositivos</CardTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-              <RefreshCw className="h-4 w-4 mr-1" /> Atualizar
-            </Button>
-            <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!hasActivePlan}>
-              <Plus className="h-4 w-4 mr-1" /> Adicionar dispositivo
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {myDevices.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">Nenhum dispositivo cadastrado para você.</p>
-          ) : (
-            <div className="divide-y border rounded-md">
-              {myDevices.map((d) => {
-                const jids: string[] = Array.isArray(d.whatsapp_jids) ? d.whatsapp_jids : [];
-                const connected = d.connection_status === 'connected';
-                return (
-                  <div key={d.id} className="flex items-center justify-between p-3 gap-4">
-                    <div className="min-w-0">
-                      <div className="font-medium flex items-center gap-2">
-                        <Smartphone className="h-4 w-4 text-muted-foreground" />
-                        {d.device_name || `WAPhone_${d.friendly_code ?? ''}`}
+      <Tabs defaultValue="devices" className="w-full">
+        <TabsList>
+          <TabsTrigger value="devices">Meus dispositivos</TabsTrigger>
+          <TabsTrigger value="history">Histórico</TabsTrigger>
+        </TabsList>
+        <TabsContent value="devices" className="mt-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Meus dispositivos</CardTitle>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+                  <RefreshCw className="h-4 w-4 mr-1" /> Atualizar
+                </Button>
+                <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!hasActivePlan}>
+                  <Plus className="h-4 w-4 mr-1" /> Adicionar dispositivo
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {myDevices.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">Nenhum dispositivo cadastrado para você.</p>
+              ) : (
+                <div className="divide-y border rounded-md">
+                  {myDevices.map((d) => {
+                    const jids: string[] = Array.isArray(d.whatsapp_jids) ? d.whatsapp_jids : [];
+                    const connected = d.connection_status === 'connected';
+                    return (
+                      <div key={d.id} className="flex items-center justify-between p-3 gap-4">
+                        <div className="min-w-0">
+                          <div className="font-medium flex items-center gap-2">
+                            <Smartphone className="h-4 w-4 text-muted-foreground" />
+                            {d.device_name || `WAPhone_${d.friendly_code ?? ''}`}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Token: <span className="font-mono">{d.device_token.slice(0, 8)}…{d.device_token.slice(-4)}</span>
+                            {d.whatsapp_number && <> · Número: {d.whatsapp_number}</>}
+                            {jids.length > 0 && <> · JID: {jids.join(', ')}</>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant={connected ? 'default' : d.connection_status === 'error' ? 'destructive' : 'outline'}>
+                            {connected ? 'conectado' : d.connection_status === 'connecting' ? 'aguardando QR' : d.connection_status === 'error' ? 'erro' : 'desconectado'}
+                          </Badge>
+                          <Button variant={connected ? 'outline' : 'default'} size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
+                            <Plug className="h-4 w-4 mr-1" /> Conectar
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleRelease(d)}>
+                            Liberar
+                          </Button>
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Token: <span className="font-mono">{d.device_token.slice(0, 8)}…{d.device_token.slice(-4)}</span>
-                        {d.whatsapp_number && <> · Número: {d.whatsapp_number}</>}
-                        {jids.length > 0 && <> · JID: {jids.join(', ')}</>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant={connected ? 'default' : d.connection_status === 'error' ? 'destructive' : 'outline'}>
-                        {connected ? 'conectado' : d.connection_status === 'connecting' ? 'aguardando QR' : d.connection_status === 'error' ? 'erro' : 'desconectado'}
-                      </Badge>
-                      <Button variant={connected ? 'outline' : 'default'} size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
-                        <Plug className="h-4 w-4 mr-1" /> Conectar
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleRelease(d)}>
-                        Liberar
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>Minhas chamadas</CardTitle></CardHeader>
-        <CardContent>
-          {calls.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma chamada registrada.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Quando</TableHead>
-                  <TableHead>Direção</TableHead>
-                  <TableHead>De</TableHead>
-                  <TableHead>Para</TableHead>
-                  <TableHead>Duração</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {calls.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>{format(new Date(c.created_at), 'dd/MM HH:mm')}</TableCell>
-                    <TableCell><Badge variant="outline">{c.direction}</Badge></TableCell>
-                    <TableCell>{c.from_number ?? '-'}</TableCell>
-                    <TableCell>{c.to_number ?? '-'}</TableCell>
-                    <TableCell>{Math.floor((c.duration_seconds || 0) / 60)}m {(c.duration_seconds || 0) % 60}s</TableCell>
-                    <TableCell><Badge variant={c.status === 'answered' ? 'default' : 'outline'}>{c.status}</Badge></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="history" className="mt-4">
+          <CallHistoryTab />
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
