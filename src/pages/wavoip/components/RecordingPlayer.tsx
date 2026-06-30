@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Play, Download, RefreshCw, AlertCircle, Clock } from 'lucide-react';
@@ -17,6 +17,27 @@ export function RecordingPlayer({ callId, whatsappCallId, recordingPath, status,
   const [open, setOpen] = useState(false);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Polling leve: enquanto pending/downloading, tenta buscar a cada 20s por até 3min.
+  useEffect(() => {
+    if (!whatsappCallId) return;
+    if (!['pending', 'downloading'].includes(status)) return;
+    let cancelled = false;
+    let attempts = 0;
+    const tick = async () => {
+      if (cancelled || attempts >= 9) return;
+      attempts++;
+      try {
+        const { data } = await supabase.functions.invoke('wavoip-fetch-recording', {
+          body: { call_log_id: callId, whatsapp_call_id: whatsappCallId },
+        });
+        if ((data as any)?.status === 'available') { onRefetched?.(); return; }
+      } catch { /* keep trying */ }
+      if (!cancelled) setTimeout(tick, 20000);
+    };
+    const t = setTimeout(tick, 5000);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [callId, whatsappCallId, status, onRefetched]);
 
   const loadSignedUrl = async () => {
     if (!recordingPath) return;
