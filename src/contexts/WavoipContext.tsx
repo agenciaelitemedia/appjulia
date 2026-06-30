@@ -102,30 +102,100 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
         listenersBoundRef.current = true;
         try {
           const wp: any = apiRef.current ?? (window as any).wavoip;
-          const onEvent = (ev: string) => async (payload: any) => {
+          // Cache de id da chamada por dispositivo p/ correlacionar eventos sem id explícito
+          const currentCallByToken = new Map<string, string>();
+
+          const resolveDeviceId = async (token?: string | null): Promise<string | null> => {
+            if (!token) return null;
             try {
-              const status = ev.includes('answered') ? 'answered' : ev.includes('ended') ? 'ended' : ev.includes('rejected') ? 'rejected' : 'started';
-              const direction = (payload?.direction || payload?.call?.direction || 'outbound').toLowerCase();
-              await (supabase as any).from('wavoip_call_logs').insert({
-                user_id: null,
-                app_user_id: user?.id ?? null,
+              const { data } = await (supabase as any)
+                .from('wavoip_devices').select('id').eq('device_token', token).maybeSingle();
+              return data?.id ?? null;
+            } catch { return null; }
+          };
+
+          const readActiveCall = (): any => {
+            try { return wp?.call?.getCallActive?.() ?? null; } catch { return null; }
+          };
+
+          const scheduleRecordingFetch = (whatsappCallId: string) => {
+            // Wavoip publica em storage.wavoip.com após alguns segundos. Retry com backoff.
+            const delays = [5000, 15000, 30000, 60000, 120000];
+            delays.forEach((delay) => {
+              setTimeout(async () => {
+                try {
+                  const { data } = await (supabase as any)
+                    .from('wavoip_call_logs')
+                    .select('recording_status')
+                    .eq('whatsapp_call_id', whatsappCallId)
+                    .maybeSingle();
+                  if (data?.recording_status === 'available') return;
+                  await supabase.functions.invoke('wavoip-fetch-recording', {
+                    body: { whatsapp_call_id: whatsappCallId },
+                  });
+                } catch (e) { /* silent retry */ }
+              }, delay);
+            });
+          };
+
+          const upsertCallLog = async (ev: string, payload: any) => {
+            try {
+              const active = readActiveCall();
+              const isEnd = ev.includes('ended') || ev.includes('rejected');
+              const status = ev.includes('answered') || ev.includes('accepted') ? 'answered'
+                : ev.includes('ended') ? 'ended'
+                : ev.includes('rejected') ? 'rejected' : 'started';
+
+              const deviceToken = payload?.device_token ?? active?.device_token ?? null;
+              const whatsappCallId = payload?.id ?? payload?.call?.id ?? active?.id
+                ?? (deviceToken ? currentCallByToken.get(deviceToken) : null);
+              if (whatsappCallId && deviceToken) currentCallByToken.set(deviceToken, String(whatsappCallId));
+
+              const rawDir = (payload?.direction || payload?.call?.direction || active?.direction || 'outbound').toString().toLowerCase();
+              const direction = rawDir.includes('in') ? 'inbound' : 'outbound';
+              const peer = payload?.peer || payload?.call?.peer || active?.peer || {};
+              const peerNumber = peer?.number ?? peer?.phone ?? null;
+              const fromNumber = payload?.from ?? (direction === 'inbound' ? peerNumber : null);
+              const toNumber = payload?.to ?? (direction === 'outbound' ? peerNumber : null);
+              const deviceId = await resolveDeviceId(deviceToken);
+
+              const nowIso = new Date().toISOString();
+              const baseRow: any = {
                 client_id: clientId,
-                direction: direction.includes('in') ? 'inbound' : 'outbound',
+                app_user_id: user?.id ?? null,
+                device_id: deviceId,
+                direction,
                 status,
-                from_number: payload?.from ?? payload?.call?.from ?? null,
-                to_number: payload?.to ?? payload?.call?.to ?? null,
+                from_number: fromNumber,
+                to_number: toNumber,
                 whatsapp_jid: payload?.jid ?? payload?.call?.jid ?? null,
                 duration_seconds: Number(payload?.duration ?? payload?.call?.duration ?? 0) || 0,
                 end_reason: payload?.end_reason ?? null,
-                started_at: payload?.started_at ?? null,
-                answered_at: payload?.answered_at ?? null,
-                ended_at: payload?.ended_at ?? null,
+                started_at: payload?.started_at ?? (ev.includes('started') ? nowIso : null),
+                answered_at: payload?.answered_at ?? (ev.includes('answered') || ev.includes('accepted') ? nowIso : null),
+                ended_at: payload?.ended_at ?? (isEnd ? nowIso : null),
                 metadata: { event: ev, source: 'webphone', payload },
-              });
-            } catch (err) { console.warn('[Wavoip] log insert failed', err); }
+              };
+
+              if (whatsappCallId) {
+                baseRow.whatsapp_call_id = String(whatsappCallId);
+                baseRow.recording_status = isEnd ? 'pending' : 'unavailable';
+                await (supabase as any)
+                  .from('wavoip_call_logs')
+                  .upsert(baseRow, { onConflict: 'whatsapp_call_id' });
+                if (isEnd) {
+                  scheduleRecordingFetch(String(whatsappCallId));
+                  if (deviceToken) currentCallByToken.delete(deviceToken);
+                }
+              } else {
+                // Sem id ainda — apenas insere snapshot (será reconciliado pelo poll/webhook).
+                await (supabase as any).from('wavoip_call_logs').insert(baseRow);
+              }
+            } catch (err) { console.warn('[Wavoip] log upsert failed', err); }
           };
+
           ['call:started', 'call:answered', 'call:accepted', 'call:ended', 'call:rejected'].forEach((e) => {
-            try { wp?.on?.(e, onEvent(e)); } catch {}
+            try { wp?.on?.(e, (payload: any) => upsertCallLog(e, payload)); } catch {}
           });
         } catch {}
       }
