@@ -9,13 +9,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { format } from 'date-fns';
 
 type Device = { id: string; device_token: string; device_name: string | null; whatsapp_number: string | null; status: string; created_at: string };
+type CallLog = { id: string; created_at: string; direction: string; status: string; from_number: string | null; to_number: string | null; duration_seconds: number };
 
 export default function WavoipPage() {
   const { hasActivePlan, ready, openWidget, refreshDevices } = useWavoip();
   const [userId, setUserId] = useState<string | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
+  const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ device_token: '', device_name: '', whatsapp_number: '' });
@@ -28,11 +32,14 @@ export default function WavoipPage() {
   const load = async () => {
     if (!userId) return;
     setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from('wavoip_devices').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    const [devRes, callRes] = await Promise.all([
+      (supabase as any).from('wavoip_devices').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+      (supabase as any).from('wavoip_call_logs').select('id,created_at,direction,status,from_number,to_number,duration_seconds').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+    ]);
     setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    setDevices((data ?? []) as Device[]);
+    if (devRes.error) { toast.error(devRes.error.message); return; }
+    setDevices((devRes.data ?? []) as Device[]);
+    setCalls((callRes.data ?? []) as CallLog[]);
   };
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, [userId]);
 
@@ -140,6 +147,40 @@ export default function WavoipPage() {
                 </div>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Minhas chamadas</CardTitle></CardHeader>
+        <CardContent>
+          {calls.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma chamada registrada.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Quando</TableHead>
+                  <TableHead>Direção</TableHead>
+                  <TableHead>De</TableHead>
+                  <TableHead>Para</TableHead>
+                  <TableHead>Duração</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {calls.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>{format(new Date(c.created_at), 'dd/MM HH:mm')}</TableCell>
+                    <TableCell><Badge variant="outline">{c.direction}</Badge></TableCell>
+                    <TableCell>{c.from_number ?? '-'}</TableCell>
+                    <TableCell>{c.to_number ?? '-'}</TableCell>
+                    <TableCell>{Math.floor((c.duration_seconds || 0) / 60)}m {(c.duration_seconds || 0) % 60}s</TableCell>
+                    <TableCell><Badge variant={c.status === 'answered' ? 'default' : 'outline'}>{c.status}</Badge></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
