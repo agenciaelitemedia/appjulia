@@ -13,6 +13,7 @@ import { useEnsureDataJudModule } from "@/pages/datajud/hooks/useEnsureDataJudMo
 import { useEnsureMonitoramentoModule } from "@/pages/admin/monitoramento/hooks/useEnsureMonitoramentoModule";
 import { useEnsureCopilotModule } from "@/hooks/useEnsureCopilotModule";
 import { useEnsureTelefoniaModule } from "@/hooks/useEnsureTelefoniaModule";
+import { useEnsureWavoipModule } from "@/hooks/useEnsureWavoipModule";
 import { useEnsurePromptGeneratorModule } from "@/hooks/useEnsurePromptGeneratorModule";
 import { useEnsureLegalCasesModule } from "@/hooks/useEnsureLegalCasesModule";
 import { useEnsureContractNotificationsModule } from "@/hooks/useEnsureContractNotificationsModule";
@@ -56,6 +57,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureMonitoramentoModule();
   useEnsureCopilotModule();
   useEnsureTelefoniaModule();
+  useEnsureWavoipModule();
   useEnsurePromptGeneratorModule();
   useEnsureLegalCasesModule();
   useEnsureContractNotificationsModule();
