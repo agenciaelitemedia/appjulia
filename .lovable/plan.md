@@ -1,64 +1,74 @@
-## Diagnóstico
 
-O erro 502 com `wavoip_status_401` acontece porque a função de backend está tentando validar o token do dispositivo em um endpoint HTTP (`/devices/status`) usando `Authorization: Bearer <device_token>`.
+## Mudanças em `/wavoip`
 
-Pela documentação da Wavoip, esse token não é para esse tipo de validação server-side. O fluxo correto é:
+### 1. Estrutura em abas
+Refatorar `src/pages/wavoip/WavoipPage.tsx` com `Tabs` (shadcn):
+- **Aba "Meus dispositivos"** — todo o conteúdo atual (cards de plano, lista de dispositivos, dialog conectar QR, dialog adicionar).
+- **Aba "Histórico"** — nova tabela de chamadas, no mesmo padrão visual da Telefonia (referência da imagem).
 
-- O token do dispositivo é usado no SDK/Webphone da Wavoip no navegador.
-- O QR Code pode ser exibido pelo link: `https://devices.wavoip.com/{token}/whatsapp/qr-image`.
-- O status real vem do SDK/Webphone: `connecting`, `open`, `close`, etc.
-- Quando o status vira `open`, o dispositivo está pareado e pode liberar o discador.
+A tabela "Minhas chamadas" atual (resumida) é removida; o histórico completo passa a viver dentro da aba.
 
-## Plano de correção
+### 2. Aba "Histórico" — UI
+Colunas (espelhando a tela de Telefonia da imagem):
 
-1. **Trocar “Reconectar” por “Conectar” no `/wavoip`**
-   - Alterar o botão para refletir o fluxo correto.
-   - Ao clicar, abrir um modal de conexão do dispositivo.
-   - Exibir o QR Code Wavoip usando o token do dispositivo.
-   - Mostrar status visual: aguardando leitura, conectado, erro ou expirado.
+```text
+Origem | Atendente | Número discado | Iniciou às | Finalizou às | Duração | Causa | Tipo | Gravação
+```
 
-2. **Conectar pelo Webphone/SDK no navegador**
-   - Garantir que o webphone seja renderizado antes de iniciar a conexão.
-   - Adicionar o token com `window.wavoip.device.add(token, true)`.
-   - Habilitar o dispositivo com `window.wavoip.device.enable(token)` quando disponível.
-   - Ler o dispositivo via `window.wavoip.device.get()`.
-   - Escutar eventos/status do dispositivo quando expostos pelo SDK:
-     - `statusChanged`
-     - `qrCodeChanged`
-     - `contactChanged`
-     - `connectionStatusChanged`
+- **Origem**: badge "Wavoip" + link para abrir a conversa no chat (quando `to_number` mapeia para um contato).
+- **Atendente**: nome do `app_user_id` (lookup em `users`).
+- **Número discado**: `to_number` (outbound) ou `from_number` (inbound), formatado BR.
+- **Iniciou/Finalizou**: `started_at` / `ended_at` (fallback `created_at`).
+- **Duração**: `duration_seconds` em `mm:ss`.
+- **Causa**: badge a partir de `status`/`end_reason` ("Atendida", "Cancelada", "Não atendida", "Falhou").
+- **Tipo**: badge "Saída"/"Entrada" a partir de `direction`.
+- **Gravação**: botão play se `recording_url` existir; mostra player inline (Popover com `<audio controls>` + botão "Baixar").
 
-3. **Persistir o status correto no banco**
-   - Quando o dispositivo estiver `open`, atualizar:
-     - `connection_status = 'connected'`
-     - `connected_at`
-     - `last_seen_at`
-     - `whatsapp_jids` / `whatsapp_number` quando o SDK expuser contato.
-   - Enquanto estiver `connecting`, manter `connection_status = 'connecting'`.
-   - Em erro real do SDK, gravar `connection_status = 'error'` com metadados sem expor token completo.
+Filtros no topo: período (datepicker), tipo (todas/entrada/saída), causa (atendidas/perdidas/canceladas), busca por número. Paginação simples 50/pg.
 
-4. **Remover dependência do endpoint inválido na função atual**
-   - Ajustar `wavoip-connect-device` para não chamar mais `/devices/status` com Bearer token.
-   - A função passará a preparar/registrar tentativa de conexão e devolver dados seguros para o frontend, como `qr_image_url`, status e device atualizado.
-   - Assim o usuário não verá mais 502/401 nessa ação.
+Hook novo `useWavoipCallHistory` filtrando `wavoip_call_logs` por `client_id` (+ `app_user_id` para não-admin), com Realtime para atualizar quando webhook gravar nova linha.
 
-5. **Liberar o discador somente com dispositivo pareado**
-   - Ajustar `WavoipContext` para sincronizar tokens conectados corretamente.
-   - O botão “Abrir discador” continuará bloqueado até existir dispositivo `connected/open`.
-   - Após pareamento, atualizar o contexto e inserir o token no webphone para chamadas.
+### 3. Trazer gravação para o nosso Storage
 
-6. **Melhorar mensagens para o usuário**
-   - Se o token estiver inválido mesmo no SDK/QR, mostrar orientação clara para substituir o token no admin.
-   - Se estiver aguardando leitura, manter modal com QR e opção de atualizar.
-   - Se conectar, fechar/confirmar e liberar o discador.
+A Wavoip disponibiliza a gravação em `https://storage.wavoip.com/{WHATSAPP_CALL_ID}` (pode demorar alguns minutos após o fim da chamada).
 
-## Arquivos previstos
+#### Migration (via `supabase--migration`)
+- `ALTER TABLE public.wavoip_call_logs ADD COLUMN IF NOT EXISTS whatsapp_call_id text` (índice).
+- `ADD COLUMN IF NOT EXISTS recording_url text` (URL pública do nosso storage).
+- `ADD COLUMN IF NOT EXISTS recording_status text DEFAULT 'pending'` (`pending` | `downloading` | `available` | `unavailable` | `error`).
+- `ADD COLUMN IF NOT EXISTS recording_downloaded_at timestamptz`.
+- Criar bucket público `wavoip-recordings` via `storage.buckets` insert (idempotente) com policies de leitura pública.
 
-- `src/pages/wavoip/WavoipPage.tsx`
-- `src/contexts/WavoipContext.tsx`
-- `supabase/functions/wavoip-connect-device/index.ts`
-- Possível novo componente local para modal de conexão QR, se ficar mais limpo.
+#### Edge functions
+- **Atualizar `wavoip-call-webhook`** (já existente):
+  - Persistir `whatsapp_call_id` no insert/update.
+  - Quando `status === 'ENDED'` (ou similar terminal com `duration > 0`), agendar download da gravação via `EdgeRuntime.waitUntil(downloadRecording(whatsapp_call_id, logId))`.
+- **Nova `wavoip-fetch-recording`** (`supabase/functions/wavoip-fetch-recording/index.ts`):
+  - Input: `{ call_log_id }` ou `{ whatsapp_call_id }`.
+  - Faz `GET https://storage.wavoip.com/{whatsapp_call_id}`.
+  - Se 404 ainda → marca `recording_status='pending'` e retorna 202.
+  - Se 200 → faz upload para `wavoip-recordings/{client_id}/{whatsapp_call_id}.{ext}` com `service_role`, gera `getPublicUrl`, atualiza `wavoip_call_logs` com `recording_url`, `recording_status='available'`, `recording_downloaded_at=now()`.
+  - Reentrante (idempotente por `whatsapp_call_id`).
+- Registrar nos `supabase/config.toml` (já tem padrão `verify_jwt = false` para wavoip).
 
-## Resultado esperado
+#### Botão "Buscar gravação"
+Na linha do histórico, quando `recording_status` for `pending`/`unavailable`/`error`, mostrar botão ↻ que invoca `wavoip-fetch-recording`. Quando `available`, mostrar play.
 
-O fluxo deixa de tentar “validar” o token por um endpoint que retorna 401 e passa a conectar como a Wavoip documenta: exibir QR Code, parear via WhatsApp, detectar status `open` pelo SDK/Webphone e só então liberar o discador.
+Job opcional (não nesta entrega): cron a cada 10 min varrendo `recording_status='pending'` dos últimos 7 dias — deixar como item futuro mencionado no commit, mas não implementar agora.
+
+### 4. Discoverability do webhook na Wavoip
+Documentar (no `mem://technical/wavoip/qr-webphone-connection-flow.md` ou novo arquivo `mem://technical/wavoip/call-history-recordings.md`) que o operador precisa apontar o webhook do dispositivo na Wavoip (`https://app.wavoip.com/devices` → Integrações → Webhook) para a URL pública da nossa edge `wavoip-call-webhook`.
+
+## Arquivos afetados
+- `src/pages/wavoip/WavoipPage.tsx` — Tabs e separação do conteúdo.
+- `src/pages/wavoip/components/MyDevicesTab.tsx` (novo) — conteúdo extraído (devices + dialogs).
+- `src/pages/wavoip/components/CallHistoryTab.tsx` (novo) — tabela + filtros + player.
+- `src/pages/wavoip/components/RecordingPlayer.tsx` (novo) — Popover com `<audio>` + download.
+- `src/pages/wavoip/hooks/useWavoipCallHistory.ts` (novo) — query + Realtime.
+- `supabase/functions/wavoip-call-webhook/index.ts` — gravar `whatsapp_call_id` e disparar fetch da gravação.
+- `supabase/functions/wavoip-fetch-recording/index.ts` (novo) — baixa do `storage.wavoip.com` e sobe para o nosso bucket.
+- Migração: novas colunas em `wavoip_call_logs` + criação do bucket `wavoip-recordings` (público) + policies.
+- `mem/technical/wavoip/call-history-recordings.md` (novo) — fluxo de webhook + recording mirror.
+- `mem/index.md` — adicionar entrada na seção Memories.
+
+Sem alteração no fluxo de QR/conexão nem no `WavoipContext`.
