@@ -57,6 +57,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureMonitoramentoModule();
   useEnsureCopilotModule();
   useEnsureTelefoniaModule();
+  useEnsureWavoipModule();
   useEnsurePromptGeneratorModule();
   useEnsureLegalCasesModule();
   useEnsureContractNotificationsModule();
