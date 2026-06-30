@@ -8,6 +8,8 @@ interface WavoipContextValue {
   ready: boolean;
   hasActivePlan: boolean;
   devicesCount: number;
+  connectedNumbers: string[];
+  canDial: boolean;
   startCall: (phoneE164: string, displayName?: string) => Promise<{ ok: boolean; error?: string }>;
   openWidget: () => void;
   refreshDevices: () => Promise<void>;
@@ -26,12 +28,14 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   const [hasActivePlan, setHasActivePlan] = useState(false);
   const [devicesCount, setDevicesCount] = useState(0);
   const [ready, setReady] = useState(false);
+  const [connectedNumbers, setConnectedNumbers] = useState<string[]>([]);
   const apiRef = useRef<WavoipApi | null>(null);
 
   const loadPlanAndDevices = useCallback(async (): Promise<string[]> => {
     if (!clientId) {
       setHasActivePlan(false);
       setDevicesCount(0);
+      setConnectedNumbers([]);
       return [];
     }
     const { data: plans } = await (supabase as any)
@@ -43,14 +47,22 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     setHasActivePlan(active);
     if (!active) {
       setDevicesCount(0);
+      setConnectedNumbers([]);
       return [];
     }
     const { data: devs } = await (supabase as any)
       .from('wavoip_devices')
-      .select('device_token,status')
-      .eq('client_id', clientId);
+      .select('device_token,status,connection_status,whatsapp_jids')
+      .eq('client_id', clientId)
+      .eq('connection_status', 'connected');
     const tokens = (devs ?? []).map((d: any) => d.device_token).filter(Boolean);
+    const numbers: string[] = [];
+    for (const d of devs ?? []) {
+      const j = Array.isArray(d?.whatsapp_jids) ? d.whatsapp_jids : [];
+      for (const n of j) if (n) numbers.push(String(n));
+    }
     setDevicesCount(tokens.length);
+    setConnectedNumbers(numbers);
     return tokens;
   }, [clientId]);
 
@@ -149,9 +161,11 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     try { wp?.widget?.open?.(); } catch {}
   }, []);
 
+  const canDial = ready && devicesCount > 0;
+
   const value = useMemo<WavoipContextValue>(() => ({
-    ready, hasActivePlan, devicesCount, startCall, openWidget, refreshDevices,
-  }), [ready, hasActivePlan, devicesCount, startCall, openWidget, refreshDevices]);
+    ready, hasActivePlan, devicesCount, connectedNumbers, canDial, startCall, openWidget, refreshDevices,
+  }), [ready, hasActivePlan, devicesCount, connectedNumbers, canDial, startCall, openWidget, refreshDevices]);
 
   return <WavoipContext.Provider value={value}>{children}</WavoipContext.Provider>;
 }
