@@ -83,7 +83,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
               const status = ev.includes('answered') ? 'answered' : ev.includes('ended') ? 'ended' : ev.includes('rejected') ? 'rejected' : 'started';
               const direction = (payload?.direction || payload?.call?.direction || 'outbound').toLowerCase();
               await (supabase as any).from('wavoip_call_logs').insert({
-                user_id: authUserId,
+                user_id: user?.id ?? null,
+                client_id: clientId,
                 direction: direction.includes('in') ? 'inbound' : 'outbound',
                 status,
                 from_number: payload?.from ?? payload?.call?.from ?? null,
@@ -109,7 +110,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasActivePlan, authUserId]);
+  }, [hasActivePlan, clientId]);
 
   const refreshDevices = useCallback(async () => {
     const tokens = await loadPlanAndDevices();
