@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS wavoip_call_logs_whatsapp_call_id_uniq ON public.wavoip_call_logs (whatsapp_call_id) WHERE whatsapp_call_id IS NOT NULL;
