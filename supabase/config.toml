@@ -118,3 +118,6 @@ verify_jwt = false
 
 [functions.wavoip-call-webhook]
 verify_jwt = false
+
+[functions.wavoip-fetch-recording]
+verify_jwt = false
