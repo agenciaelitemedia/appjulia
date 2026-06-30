@@ -30,10 +30,9 @@ Deno.serve(async (req) => {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 8000);
     try {
-      const resp = await fetch(`${WAVOIP_BASE}/v1/devices/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${device.device_token}` },
-        body: JSON.stringify({ token: device.device_token }),
+      const resp = await fetch(`${WAVOIP_BASE}/devices/status`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${device.device_token}` },
         signal: ac.signal,
       });
       const text = await resp.text();
