@@ -56,6 +56,7 @@ export type WavoipOrder = {
 export type WavoipDevice = {
   id: string;
   user_id: string | null;
+  app_user_id: number | null;
   client_id: number | null;
   user_plan_id: string | null;
   device_token: string;
@@ -78,6 +79,7 @@ export type WavoipDevice = {
 export type WavoipCallLog = {
   id: string;
   user_id: string | null;
+  app_user_id: number | null;
   device_id: string | null;
   direction: string;
   status: string;
