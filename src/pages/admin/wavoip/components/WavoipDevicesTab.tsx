@@ -6,16 +6,36 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
-import { useDeletePoolDevice, useRegisterPoolDevice, useWavoipDevices } from '../hooks/useWavoipAdmin';
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useDeletePoolDevice, useRegisterPoolDevice, useUpdatePoolDevice, useWavoipDevices, type WavoipDevice } from '../hooks/useWavoipAdmin';
 import { format } from 'date-fns';
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
 
 export function WavoipDevicesTab() {
   const { data: devices = [], isLoading } = useWavoipDevices();
   const register = useRegisterPoolDevice();
   const remove = useDeletePoolDevice();
+  const update = useUpdatePoolDevice();
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState('');
+  const [editTarget, setEditTarget] = useState<WavoipDevice | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editToken, setEditToken] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<WavoipDevice | null>(null);
+
+  const startEdit = (d: WavoipDevice) => {
+    setEditTarget(d);
+    setEditName(d.device_name ?? '');
+    setEditToken('');
+  };
+
+  const saveEdit = () => {
+    if (!editTarget) return;
+    update.mutate(
+      { id: editTarget.id, device_name: editName, device_token: editToken || undefined },
+      { onSuccess: () => setEditTarget(null) }
+    );
+  };
 
   const handleRegister = () => {
     register.mutate(token, { onSuccess: () => { setToken(''); setOpen(false); } });
@@ -62,11 +82,14 @@ export function WavoipDevicesTab() {
                 </TableCell>
                 <TableCell>{d.last_seen_at ? format(new Date(d.last_seen_at), 'dd/MM HH:mm') : '-'}</TableCell>
                 <TableCell className="text-right">
+                  <Button size="icon" variant="ghost" onClick={() => startEdit(d)} title="Editar">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <Button
                     size="icon"
                     variant="ghost"
                     disabled={d.status === 'in_use'}
-                    onClick={() => { if (confirm('Remover este dispositivo do pool?')) remove.mutate(d.id); }}
+                    onClick={() => setDeleteTarget(d)}
                     title={d.status === 'in_use' ? 'Em uso — não pode ser removido' : 'Remover'}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -96,6 +119,40 @@ export function WavoipDevicesTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) setEditTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Editar dispositivo</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="WAPhone_XXXX" />
+            </div>
+            <div>
+              <Label>Substituir token (opcional)</Label>
+              <Input value={editToken} onChange={(e) => setEditToken(e.target.value)} placeholder="deixe vazio para manter o token atual" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>Cancelar</Button>
+            <Button onClick={saveEdit} disabled={update.isPending || !editName.trim()}>
+              {update.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        title="Remover dispositivo do pool?"
+        description={<>O dispositivo <strong>{deleteTarget?.device_name}</strong> será removido permanentemente do pool Wavoip.</>}
+        toggleLabel="Confirmo a remoção deste dispositivo do pool"
+        loading={remove.isPending}
+        onConfirm={() => {
+          if (deleteTarget) remove.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+        }}
+      />
     </Card>
   );
 }
