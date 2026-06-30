@@ -18,6 +18,7 @@ import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
 import { useQuery } from '@tanstack/react-query';
 import { usePhone } from '@/contexts/PhoneContext';
 import { useWavoip } from '@/contexts/WavoipContext';
+import { WavoipCallButton } from '@/components/chat/WavoipCallButton';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
