@@ -43,8 +43,11 @@ Deno.serve(async (req) => {
     if (selErr) throw selErr;
     const log = rows?.[0];
     if (!log) {
-      return new Response(JSON.stringify({ error: 'log_not_found' }), {
-        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      // Race comum: RECORD/terminal chegou antes do CALL persistir a linha.
+      // Retornar 200 evita que o SDK do cliente trate como erro fatal; cron de
+      // sync irá reprocessar quando o log existir.
+      return new Response(JSON.stringify({ ok: false, status: 'log_not_found' }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     if (log.recording_status === 'available' && log.recording_url) {
