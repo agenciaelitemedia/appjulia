@@ -36,7 +36,8 @@ function statusInfo(c: WavoipCall): { label: string; variant: 'default' | 'destr
   if (['rejected', 'cancelled', 'canceled'].includes(s)) return { label: 'Cancelada', variant: 'secondary' };
   if (['not_answered', 'no_answer'].includes(s)) return { label: 'Não atendida', variant: 'secondary' };
   if (['failed', 'error', 'connection_lost'].includes(s)) return { label: 'Falhou', variant: 'destructive' };
-  if (['ended'].includes(s)) return { label: 'Encerrada', variant: 'outline' };
+  if (['ended', 'handled_remotely'].includes(s)) return { label: 'Encerrada', variant: 'outline' };
+  if (['incoming_ring', 'outgoing_ring', 'outgoing_calling', 'connecting', 'active'].includes(s)) return { label: 'Em andamento', variant: 'outline' };
   return { label: c.status || '-', variant: 'outline' };
 }
 

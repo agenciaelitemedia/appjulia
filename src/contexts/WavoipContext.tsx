@@ -187,10 +187,9 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
                   scheduleRecordingFetch(String(whatsappCallId));
                   if (deviceToken) currentCallByToken.delete(deviceToken);
                 }
-              } else {
-                // Sem id ainda — apenas insere snapshot (será reconciliado pelo poll/webhook).
-                await (supabase as any).from('wavoip_call_logs').insert(baseRow);
               }
+              // Sem whatsapp_call_id: NÃO grava nada. O webhook oficial da Wavoip
+              // (configurado por dispositivo) é a fonte da verdade e fará o upsert.
             } catch (err) { console.warn('[Wavoip] log upsert failed', err); }
           };
 
@@ -219,6 +218,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       for (const t of tokens) {
         try { wp?.device?.add?.(t, true); } catch {}
         try { wp?.device?.enable?.(t); } catch {}
+        try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
       }
     })();
     return () => { cancelled = true; };
@@ -234,6 +234,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
         try { wp.device.add(t, true); } catch {}
       }
       try { wp.device.enable(t); } catch {}
+      try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
     }
     for (const t of current) {
       if (!tokens.includes(t)) {

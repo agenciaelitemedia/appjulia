@@ -1,62 +1,47 @@
 ## Objetivo
-
-Garantir que toda chamada Wavoip (recebida ou efetuada) apareça automaticamente no Histórico em `/wavoip` ao terminar, com número, duração e gravação salva no nosso storage para reprodução — sem depender de o usuário recarregar a página ou de configuração externa frágil.
+Eliminar duplicação no histórico e garantir que TODO registro tenha `WHATSAPP_CALL_ID`, número e gravação. Para isso, a fonte da verdade passa a ser o **Webhook oficial da Wavoip**, configurado automaticamente em cada dispositivo de "Meus Dispositivos".
 
 ## Diagnóstico
+- Hoje o `WavoipContext` insere uma linha em `call:started` mesmo SEM `whatsapp_call_id` (esses são exatamente os registros "started" com número "-" e duração 00:00 que você vê).
+- O `call:ended` cria OUTRA linha (sem id também, porque o SDK não devolve o id da chamada de saída de forma confiável).
+- Resultado: 2 linhas órfãs por chamada, sem como casar com a gravação.
+- A Wavoip publica via webhook `CALL` (CREATE/UPDATE) com `whatsapp_call_id`, `caller`, `receiver`, `direction`, `duration`, `status` e via `RECORD` com `record_url` quando a gravação fica pronta. Esse é o caminho correto e oficial.
 
-Hoje já existe a infra básica:
-- Tabela `wavoip_call_logs` (com `whatsapp_call_id`, `recording_url`, `recording_status`).
-- Bucket privado `wavoip-recordings`.
-- Edge function `wavoip-call-webhook` (recebe push da Wavoip, faz upsert por `whatsapp_call_id` e dispara busca da gravação).
-- Edge function `wavoip-fetch-recording` (baixa de `https://storage.wavoip.com/{id}` para o bucket).
-- Hook `useWavoipCallHistory` com Realtime.
-- Aba "Histórico" com `RecordingPlayer`.
+## Plano
 
-Pontos que estão furando a sincronização:
-1. O listener do webphone (`WavoipContext`) insere uma linha NOVA a cada evento `call:*` (started/answered/ended), sem `whatsapp_call_id` — gera linhas duplicadas e desconectadas do webhook.
-2. Esse mesmo listener nunca dispara `wavoip-fetch-recording`, então a gravação só chega se o webhook externo estiver configurado na conta Wavoip.
-3. Se o webhook externo não estiver configurado (ou falhar), nada é sincronizado.
+### 1. Frontend (`src/contexts/WavoipContext.tsx`) — parar de criar lixo
+- Remover o `INSERT` em `upsertCallLog` quando não há `whatsapp_call_id`.
+- Manter só o `UPSERT por whatsapp_call_id` quando o SDK eventualmente expõe o id; caso contrário, **não grava nada** — o webhook fará isso.
+- Manter `scheduleRecordingFetch` apenas como backup quando já houver id.
 
-## Solução (3 camadas complementares)
+### 2. Auto-provisionamento do Webhook por dispositivo
+- Nova edge function `wavoip-configure-webhook` que, dado um `device_token`, chama a API da Wavoip para:
+  - definir endpoint = `https://<supabase>/functions/v1/wavoip-call-webhook?device_token={token}` (token na query, já que a Wavoip não injeta auth).
+  - habilitar eventos `CALL`, `RECORD` e `DEVICE`.
+- Disparar essa configuração:
+  - Ao conectar um novo dispositivo em `/wavoip` (no fluxo de `wp.device.add/enable`).
+  - Botão "Reaplicar webhook" na linha do dispositivo em "Meus dispositivos" (idempotente).
+  - Loop one-shot no `wavoip-sync-history` para garantir que todos os dispositivos `connected` tenham webhook ativo.
 
-### 1) Capturar `whatsapp_call_id` direto do SDK e fazer UPSERT
-No `WavoipContext.tsx`, trocar o `insert` "burro" por um fluxo que:
-- Ao receber `call:started/answered`, ler `wp.call.getCallActive()` → `{ id, device_token, direction, status, peer }` e fazer upsert por `whatsapp_call_id = id`.
-- Manter um pequeno cache em memória `currentCallByDeviceToken` para correlacionar eventos sem `id` no payload.
-- Persistir `from_number`/`to_number` a partir de `peer.number` + direção, e `device_id` resolvido pelo `device_token`.
+### 3. `wavoip-call-webhook` — corrigir handler
+- Ler `device_token` da query string (além do body).
+- Aceitar payload oficial: `{ type:'CALL'|'RECORD'|'DEVICE', action, whatsapp_call_id, caller, receiver, direction:'INCOMING'|'OUTCOMING', duration, status, record_status, record_url }`.
+- **CALL**: upsert único por `whatsapp_call_id` (já é o comportamento — apenas garantir que `CREATE` e `UPDATE` caem na mesma linha).
+- **RECORD**: ao receber `record_status='READY'` com `record_url`, chamar `wavoip-fetch-recording` imediatamente (sem polling de 5 retries).
+- **DEVICE**: atualizar `wavoip_devices.connection_status` (open→connected, close→disconnected).
+- Se chegar evento sem `whatsapp_call_id`, **descartar** (não criar linha órfã).
 
-### 2) Disparar fetch da gravação ao encerrar (frontend)
-No mesmo listener, quando `call:ended/rejected`:
-- Atualizar status/duração/ended_at na linha existente (mesmo `whatsapp_call_id`).
-- Chamar `supabase.functions.invoke('wavoip-fetch-recording', { body: { whatsapp_call_id } })` com retry com backoff (5s, 15s, 30s, 60s, 120s) — porque a Wavoip leva alguns segundos para publicar o áudio em `storage.wavoip.com`.
-- O `recording_status` evolui `pending → downloading → available`; a aba Histórico já reage via Realtime.
+### 4. Limpeza dos registros ruins
+- Migration: `DELETE FROM wavoip_call_logs WHERE whatsapp_call_id IS NULL` (são exatamente as 24 linhas "started/encerrada" sem número da sua tela).
 
-### 3) Poll de segurança (backend) para não perder nada
-Nova edge function `wavoip-sync-history`:
-- Recebe `{ device_token? , client_id? }` (sem args → varre todos os dispositivos `connected`).
-- Consulta a API REST da Wavoip (`GET https://api.wavoip.com/calls?device_token=...&limit=50`) usando o token do dispositivo como auth.
-- Faz upsert em `wavoip_call_logs` por `whatsapp_call_id` (preenche from/to, duration, started/ended, status, direction).
-- Para cada chamada com `recording_status != 'available'`, chama `wavoip-fetch-recording` (com `EdgeRuntime.waitUntil`).
-- Disparada por:
-  - `pg_cron` a cada 5 min (`select net.http_post(...)` para todos os clientes ativos).
-  - Botão "Sincronizar agora" na aba Histórico (chama via `supabase.functions.invoke`).
-
-### 4) Higiene
-- Migration para criar índice único parcial em `wavoip_call_logs (whatsapp_call_id)` (`WHERE whatsapp_call_id IS NOT NULL`) — viabiliza upsert atômico e bloqueia duplicatas.
-- Migration para apagar/mesclar linhas legadas sem `whatsapp_call_id` que claramente são duplicatas (mesma `started_at±5s`, mesmo `device_id`).
-- `RecordingPlayer` já lida com `pending` → adicionar polling leve (a cada 15s, até 3 min) para gerar URL assinada assim que `available`.
+### 5. UI (`CallHistoryTab.tsx`)
+- Mostrar "Aguardando webhook…" quando uma chamada ainda não tem registro (estado vazio inalterado).
+- Causa `started` deixa de existir, então remover do mapeamento `statusInfo`.
 
 ## Detalhes técnicos
+- Endpoint da Wavoip para webhook: documentação privada por dispositivo — usaremos `PUT https://api.wavoip.com/devices/webhook` (ou `/v1/devices/webhook`) com `Authorization: Bearer {device_token}` e body `{ url, events: ['CALL','RECORD','DEVICE'], enabled: true }`. A edge function tenta as variações conhecidas (mesmo padrão já usado em `wavoip-sync-history`).
+- O `device_token` continua sendo a auth — vai pela query do callback porque a Wavoip não assina o webhook.
+- `wavoip_call_logs.whatsapp_call_id` já tem unique index parcial → upsert atômico funciona.
 
-- `wavoip-sync-history` autentica via `Authorization: Bearer <device_token>` (padrão Wavoip device API). Se o endpoint exato divergir, normalizamos lendo a doc da Wavoip e atualizamos o fetch.
-- Retry no frontend usa `setTimeout` + `AbortController` cancelado ao desmontar; o estado de retry NÃO é guardado no servidor — a fonte da verdade é o `recording_status` do log.
-- O upsert do frontend é seguro porque a RLS de `wavoip_call_logs` já permite o `app_user_id` dono da chamada inserir; conflitos são resolvidos pelo unique index e por `onConflict: 'whatsapp_call_id'`.
-- O cron usa `pg_net` (já habilitado em outras integrações) chamando a URL pública da edge function com o service role no header.
-
-## Critério de aceite
-
-- Fazer uma chamada de saída pelo discador: aparece imediatamente em Histórico (status `started → answered → ended`), com número e duração corretos.
-- Ao encerrar, em ≤2 min o player mostra "Reproduzir" (gravação no bucket `wavoip-recordings`).
-- Receber uma chamada: idem, com `direction=inbound` e `from_number` do lead.
-- Mesmo se o webhook externo da Wavoip estiver desligado, o poll de 5 min preenche e baixa as gravações faltantes.
-- Não há linhas duplicadas por chamada.
+## Memória
+- Atualizar `mem/features/wavoip/call-history-sync.md`: webhook passa a ser a fonte primária; SDK só prefilla discador; poll vira backup raro; configuração de webhook é automática por dispositivo.
