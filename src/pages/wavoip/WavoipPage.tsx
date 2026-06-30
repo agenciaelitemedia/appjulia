@@ -362,10 +362,10 @@ export default function WavoipPage() {
                   <RefreshCw className="h-4 w-4 mr-1" /> Atualizar
                 </Button>
                 <Button variant="outline" size="sm" onClick={async () => {
-                  const { data, error } = await supabase.functions.invoke('wavoip-verify-webhook', { body: { client_id: clientId, auto_fix: true } });
+                  const { data, error } = await supabase.functions.invoke('wavoip-verify-webhook', { body: { client_id: clientId } });
                   if (error) { toast.error(error.message); return; }
                   const bad = (data?.results ?? []).filter((r: any) => r.status !== 'ok').length;
-                  toast.success(bad === 0 ? 'Todos os webhooks OK' : `${bad} dispositivo(s) reconfigurado(s)/com problema`);
+                  toast.success(bad === 0 ? 'Todos os webhooks ativos' : `${bad} dispositivo(s) precisam de atenção`);
                   void load();
                 }} disabled={loading}>
                   <ShieldCheck className="h-4 w-4 mr-1" /> Verificar webhooks
