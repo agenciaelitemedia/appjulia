@@ -218,6 +218,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       for (const t of tokens) {
         try { wp?.device?.add?.(t, true); } catch {}
         try { wp?.device?.enable?.(t); } catch {}
+        try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
       }
     })();
     return () => { cancelled = true; };
@@ -233,6 +234,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
         try { wp.device.add(t, true); } catch {}
       }
       try { wp.device.enable(t); } catch {}
+      try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
     }
     for (const t of current) {
       if (!tokens.includes(t)) {
