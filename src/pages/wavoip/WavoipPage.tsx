@@ -40,6 +40,15 @@ const jidFromPhone = (phone?: string | null) => {
   const digits = normalizePhone(phone);
   return digits ? `${digits}@s.whatsapp.net` : null;
 };
+const phoneFromJid = (jid?: string | null) => normalizePhone(String(jid || '').split('@')[0]);
+const extractSnapshotJid = (snapshot?: any) => {
+  const raw = snapshot?.jid ?? snapshot?.whatsapp_jid ?? snapshot?.whatsappJid ?? snapshot?.contact?.jid ?? snapshot?.contact?.id ?? snapshot?.me?.jid ?? snapshot?.me?.id ?? null;
+  return raw ? String(raw) : null;
+};
+const extractSnapshotPhone = (snapshot?: any) => {
+  const raw = snapshot?.contact?.phone ?? snapshot?.phone ?? snapshot?.number ?? snapshot?.whatsapp_number ?? snapshot?.whatsappNumber ?? snapshot?.me?.phone ?? null;
+  return normalizePhone(raw) || phoneFromJid(extractSnapshotJid(snapshot)) || null;
+};
 
 const qrImageUrl = (token: string) => `https://devices.wavoip.com/${encodeURIComponent(token)}/whatsapp/qr-image?ts=${Date.now()}`;
 
@@ -101,8 +110,9 @@ export default function WavoipPage() {
   useEffect(() => () => resetConnectionState(), [resetConnectionState]);
 
   const syncDeviceAsConnected = useCallback(async (device: Device, contactPhone?: string | null, snapshot?: any) => {
-    const phone = normalizePhone(contactPhone || snapshot?.contact?.phone || device.whatsapp_number);
-    const jid = jidFromPhone(phone) || device.whatsapp_jid || (Array.isArray(device.whatsapp_jids) ? device.whatsapp_jids[0] : null);
+    const snapshotJid = extractSnapshotJid(snapshot);
+    const phone = normalizePhone(contactPhone || extractSnapshotPhone(snapshot) || device.whatsapp_number);
+    const jid = snapshotJid || jidFromPhone(phone) || device.whatsapp_jid || (Array.isArray(device.whatsapp_jids) ? device.whatsapp_jids[0] : null);
     const jids = jid ? [jid] : [];
     const metadata = {
       ...(device.metadata ?? {}),
@@ -183,13 +193,14 @@ export default function WavoipPage() {
         const entries = wp.device.get?.() ?? [];
         const entry = entries.find((x: any) => x?.token === device.device_token);
         if (!entry) return;
+        const status = String(entry.status ?? '').toLowerCase();
         setSdkSnapshot(entry);
         if (entry.qrCode) setQrText(String(entry.qrCode));
-        if (entry.status === 'open') {
-          await finishSuccess(entry, entry.contact?.phone ?? null);
+        if (status === 'open') {
+          await finishSuccess(entry, extractSnapshotPhone(entry));
           return;
         }
-        if (entry.status === 'error' || entry.status === 'WAITING_PAYMENT' || entry.status === 'EXTERNAL_INTEGRATION_ERROR') {
+        if (status === 'error' || status === 'waiting_payment' || status === 'external_integration_error') {
           completedRef.current = true;
           if (intervalRef.current) window.clearInterval(intervalRef.current);
           intervalRef.current = null;
