@@ -1,0 +1,224 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export type WavoipPlan = {
+  id: string;
+  name: string;
+  description: string | null;
+  monthly_price: number;
+  included_minutes: number;
+  max_devices: number;
+  device_model: string;
+  features: any;
+  active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WavoipUserPlan = {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  status: string;
+  activated_at: string;
+  expires_at: string | null;
+  cancelled_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  plan?: WavoipPlan | null;
+};
+
+export type WavoipOrder = {
+  id: string;
+  user_id: string;
+  plan_id: string | null;
+  amount: number;
+  status: string;
+  payment_provider: string | null;
+  payment_id: string | null;
+  paid_at: string | null;
+  metadata: any;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WavoipDevice = {
+  id: string;
+  user_id: string;
+  user_plan_id: string | null;
+  device_token: string;
+  device_name: string | null;
+  whatsapp_number: string | null;
+  whatsapp_jid: string | null;
+  status: string;
+  device_model: string;
+  last_seen_at: string | null;
+  provisioned_at: string | null;
+  metadata: any;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WavoipCallLog = {
+  id: string;
+  user_id: string | null;
+  device_id: string | null;
+  direction: string;
+  status: string;
+  from_number: string | null;
+  to_number: string | null;
+  whatsapp_jid: string | null;
+  duration_seconds: number;
+  end_reason: string | null;
+  started_at: string | null;
+  answered_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+};
+
+export function useWavoipPlans() {
+  return useQuery({
+    queryKey: ['wavoip', 'plans'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('wavoip_plans')
+        .select('*')
+        .order('sort_order', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as WavoipPlan[];
+    },
+  });
+}
+
+export function useUpsertWavoipPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (plan: Partial<WavoipPlan> & { id?: string }) => {
+      const payload = { ...plan };
+      if (plan.id) {
+        const { error } = await (supabase as any).from('wavoip_plans').update(payload).eq('id', plan.id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any).from('wavoip_plans').insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wavoip', 'plans'] });
+      toast.success('Plano salvo');
+    },
+    onError: (err: any) => toast.error(err?.message || 'Erro ao salvar plano'),
+  });
+}
+
+export function useDeleteWavoipPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any).from('wavoip_plans').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wavoip', 'plans'] });
+      toast.success('Plano excluído');
+    },
+    onError: (err: any) => toast.error(err?.message || 'Erro ao excluir plano'),
+  });
+}
+
+export function useWavoipUserPlans() {
+  return useQuery({
+    queryKey: ['wavoip', 'user-plans'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('wavoip_user_plans')
+        .select('*, plan:wavoip_plans(*)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as WavoipUserPlan[];
+    },
+  });
+}
+
+export function useActivateWavoipForUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ user_id, plan_id }: { user_id: string; plan_id: string }) => {
+      const { error } = await (supabase as any).from('wavoip_user_plans').insert({
+        user_id,
+        plan_id,
+        status: 'active',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wavoip', 'user-plans'] });
+      toast.success('Wavoip ativado para o cliente');
+    },
+    onError: (err: any) => toast.error(err?.message || 'Erro ao ativar'),
+  });
+}
+
+export function useDeactivateWavoipUserPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('wavoip_user_plans')
+        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wavoip', 'user-plans'] });
+      toast.success('Plano desativado');
+    },
+    onError: (err: any) => toast.error(err?.message || 'Erro ao desativar'),
+  });
+}
+
+export function useWavoipOrders() {
+  return useQuery({
+    queryKey: ['wavoip', 'orders'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('wavoip_orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as WavoipOrder[];
+    },
+  });
+}
+
+export function useWavoipDevices() {
+  return useQuery({
+    queryKey: ['wavoip', 'devices'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('wavoip_devices')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as WavoipDevice[];
+    },
+  });
+}
+
+export function useWavoipCallLogs() {
+  return useQuery({
+    queryKey: ['wavoip', 'call-logs'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('wavoip_call_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as WavoipCallLog[];
+    },
+  });
+}
