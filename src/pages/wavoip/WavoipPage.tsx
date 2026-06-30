@@ -145,7 +145,12 @@ export default function WavoipPage() {
     setConnectError(null);
 
     try {
-      await markDeviceStatus(device.id, 'connecting');
+      const { data: prepared, error: prepareErr } = await supabase.functions.invoke('wavoip-connect-device', {
+        body: { device_id: device.id },
+      });
+      if (prepareErr) throw prepareErr;
+      if ((prepared as any)?.qr_url) setQrUrl(`${(prepared as any).qr_url}?ts=${Date.now()}`);
+
       const wp: any = await ensureWebphone();
       if (!wp?.device) throw new Error('Webphone Wavoip não inicializado');
 
@@ -356,7 +361,7 @@ export default function WavoipPage() {
                         {connected ? 'conectado' : d.connection_status === 'connecting' ? 'aguardando QR' : d.connection_status === 'error' ? 'erro' : 'desconectado'}
                       </Badge>
                       <Button variant={connected ? 'outline' : 'default'} size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
-                        <Plug className="h-4 w-4 mr-1" /> {connected ? 'Reconectar' : 'Conectar'}
+                        <Plug className="h-4 w-4 mr-1" /> Conectar
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => handleRelease(d)}>
                         Liberar
