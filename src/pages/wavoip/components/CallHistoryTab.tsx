@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RefreshCw, PhoneIncoming, PhoneOutgoing } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { useWavoipCallHistory, type WavoipCall } from '../hooks/useWavoipCallHistory';
 import { RecordingPlayer } from './RecordingPlayer';
 
@@ -45,6 +47,22 @@ export function CallHistoryTab() {
   const isAdmin = Boolean((user as any)?.is_admin);
   const [ownOnly, setOwnOnly] = useState(!isAdmin);
   const { data: calls = [], isLoading, refetch } = useWavoipCallHistory(clientId, appUserId, { ownOnly });
+  const [syncing, setSyncing] = useState(false);
+
+  const syncNow = async () => {
+    if (!clientId) return;
+    setSyncing(true);
+    try {
+      const { error } = await supabase.functions.invoke('wavoip-sync-history', {
+        body: { client_id: clientId },
+      });
+      if (error) throw error;
+      toast.success('Histórico sincronizado com a Wavoip');
+      await refetch();
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao sincronizar');
+    } finally { setSyncing(false); }
+  };
 
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'inbound' | 'outbound'>('all');
@@ -75,6 +93,9 @@ export function CallHistoryTab() {
             <span className="text-xs text-muted-foreground">{filtered.length} de {calls.length} registro(s)</span>
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} /> Atualizar
+            </Button>
+            <Button variant="default" size="sm" onClick={syncNow} disabled={syncing}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar com Wavoip
             </Button>
           </div>
         </div>
