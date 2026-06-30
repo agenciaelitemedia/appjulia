@@ -7621,10 +7621,14 @@ export type Database = {
           from_number: string | null
           id: string
           metadata: Json
+          recording_downloaded_at: string | null
+          recording_status: string
+          recording_url: string | null
           started_at: string | null
           status: string
           to_number: string | null
           user_id: string | null
+          whatsapp_call_id: string | null
           whatsapp_jid: string | null
         }
         Insert: {
@@ -7642,10 +7646,14 @@ export type Database = {
           from_number?: string | null
           id?: string
           metadata?: Json
+          recording_downloaded_at?: string | null
+          recording_status?: string
+          recording_url?: string | null
           started_at?: string | null
           status: string
           to_number?: string | null
           user_id?: string | null
+          whatsapp_call_id?: string | null
           whatsapp_jid?: string | null
         }
         Update: {
@@ -7663,10 +7671,14 @@ export type Database = {
           from_number?: string | null
           id?: string
           metadata?: Json
+          recording_downloaded_at?: string | null
+          recording_status?: string
+          recording_url?: string | null
           started_at?: string | null
           status?: string
           to_number?: string | null
           user_id?: string | null
+          whatsapp_call_id?: string | null
           whatsapp_jid?: string | null
         }
         Relationships: [
