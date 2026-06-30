@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
@@ -408,24 +408,25 @@ export default function WavoipPage() {
                                   className="gap-1 cursor-help"
                                 >
                                   {d.webhook_status === 'ok' ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
-                                  Webhook {d.webhook_status === 'ok' ? 'OK' : d.webhook_status === 'disabled' ? 'desativado' : d.webhook_status === 'misconfigured' ? 'incorreto' : d.webhook_status === 'error' ? 'erro' : d.webhook_status ?? 'não verificado'}
+                                  Webhook {d.webhook_status === 'ok' ? 'OK' : d.webhook_status === 'stale' ? 'inativo' : d.webhook_status === 'never' ? 'não configurado' : 'não verificado'}
                                 </Badge>
                               </TooltipTrigger>
                               <TooltipContent className="max-w-sm text-xs">
-                                <div><b>URL atual:</b> {d.webhook_url || '—'}</div>
+                                <div className="break-all"><b>URL esperada:</b><br />{d.webhook_url || '—'}</div>
                                 {d.webhook_checked_at && <div><b>Verificado:</b> {format(new Date(d.webhook_checked_at), 'dd/MM HH:mm')}</div>}
-                                {d.webhook_last_error && <div className="text-destructive break-all"><b>Erro:</b> {d.webhook_last_error}</div>}
+                                {d.webhook_last_error && <div className="text-destructive break-all"><b>Aviso:</b> {d.webhook_last_error}</div>}
+                                <div className="text-muted-foreground pt-1 mt-1 border-t">Configure no painel da Wavoip → Dispositivo → Integrações → Webhook. Eventos: CALL, RECORD, DEVICE.</div>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                           {d.webhook_status && d.webhook_status !== 'ok' && (
                             <Button variant="outline" size="sm" onClick={async () => {
-                              const { error } = await supabase.functions.invoke('wavoip-verify-webhook', { body: { device_token: d.device_token, auto_fix: true } });
-                              if (error) { toast.error(error.message); return; }
-                              toast.success('Webhook reconfigurado');
-                              void load();
+                              const url = d.webhook_url || '';
+                              if (!url) { toast.error('URL ainda não disponível — clique em Verificar webhooks'); return; }
+                              try { await navigator.clipboard.writeText(url); toast.success('URL copiada — cole em Integrações → Webhook na Wavoip'); }
+                              catch { toast.error('Não foi possível copiar'); }
                             }}>
-                              <ShieldCheck className="h-4 w-4 mr-1" /> Corrigir
+                              <Copy className="h-4 w-4 mr-1" /> Copiar URL
                             </Button>
                           )}
                           <Button variant={connected ? 'outline' : 'default'} size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
