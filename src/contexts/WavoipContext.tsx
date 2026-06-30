@@ -56,6 +56,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       .from('wavoip_devices')
       .select('device_token,status,connection_status,whatsapp_jids')
       .eq('client_id', clientId)
+      .eq('app_user_id', user?.id ?? -1)
       .eq('connection_status', 'connected');
     const tokens = (devs ?? []).map((d: any) => d.device_token).filter(Boolean);
     const numbers: string[] = [];
@@ -66,7 +67,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     setDevicesCount(tokens.length);
     setConnectedNumbers(numbers);
     return { active: true, tokens };
-  }, [clientId]);
+  }, [clientId, user?.id]);
 
   const ensureWebphone = useCallback(async (): Promise<WavoipApi | null> => {
     if (apiRef.current || (window as any).wavoip) {
@@ -105,7 +106,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
               const status = ev.includes('answered') ? 'answered' : ev.includes('ended') ? 'ended' : ev.includes('rejected') ? 'rejected' : 'started';
               const direction = (payload?.direction || payload?.call?.direction || 'outbound').toLowerCase();
               await (supabase as any).from('wavoip_call_logs').insert({
-                user_id: user?.id ?? null,
+                user_id: null,
+                app_user_id: user?.id ?? null,
                 client_id: clientId,
                 direction: direction.includes('in') ? 'inbound' : 'outbound',
                 status,
@@ -170,7 +172,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   }, [ensureWebphone, loadPlanAndDevices]);
 
   const startCall = useCallback(async (phone: string, displayName?: string) => {
-    const wp: any = (window as any).wavoip;
+    const wp: any = (window as any).wavoip ?? await ensureWebphone();
     if (!wp?.call?.start) return { ok: false, error: 'Webphone não inicializado' };
     const digits = (phone || '').replace(/\D/g, '');
     if (!digits) return { ok: false, error: 'Telefone inválido' };
@@ -182,7 +184,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     } catch (e: any) {
       return { ok: false, error: e?.message ?? 'Erro ao chamar' };
     }
-  }, []);
+  }, [ensureWebphone]);
 
   const openWidget = useCallback(() => {
     const wp: any = (window as any).wavoip;
