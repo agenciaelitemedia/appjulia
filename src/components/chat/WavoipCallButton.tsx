@@ -10,15 +10,15 @@ interface Props {
 }
 
 export function WavoipCallButton({ phone, contactName }: Props) {
-  const { hasActivePlan, ready, canDial, startCall } = useWavoip();
+  const { hasActivePlan, ready, canDial, prefillDialer } = useWavoip();
   if (!hasActivePlan) return null;
 
   const onClick = async () => {
     if (!phone) { toast.error('Contato sem telefone'); return; }
     if (!ready) { toast.error('Webphone Wavoip carregando...'); return; }
     if (!canDial) { toast.error('Conecte um dispositivo Wavoip para ligar'); return; }
-    const res = await startCall(phone, contactName ?? undefined);
-    if (!res.ok) toast.error(res.error ?? 'Falha ao ligar');
+    const res = await prefillDialer(phone, contactName ?? undefined);
+    if (!res.ok) toast.error(res.error ?? 'Falha ao abrir discador');
   };
 
   return (
@@ -29,7 +29,7 @@ export function WavoipCallButton({ phone, contactName }: Props) {
         ? 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100'
         : 'text-muted-foreground')}
       onClick={onClick}
-      title="Chamar via WhatsApp (Wavoip)"
+      title="Abrir discador com número preenchido (Wavoip)"
     >
       <PhoneCall className="h-4 w-4" />
       Chamada WA

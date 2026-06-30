@@ -12,6 +12,7 @@ interface WavoipContextValue {
   canDial: boolean;
   ensureWebphone: () => Promise<WavoipApi | null>;
   startCall: (phoneE164: string, displayName?: string) => Promise<{ ok: boolean; error?: string }>;
+  prefillDialer: (phoneE164: string, displayName?: string) => Promise<{ ok: boolean; error?: string }>;
   openWidget: () => void;
   refreshDevices: () => Promise<void>;
 }
@@ -191,11 +192,78 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     try { wp?.widget?.open?.(); } catch {}
   }, []);
 
+  const prefillDialer = useCallback(async (phone: string, displayName?: string) => {
+    const wp: any = (window as any).wavoip ?? await ensureWebphone();
+    if (!wp) return { ok: false, error: 'Webphone não inicializado' };
+    const digits = (phone || '').replace(/\D/g, '');
+    if (!digits) return { ok: false, error: 'Telefone inválido' };
+    try { wp.widget?.open?.(); } catch {}
+
+    // 1) Tentar APIs públicas do SDK
+    const sdkAttempts: Array<() => any> = [
+      () => wp?.dialer?.setNumber?.(digits),
+      () => wp?.dialer?.set?.(digits),
+      () => wp?.widget?.setNumber?.(digits),
+      () => wp?.widget?.dialer?.setNumber?.(digits),
+      () => wp?.call?.prefill?.(digits, displayName ? { displayName } : undefined),
+    ];
+    for (const fn of sdkAttempts) {
+      try {
+        const r = fn();
+        if (r !== undefined) return { ok: true };
+      } catch {}
+    }
+
+    // 2) Fallback DOM: localizar input do discador e setar valor disparando eventos
+    const setNativeValue = (el: HTMLInputElement, value: string) => {
+      const proto = Object.getPrototypeOf(el);
+      const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+      desc?.set?.call(el, value);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const trySetDom = (): boolean => {
+      const selectors = [
+        'input[data-testid="dialer-input"]',
+        'input[name="dialer"]',
+        'input[name="phone"]',
+        'input[type="tel"]',
+        '[id*="wavoip" i] input',
+        '[class*="wavoip" i] input',
+        '[class*="dialer" i] input',
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel) as HTMLInputElement | null;
+        if (el) { setNativeValue(el, digits); el.focus(); return true; }
+      }
+      // Tenta iframe do widget
+      const iframes = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
+      for (const f of iframes) {
+        try {
+          const doc = f.contentDocument;
+          if (!doc) continue;
+          for (const sel of selectors) {
+            const el = doc.querySelector(sel) as HTMLInputElement | null;
+            if (el) { setNativeValue(el, digits); el.focus(); return true; }
+          }
+        } catch {}
+      }
+      return false;
+    };
+
+    // Aguarda widget renderizar
+    for (let i = 0; i < 20; i++) {
+      if (trySetDom()) return { ok: true };
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { ok: false, error: 'Não foi possível preencher o discador' };
+  }, [ensureWebphone]);
+
   const canDial = ready && devicesCount > 0;
 
   const value = useMemo<WavoipContextValue>(() => ({
-    ready, hasActivePlan, devicesCount, connectedNumbers, canDial, ensureWebphone, startCall, openWidget, refreshDevices,
-  }), [ready, hasActivePlan, devicesCount, connectedNumbers, canDial, ensureWebphone, startCall, openWidget, refreshDevices]);
+    ready, hasActivePlan, devicesCount, connectedNumbers, canDial, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices,
+  }), [ready, hasActivePlan, devicesCount, connectedNumbers, canDial, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices]);
 
   return <WavoipContext.Provider value={value}>{children}</WavoipContext.Provider>;
 }
