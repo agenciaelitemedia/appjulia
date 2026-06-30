@@ -7608,6 +7608,7 @@ export type Database = {
       wavoip_call_logs: {
         Row: {
           answered_at: string | null
+          app_user_id: number | null
           client_id: number | null
           contact_id: string | null
           conversation_id: string | null
@@ -7628,6 +7629,7 @@ export type Database = {
         }
         Insert: {
           answered_at?: string | null
+          app_user_id?: number | null
           client_id?: number | null
           contact_id?: string | null
           conversation_id?: string | null
@@ -7648,6 +7650,7 @@ export type Database = {
         }
         Update: {
           answered_at?: string | null
+          app_user_id?: number | null
           client_id?: number | null
           contact_id?: string | null
           conversation_id?: string | null
@@ -7678,6 +7681,7 @@ export type Database = {
       }
       wavoip_devices: {
         Row: {
+          app_user_id: number | null
           client_id: number | null
           connected_at: string | null
           connection_status: string
@@ -7699,6 +7703,7 @@ export type Database = {
           whatsapp_number: string | null
         }
         Insert: {
+          app_user_id?: number | null
           client_id?: number | null
           connected_at?: string | null
           connection_status?: string
@@ -7720,6 +7725,7 @@ export type Database = {
           whatsapp_number?: string | null
         }
         Update: {
+          app_user_id?: number | null
           client_id?: number | null
           connected_at?: string | null
           connection_status?: string
