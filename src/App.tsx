@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UaZapiProvider } from "@/contexts/UaZapiContext";
+import { WavoipProvider } from "@/contexts/WavoipContext";
 import { DebugProvider } from "@/contexts/DebugContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 
@@ -131,6 +132,7 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <UaZapiProvider>
+              <WavoipProvider>
               <ErrorBoundary>
               <Suspense fallback={null}>
               <Routes>
@@ -238,6 +240,7 @@ const App = () => (
               </Suspense>
               </ErrorBoundary>
               <DebugBar />
+              </WavoipProvider>
             </UaZapiProvider>
           </AuthProvider>
         </BrowserRouter>
