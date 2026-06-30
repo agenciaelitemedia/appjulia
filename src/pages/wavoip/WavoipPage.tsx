@@ -361,6 +361,15 @@ export default function WavoipPage() {
                 <Button variant="outline" size="sm" onClick={load} disabled={loading}>
                   <RefreshCw className="h-4 w-4 mr-1" /> Atualizar
                 </Button>
+                <Button variant="outline" size="sm" onClick={async () => {
+                  const { data, error } = await supabase.functions.invoke('wavoip-verify-webhook', { body: { client_id: clientId, auto_fix: true } });
+                  if (error) { toast.error(error.message); return; }
+                  const bad = (data?.results ?? []).filter((r: any) => r.status !== 'ok').length;
+                  toast.success(bad === 0 ? 'Todos os webhooks OK' : `${bad} dispositivo(s) reconfigurado(s)/com problema`);
+                  void load();
+                }} disabled={loading}>
+                  <ShieldCheck className="h-4 w-4 mr-1" /> Verificar webhooks
+                </Button>
                 <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!hasActivePlan}>
                   <Plus className="h-4 w-4 mr-1" /> Adicionar dispositivo
                 </Button>
