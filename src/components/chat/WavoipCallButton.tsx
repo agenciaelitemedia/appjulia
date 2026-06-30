@@ -10,12 +10,13 @@ interface Props {
 }
 
 export function WavoipCallButton({ phone, contactName }: Props) {
-  const { hasActivePlan, ready, startCall } = useWavoip();
+  const { hasActivePlan, ready, canDial, startCall } = useWavoip();
   if (!hasActivePlan) return null;
 
   const onClick = async () => {
     if (!phone) { toast.error('Contato sem telefone'); return; }
     if (!ready) { toast.error('Webphone Wavoip carregando...'); return; }
+    if (!canDial) { toast.error('Conecte um dispositivo Wavoip para ligar'); return; }
     const res = await startCall(phone, contactName ?? undefined);
     if (!res.ok) toast.error(res.error ?? 'Falha ao ligar');
   };
@@ -24,7 +25,7 @@ export function WavoipCallButton({ phone, contactName }: Props) {
     <Button
       variant="outline"
       size="sm"
-      className={cn('gap-1.5', ready
+      className={cn('gap-1.5', canDial
         ? 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100'
         : 'text-muted-foreground')}
       onClick={onClick}
