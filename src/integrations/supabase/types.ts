@@ -7608,6 +7608,7 @@ export type Database = {
       wavoip_call_logs: {
         Row: {
           answered_at: string | null
+          client_id: number | null
           contact_id: string | null
           conversation_id: string | null
           created_at: string
@@ -7627,6 +7628,7 @@ export type Database = {
         }
         Insert: {
           answered_at?: string | null
+          client_id?: number | null
           contact_id?: string | null
           conversation_id?: string | null
           created_at?: string
@@ -7646,6 +7648,7 @@ export type Database = {
         }
         Update: {
           answered_at?: string | null
+          client_id?: number | null
           contact_id?: string | null
           conversation_id?: string | null
           created_at?: string
@@ -7675,6 +7678,7 @@ export type Database = {
       }
       wavoip_devices: {
         Row: {
+          client_id: number | null
           created_at: string
           device_model: string
           device_name: string | null
@@ -7691,6 +7695,7 @@ export type Database = {
           whatsapp_number: string | null
         }
         Insert: {
+          client_id?: number | null
           created_at?: string
           device_model?: string
           device_name?: string | null
@@ -7707,6 +7712,7 @@ export type Database = {
           whatsapp_number?: string | null
         }
         Update: {
+          client_id?: number | null
           created_at?: string
           device_model?: string
           device_name?: string | null
@@ -7735,6 +7741,7 @@ export type Database = {
       wavoip_orders: {
         Row: {
           amount: number
+          client_id: number | null
           created_at: string
           id: string
           metadata: Json
@@ -7748,6 +7755,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          client_id?: number | null
           created_at?: string
           id?: string
           metadata?: Json
@@ -7761,6 +7769,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          client_id?: number | null
           created_at?: string
           id?: string
           metadata?: Json
@@ -7830,39 +7839,63 @@ export type Database = {
       wavoip_user_plans: {
         Row: {
           activated_at: string
+          billing_period: string
+          business_name: string | null
           cancelled_at: string | null
+          client_id: number | null
+          client_name: string | null
           created_at: string
+          due_date: string | null
           expires_at: string | null
+          extra_devices: number
           id: string
+          is_active: boolean
           notes: string | null
           plan_id: string
+          start_date: string
           status: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           activated_at?: string
+          billing_period?: string
+          business_name?: string | null
           cancelled_at?: string | null
+          client_id?: number | null
+          client_name?: string | null
           created_at?: string
+          due_date?: string | null
           expires_at?: string | null
+          extra_devices?: number
           id?: string
+          is_active?: boolean
           notes?: string | null
           plan_id: string
+          start_date?: string
           status?: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           activated_at?: string
+          billing_period?: string
+          business_name?: string | null
           cancelled_at?: string | null
+          client_id?: number | null
+          client_name?: string | null
           created_at?: string
+          due_date?: string | null
           expires_at?: string | null
+          extra_devices?: number
           id?: string
+          is_active?: boolean
           notes?: string | null
           plan_id?: string
+          start_date?: string
           status?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
