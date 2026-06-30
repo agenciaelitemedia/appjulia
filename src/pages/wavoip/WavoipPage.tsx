@@ -92,10 +92,18 @@ export default function WavoipPage() {
 
   const handleConnect = async (id: string) => {
     setConnectingId(id);
-    const { error } = await (supabase as any).functions.invoke('wavoip-connect-device', { body: { device_id: id } });
+    const { data, error } = await (supabase as any).functions.invoke('wavoip-connect-device', { body: { device_id: id } });
     setConnectingId(null);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Conexão atualizada');
+    if (error) {
+      const msg = (error as any)?.context?.body || error.message || 'Falha ao conectar';
+      toast.error(typeof msg === 'string' ? msg : 'Falha ao conectar dispositivo');
+      return;
+    }
+    if (data && data.ok === false) {
+      toast.error(`Não foi possível conectar: ${data.error ?? 'erro desconhecido'}`);
+    } else {
+      toast.success('Conexão atualizada');
+    }
     await load();
     await refreshDevices();
   };
