@@ -64,7 +64,14 @@ Deno.serve(async (req) => {
         user_id = (dev as any).user_id ?? null;
         app_user_id = (dev as any).app_user_id ?? null;
         client_id = (dev as any).client_id ?? null;
-        await admin.from('wavoip_devices').update({ last_seen_at: new Date().toISOString() }).eq('id', dev.id);
+        const nowIso = new Date().toISOString();
+        await admin.from('wavoip_devices').update({
+          last_seen_at: nowIso,
+          webhook_last_received_at: nowIso,
+          webhook_status: 'ok',
+          webhook_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/wavoip-call-webhook?device_token=${encodeURIComponent(token)}`,
+          webhook_last_error: null,
+        }).eq('id', dev.id);
       }
     }
 
