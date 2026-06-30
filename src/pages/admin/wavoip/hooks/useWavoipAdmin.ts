@@ -344,6 +344,47 @@ export function useDeletePoolDevice() {
   });
 }
 
+export function useUpdatePoolDevice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, device_name, device_token }: { id: string; device_name?: string | null; device_token?: string }) => {
+      const payload: Record<string, any> = {};
+      if (typeof device_name === 'string') payload.device_name = device_name;
+      if (typeof device_token === 'string' && device_token.trim()) payload.device_token = device_token.trim();
+      if (Object.keys(payload).length === 0) return;
+      const { error } = await (supabase as any).from('wavoip_devices').update(payload).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wavoip', 'devices'] });
+      qc.invalidateQueries({ queryKey: ['wavoip', 'devices', 'free'] });
+      toast.success('Dispositivo atualizado');
+    },
+    onError: (err: any) => toast.error(err?.message || 'Erro ao atualizar dispositivo'),
+  });
+}
+
+export function useUpdateWavoipUserPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, plan_id, extra_devices, billing_period, notes }: { id: string; plan_id?: string; extra_devices?: number; billing_period?: string; notes?: string | null }) => {
+      const payload: Record<string, any> = {};
+      if (plan_id) payload.plan_id = plan_id;
+      if (typeof extra_devices === 'number') payload.extra_devices = extra_devices;
+      if (billing_period) payload.billing_period = billing_period;
+      if (notes !== undefined) payload.notes = notes;
+      if (Object.keys(payload).length === 0) return;
+      const { error } = await (supabase as any).from('wavoip_user_plans').update(payload).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['wavoip', 'user-plans'] });
+      toast.success('Cliente atualizado');
+    },
+    onError: (err: any) => toast.error(err?.message || 'Erro ao atualizar cliente'),
+  });
+}
+
 export function useWavoipCallLogs() {
   return useQuery({
     queryKey: ['wavoip', 'call-logs'],

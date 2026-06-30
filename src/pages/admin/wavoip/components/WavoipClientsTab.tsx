@@ -4,16 +4,43 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2 } from 'lucide-react';
-import { useDeactivateWavoipUserPlan, useToggleWavoipUserPlanActive, useWavoipUserPlans } from '../hooks/useWavoipAdmin';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { useDeactivateWavoipUserPlan, useToggleWavoipUserPlanActive, useUpdateWavoipUserPlan, useWavoipPlans, useWavoipUserPlans, type WavoipUserPlan } from '../hooks/useWavoipAdmin';
 import { format } from 'date-fns';
 import { AddWavoipDialog } from './AddWavoipDialog';
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function WavoipClientsTab() {
   const { data: userPlans = [], isLoading } = useWavoipUserPlans();
+  const { data: plans = [] } = useWavoipPlans();
   const toggleActive = useToggleWavoipUserPlanActive();
   const deactivate = useDeactivateWavoipUserPlan();
+  const update = useUpdateWavoipUserPlan();
   const [open, setOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<WavoipUserPlan | null>(null);
+  const [editTarget, setEditTarget] = useState<WavoipUserPlan | null>(null);
+  const [editPlanId, setEditPlanId] = useState('');
+  const [editExtras, setEditExtras] = useState(0);
+  const [editBilling, setEditBilling] = useState('monthly');
+
+  const startEdit = (up: WavoipUserPlan) => {
+    setEditTarget(up);
+    setEditPlanId(up.plan_id);
+    setEditExtras(up.extra_devices ?? 0);
+    setEditBilling(up.billing_period ?? 'monthly');
+  };
+
+  const saveEdit = () => {
+    if (!editTarget) return;
+    update.mutate(
+      { id: editTarget.id, plan_id: editPlanId, extra_devices: editExtras, billing_period: editBilling },
+      { onSuccess: () => setEditTarget(null) }
+    );
+  };
 
   return (
     <Card>
@@ -59,7 +86,10 @@ export function WavoipClientsTab() {
                 </TableCell>
                 <TableCell>{up.activated_at ? format(new Date(up.activated_at), 'dd/MM/yyyy') : '-'}</TableCell>
                 <TableCell className="text-right">
-                  <Button size="icon" variant="ghost" onClick={() => deactivate.mutate(up.id)} title="Remover">
+                  <Button size="icon" variant="ghost" onClick={() => startEdit(up)} title="Editar">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button size="icon" variant="ghost" onClick={() => setDeleteTarget(up)} title="Remover">
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </TableCell>
@@ -68,6 +98,68 @@ export function WavoipClientsTab() {
           </TableBody>
         </Table>
       </CardContent>
+
+      <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) setEditTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar ativação Wavoip</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Cliente</Label>
+              <div className="text-sm">{editTarget?.client_name ?? `Cliente #${editTarget?.client_id ?? '-'}`}</div>
+            </div>
+            <div>
+              <Label>Plano</Label>
+              <Select value={editPlanId} onValueChange={setEditPlanId}>
+                <SelectTrigger><SelectValue placeholder="Selecione um plano" /></SelectTrigger>
+                <SelectContent>
+                  {plans.filter(p => p.active).map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Dispositivos extras</Label>
+                <Input type="number" min={0} value={editExtras} onChange={(e) => setEditExtras(Number(e.target.value))} />
+              </div>
+              <div>
+                <Label>Periodicidade</Label>
+                <Select value={editBilling} onValueChange={setEditBilling}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="yearly">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>Cancelar</Button>
+            <Button onClick={saveEdit} disabled={update.isPending || !editPlanId}>Salvar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        title="Remover ativação Wavoip do cliente?"
+        description={
+          <>
+            A ativação de <strong>{deleteTarget?.client_name ?? `Cliente #${deleteTarget?.client_id ?? '-'}`}</strong> será cancelada e os dispositivos vinculados serão liberados de volta ao pool.
+          </>
+        }
+        confirmLabel="Remover ativação"
+        toggleLabel="Confirmo o cancelamento desta ativação"
+        loading={deactivate.isPending}
+        onConfirm={() => {
+          if (deleteTarget) deactivate.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+        }}
+      />
     </Card>
   );
 }
