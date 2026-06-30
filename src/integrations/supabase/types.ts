@@ -7679,10 +7679,13 @@ export type Database = {
       wavoip_devices: {
         Row: {
           client_id: number | null
+          connected_at: string | null
+          connection_status: string
           created_at: string
           device_model: string
           device_name: string | null
           device_token: string
+          friendly_code: string | null
           id: string
           last_seen_at: string | null
           metadata: Json
@@ -7692,14 +7695,18 @@ export type Database = {
           user_id: string | null
           user_plan_id: string | null
           whatsapp_jid: string | null
+          whatsapp_jids: Json
           whatsapp_number: string | null
         }
         Insert: {
           client_id?: number | null
+          connected_at?: string | null
+          connection_status?: string
           created_at?: string
           device_model?: string
           device_name?: string | null
           device_token: string
+          friendly_code?: string | null
           id?: string
           last_seen_at?: string | null
           metadata?: Json
@@ -7709,14 +7716,18 @@ export type Database = {
           user_id?: string | null
           user_plan_id?: string | null
           whatsapp_jid?: string | null
+          whatsapp_jids?: Json
           whatsapp_number?: string | null
         }
         Update: {
           client_id?: number | null
+          connected_at?: string | null
+          connection_status?: string
           created_at?: string
           device_model?: string
           device_name?: string | null
           device_token?: string
+          friendly_code?: string | null
           id?: string
           last_seen_at?: string | null
           metadata?: Json
@@ -7726,6 +7737,7 @@ export type Database = {
           user_id?: string | null
           user_plan_id?: string | null
           whatsapp_jid?: string | null
+          whatsapp_jids?: Json
           whatsapp_number?: string | null
         }
         Relationships: [
@@ -8409,6 +8421,14 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: Json
       }
+      assign_wavoip_devices_to_plan: {
+        Args: {
+          p_client_id: number
+          p_device_ids: string[]
+          p_user_plan_id: string
+        }
+        Returns: number
+      }
       backfill_user_presence_heartbeats: {
         Args: { p_cap_seconds?: number; p_from: string; p_to: string }
         Returns: Json
@@ -8429,6 +8449,7 @@ export type Database = {
         Args: { p_from: string; p_to: string }
         Returns: number
       }
+      gen_wavoip_friendly_code: { Args: never; Returns: string }
       generate_ticket_protocol: { Args: { p_mask: string }; Returns: string }
       get_db_cache_hit_ratio: {
         Args: never
@@ -8537,6 +8558,10 @@ export type Database = {
         Returns: number
       }
       refresh_team_performance_mvs: { Args: never; Returns: undefined }
+      release_wavoip_devices_from_plan: {
+        Args: { p_user_plan_id: string }
+        Returns: number
+      }
       rollup_user_presence_daily: { Args: { p_day?: string }; Returns: number }
       server_now_brt: { Args: never; Returns: string }
       show_limit: { Args: never; Returns: number }

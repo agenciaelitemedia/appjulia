@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Search } from 'lucide-react';
 import { useClientSearch, type SearchedClient } from '@/pages/admin/telefonia/hooks/useClientSearch';
-import { useActivateWavoipForUser, useWavoipPlans, type WavoipPlan } from '../hooks/useWavoipAdmin';
+import { useActivateWavoipForUser, useFreeWavoipDevices, useWavoipPlans, type WavoipPlan } from '../hooks/useWavoipAdmin';
 
 interface Props {
   open: boolean;
@@ -16,25 +17,37 @@ interface Props {
 export function AddWavoipDialog({ open, onOpenChange }: Props) {
   const { searchTerm, setSearchTerm, results, isLoading: searching } = useClientSearch();
   const { data: plans = [] } = useWavoipPlans();
+  const { data: freeDevices = [] } = useFreeWavoipDevices();
   const activate = useActivateWavoipForUser();
 
   const [selectedClient, setSelectedClient] = useState<SearchedClient | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [extraDevices, setExtraDevices] = useState(0);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
 
   const activePlans = plans.filter((p: WavoipPlan) => p.active);
   const selectedPlan = activePlans.find((p) => p.id === selectedPlanId);
+  const totalDeviceSlots = (selectedPlan?.max_devices ?? 0) + extraDevices;
 
   const reset = () => {
     setSelectedClient(null);
     setSelectedPlanId('');
     setExtraDevices(0);
+    setSelectedDeviceIds([]);
     setSearchTerm('');
   };
 
   const handleClose = (isOpen: boolean) => {
     if (!isOpen) reset();
     onOpenChange(isOpen);
+  };
+
+  const toggleDevice = (id: string) => {
+    setSelectedDeviceIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= totalDeviceSlots) return prev;
+      return [...prev, id];
+    });
   };
 
   const handleConfirm = () => {
@@ -46,6 +59,7 @@ export function AddWavoipDialog({ open, onOpenChange }: Props) {
       plan_id: selectedPlan.id,
       extra_devices: extraDevices,
       billing_period: 'monthly',
+      device_ids: selectedDeviceIds,
     }, { onSuccess: () => handleClose(false) });
   };
 
@@ -116,13 +130,37 @@ export function AddWavoipDialog({ open, onOpenChange }: Props) {
                   <div className="flex justify-between"><span>Dispositivos máx.</span><span>{selectedPlan.max_devices + extraDevices}</span></div>
                 </div>
               )}
+              {selectedPlan && (
+                <div>
+                  <Label>Dispositivos do pool ({selectedDeviceIds.length}/{totalDeviceSlots})</Label>
+                  {freeDevices.length === 0 ? (
+                    <p className="text-xs text-muted-foreground p-2 border rounded">Nenhum dispositivo livre no pool. Cadastre dispositivos em /admin/wavoip → Dispositivos.</p>
+                  ) : (
+                    <div className="border rounded-md max-h-48 overflow-y-auto divide-y">
+                      {freeDevices.map((d) => {
+                        const checked = selectedDeviceIds.includes(d.id);
+                        const disabled = !checked && selectedDeviceIds.length >= totalDeviceSlots;
+                        return (
+                          <label key={d.id} className={`flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/40 ${disabled ? 'opacity-50' : ''}`}>
+                            <Checkbox checked={checked} disabled={disabled} onCheckedChange={() => toggleDevice(d.id)} />
+                            <div className="flex-1">
+                              <div className="text-sm font-medium">{d.device_name}</div>
+                              <div className="text-xs text-muted-foreground font-mono">{d.device_token.slice(0, 8)}…{d.device_token.slice(-4)}</div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => handleClose(false)}>Cancelar</Button>
-          <Button onClick={handleConfirm} disabled={!selectedClient || !selectedPlan || activate.isPending}>
+          <Button onClick={handleConfirm} disabled={!selectedClient || !selectedPlan || activate.isPending || (totalDeviceSlots > 0 && selectedDeviceIds.length === 0)}>
             {activate.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Confirmar
           </Button>
         </DialogFooter>

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { PhoneCall, Plus, Trash2, RefreshCw, Wand2 } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
 import { toast } from 'sonner';
@@ -13,11 +13,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 
-type Device = { id: string; device_token: string; device_name: string | null; whatsapp_number: string | null; status: string; created_at: string };
+type Device = { id: string; device_token: string; device_name: string | null; friendly_code: string | null; whatsapp_number: string | null; status: string; connection_status: string; whatsapp_jids: any; user_id: string | null; created_at: string };
 type CallLog = { id: string; created_at: string; direction: string; status: string; from_number: string | null; to_number: string | null; duration_seconds: number };
 
 export default function WavoipPage() {
-  const { hasActivePlan, ready, openWidget, refreshDevices } = useWavoip();
+  const { hasActivePlan, ready, openWidget, refreshDevices, canDial } = useWavoip();
   const { user } = useAuth();
   const [userId, setUserId] = useState<string | null>(null);
   const clientId = user?.client_id ?? null;
@@ -25,8 +25,9 @@ export default function WavoipPage() {
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ device_token: '', device_name: '', whatsapp_number: '' });
-  const [provisioning, setProvisioning] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
@@ -46,45 +47,64 @@ export default function WavoipPage() {
   };
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, [clientId]);
 
-  const handleAdd = async () => {
-    if (!clientId) { toast.error('Cliente não identificado'); return; }
-    if (!form.device_token.trim()) { toast.error('Informe o token do dispositivo'); return; }
-    const { error } = await (supabase as any).from('wavoip_devices').insert({
-      user_id: userId,
-      client_id: clientId,
-      device_token: form.device_token.trim(),
-      device_name: form.device_name || null,
-      whatsapp_number: form.whatsapp_number || null,
-      status: 'pending',
-    });
+  const handleClaim = async () => {
+    if (!clientId || !userId) { toast.error('Sessão inválida'); return; }
+    if (!newName.trim()) { toast.error('Informe um nome'); return; }
+    setBusy(true);
+    try {
+      // Pega um dispositivo do client_id ainda não atribuído a um usuário do escritório
+      const { data: candidates, error: qErr } = await (supabase as any)
+        .from('wavoip_devices')
+        .select('id')
+        .eq('client_id', clientId)
+        .is('user_id', null)
+        .order('created_at', { ascending: true })
+        .limit(1);
+      if (qErr) throw qErr;
+      const device = candidates?.[0];
+      if (!device) { toast.error('Nenhum dispositivo disponível no seu plano. Solicite mais dispositivos ao administrador.'); return; }
+
+      const { error: updErr } = await (supabase as any)
+        .from('wavoip_devices')
+        .update({ user_id: userId, device_name: newName.trim() })
+        .eq('id', device.id);
+      if (updErr) throw updErr;
+
+      toast.success('Dispositivo adicionado — conectando...');
+      setDialogOpen(false);
+      setNewName('');
+
+      // Conecta
+      setConnectingId(device.id);
+      const { error: fnErr } = await (supabase as any).functions.invoke('wavoip-connect-device', { body: { device_id: device.id } });
+      setConnectingId(null);
+      if (fnErr) toast.error(fnErr.message || 'Falha ao conectar dispositivo');
+      else toast.success('Dispositivo conectado');
+
+      await load();
+      await refreshDevices();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao adicionar');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConnect = async (id: string) => {
+    setConnectingId(id);
+    const { error } = await (supabase as any).functions.invoke('wavoip-connect-device', { body: { device_id: id } });
+    setConnectingId(null);
     if (error) { toast.error(error.message); return; }
-    toast.success('Dispositivo adicionado');
-    setDialogOpen(false);
-    setForm({ device_token: '', device_name: '', whatsapp_number: '' });
+    toast.success('Conexão atualizada');
     await load();
     await refreshDevices();
   };
 
-  const handleProvision = async () => {
-    if (!hasActivePlan) { toast.error('Ative um plano antes de provisionar'); return; }
-    setProvisioning(true);
-    const { data, error } = await (supabase as any).functions.invoke('wavoip-provision-device', {
-      body: { device_name: form.device_name || 'Lovable Device', whatsapp_number: form.whatsapp_number || null, client_id: clientId },
-    });
-    setProvisioning(false);
-    if (error || data?.error) { toast.error(error?.message || data?.error || 'Falha ao provisionar'); return; }
-    toast.success('Dispositivo provisionado');
-    setDialogOpen(false);
-    setForm({ device_token: '', device_name: '', whatsapp_number: '' });
-    await load();
-    await refreshDevices();
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Remover este dispositivo?')) return;
-    const { error } = await (supabase as any).from('wavoip_devices').delete().eq('id', id);
+  const handleRelease = async (id: string) => {
+    if (!confirm('Liberar este dispositivo (devolve para o pool do escritório)?')) return;
+    const { error } = await (supabase as any).from('wavoip_devices').update({ user_id: null, connection_status: 'disconnected', connected_at: null, whatsapp_jids: [] }).eq('id', id);
     if (error) { toast.error(error.message); return; }
-    toast.success('Dispositivo removido');
+    toast.success('Dispositivo liberado');
     await load();
     await refreshDevices();
   };
@@ -104,7 +124,9 @@ export default function WavoipPage() {
             {hasActivePlan ? 'Plano ativo' : 'Sem plano'}
           </Badge>
           {ready && <Badge variant="outline">Webphone pronto</Badge>}
-          <Button variant="outline" onClick={openWidget} disabled={!ready}>Abrir discador</Button>
+          <Button variant="outline" onClick={openWidget} disabled={!canDial} title={!canDial ? 'Conecte um dispositivo para liberar o discador' : 'Abrir discador'}>
+            Abrir discador
+          </Button>
         </div>
       </div>
 
@@ -133,23 +155,37 @@ export default function WavoipPage() {
             <p className="text-sm text-muted-foreground py-6 text-center">Nenhum dispositivo cadastrado.</p>
           ) : (
             <div className="divide-y border rounded-md">
-              {devices.map((d) => (
-                <div key={d.id} className="flex items-center justify-between p-3">
-                  <div>
-                    <div className="font-medium">{d.device_name || 'Dispositivo Wavoip'}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Token: <span className="font-mono">{d.device_token.slice(0, 8)}…{d.device_token.slice(-4)}</span>
-                      {d.whatsapp_number && <> · WhatsApp: {d.whatsapp_number}</>}
+              {devices.map((d) => {
+                const jids: string[] = Array.isArray(d.whatsapp_jids) ? d.whatsapp_jids : [];
+                const mine = d.user_id === userId;
+                return (
+                  <div key={d.id} className="flex items-center justify-between p-3">
+                    <div>
+                      <div className="font-medium">{d.device_name || `WAPhone_${d.friendly_code ?? ''}`}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Token: <span className="font-mono">{d.device_token.slice(0, 8)}…{d.device_token.slice(-4)}</span>
+                        {jids.length > 0 && <> · Números: {jids.join(', ')}</>}
+                        {!mine && d.user_id && <> · em uso por outro membro</>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={d.connection_status === 'connected' ? 'default' : 'outline'}>
+                        {d.connection_status}
+                      </Badge>
+                      {mine && (
+                        <Button variant="outline" size="sm" onClick={() => handleConnect(d.id)} disabled={connectingId === d.id}>
+                          <Plug className="h-4 w-4 mr-1" /> {connectingId === d.id ? 'Conectando…' : 'Reconectar'}
+                        </Button>
+                      )}
+                      {mine && (
+                        <Button variant="ghost" size="sm" onClick={() => handleRelease(d.id)}>
+                          Liberar
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{d.status}</Badge>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -194,24 +230,16 @@ export default function WavoipPage() {
           <DialogHeader><DialogTitle>Adicionar dispositivo Wavoip</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Token do dispositivo *</Label>
-              <Input value={form.device_token} onChange={(e) => setForm({ ...form, device_token: e.target.value })} placeholder="cole o token gerado no painel Wavoip" />
-            </div>
-            <div>
-              <Label>Nome</Label>
-              <Input value={form.device_name} onChange={(e) => setForm({ ...form, device_name: e.target.value })} placeholder="ex: Atendimento 01" />
-            </div>
-            <div>
-              <Label>WhatsApp vinculado</Label>
-              <Input value={form.whatsapp_number} onChange={(e) => setForm({ ...form, whatsapp_number: e.target.value })} placeholder="55XXXXXXXXXXX" />
+              <Label>Nome do dispositivo *</Label>
+              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="ex: Atendimento 01" />
+              <p className="text-xs text-muted-foreground mt-1">Um dispositivo disponível do seu plano será reservado e conectado automaticamente.</p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button variant="secondary" onClick={handleProvision} disabled={provisioning}>
-              <Wand2 className="h-4 w-4 mr-1" /> {provisioning ? 'Provisionando…' : 'Provisionar automático'}
+            <Button onClick={handleClaim} disabled={busy || !newName.trim()}>
+              {busy ? 'Adicionando…' : 'Adicionar e conectar'}
             </Button>
-            <Button onClick={handleAdd}>Adicionar manual</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
