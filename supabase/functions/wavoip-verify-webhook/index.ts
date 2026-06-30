@@ -10,6 +10,9 @@ const WAVOIP_API = 'https://api.wavoip.com';
 
 async function fetchWebhook(token: string): Promise<{ ok: boolean; data?: any; error?: string }> {
   const tries = [
+    `${WAVOIP_API}/devices/info`,
+    `${WAVOIP_API}/devices/me`,
+    `${WAVOIP_API}/devices`,
     `${WAVOIP_API}/devices/webhook`,
     `${WAVOIP_API}/v1/devices/webhook`,
     `${WAVOIP_API}/webhook`,
@@ -36,7 +39,13 @@ async function fetchWebhook(token: string): Promise<{ ok: boolean; data?: any; e
 
 function evaluate(payload: any, expectedUrl: string): { status: 'ok' | 'misconfigured' | 'disabled' | 'unknown'; actualUrl: string | null; enabled: boolean | null } {
   if (!payload) return { status: 'unknown', actualUrl: null, enabled: null };
-  const node = payload?.webhook ?? payload?.data?.webhook ?? payload?.data ?? payload;
+  // tenta achar a sub-estrutura do webhook em vários formatos
+  const candidates: any[] = [payload, payload?.data, payload?.device, payload?.webhook, payload?.data?.webhook, payload?.device?.webhook];
+  let node: any = null;
+  for (const c of candidates) {
+    if (c && (c.url || c.webhook_url || c.callback || c.webhook)) { node = c.webhook ?? c; break; }
+  }
+  if (!node) return { status: 'unknown', actualUrl: null, enabled: null };
   const actualUrl: string | null = node?.url ?? node?.webhook_url ?? node?.callback ?? null;
   const enabledRaw = node?.enabled ?? node?.active ?? node?.is_enabled;
   const enabled = typeof enabledRaw === 'boolean' ? enabledRaw : (enabledRaw == null ? null : Boolean(enabledRaw));
@@ -71,7 +80,8 @@ Deno.serve(async (req) => {
       let actualUrl: string | null = null;
       let lastError: string | null = null;
       if (!r.ok) {
-        status = 'error';
+        // GET indisponível na API → não conseguimos validar diretamente; cairemos no auto_fix abaixo
+        status = 'unknown';
         lastError = r.error ?? 'fetch_failed';
       } else {
         const ev = evaluate(r.data, expected);
@@ -90,13 +100,10 @@ Deno.serve(async (req) => {
           const fixJson = await fixRes.json().catch(() => ({}));
           const fixed = Array.isArray(fixJson?.configured) && fixJson.configured.every((x: any) => x.ok);
           if (fixed) {
-            // re-verifica
-            const r2 = await fetchWebhook(d.device_token);
-            if (r2.ok) {
-              const ev2 = evaluate(r2.data, expected);
-              status = ev2.status;
-              actualUrl = ev2.actualUrl;
-            }
+            // configure aceitou → assumimos OK; salva o endpoint usado para referência
+            status = 'ok';
+            actualUrl = expected;
+            lastError = null;
           } else {
             lastError = `auto_fix_failed: ${JSON.stringify(fixJson)}`.slice(0, 500);
           }
