@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone } from 'lucide-react';
+import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone, Loader2 } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
