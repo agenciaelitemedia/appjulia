@@ -29,10 +29,7 @@ import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLim
 import { useChatSlaConfigs, evaluateSla, type SlaStatus, type SlaEvaluation } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
-// Fase 2 · substituído pelo aggregator `useChatBootstrap` — mantido apenas
-// como referência histórica. Outros consumidores (ContactDetailPanel etc)
-// seguem usando o hook individual.
-// import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
+import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 import { normalizeBrPhone } from '@/lib/phoneNormalize';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
