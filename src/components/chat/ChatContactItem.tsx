@@ -515,11 +515,28 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     </AlertDialog>
   );
 
+  const campaignDialog = campaignLink ? (
+    <Dialog open={showCampaignDialog} onOpenChange={setShowCampaignDialog}>
+      <DialogContent
+        className="max-w-md p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DialogHeader className="px-4 pt-4 pb-2">
+          <DialogTitle className="text-sm">Anúncio de origem</DialogTitle>
+        </DialogHeader>
+        <div className="px-4 pb-4">
+          <ContactCampaignCard row={campaignLink} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  ) : null;
+
   if (!canViewTickets || !onOpenTicket) {
     return (
       <>
         {itemContent}
         {disconnectedDialog}
+        {campaignDialog}
       </>
     );
   }
@@ -558,6 +575,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       </ContextMenuContent>
     </ContextMenu>
     {disconnectedDialog}
+    {campaignDialog}
     </>
   );
 }, (prev, next) => {
@@ -576,6 +594,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   if (prev.ticketLink?.ticketId !== next.ticketLink?.ticketId) return false;
   if (prev.ticketLink?.status !== next.ticketLink?.status) return false;
   if (prev.ticketLink?.number !== next.ticketLink?.number) return false;
+  if (prev.campaignLink?.id !== next.campaignLink?.id) return false;
   if (prev.onOpenTicket !== next.onOpenTicket) return false;
   if (prev.isQueueDisconnected !== next.isQueueDisconnected) return false;
   if (prev.index !== next.index) return false;
