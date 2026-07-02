@@ -1,63 +1,62 @@
+# Otimização Lista de Conversas — Julia, CRM Builder e Meta Ads
 
-## 1. Aba "Campanhas" condicional em `ContactDetailPanel`
+## 1. Como os dados são vinculados hoje
 
-Atualmente a aba renderiza sempre, apenas desabilitada quando `hasCampaigns=false`. Ajustar para:
-- Não renderizar `<TabsTrigger>` nem `<TabsContent>` de Campanhas quando `hasCampaigns === false`.
-- Recalcular `tabsGridClass` para 2/3 colunas conforme abas realmente presentes.
-- Se a aba ativa era "campanhas" e sumir, voltar para "geral" (guard no `defaultValue`).
+**Julia (etapa/status IA)** — `useCRMStageByPhone(pairs)` recebe pares `{ phone, codAgent }` derivados do `queue_id → cod_agent` (mapa `queueAgentMap`). Retorna `stageName/stageColor` por telefone. Vinculação: **telefone + cod_agent do agente da fila**.
 
-## 2. Linha "Meta Ads" na lista de conversas
+**CRM Builder (quadro/pipeline)** — `useCRMBuilderLinkedConversations()` monta um `Map<conversation_id, CrmBuilderLink>` a partir de `chat_crm_links` (tabela local Supabase). Vinculação: **conversation_id → board/pipeline**.
 
-### 2.1. Novo hook `useContactsCampaignsMap(phones: string[])` em `src/components/chat/hooks/useContactCampaigns.ts`
-- Recebe array de telefones dos contatos visíveis, gera variantes BR de todos.
-- Uma única query `externalDb.raw` retorna `DISTINCT ON (phone_normalizado)` a campanha mais recente por telefone (usando `regexp_replace` + `ANY($1)`).
-- Retorna `Map<phoneDigits, ContactCampaignRow>` para lookup O(1).
-- Cache 5 min via React Query.
+**Meta Ads (campanha)** — `useContactsCampaignsMap(phones)` faz **1 única query** no banco externo (`campaing_ads` + `sessions`) filtrando por `regexp_replace(...) = ANY($1::varchar[])` com todas as variantes BR do telefone; devolve `Map<phone, campaign>`. Vinculação: **telefone (após normalização) → campaign_data**.
 
-### 2.2. Em `ChatList.tsx`
-- Extrair telefones únicos das conversas visíveis (mesmo pattern usado em `allPhoneAgentPairs`).
-- Chamar `useContactsCampaignsMap` e passar `campaignLink={map.get(normalized(contact.phone))}` para cada `ChatContactItem`.
+## 2. Diagnóstico do problema atual (Meta Ads lento / “some” ao rolar)
 
-### 2.3. Em `ChatContactItem.tsx`
-- Nova prop opcional `campaignLink?: ContactCampaignRow`.
-- Após a linha CRM Builder, renderizar linha no mesmo padrão visual, cor âmbar/laranja (Meta):
-  - Fundo: `bg-orange-50/40 dark:bg-orange-950/20`, borda `border-orange-100/70`.
-  - Badge esquerda: ícone `Megaphone` + texto `META ADS`.
-  - Nome da campanha truncado (`campaign_data.title`).
-  - Botão à direita "Ver Ads" (badge clicável, `stopPropagation`) que abre um `<Dialog>` local exibindo o `ContactCampaignCard` (mesmo componente do painel de detalhes).
-- Adicionar `campaignLink` ao `React.memo` compare.
+- `campaignPhones` é derivado apenas de `filteredContacts` (contatos paginados/visíveis). A cada nova página, o array cresce, o `queryKey` muda e o React Query descarta o `data` anterior — durante o refetch a linha “Meta Ads” some.
+- A query externa faz regex por linha em `campaing_ads` sem índice funcional; com listas maiores fica lenta (100–500 telefones × varredura de tabela).
+- Sem `placeholderData: keepPreviousData`, cada mudança causa flicker/perda visual.
+- Não há cache persistente entre páginas — telefones já resolvidos são reconsultados.
+- Não há debounce; scroll rápido dispara múltiplos refetches.
 
-### 2.4. Extrair `ContactCampaignCard` para arquivo próprio
-- Mover de `ContactDetailPanel.tsx` para `src/components/chat/ContactCampaignCard.tsx` e exportar como default para reutilizar no dialog "Ver Ads" e no painel.
+## 3. Plano de otimização
 
-## 3. Correção do preview da imagem
+### 3.1 Frontend (`useContactCampaigns.ts` + `ChatList.tsx`)
 
-O thumbnail vem de CDN do Meta (`scontent.*.fbcdn.net` / `lookaside.fbsbx.com`) que bloqueia carregamento cross-origin quando o `Referer` header expõe origem diferente. O `<img>` cai no `onError` e mostra `ImageOff`.
+1. **`placeholderData: keepPreviousData`** em `useContactsCampaignsMap` — o mapa anterior permanece visível enquanto novos telefones carregam. Elimina o “some ao rolar”.
+2. **Cache incremental persistente** — manter um `useRef<Map<phone, ContactCampaignRow | null>>` no `ChatList` (ou dentro do próprio hook via `queryClient.setQueryData`) que acumula resultados. A cada refetch, só consulta **telefones ainda não resolvidos** (inclusive marcando `null` para “sem campanha” evitando re-queries).
+3. **Debounce de 250 ms** sobre `campaignPhones` para agrupar mudanças durante scroll rápido.
+4. **Chunk de 200 telefones por request** para manter cada query rápida e paralelizável.
+5. Aplicar o mesmo padrão (`keepPreviousData`) em `useCRMStageByPhone` para eliminar flicker do badge da Júlia.
 
-Ajustes no `<img>` do `ContactCampaignCard`:
-- `referrerPolicy="no-referrer"` — remove header Referer que causa o bloqueio.
-- `loading="lazy"` e `decoding="async"`.
-- Tentar `cd.mediaURL` como fallback caso `cd.thumbnailURL` falhe (encadear: primeiro thumbnail; se erro, tentar mediaURL; se erro novamente, mostrar `ImageOff`).
-- Logar em `console.warn` quando ambos falharem para telemetria.
+### 3.2 Banco externo — índice funcional
 
-## Detalhes técnicos
+Adicionar (fora do escopo Supabase local — orientar o usuário / executar via migration no BD externo se aplicável):
 
-- Reutilizar `buildPhoneVariants` já existente em `useContactCampaigns.ts` para o novo hook batch.
-- SQL do batch:
-  ```sql
-  SELECT DISTINCT ON (norm) 
-         regexp_replace(COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone',''), s.whatsapp_number::text,''), '\D','','g') AS norm,
-         ca.id, ca.created_at, (ca.campaign_data::jsonb) AS campaign_data
-    FROM campaing_ads ca
-    LEFT JOIN sessions s ON s.id = ca.session_id::bigint
-   WHERE regexp_replace(...) = ANY($1::varchar[])
-   ORDER BY norm, ca.created_at DESC
-  ```
-- No `ChatContactItem`, o botão "Ver Ads" usa `variant="outline"` `size="sm"` com `h-5 text-[9px] px-1.5` para caber na linha compacta.
+```sql
+CREATE INDEX IF NOT EXISTS idx_campaing_ads_phone_norm
+  ON campaing_ads ((regexp_replace(coalesce((campaign_data::jsonb->>'phone'),''), '\D', '', 'g')));
 
-## Arquivos alterados
-- `src/components/chat/hooks/useContactCampaigns.ts` — novo hook batch.
-- `src/components/chat/ContactCampaignCard.tsx` — novo (extraído + fix imagem).
-- `src/components/chat/ContactDetailPanel.tsx` — import do card, tabs condicionais.
-- `src/components/chat/ChatContactItem.tsx` — nova linha Meta Ads + dialog.
-- `src/components/chat/ChatList.tsx` — hook batch e passagem da prop.
+CREATE INDEX IF NOT EXISTS idx_sessions_whatsapp_norm
+  ON sessions ((regexp_replace(coalesce(whatsapp_number::text,''), '\D', '', 'g')));
+```
+
+Se acesso ao BD externo não permitir DDL, manter só as otimizações de frontend + edge function (item 3.3).
+
+### 3.3 (Opcional, se índices não puderem ser criados) Edge Function + cache
+
+- Nova edge function `contacts-campaigns-map` que:
+  - Recebe lista de telefones.
+  - Faz a query externa uma vez.
+  - Cacheia resultado em `link_preview_cache`-like (TTL 5–10 min) por telefone normalizado.
+- Frontend passa a chamar essa function em vez de `externalDb.raw`, com cache lado servidor entre usuários.
+
+## 4. Arquivos afetados
+
+- `src/components/chat/hooks/useContactCampaigns.ts` — `keepPreviousData`, chunking, cache incremental.
+- `src/components/chat/ChatList.tsx` — debounce de `campaignPhones`, opcionalmente `campaignPhones` derivado de `sortedConversations` (não só `filteredContacts`) para pré-carregar linhas futuras.
+- `src/pages/crm/hooks/useCRMData.ts` (ou onde vive `useCRMStageByPhone`) — `keepPreviousData`.
+- (Opcional) `supabase/functions/contacts-campaigns-map/index.ts` — nova função com cache.
+
+## 5. Resultado esperado
+
+- Meta Ads/CRM/Júlia aparecem já na primeira pintura e **permanecem visíveis** ao rolar.
+- Consultas subsequentes só buscam telefones novos.
+- Tempo de resposta da query externa cai (índice funcional) de segundos para <100 ms mesmo com centenas de telefones.
