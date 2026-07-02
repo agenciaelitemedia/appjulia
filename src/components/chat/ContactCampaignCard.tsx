@@ -22,18 +22,37 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 function proxied(url: string | undefined): string | undefined {
   if (!url) return undefined;
   if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+  if (!SUPABASE_URL) return url;
   return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(url)}`;
 }
 
-function asDataImage(value: unknown): string | undefined {
+function asString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function asDataImage(value: unknown): string | undefined {
+  const trimmed = asString(value);
   if (!trimmed) return undefined;
-  if (trimmed.startsWith('data:image/')) return trimmed;
-  if (/^\/9j\//.test(trimmed)) return `data:image/jpeg;base64,${trimmed}`;
-  if (/^iVBORw0KGgo/.test(trimmed)) return `data:image/png;base64,${trimmed}`;
-  if (/^R0lGOD/.test(trimmed)) return `data:image/gif;base64,${trimmed}`;
-  if (/^UklGR/.test(trimmed)) return `data:image/webp;base64,${trimmed}`;
+  if (/^data:image\//i.test(trimmed)) return trimmed;
+
+  const base64 = trimmed
+    .replace(/^data:[^;]+;base64,/i, '')
+    .replace(/^base64,/i, '')
+    .replace(/\s/g, '');
+
+  if (/^\/9j\//.test(base64)) return `data:image/jpeg;base64,${base64}`;
+  if (/^iVBORw0KGgo/.test(base64)) return `data:image/png;base64,${base64}`;
+  if (/^R0lGOD/.test(base64)) return `data:image/gif;base64,${base64}`;
+  if (/^UklGR/.test(base64)) return `data:image/webp;base64,${base64}`;
+
+  // Alguns registros antigos salvam apenas o base64 bruto sem header/magic
+  // preservado. Se for grande e contiver só caracteres base64, tenta JPEG.
+  if (base64.length > 120 && /^[A-Za-z0-9+/=_-]+$/.test(base64)) {
+    return `data:image/jpeg;base64,${base64.replace(/-/g, '+').replace(/_/g, '/')}`;
+  }
+
   return undefined;
 }
 
@@ -42,6 +61,19 @@ function isLikelyImageUrl(url: string | undefined): boolean {
   if (url.startsWith('data:image/') || url.startsWith('blob:')) return true;
   if (/\.(jpe?g|png|gif|webp|avif)(\?|#|$)/i.test(url)) return true;
   return /(fbcdn\.net|cdninstagram\.com|scontent\.|instagram\.f[a-z0-9-]+\.fna)/i.test(url);
+}
+
+function appendImageUrl(out: string[], value: unknown) {
+  const url = asString(value);
+  if (!url || !isLikelyImageUrl(url)) return;
+  if (url.startsWith('data:image/') || url.startsWith('blob:')) {
+    out.push(url);
+    return;
+  }
+  // Tenta primeiro pelo proxy e depois direto no navegador. Em alguns links do
+  // Meta o proxy é bloqueado, mas o <img> direto ainda funciona; em outros é o
+  // inverso. Manter ambos evita cair prematuramente no placeholder.
+  out.push(proxied(url) || url, url);
 }
 
 interface Props {
@@ -62,31 +94,46 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
   const body = cd.body as string | undefined;
   const platform = (cd.sourceApp || 'outros').toString().toLowerCase();
   const sourceURL = cd.sourceURL as string | undefined;
-  const thumb = cd.thumbnailURL as string | undefined;
-  const media = cd.mediaURL as string | undefined;
-  const inlineThumbnail = asDataImage(cd.thumbnail);
+  const rawThumbnail = cd.thumbnail;
+  const rawMedia = cd.mediaURL ?? cd.mediaUrl ?? cd.media_url;
+  const inlineThumbnail =
+    asDataImage(cd.thumbnail) || asDataImage(cd.thumbnailBase64) || asDataImage(cd.imageBase64);
   const fallbackGreeting = cd.greetingMessageBody as string | undefined;
   const greeting = (greetingOverride && greetingOverride.trim()) || fallbackGreeting;
 
   // Cascata de fontes para o preview da imagem. Se o CDN do Meta rejeitar
   // (referrer/CORS), tenta a próxima; só cai em `ImageOff` quando todas
   // falharem.
-  const imgCandidates = useMemo(
-    () => [inlineThumbnail, thumb, isLikelyImageUrl(media) ? media : undefined].filter(Boolean) as string[],
-    [inlineThumbnail, media, thumb],
-  );
+  const imgCandidates = useMemo(() => {
+    const candidates: string[] = [];
+    if (inlineThumbnail) candidates.push(inlineThumbnail);
+
+    appendImageUrl(candidates, cd.thumbnailURL);
+    appendImageUrl(candidates, rawThumbnail);
+    appendImageUrl(candidates, cd.thumbnail_url);
+    appendImageUrl(candidates, cd.imageURL ?? cd.imageUrl ?? cd.image_url ?? cd.image);
+    appendImageUrl(candidates, cd.picture ?? cd.pictureURL ?? cd.pictureUrl);
+    appendImageUrl(candidates, rawMedia);
+
+    return [...new Set(candidates)];
+  }, [cd, inlineThumbnail, rawMedia, rawThumbnail]);
   const [imgIdx, setImgIdx] = useState(0);
   useEffect(() => {
     setImgIdx(0);
   }, [imgCandidates]);
-  const currentSrc = proxied(imgCandidates[imgIdx]);
+  const currentSrc = imgCandidates[imgIdx];
   const handleImgError = () => {
     if (imgIdx < imgCandidates.length - 1) {
       setImgIdx(imgIdx + 1);
     } else {
       console.warn('[ContactCampaignCard] todas as fontes de imagem falharam', {
-        thumb,
-        media,
+        campaignId: row.id,
+        availableKeys: Object.keys(cd),
+        imageFields: {
+          thumbnailURL: cd.thumbnailURL,
+          thumbnail: typeof rawThumbnail === 'string' ? rawThumbnail.slice(0, 120) : typeof rawThumbnail,
+          mediaURL: rawMedia,
+        },
       });
       setImgIdx(imgCandidates.length); // força fallback
     }
