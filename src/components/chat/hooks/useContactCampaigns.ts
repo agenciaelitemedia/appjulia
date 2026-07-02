@@ -100,7 +100,24 @@ const LRU_CAP = 10_000;
 type CacheEntry = { row: ContactCampaignRow | null; expires: number; touched: number };
 const campaignPhoneCache = new Map<string, CacheEntry>();
 
-function touchCache(key: string, entry: Omit<CacheEntry, 'touched'>) {
+// Assinatura de mudanças reais no cache: hits novos ou misses recém-gravados.
+// Não dispara quando revalidamos um mesmo hit ou refazemos LRU-touch.
+let cacheMutationCounter = 0;
+const cacheMutationListeners = new Set<() => void>();
+function notifyCacheMutation() {
+  cacheMutationCounter += 1;
+  for (const l of cacheMutationListeners) l();
+}
+
+function touchCache(key: string, entry: Omit<CacheEntry, 'touched'>): boolean {
+  const prev = campaignPhoneCache.get(key);
+  // Hit resolvido é imutável — nunca é degradado para miss nem sobrescrito.
+  if (prev?.row) {
+    campaignPhoneCache.set(key, { ...prev, touched: Date.now() });
+    return false;
+  }
+  const isNewHit = !!entry.row;
+  const isNewMiss = !entry.row && (!prev || prev.expires !== entry.expires);
   campaignPhoneCache.set(key, { ...entry, touched: Date.now() });
   if (campaignPhoneCache.size > LRU_CAP) {
     const sorted = [...campaignPhoneCache.entries()].sort(
@@ -114,6 +131,7 @@ function touchCache(key: string, entry: Omit<CacheEntry, 'touched'>) {
     const drop = sorted.slice(0, campaignPhoneCache.size - LRU_CAP);
     for (const [k] of drop) campaignPhoneCache.delete(k);
   }
+  return isNewHit || isNewMiss;
 }
 
 function getCachedCampaignEntry(phone: string, variants?: string[]): CacheEntry | undefined {
@@ -139,13 +157,13 @@ function isPhoneResolved(phone: string, variants?: string[]): boolean {
 
 function touchCampaignAliases(phone: string, variants: string[], row: ContactCampaignRow | null) {
   const expires = row ? Number.POSITIVE_INFINITY : Date.now() + MISS_TTL_MS;
-  touchCache(phone, { row, expires });
-
-  // Hits são gravados também nas variantes para manter o badge estável quando
-  // a mesma conversa é renderizada com formatos diferentes de telefone.
+  let mutated = touchCache(phone, { row, expires });
   if (row) {
-    for (const v of variants) touchCache(v, { row, expires });
+    for (const v of variants) {
+      if (touchCache(v, { row, expires })) mutated = true;
+    }
   }
+  if (mutated) notifyCacheMutation();
 }
 
 export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
@@ -167,12 +185,15 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phones.join('|')]);
 
-  // Version bumps when the cache mutates so the returned map reflects freshly resolved phones.
-  const [cacheVersion, setCacheVersion] = React.useState(0);
+  // Re-render apenas quando o cache muda de verdade (hit novo ou miss novo).
+  const [cacheVersion, setCacheVersion] = React.useState(cacheMutationCounter);
+  React.useEffect(() => {
+    const l = () => setCacheVersion(cacheMutationCounter);
+    cacheMutationListeners.add(l);
+    return () => { cacheMutationListeners.delete(l); };
+  }, []);
 
-  // Periodic tick: a cada MISS_TTL_MS, força re-avaliação SOMENTE se houver
-  // miss expirado real na lista atual — evita disparar re-render toda vez
-  // que o tick estoura sem nada a fazer (era o comportamento anterior).
+  // Periodic tick: se houver miss expirado, sinaliza mutação para re-consultar.
   React.useEffect(() => {
     const id = setInterval(() => {
       let hasExpiredMiss = false;
@@ -185,7 +206,7 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
           break;
         }
       }
-      if (hasExpiredMiss) setCacheVersion((v) => v + 1);
+      if (hasExpiredMiss) notifyCacheMutation();
     }, MISS_TTL_MS);
     return () => clearInterval(id);
   }, [debouncedPhones]);
@@ -263,13 +284,8 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
     placeholderData: keepPreviousData,
   });
 
-  // Bump version whenever a fetch completes so consumers get the merged map.
-  React.useEffect(() => {
-    if (!query.isFetching && query.data !== undefined) {
-      setCacheVersion((v) => v + 1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.isFetching, query.dataUpdatedAt]);
+  // Não há bump manual pós-fetch: a queryFn acima chama `touchCampaignAliases`
+  // que dispara notifyCacheMutation apenas quando algo mudou de verdade.
 
   // Build the returned map from the persistent cache — includes ALL previously
   // resolved phones, so rows never lose their Meta Ads badge on scroll.

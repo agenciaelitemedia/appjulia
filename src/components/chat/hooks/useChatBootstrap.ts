@@ -33,12 +33,36 @@ const LRU_CAP = 10_000;
 type CampCacheEntry = { row: ContactCampaignRow | null; expires: number; touched: number };
 const campaignPhoneCache = new Map<string, CampCacheEntry>();
 
-function touchCache(key: string, entry: CampCacheEntry) {
+// Global mutation counter: bumps ONLY when a hit is newly stored or a miss
+// is newly recorded. Hits are never re-written after resolved, so simply
+// re-observing the same row does not trigger churn. Consumers subscribe
+// via `cacheMutation` React state, avoiding re-renders on no-op ticks.
+let cacheMutationCounter = 0;
+const cacheMutationListeners = new Set<() => void>();
+function notifyCacheMutation() {
+  cacheMutationCounter += 1;
+  for (const l of cacheMutationListeners) l();
+}
+
+function rowsEqual(a: ContactCampaignRow | null, b: ContactCampaignRow | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return String(a.id) === String(b.id);
+}
+
+function touchCache(key: string, entry: CampCacheEntry): boolean {
+  const prev = campaignPhoneCache.get(key);
+  // A resolved hit is immutable: never downgrade to miss, never replace with
+  // a different hit for the same key. This keeps the badge stable forever.
+  if (prev?.row) {
+    // touch LRU timestamp silently, no mutation event.
+    campaignPhoneCache.set(key, { ...prev, touched: Date.now() });
+    return false;
+  }
+  const isNewHit = !!entry.row;
+  const isNewMiss = !entry.row && (!prev || prev.expires !== entry.expires);
   campaignPhoneCache.set(key, { ...entry, touched: Date.now() });
   if (campaignPhoneCache.size > LRU_CAP) {
-    // Evict misses first, then oldest hits. A burst of non-campaign phones must
-    // never evict resolved campaign hits, otherwise the Meta Ads badge flashes
-    // when the user scrolls or new conversations arrive.
     const sorted = [...campaignPhoneCache.entries()].sort((a, b) => {
       const aIsHit = !!a[1].row;
       const bIsHit = !!b[1].row;
@@ -48,6 +72,7 @@ function touchCache(key: string, entry: CampCacheEntry) {
     const toDrop = sorted.slice(0, campaignPhoneCache.size - LRU_CAP);
     for (const [k] of toDrop) campaignPhoneCache.delete(k);
   }
+  return isNewHit || isNewMiss;
 }
 
 function buildCampaignVariants(phone: string): string[] {
@@ -89,16 +114,13 @@ function isCampaignPhoneResolved(phone: string, variants?: string[]): boolean {
 
 function touchCampaignAliases(phone: string, variants: string[], row: ContactCampaignRow | null, now: number) {
   const expires = row ? Number.POSITIVE_INFINITY : now + MISS_TTL_MS;
-  touchCache(phone, { row, expires, touched: now });
-
-  // Cache hits under every normalized variant too. The chat row may later be
-  // rendered with a different phone format (raw, canonical, legacy, no DDI),
-  // and looking up only the original key makes the Meta Ads line appear/disappear.
+  let mutated = touchCache(phone, { row, expires, touched: now });
   if (row) {
     for (const v of variants) {
-      touchCache(v, { row, expires, touched: now });
+      if (touchCache(v, { row, expires, touched: now })) mutated = true;
     }
   }
+  if (mutated) notifyCacheMutation();
 }
 
 export interface UseChatBootstrapInput {
@@ -142,11 +164,18 @@ export function useChatBootstrap(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignPhones.join('|')]);
 
-  const [cacheVersion, setCacheVersion] = React.useState(0);
+  // Subscribe to real cache mutations (new hit / new miss). Any renderer
+  // using this hook re-renders only when the shared cache actually changed.
+  const [cacheVersion, setCacheVersion] = React.useState(cacheMutationCounter);
+  React.useEffect(() => {
+    const l = () => setCacheVersion(cacheMutationCounter);
+    cacheMutationListeners.add(l);
+    return () => { cacheMutationListeners.delete(l); };
+  }, []);
 
-  // Tick apenas dispara re-render quando há de fato phone com miss expirado
-  // aguardando nova avaliação — antes o setInterval acordava toda a lista
-  // a cada TTL mesmo sem trabalho a fazer.
+  // Periodic tick: só revalida quando existe miss expirado real na lista atual.
+  // Marca o key como não resolvido bumpando o próprio contador — reaproveita
+  // o pipeline de fetch normal via `unresolvedCampaignVariants`.
   React.useEffect(() => {
     const id = setInterval(() => {
       let hasExpiredMiss = false;
@@ -156,7 +185,7 @@ export function useChatBootstrap(
         const e = getCachedCampaignEntry(String(p));
         if (e && !e.row && e.expires <= now) { hasExpiredMiss = true; break; }
       }
-      if (hasExpiredMiss) setCacheVersion((v) => v + 1);
+      if (hasExpiredMiss) notifyCacheMutation();
     }, MISS_TTL_MS);
     return () => clearInterval(id);
   }, [debouncedPhones]);
@@ -263,13 +292,9 @@ export function useChatBootstrap(
     },
   });
 
-  // Bump version quando o fetch resolver — atualiza o mapa exposto
-  React.useEffect(() => {
-    if (!query.isFetching && query.data !== undefined) {
-      setCacheVersion((v) => v + 1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query.isFetching, query.dataUpdatedAt]);
+  // Nota: não é necessário bumpar a versão no término do fetch — a queryFn
+  // acima chama `touchCampaignAliases`, que dispara `notifyCacheMutation`
+  // somente quando algo REAL muda no cache (novo hit ou miss recém-gravado).
 
   // ---------- Reconstruir os 3 Maps ----------
   const campaignByPhone = React.useMemo(() => {
