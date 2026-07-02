@@ -127,14 +127,12 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   }, [showGroupsTab, activeTab, setActiveTab]);
 
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, hasPermission } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
   const { data: queues = [] } = useAccessibleQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
-  // Permissões calculadas UMA vez aqui em vez de por linha (ChatContactItem
-  // não precisa mais chamar useAuth/hasPermission — evita subscribe ao
-  // AuthContext em cada uma das 50+ linhas visíveis).
-  const { hasPermission } = useAuth();
+  // Permissões calculadas UMA vez aqui (evita useAuth/hasPermission em cada
+  // uma das 50+ linhas visíveis — antes causava re-render em cascata).
   const isPrivilegedRole = user?.role === 'admin' || user?.role === 'colaborador';
   const canViewTickets = hasPermission('support_tickets', 'view') || isPrivilegedRole;
   const canCreateTickets = hasPermission('support_tickets', 'create') || isPrivilegedRole;
