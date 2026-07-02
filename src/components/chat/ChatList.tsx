@@ -437,7 +437,8 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     return pairs;
   }, [sortedConversations, queueAgentMap, contactPhoneById]);
 
-  // sessionActiveMap agora vem do aggregator (ver abaixo).
+  // sessionActiveMap agora vem do aggregator `useChatBootstrap` (declarado
+  // adiante, após montarmos os pares CRM e a lista de telefones de campanha).
 
   // Resolve session.active for a (contactId, queueLink) pair. Returns:
   //  - true: Julia ativa
