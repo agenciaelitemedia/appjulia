@@ -29,15 +29,19 @@ import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLim
 import { useChatSlaConfigs, evaluateSla, type SlaStatus, type SlaEvaluation } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
-import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
+// Fase 2 · substituído pelo aggregator `useChatBootstrap` — mantido apenas
+// como referência histórica. Outros consumidores (ContactDetailPanel etc)
+// seguem usando o hook individual.
+// import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 import { normalizeBrPhone } from '@/lib/phoneNormalize';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
-import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
+// import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
 import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
-import { useContactsCampaignsMap } from '@/components/chat/hooks/useContactCampaigns';
+// import { useContactsCampaignsMap } from '@/components/chat/hooks/useContactCampaigns';
+import { useChatBootstrap } from '@/components/chat/hooks/useChatBootstrap';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { buildAssigneeIndex, resolveAssigneeName } from '@/hooks/useAssigneeNameResolver';
 import { externalDb } from '@/lib/externalDb';
