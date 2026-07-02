@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAccessibleQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useQueueConnectionStatusesBatch } from '@/hooks/useQueueConnectionStatusesBatch';
 import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';
-import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
+import { useChatSlaConfigs, evaluateSla, type SlaStatus, type SlaEvaluation } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
@@ -131,6 +131,13 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   const clientId = user?.client_id ? String(user.client_id) : '';
   const { data: queues = [] } = useAccessibleQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
+  // Permissões calculadas UMA vez aqui em vez de por linha (ChatContactItem
+  // não precisa mais chamar useAuth/hasPermission — evita subscribe ao
+  // AuthContext em cada uma das 50+ linhas visíveis).
+  const { hasPermission } = useAuth();
+  const isPrivilegedRole = user?.role === 'admin' || user?.role === 'colaborador';
+  const canViewTickets = hasPermission('support_tickets', 'view') || isPrivilegedRole;
+  const canCreateTickets = hasPermission('support_tickets', 'create') || isPrivilegedRole;
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
