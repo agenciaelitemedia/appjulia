@@ -413,10 +413,19 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
 
       {/* Tabs */}
       <Tabs defaultValue="geral" className="flex-1 flex flex-col min-h-0">
-        <TabsList className={cn("mx-4 mt-3 mb-0 grid w-auto", showResumosTab ? "grid-cols-3" : "grid-cols-2")}>
+        <TabsList className={cn("mx-4 mt-3 mb-0 grid w-auto", tabsGridClass)}>
           <TabsTrigger value="geral" className="gap-1.5 text-xs">
             <Info className="h-3 w-3" />
             Geral
+          </TabsTrigger>
+          <TabsTrigger
+            value="campanhas"
+            disabled={!hasCampaigns}
+            className="gap-1.5 text-xs"
+            title={hasCampaigns ? undefined : 'Este contato não veio de campanha'}
+          >
+            <Megaphone className="h-3 w-3" />
+            Campanhas{hasCampaigns ? ` · ${contactCampaigns.length}` : ''}
           </TabsTrigger>
           {showResumosTab && (
             <TabsTrigger value="resumos" className="gap-1.5 text-xs">
