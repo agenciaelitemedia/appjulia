@@ -21,7 +21,7 @@ import type { SessionPair } from '@/hooks/useAgentSessionStatusesBatch';
  */
 
 // Persistent Meta-Ads cache — mesmo padrão do `useContactsCampaignsMap`.
-// Hits vivem para sempre nesta sessão; misses expiram em 60s para que
+// Hits vivem para sempre nesta sessão; misses expiram rapidamente para que
 // leads que ainda não tinham `campaing_ads` gravado sejam reavaliados.
 // LRU cap para evitar crescimento indefinido em sessões longas.
 // TTL curto para que leads recém-chegados cuja campanha ainda não foi
@@ -29,25 +29,25 @@ import type { SessionPair } from '@/hooks/useAgentSessionStatusesBatch';
 // Meta Ads costuma gravar em segundos). Um TTL longo fazia novos chats
 // aparecerem sem badge por até 1 minuto.
 const MISS_TTL_MS = 10_000;
-const LRU_CAP = 2000;
+const LRU_CAP = 10_000;
 type CampCacheEntry = { row: ContactCampaignRow | null; expires: number; touched: number };
 const campaignPhoneCache = new Map<string, CampCacheEntry>();
 
 function touchCache(key: string, entry: CampCacheEntry) {
   campaignPhoneCache.set(key, { ...entry, touched: Date.now() });
   if (campaignPhoneCache.size > LRU_CAP) {
-    // Evict oldest by `touched`
-    const sorted = [...campaignPhoneCache.entries()].sort((a, b) => a[1].touched - b[1].touched);
+    // Evict misses first, then oldest hits. A burst of non-campaign phones must
+    // never evict resolved campaign hits, otherwise the Meta Ads badge flashes
+    // when the user scrolls or new conversations arrive.
+    const sorted = [...campaignPhoneCache.entries()].sort((a, b) => {
+      const aIsHit = !!a[1].row;
+      const bIsHit = !!b[1].row;
+      if (aIsHit !== bIsHit) return aIsHit ? 1 : -1;
+      return a[1].touched - b[1].touched;
+    });
     const toDrop = sorted.slice(0, campaignPhoneCache.size - LRU_CAP);
     for (const [k] of toDrop) campaignPhoneCache.delete(k);
   }
-}
-
-function isResolved(key: string): boolean {
-  const e = campaignPhoneCache.get(key);
-  if (!e) return false;
-  if (e.row) return true;
-  return e.expires > Date.now();
 }
 
 function buildCampaignVariants(phone: string): string[] {
@@ -64,6 +64,41 @@ function buildCampaignVariants(phone: string): string[] {
     if (v.startsWith('55') && v.length >= 12) set.add(v.slice(2));
   }
   return [...set].filter(Boolean);
+}
+
+function getCachedCampaignEntry(phone: string, variants?: string[]): CampCacheEntry | undefined {
+  const direct = campaignPhoneCache.get(phone);
+  if (direct?.row) return direct;
+
+  const vs = variants ?? buildCampaignVariants(phone);
+  for (const v of vs) {
+    const cached = campaignPhoneCache.get(v);
+    if (cached?.row) return cached;
+  }
+
+  if (direct && direct.expires > Date.now()) return direct;
+  return direct;
+}
+
+function isCampaignPhoneResolved(phone: string, variants?: string[]): boolean {
+  const cached = getCachedCampaignEntry(phone, variants);
+  if (!cached) return false;
+  if (cached.row) return true;
+  return cached.expires > Date.now();
+}
+
+function touchCampaignAliases(phone: string, variants: string[], row: ContactCampaignRow | null, now: number) {
+  const expires = row ? Number.POSITIVE_INFINITY : now + MISS_TTL_MS;
+  touchCache(phone, { row, expires, touched: now });
+
+  // Cache hits under every normalized variant too. The chat row may later be
+  // rendered with a different phone format (raw, canonical, legacy, no DDI),
+  // and looking up only the original key makes the Meta Ads line appear/disappear.
+  if (row) {
+    for (const v of variants) {
+      touchCache(v, { row, expires, touched: now });
+    }
+  }
 }
 
 export interface UseChatBootstrapInput {
@@ -111,14 +146,14 @@ export function useChatBootstrap(
 
   // Tick apenas dispara re-render quando há de fato phone com miss expirado
   // aguardando nova avaliação — antes o setInterval acordava toda a lista
-  // a cada 60s mesmo sem trabalho a fazer.
+  // a cada TTL mesmo sem trabalho a fazer.
   React.useEffect(() => {
     const id = setInterval(() => {
       let hasExpiredMiss = false;
       const now = Date.now();
       for (const p of debouncedPhones) {
         if (!p) continue;
-        const e = campaignPhoneCache.get(String(p));
+        const e = getCachedCampaignEntry(String(p));
         if (e && !e.row && e.expires <= now) { hasExpiredMiss = true; break; }
       }
       if (hasExpiredMiss) setCacheVersion((v) => v + 1);
@@ -141,7 +176,7 @@ export function useChatBootstrap(
   const unresolvedCampaignVariants = React.useMemo(() => {
     const set = new Set<string>();
     for (const [key, vs] of campaignPhoneToVariants) {
-      if (isResolved(key)) continue;
+      if (isCampaignPhoneResolved(key, vs)) continue;
       for (const v of vs) set.add(v);
     }
     return [...set].sort();
@@ -176,7 +211,11 @@ export function useChatBootstrap(
     const sKey = [...new Set(cleanedSessionPairs.map((p) => `${p.whatsappNumber}:${p.codAgent}`))]
       .sort()
       .join(',');
-    return `${cKey}||${rKey}||${sKey}||v${cacheVersion}`;
+    // Version only matters for campaign misses that expire before React Query's
+    // staleTime. Do not include it when there are no campaign phones pending,
+    // otherwise CRM/session batches would refetch forever after every response.
+    const campaignRetryKey = unresolvedCampaignVariants.length > 0 ? `v${cacheVersion}` : 'v0';
+    return `${cKey}||${rKey}||${sKey}||${campaignRetryKey}`;
   }, [unresolvedCampaignVariants, crmPhoneVariants, cleanedSessionPairs, cacheVersion]);
 
   const enabled =
@@ -211,17 +250,13 @@ export function useChatBootstrap(
       }
       const now = Date.now();
       for (const [origPhone, vs] of campaignPhoneToVariants) {
-        if (isResolved(origPhone)) continue;
+        if (isCampaignPhoneResolved(origPhone, vs)) continue;
         let hit: ContactCampaignRow | null = null;
         for (const v of vs) {
           const m = byMatched.get(v);
           if (m) { hit = m; break; }
         }
-        touchCache(origPhone, {
-          row: hit,
-          expires: hit ? Number.POSITIVE_INFINITY : now + MISS_TTL_MS,
-          touched: now,
-        });
+        touchCampaignAliases(origPhone, vs, hit, now);
       }
 
       return res;
@@ -239,11 +274,13 @@ export function useChatBootstrap(
   // ---------- Reconstruir os 3 Maps ----------
   const campaignByPhone = React.useMemo(() => {
     const map = new Map<string, ContactCampaignRow>();
-    for (const p of debouncedPhones) {
-      if (!p) continue;
-      const key = String(p);
-      const cached = campaignPhoneCache.get(key);
+    for (const [key, cached] of campaignPhoneCache) {
       if (cached?.row) map.set(key, cached.row);
+    }
+    for (const p of debouncedPhones) {
+      if (!p || map.has(String(p))) continue;
+      const cached = getCachedCampaignEntry(String(p));
+      if (cached?.row) map.set(String(p), cached.row);
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps

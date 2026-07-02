@@ -532,12 +532,13 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   const campaignPhones = React.useMemo(() => {
     const set = new Set<string>();
     for (const c of filteredContacts) if (c.phone) set.add(c.phone);
+    for (const c of searchResults?.contacts ?? []) if (c.phone) set.add(c.phone);
     for (const conv of sortedConversations) {
       const p = contactPhoneById.get(conv.contact_id);
       if (p) set.add(p);
     }
     return Array.from(set);
-  }, [filteredContacts, sortedConversations, contactPhoneById]);
+  }, [filteredContacts, searchResults?.contacts, sortedConversations, contactPhoneById]);
   // Fase 2 · aggregator: 1 round-trip HTTP para CRM stages + Meta Ads
   // (as 2 consultas mais pesadas do /chat). Ambas rodam em paralelo
   // dentro da mesma conexão do pool no edge function. Sessions Julia

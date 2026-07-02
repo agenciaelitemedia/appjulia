@@ -89,14 +89,14 @@ export function useContactCampaigns(phone: string | null | undefined) {
  */
 // Persistent in-memory cache across renders and hook instances.
 // - HITS são mantidos para sempre na sessão (não re-consultados).
-// - MISSES têm TTL curto (60s) para que conversas novas cujo `campaing_ads`
+// - MISSES têm TTL curto para que conversas novas cujo `campaing_ads`
 //   seja gravado logo após a chegada sejam re-consultadas e apareçam.
 // TTL curto — permite que leads recém-chegados apareçam com Meta Ads
 // assim que o webhook grava em `campaing_ads` (segundos após a mensagem).
 const MISS_TTL_MS = 10_000;
 // Fase 2 · item 13: LRU cap para evitar crescimento indefinido do cache
 // em sessões longas com muitos telefones distintos.
-const LRU_CAP = 2000;
+const LRU_CAP = 10_000;
 type CacheEntry = { row: ContactCampaignRow | null; expires: number; touched: number };
 const campaignPhoneCache = new Map<string, CacheEntry>();
 
@@ -104,18 +104,48 @@ function touchCache(key: string, entry: Omit<CacheEntry, 'touched'>) {
   campaignPhoneCache.set(key, { ...entry, touched: Date.now() });
   if (campaignPhoneCache.size > LRU_CAP) {
     const sorted = [...campaignPhoneCache.entries()].sort(
-      (a, b) => a[1].touched - b[1].touched,
+      (a, b) => {
+        const aIsHit = !!a[1].row;
+        const bIsHit = !!b[1].row;
+        if (aIsHit !== bIsHit) return aIsHit ? 1 : -1;
+        return a[1].touched - b[1].touched;
+      },
     );
     const drop = sorted.slice(0, campaignPhoneCache.size - LRU_CAP);
     for (const [k] of drop) campaignPhoneCache.delete(k);
   }
 }
 
-function isResolved(key: string): boolean {
-  const e = campaignPhoneCache.get(key);
-  if (!e) return false;
-  if (e.row) return true; // hit — sempre válido
-  return e.expires > Date.now(); // miss — válido enquanto não expirar
+function getCachedCampaignEntry(phone: string, variants?: string[]): CacheEntry | undefined {
+  const direct = campaignPhoneCache.get(phone);
+  if (direct?.row) return direct;
+
+  const vs = variants ?? buildPhoneVariants(phone);
+  for (const v of vs) {
+    const cached = campaignPhoneCache.get(v);
+    if (cached?.row) return cached;
+  }
+
+  if (direct && direct.expires > Date.now()) return direct;
+  return direct;
+}
+
+function isPhoneResolved(phone: string, variants?: string[]): boolean {
+  const cached = getCachedCampaignEntry(phone, variants);
+  if (!cached) return false;
+  if (cached.row) return true;
+  return cached.expires > Date.now();
+}
+
+function touchCampaignAliases(phone: string, variants: string[], row: ContactCampaignRow | null) {
+  const expires = row ? Number.POSITIVE_INFINITY : Date.now() + MISS_TTL_MS;
+  touchCache(phone, { row, expires });
+
+  // Hits são gravados também nas variantes para manter o badge estável quando
+  // a mesma conversa é renderizada com formatos diferentes de telefone.
+  if (row) {
+    for (const v of variants) touchCache(v, { row, expires });
+  }
 }
 
 export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
@@ -149,7 +179,7 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
       const now = Date.now();
       for (const p of debouncedPhones) {
         if (!p) continue;
-        const e = campaignPhoneCache.get(String(p));
+        const e = getCachedCampaignEntry(String(p));
         if (e && !e.row && e.expires <= now) {
           hasExpiredMiss = true;
           break;
@@ -170,7 +200,7 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
     const vs = buildPhoneVariants(p);
     if (vs.length === 0) continue;
     phoneToVariants.set(key, vs);
-    if (isResolved(key)) continue; // hit persistente ou miss ainda válido
+    if (isPhoneResolved(key, vs)) continue; // hit persistente ou miss ainda válido
     for (const v of vs) unresolvedVariants.add(v);
   }
   const variantList = [...unresolvedVariants].sort();
@@ -216,19 +246,14 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
         if (r.matched_phone) byMatched.set(r.matched_phone, r);
       }
       // Fan-out: for each phone queried this round, cache hit OR confirmed miss.
-      const now = Date.now();
       for (const [origPhone, vs] of phoneToVariants) {
-        if (isResolved(origPhone)) continue;
+        if (isPhoneResolved(origPhone, vs)) continue;
         let hit: ContactCampaignRow | null = null;
         for (const v of vs) {
           const m = byMatched.get(v);
           if (m) { hit = m; break; }
         }
-        touchCache(origPhone, {
-          row: hit,
-          // hits: sem expiração; misses: expiram em 60s
-          expires: hit ? Number.POSITIVE_INFINITY : now + MISS_TTL_MS,
-        });
+        touchCampaignAliases(origPhone, vs, hit);
       }
       return rows.length;
     },
@@ -250,11 +275,13 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
   // resolved phones, so rows never lose their Meta Ads badge on scroll.
   const data = React.useMemo(() => {
     const result = new Map<string, ContactCampaignRow>();
-    for (const p of debouncedPhones) {
-      if (!p) continue;
-      const key = String(p);
-      const cached = campaignPhoneCache.get(key);
+    for (const [key, cached] of campaignPhoneCache) {
       if (cached?.row) result.set(key, cached.row);
+    }
+    for (const p of debouncedPhones) {
+      if (!p || result.has(String(p))) continue;
+      const cached = getCachedCampaignEntry(String(p));
+      if (cached?.row) result.set(String(p), cached.row);
     }
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
