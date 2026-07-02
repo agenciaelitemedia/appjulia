@@ -246,7 +246,6 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
         if (r.matched_phone) byMatched.set(r.matched_phone, r);
       }
       // Fan-out: for each phone queried this round, cache hit OR confirmed miss.
-      const now = Date.now();
       for (const [origPhone, vs] of phoneToVariants) {
         if (isPhoneResolved(origPhone, vs)) continue;
         let hit: ContactCampaignRow | null = null;
