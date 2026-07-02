@@ -496,6 +496,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                         ) : (
                           <span className="text-xs text-muted-foreground">N/A</span>
                         )}
+                      </div>
                       {(() => {
                         const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
                           low:    { label: 'Baixa',   color: 'text-muted-foreground' },
