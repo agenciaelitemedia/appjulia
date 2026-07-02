@@ -373,7 +373,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             </div>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setShowCampaignDialog(true); }}
+              onClick={(e) => { e.stopPropagation(); onClick(); setShowCampaignDialog(true); }}
               className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-fuchsia-600 text-white hover:bg-fuchsia-700 whitespace-nowrap"
             >
               Ver Ads
