@@ -1681,6 +1681,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     hasCrmCard={conv?.id ? !!crmBuilderMap?.has(conv.id) : false}
                     crmBuilderLink={conv?.id ? crmBuilderMap?.get(conv.id) : undefined}
                     ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
+                    campaignLink={contact.phone ? campaignByPhone?.get(contact.phone) ?? null : null}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
                     onOpenTicket={
                       onOpenTicketPanel
