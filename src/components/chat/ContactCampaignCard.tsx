@@ -171,7 +171,7 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
             key={currentSrc}
             src={currentSrc}
             alt={title}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-contain"
             referrerPolicy="no-referrer"
             loading="lazy"
             decoding="async"
