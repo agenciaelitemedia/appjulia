@@ -318,6 +318,26 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     return { slaStatusByContact: statusMap, slaEvalByConversation: evalMap };
   }, [conversations, slaConfigs, lastMsgMetaMap]);
 
+  // Handlers estáveis por contato — evita gerar arrow functions inline dentro
+  // do map do virtualizer (que invalidam o React.memo do ChatContactItem a
+  // cada scroll/render, mesmo sem mudança de dados).
+  const clickHandlerByContact = React.useMemo(() => {
+    const m = new Map<string, () => void>();
+    displayContacts.forEach((c) => m.set(c.id, () => selectContact(c.id)));
+    return m;
+  }, [displayContacts, selectContact]);
+
+  const openTicketHandlerByContact = React.useMemo(() => {
+    if (!onOpenTicketPanel) return null;
+    const m = new Map<string, (mode: 'create' | 'detail', ticketId?: string) => void>();
+    displayContacts.forEach((c) => {
+      const convs = displayConvsByContact.get(c.id) || [];
+      const conv = convs[0];
+      m.set(c.id, (mode, ticketId) => onOpenTicketPanel(c, mode, ticketId, conv));
+    });
+    return m;
+  }, [displayContacts, displayConvsByContact, onOpenTicketPanel]);
+
   const breachedCount = React.useMemo(
     () => Array.from(slaStatusByContact.values()).filter((s) => s === 'breached').length,
     [slaStatusByContact]
