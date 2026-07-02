@@ -175,10 +175,13 @@ function createConnection(caCerts: string[]) {
         connect_timeout: 15,
         idle_timeout: 20,
         max_lifetime: 60 * 30,
-        max: 2,
+        max: 5,
         prepare: false,
         onconnect: async (conn: any) => {
-          try { await conn.unsafe("SET statement_timeout = 30000"); } catch (_) {}
+          try {
+            await conn.unsafe("SET statement_timeout = 30000");
+            await conn.unsafe("SET timezone = 'America/Sao_Paulo'");
+          } catch (_) {}
         },
       })
     : postgres({
@@ -191,10 +194,13 @@ function createConnection(caCerts: string[]) {
         connect_timeout: 15,
         idle_timeout: 20,
         max_lifetime: 60 * 30,
-        max: 2,
+        max: 5,
         prepare: false,
         onconnect: async (conn: any) => {
-          try { await conn.unsafe("SET statement_timeout = 30000"); } catch (_) {}
+          try {
+            await conn.unsafe("SET statement_timeout = 30000");
+            await conn.unsafe("SET timezone = 'America/Sao_Paulo'");
+          } catch (_) {}
         },
       });
 }
@@ -208,6 +214,13 @@ let poolCaSignature: string | null = null;
 const rawCaCert = Deno.env.get('EXTERNAL_DB_CA_CERT') ?? '';
 const caCerts = rawCaCert ? normalizeCaCert(rawCaCert) : [];
 const hasExternalDbUrl = Boolean(Deno.env.get('EXTERNAL_DB_URL'));
+
+// Boot-time diagnostics (module scope — logged ONCE per isolate, not per request).
+console.log("CA certificates found:", caCerts.length);
+if (caCerts.length > 0) {
+  console.log("First cert preview:", caCerts[0].substring(0, 60) + "...");
+}
+console.log('External DB URL provided:', hasExternalDbUrl);
 
 function getPool(caCerts: string[]) {
   const signature = caCerts.length > 0 ? caCerts[0].slice(0, 80) : 'no-ca';
@@ -226,12 +239,6 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-  
-  console.log("CA certificates found:", caCerts.length);
-  if (caCerts.length > 0) {
-    console.log("First cert preview:", caCerts[0].substring(0, 60) + "...");
-  }
-  console.log('External DB URL provided:', hasExternalDbUrl);
 
   let lastError: unknown = null;
   
@@ -257,8 +264,7 @@ serve(async (req) => {
 
       sql = getPool(caCerts);
 
-      // Set timezone for this session to America/Sao_Paulo (UTC-3)
-      await sql`SET timezone = 'America/Sao_Paulo'`;
+      // Timezone is set once per connection via onconnect — no per-request round-trip.
 
       let result: Record<string, unknown>[] = [];
 

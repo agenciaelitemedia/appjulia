@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAccessibleQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useQueueConnectionStatusesBatch } from '@/hooks/useQueueConnectionStatusesBatch';
 import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';
-import { useChatSlaConfigs, evaluateSla, type SlaStatus } from '@/hooks/useChatSlaConfigs';
+import { useChatSlaConfigs, evaluateSla, type SlaStatus, type SlaEvaluation } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
@@ -127,10 +127,15 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   }, [showGroupsTab, activeTab, setActiveTab]);
 
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, hasPermission } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
   const { data: queues = [] } = useAccessibleQueues();
   const { configs: slaConfigs } = useChatSlaConfigs();
+  // Permissões calculadas UMA vez aqui (evita useAuth/hasPermission em cada
+  // uma das 50+ linhas visíveis — antes causava re-render em cascata).
+  const isPrivilegedRole = user?.role === 'admin' || user?.role === 'colaborador';
+  const canViewTickets = hasPermission('support_tickets', 'view') || isPrivilegedRole;
+  const canCreateTickets = hasPermission('support_tickets', 'create') || isPrivilegedRole;
   const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
@@ -280,8 +285,13 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   );
   const { metaMap: lastMsgMetaMap, getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(openConvIds);
 
-  const slaStatusByContact = React.useMemo(() => {
-    const map = new Map<string, SlaStatus>();
+  // Avalia SLA UMA vez por conversa aqui em batch e mantém a `SlaEvaluation`
+  // completa (não só o status). ChatContactItem recebe a avaliação pronta
+  // via prop — não precisa mais executar `evaluateSla` nem `useChatSlaConfigs`
+  // por linha. Guarda a pior avaliação por contato.
+  const { slaStatusByContact, slaEvalByConversation } = React.useMemo(() => {
+    const statusMap = new Map<string, SlaStatus>();
+    const evalMap = new Map<string, SlaEvaluation>();
     const rank: Record<SlaStatus, number> = { breached: 3, at_risk: 2, on_track: 1, unknown: 0 };
     conversations.forEach((conv) => {
       if (!['pending', 'open'].includes(conv.status)) return;
@@ -299,12 +309,13 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
         },
         slaConfigs
       );
-      const prev = map.get(conv.contact_id);
+      evalMap.set(conv.id, evalRes);
+      const prev = statusMap.get(conv.contact_id);
       if (!prev || rank[evalRes.status] > rank[prev]) {
-        map.set(conv.contact_id, evalRes.status);
+        statusMap.set(conv.contact_id, evalRes.status);
       }
     });
-    return map;
+    return { slaStatusByContact: statusMap, slaEvalByConversation: evalMap };
   }, [conversations, slaConfigs, lastMsgMetaMap]);
 
   const breachedCount = React.useMemo(
@@ -1152,6 +1163,26 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
         : effClosedConvCount;
   const activeTabLoaded = displayContacts.length;
 
+  // Handlers estáveis por contato — evita gerar arrow functions inline dentro
+  // do map do virtualizer (que invalidam o React.memo do ChatContactItem a
+  // cada scroll/render, mesmo sem mudança de dados).
+  const clickHandlerByContact = React.useMemo(() => {
+    const m = new Map<string, () => void>();
+    displayContacts.forEach((c) => m.set(c.id, () => selectContact(c.id)));
+    return m;
+  }, [displayContacts, selectContact]);
+
+  const openTicketHandlerByContact = React.useMemo(() => {
+    if (!onOpenTicketPanel) return null;
+    const m = new Map<string, (mode: 'create' | 'detail', ticketId?: string) => void>();
+    displayContacts.forEach((c) => {
+      const convs = displayConvsByContact.get(c.id) || [];
+      const conv = convs[0];
+      m.set(c.id, (mode, ticketId) => onOpenTicketPanel(c, mode, ticketId, conv));
+    });
+    return m;
+  }, [displayContacts, displayConvsByContact, onOpenTicketPanel]);
+
   // Virtual scroll — only renders items in the visible viewport.
   // estimateSize ≈ base item height (3 info rows + tags). measureElement
   // corrects actual heights so taller items (with tags) still display correctly.
@@ -1677,7 +1708,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                   <ChatContactItem
                     contact={contact}
                     isSelected={contact.id === selectedContactId}
-                    onClick={() => selectContact(contact.id)}
+                    onClick={clickHandlerByContact.get(contact.id)!}
                     conversation={conv}
                     queueName={convQueue?.name}
                     assignedAgentName={resolveAssigneeName(conv?.assigned_to, assigneeIndex) || undefined}
@@ -1697,14 +1728,17 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
                     campaignLink={contact.phone ? campaignByPhone?.get(contact.phone) ?? null : null}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
-                    onOpenTicket={
-                      onOpenTicketPanel
-                        ? (mode, ticketId) => {
-                            onOpenTicketPanel(contact, mode, ticketId, conv);
-                          }
-                        : undefined
-                    }
+                    onOpenTicket={openTicketHandlerByContact?.get(contact.id)}
                     isQueueDisconnected={isQueueDisconnected}
+                    slaEvaluation={conv ? slaEvalByConversation.get(conv.id) ?? null : null}
+                    canViewTickets={canViewTickets}
+                    canCreateTickets={canCreateTickets}
+                    queueHasAgent={queueLink?.hasAgent}
+                    sessionIsActive={
+                      queueLink?.hasAgent
+                        ? (getSessionActive(contact.phone, agentCodAgent) ?? null)
+                        : null
+                    }
                   />
                 </div>
               );

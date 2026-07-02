@@ -13,6 +13,16 @@ interface ConversationStatusBadgeProps {
   /** New: assigned_to for queues without an AI agent */
   assignedTo?: string | null;
   className?: string;
+  /**
+   * Passive mode (for high-frequency lists like /chat): quando o pai já
+   * resolveu o link fila→agente e o status da sessão via hooks em batch,
+   * passe esses valores por props para evitar 2 useQuery por linha.
+   * - `hasQueueAgent === true` → renderiza Bot (verde/vermelho).
+   * - `hasQueueAgent === false` → renderiza ícone humano.
+   * Se ambos forem undefined, o badge cai no fluxo com hooks internos.
+   */
+  hasQueueAgent?: boolean;
+  sessionIsActive?: boolean | null;
 }
 
 /**
@@ -29,7 +39,37 @@ export function ConversationStatusBadge({
   queueId,
   assignedTo,
   className,
+  hasQueueAgent,
+  sessionIsActive,
 }: ConversationStatusBadgeProps) {
+  // ---- Passive mode: parent already resolved link + session ----
+  if (hasQueueAgent !== undefined) {
+    if (hasQueueAgent) {
+      const active = sessionIsActive === true;
+      return (
+        <Pill
+          active={active}
+          Icon={Bot}
+          title={active ? 'Julia ativa' : 'Julia inativa (humano assumiu)'}
+          className={className}
+        />
+      );
+    }
+    const hasAssignee = !!(assignedTo && assignedTo.trim());
+    return (
+      <span
+        title={hasAssignee ? `Atendente: ${assignedTo}` : 'Sem atendente atribuído'}
+        className={cn(
+          'inline-flex items-center justify-center rounded h-4 w-4 shrink-0 border',
+          'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
+          className,
+        )}
+      >
+        <User className="h-2.5 w-2.5" />
+      </span>
+    );
+  }
+
   // ---- New mode (queueId provided) ----
   if (queueId) {
     return (

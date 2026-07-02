@@ -84,7 +84,7 @@ function normalizeSendError(err: unknown): { message: string; code: string | nul
 // Conversation pagination — bigger initial page for instant context, then
 // smaller chunks on demand (scroll/click). Avoids the previous "infinite
 // auto-loop" that flooded the DB and the browser DOM with thousands of rows.
-const CONVERSATIONS_INITIAL_PAGE_SIZE = 1000;
+const CONVERSATIONS_INITIAL_PAGE_SIZE = 200;
 const CONVERSATIONS_NEXT_PAGE_SIZE = 200;
 // Auto-bootstrap loads exactly the initial page; everything beyond is on
 // demand via `loadMoreConversations`. Kept as a guard against runaway loops.
@@ -2746,18 +2746,33 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           // Merge instead of replace so we don't drop in-memory enrichments
           // (decrypted media_url, transcription metadata, etc.) when the DB
           // emits a partial UPDATE (e.g. status tick or edited_at).
-          setMessages(prev => ({
-            ...prev,
-            [updated.contact_id]: (prev[updated.contact_id] || []).map(m =>
-              m.id === updated.id
-                ? {
-                    ...m,
-                    ...updated,
-                    metadata: { ...(m.metadata || {}), ...((updated as any).metadata || {}) },
-                  }
-                : m
-            ),
-          }));
+          // Only spread the root `messages` object when the contact is actually
+          // in memory AND something really changed. This prevents an avalanche
+          // of re-renders on every delivery/read tick across all consumers.
+          setMessages(prev => {
+            const contactMsgs = prev[updated.contact_id];
+            if (!contactMsgs) return prev; // contact not paged in — no work
+            const idx = contactMsgs.findIndex(m => m.id === updated.id);
+            if (idx < 0) return prev;
+            const existing = contactMsgs[idx];
+            const merged = {
+              ...existing,
+              ...updated,
+              metadata: { ...(existing.metadata || {}), ...((updated as any).metadata || {}) },
+            };
+            // Cheap shallow check on the fields that typically move on UPDATE.
+            if (
+              existing.status === merged.status &&
+              (existing as any).edited_at === (merged as any).edited_at &&
+              existing.text === merged.text &&
+              (existing as any).media_url === (merged as any).media_url
+            ) {
+              return prev;
+            }
+            const nextArr = contactMsgs.slice();
+            nextArr[idx] = merged;
+            return { ...prev, [updated.contact_id]: nextArr };
+          });
         }
       )
       .subscribe();
