@@ -29,7 +29,7 @@ import type { SessionPair } from '@/hooks/useAgentSessionStatusesBatch';
 // Meta Ads costuma gravar em segundos). Um TTL longo fazia novos chats
 // aparecerem sem badge por até 1 minuto.
 const MISS_TTL_MS = 10_000;
-const LRU_CAP = 2000;
+const LRU_CAP = 10_000;
 type CampCacheEntry = { row: ContactCampaignRow | null; expires: number; touched: number };
 const campaignPhoneCache = new Map<string, CampCacheEntry>();
 

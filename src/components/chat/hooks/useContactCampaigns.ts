@@ -96,7 +96,7 @@ export function useContactCampaigns(phone: string | null | undefined) {
 const MISS_TTL_MS = 10_000;
 // Fase 2 · item 13: LRU cap para evitar crescimento indefinido do cache
 // em sessões longas com muitos telefones distintos.
-const LRU_CAP = 2000;
+const LRU_CAP = 10_000;
 type CacheEntry = { row: ContactCampaignRow | null; expires: number; touched: number };
 const campaignPhoneCache = new Map<string, CacheEntry>();
 
