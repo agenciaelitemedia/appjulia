@@ -1735,8 +1735,8 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     canCreateTickets={canCreateTickets}
                     queueHasAgent={queueLink?.hasAgent}
                     sessionIsActive={
-                      queueLink?.hasAgent && contact.phone
-                        ? (sessionStatusMap?.get(String(contact.phone).replace(/\D/g, '')) ?? null)
+                      queueLink?.hasAgent
+                        ? (getSessionActive(contact.phone, agentCodAgent) ?? null)
                         : null
                     }
                   />
