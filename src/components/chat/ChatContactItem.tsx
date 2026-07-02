@@ -18,11 +18,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { AlertTriangle } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 import { differenceInMinutes, differenceInHours } from 'date-fns';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ChatTag } from '@/types/conversation';
-import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
+import type { SlaEvaluation } from '@/hooks/useChatSlaConfigs';
 import type { LastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from '@/components/chat/SlaBadge';
 import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
@@ -72,6 +71,18 @@ interface ChatContactItemProps {
   onOpenTicket?: (mode: 'create' | 'detail', ticketId?: string) => void;
   /** Quando true, indica que a fila vinculada à conversa está desconectada. */
   isQueueDisconnected?: boolean;
+  /**
+   * SLA já avaliado pelo pai em batch (evita `useChatSlaConfigs` por linha).
+   * Se omitido, o badge simplesmente não é renderizado.
+   */
+  slaEvaluation?: SlaEvaluation | null;
+  /** Permissões calculadas uma vez pelo pai — evita `useAuth` por linha. */
+  canViewTickets?: boolean;
+  canCreateTickets?: boolean;
+  /** Fila tem agente Julia? Resolvido em batch pelo pai. */
+  queueHasAgent?: boolean;
+  /** Sessão Julia ativa? Resolvido em batch pelo pai. */
+  sessionIsActive?: boolean | null;
 }
 
 function ChannelOverlay({ channel }: { channel?: string }) {
@@ -152,31 +163,12 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   lastMessageMeta,
   onOpenTicket,
   isQueueDisconnected,
+  slaEvaluation = null,
+  canViewTickets = false,
+  canCreateTickets = false,
+  queueHasAgent,
+  sessionIsActive,
 }: ChatContactItemProps) {
-  const { configs } = useChatSlaConfigs();
-  const { hasPermission, user } = useAuth();
-  const isPrivilegedRole = user?.role === 'admin' || user?.role === 'colaborador';
-  const canViewTickets = hasPermission('support_tickets', 'view') || isPrivilegedRole;
-  const canCreateTickets = hasPermission('support_tickets', 'create') || isPrivilegedRole;
-
-  const slaEvaluation = React.useMemo(() => {
-    if (!conversation) return null;
-    if (conversation.status === 'closed' || conversation.status === 'resolved') return null;
-    return evaluateSla(
-      {
-        status: conversation.status,
-        priority: conversation.priority ?? 'normal',
-        opened_at: conversation.opened_at ?? conversation.created_at ?? new Date().toISOString(),
-        first_response_at: conversation.first_response_at ?? null,
-        resolved_at: conversation.resolved_at ?? null,
-        closed_at: conversation.closed_at ?? null,
-        last_customer_message_at: lastMessageMeta?.last_customer_message_at ?? conversation.last_customer_message_at ?? null,
-        last_message_from_me: lastMessageMeta?.last_message_from_me ?? conversation.last_message_from_me ?? null,
-      },
-      configs
-    );
-  }, [conversation, configs, lastMessageMeta]);
-
   const initials = contact.name
     .split(' ')
     .slice(0, 2)
