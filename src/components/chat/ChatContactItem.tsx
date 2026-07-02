@@ -2,7 +2,7 @@ import React from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, Globe, Instagram, Kanban, Bot, Ticket, LifeBuoy, Eye } from 'lucide-react';
+import { Users, MessageCircle, Globe, Instagram, Kanban, Bot, Ticket, LifeBuoy, Eye, Megaphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import {
@@ -31,6 +31,9 @@ import { ConversationQuickActions } from '@/components/chat/ConversationQuickAct
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 import type { CrmBuilderLink } from '@/hooks/useCRMBuilderLinkedConversations';
 import type { TicketConversationLink } from '@/hooks/useTicketLinkedConversations';
+import type { ContactCampaignRow } from '@/components/chat/hooks/useContactCampaigns';
+import { ContactCampaignCard } from '@/components/chat/ContactCampaignCard';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { STATUS_LABEL as TICKET_STATUS_LABEL, STATUS_BADGE as TICKET_STATUS_BADGE, PRIORITY_LABEL as TICKET_PRIORITY_LABEL } from '@/pages/tickets/types';
 
 function toTitleCase(s: string): string {
@@ -61,6 +64,8 @@ interface ChatContactItemProps {
   crmBuilderLink?: CrmBuilderLink;
   /** Vínculo com ticket de suporte aberto (TICKET #N · status). */
   ticketLink?: TicketConversationLink;
+  /** Vínculo com anúncio Meta Ads que originou o lead (Meta Ads · nome). */
+  campaignLink?: ContactCampaignRow | null;
   /** Metadados derivados de chat_messages para avaliar NRT corretamente. */
   lastMessageMeta?: LastMessageMeta;
   /** Acionado pelo menu de contexto para abrir/visualizar ticket de suporte. */
