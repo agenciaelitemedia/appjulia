@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -25,6 +25,25 @@ function proxied(url: string | undefined): string | undefined {
   return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(url)}`;
 }
 
+function asDataImage(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith('data:image/')) return trimmed;
+  if (/^\/9j\//.test(trimmed)) return `data:image/jpeg;base64,${trimmed}`;
+  if (/^iVBORw0KGgo/.test(trimmed)) return `data:image/png;base64,${trimmed}`;
+  if (/^R0lGOD/.test(trimmed)) return `data:image/gif;base64,${trimmed}`;
+  if (/^UklGR/.test(trimmed)) return `data:image/webp;base64,${trimmed}`;
+  return undefined;
+}
+
+function isLikelyImageUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  if (url.startsWith('data:image/') || url.startsWith('blob:')) return true;
+  if (/\.(jpe?g|png|gif|webp|avif)(\?|#|$)/i.test(url)) return true;
+  return /(fbcdn\.net|cdninstagram\.com|scontent\.|instagram\.f[a-z0-9-]+\.fna)/i.test(url);
+}
+
 interface Props {
   row: ContactCampaignRow;
   /** Sobrescreve a "Frase do lead" (ex.: primeira mensagem real recebida). */
@@ -45,14 +64,21 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
   const sourceURL = cd.sourceURL as string | undefined;
   const thumb = cd.thumbnailURL as string | undefined;
   const media = cd.mediaURL as string | undefined;
+  const inlineThumbnail = asDataImage(cd.thumbnail);
   const fallbackGreeting = cd.greetingMessageBody as string | undefined;
   const greeting = (greetingOverride && greetingOverride.trim()) || fallbackGreeting;
 
   // Cascata de fontes para o preview da imagem. Se o CDN do Meta rejeitar
   // (referrer/CORS), tenta a próxima; só cai em `ImageOff` quando todas
   // falharem.
-  const imgCandidates = [thumb, media].filter(Boolean) as string[];
+  const imgCandidates = useMemo(
+    () => [inlineThumbnail, thumb, isLikelyImageUrl(media) ? media : undefined].filter(Boolean) as string[],
+    [inlineThumbnail, media, thumb],
+  );
   const [imgIdx, setImgIdx] = useState(0);
+  useEffect(() => {
+    setImgIdx(0);
+  }, [imgCandidates]);
   const currentSrc = proxied(imgCandidates[imgIdx]);
   const handleImgError = () => {
     if (imgIdx < imgCandidates.length - 1) {
