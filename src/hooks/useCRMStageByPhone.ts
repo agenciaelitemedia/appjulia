@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import { getBrPhoneVariants } from '@/lib/phoneVariants';
 
@@ -128,5 +128,6 @@ export function useCRMStageByPhone(pairs: PhoneAgentPair[]) {
     enabled: phoneVariants.length > 0,
     staleTime: 60_000,
     refetchInterval: 60_000,
+    placeholderData: keepPreviousData,
   });
 }
