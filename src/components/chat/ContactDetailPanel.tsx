@@ -619,6 +619,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
               <div className="space-y-2">
                 <h5 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
                   <MessageSquare className="h-3 w-3" /> Conversas
+                </h5>
                 {isLoadingHistory ? (
                   <div className="space-y-2">
                     <Skeleton className="h-12 w-full" />
