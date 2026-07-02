@@ -29,6 +29,90 @@ import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useContactCampaigns } from './hooks/useContactCampaigns';
 import { Skeleton } from '@/components/ui/skeleton';
 
+// ─── ContactCampaignCard ────────────────────────────────────────────────────
+function ContactCampaignCard({ row }: { row: { id: string | number; created_at: string; campaign_data: Record<string, any> | null } }) {
+  const cd = (row.campaign_data || {}) as Record<string, any>;
+  const title = cd.title || 'Campanha sem título';
+  const body = cd.body as string | undefined;
+  const platform = (cd.sourceApp || 'outros').toString().toLowerCase();
+  const sourceURL = cd.sourceURL as string | undefined;
+  const thumb = (cd.thumbnailURL || cd.mediaURL) as string | undefined;
+  const greeting = cd.greetingMessageBody as string | undefined;
+  const [imageError, setImageError] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const PlatformIcon = platform === 'instagram' ? Instagram : platform === 'facebook' ? Facebook : Globe;
+  const platformBadgeCls =
+    platform === 'instagram' ? 'bg-gradient-to-tr from-fuchsia-500 to-orange-400 text-white border-transparent' :
+    platform === 'facebook' ? 'bg-blue-600 text-white border-transparent' :
+    platform === 'google' ? 'bg-emerald-600 text-white border-transparent' :
+    'bg-muted text-muted-foreground border-border';
+
+  const handleCopy = async () => {
+    if (!greeting) return;
+    await navigator.clipboard.writeText(greeting);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+      <div className="relative aspect-video bg-muted">
+        {!imageError && thumb ? (
+          <img
+            src={thumb}
+            alt={title}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <ImageOff className="h-10 w-10 text-muted-foreground" />
+          </div>
+        )}
+        <div className="absolute top-2 left-2">
+          <span className={cn('inline-flex h-7 w-7 items-center justify-center rounded-full border', platformBadgeCls)}>
+            <PlatformIcon className="h-3.5 w-3.5" />
+          </span>
+        </div>
+      </div>
+      <div className="p-3 space-y-2">
+        <h3 className="font-semibold text-sm line-clamp-1" title={title}>{title}</h3>
+        {body && (
+          <p className="text-xs text-muted-foreground line-clamp-3">{body}</p>
+        )}
+        {greeting && (
+          <div className="bg-muted/50 rounded-md p-2 space-y-1">
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <MessageSquareQuote className="h-3 w-3" />
+              <span>Frase do lead:</span>
+            </div>
+            <p className="text-xs italic line-clamp-3">"{greeting}"</p>
+          </div>
+        )}
+        <p className="text-[11px] text-muted-foreground">
+          Último lead: {format(new Date(row.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
+        </p>
+        <div className="flex gap-2 pt-1">
+          {sourceURL && (
+            <Button variant="outline" size="sm" className="flex-1" asChild>
+              <a href={sourceURL} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Acessar
+              </a>
+            </Button>
+          )}
+          {greeting && (
+            <Button variant="ghost" size="sm" onClick={handleCopy} className="shrink-0">
+              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── TagSelector ─────────────────────────────────────────────────────────────
 interface TagSelectorProps {
   allTags: ChatTag[];
