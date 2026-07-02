@@ -1,72 +1,63 @@
-## Objetivo
-Endurecer a aba **Campanhas** do `ContactDetailPanel` para:
-1. Sempre encontrar a campanha do contato mesmo quando o telefone estiver salvo em formato diferente (com/sem 9º dígito, com sufixo `@s.whatsapp.net`, "055…", só dígitos etc.).
-2. Eliminar qualquer risco de TS2552 (símbolo indefinido) alinhando o card usado com o estado/hook já presentes no arquivo.
-3. Exibir na aba a **primeira mensagem real** que o lead enviou na conversa (fallback: `greetingMessageBody` do `campaign_data`), garantindo que a "Frase do lead" espelhe a mensagem inicial de fato.
 
-## 1. Normalização de telefone + telemetria (busca robusta)
+## 1. Aba "Campanhas" condicional em `ContactDetailPanel`
 
-Arquivo: `src/components/chat/hooks/useContactCampaigns.ts`
+Atualmente a aba renderiza sempre, apenas desabilitada quando `hasCampaigns=false`. Ajustar para:
+- Não renderizar `<TabsTrigger>` nem `<TabsContent>` de Campanhas quando `hasCampaigns === false`.
+- Recalcular `tabsGridClass` para 2/3 colunas conforme abas realmente presentes.
+- Se a aba ativa era "campanhas" e sumir, voltar para "geral" (guard no `defaultValue`).
 
-- Trocar a normalização atual (`.replace(/\D/g,'')` + `getBrPhoneVariants`) por um pipeline dedicado que usa `normalizeBrPhone` de `@/lib/phoneNormalize` como forma canônica e depois combina com `getBrPhoneVariants` + `brPhoneVariants` para gerar TODAS as variantes plausíveis (13 díg com 9, 12 díg sem 9, prefixo `55` removido, número puro sem DDI). Deduplicar via `Set`.
-- Aceitar entrada com `@s.whatsapp.net`, `@c.us`, `+55…`, espaços/parênteses (a normalize já cobre).
-- Ampliar a query externa para casar em qualquer uma das variantes tanto em `campaign_data->>'phone'` quanto em `sessions.whatsapp_number`, e também numa versão só de dígitos (`regexp_replace(...,'\D','','g')`) da coluna do JSON — protege contra registros com máscara:
+## 2. Linha "Meta Ads" na lista de conversas
 
-    ```sql
-    WHERE regexp_replace(
-            COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone',''),
-                     s.whatsapp_number::text),
-            '\D','','g') = ANY($1::varchar[])
-    ```
+### 2.1. Novo hook `useContactsCampaignsMap(phones: string[])` em `src/components/chat/hooks/useContactCampaigns.ts`
+- Recebe array de telefones dos contatos visíveis, gera variantes BR de todos.
+- Uma única query `externalDb.raw` retorna `DISTINCT ON (phone_normalizado)` a campanha mais recente por telefone (usando `regexp_replace` + `ANY($1)`).
+- Retorna `Map<phoneDigits, ContactCampaignRow>` para lookup O(1).
+- Cache 5 min via React Query.
 
-- Adicionar telemetria estruturada (respeitando o padrão de logs do projeto):
-  - `console.info('[useContactCampaigns] lookup', { phone, variants, rowsFound })` quando terminar.
-  - `console.warn('[useContactCampaigns] no-match', { phone, variants })` quando `rows.length === 0` **e** houver telefone válido — ajuda a diagnosticar formatos novos.
-  - Marcar `retry: 1`, `staleTime: 5 min` e `enabled: variants.length > 0` (mantido).
+### 2.2. Em `ChatList.tsx`
+- Extrair telefones únicos das conversas visíveis (mesmo pattern usado em `allPhoneAgentPairs`).
+- Chamar `useContactsCampaignsMap` e passar `campaignLink={map.get(normalized(contact.phone))}` para cada `ChatContactItem`.
 
-## 2. Consistência do card e prevenção de TS2552
+### 2.3. Em `ChatContactItem.tsx`
+- Nova prop opcional `campaignLink?: ContactCampaignRow`.
+- Após a linha CRM Builder, renderizar linha no mesmo padrão visual, cor âmbar/laranja (Meta):
+  - Fundo: `bg-orange-50/40 dark:bg-orange-950/20`, borda `border-orange-100/70`.
+  - Badge esquerda: ícone `Megaphone` + texto `META ADS`.
+  - Nome da campanha truncado (`campaign_data.title`).
+  - Botão à direita "Ver Ads" (badge clicável, `stopPropagation`) que abre um `<Dialog>` local exibindo o `ContactCampaignCard` (mesmo componente do painel de detalhes).
+- Adicionar `campaignLink` ao `React.memo` compare.
 
-Arquivo: `src/components/chat/ContactDetailPanel.tsx`
+### 2.4. Extrair `ContactCampaignCard` para arquivo próprio
+- Mover de `ContactDetailPanel.tsx` para `src/components/chat/ContactCampaignCard.tsx` e exportar como default para reutilizar no dialog "Ver Ads" e no painel.
 
-Estado atual: o arquivo já define `function ContactCampaignCard(...)` internamente e o renderiza em `TabsContent value="campanhas"`. O hook `useContactCampaigns` é importado e usa `isLoadingCampaigns`, `contactCampaigns`, `hasCampaigns`.
+## 3. Correção do preview da imagem
 
-Correções para eliminar riscos de TS2552 e ambiguidade:
+O thumbnail vem de CDN do Meta (`scontent.*.fbcdn.net` / `lookaside.fbsbx.com`) que bloqueia carregamento cross-origin quando o `Referer` header expõe origem diferente. O `<img>` cai no `onError` e mostra `ImageOff`.
 
-- Garantir uma única definição de `ContactCampaignCard` no arquivo (remover qualquer referência a `CampaignDetailCard` ou nome antigo, caso apareça em merges futuros — hoje já está OK, mas vou revalidar o import).
-- Tipar as props do card com uma interface exportada `ContactCampaignRow` reaproveitada do hook (já existe em `useContactCampaigns.ts`); trocar o inline `{ id; created_at; campaign_data }` por essa interface para o TS reconciliar 100% com o retorno do `useQuery`.
-- Passar a "Frase do lead" via prop (`greetingOverride?: string`) para permitir sobrescrever pelo item 3.
+Ajustes no `<img>` do `ContactCampaignCard`:
+- `referrerPolicy="no-referrer"` — remove header Referer que causa o bloqueio.
+- `loading="lazy"` e `decoding="async"`.
+- Tentar `cd.mediaURL` como fallback caso `cd.thumbnailURL` falhe (encadear: primeiro thumbnail; se erro, tentar mediaURL; se erro novamente, mostrar `ImageOff`).
+- Logar em `console.warn` quando ambos falharem para telemetria.
 
-## 3. Usar a primeira mensagem real do lead como "Frase do lead"
+## Detalhes técnicos
 
-Ainda em `ContactDetailPanel.tsx` + novo helper em `useContactCampaigns.ts`.
+- Reutilizar `buildPhoneVariants` já existente em `useContactCampaigns.ts` para o novo hook batch.
+- SQL do batch:
+  ```sql
+  SELECT DISTINCT ON (norm) 
+         regexp_replace(COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone',''), s.whatsapp_number::text,''), '\D','','g') AS norm,
+         ca.id, ca.created_at, (ca.campaign_data::jsonb) AS campaign_data
+    FROM campaing_ads ca
+    LEFT JOIN sessions s ON s.id = ca.session_id::bigint
+   WHERE regexp_replace(...) = ANY($1::varchar[])
+   ORDER BY norm, ca.created_at DESC
+  ```
+- No `ChatContactItem`, o botão "Ver Ads" usa `variant="outline"` `size="sm"` com `h-5 text-[9px] px-1.5` para caber na linha compacta.
 
-- Adicionar um segundo hook `useContactFirstInboundMessage(contactId)` (ou reusar `useQuery` inline) que faz:
-
-    ```ts
-    supabase.from('chat_messages')
-      .select('id, body, created_at, conversation_id')
-      .eq('contact_id', contact.id)
-      .eq('direction', 'inbound')
-      .order('created_at', { ascending: true })
-      .limit(1)
-    ```
-
-    (Se `chat_messages` não expõe `contact_id`, fazer join implícito via `conversation_id in (SELECT id FROM chat_conversations WHERE contact_id = ...)`.)
-
-- Regra de exibição por card:
-  1. `firstInbound.body` (quando existir e não vazio) → é a primeira mensagem real do lead na primeira conversa.
-  2. Fallback: `campaign_data.greetingMessageBody` (comportamento atual).
-- Passar `greetingOverride={firstInbound?.body}` para o card e usar dentro dele para o bloco "Frase do lead".
-- Cache: `staleTime: 5 min`, `enabled: !!contact.id`.
-
-## 4. Verificação
-
-- Rodar `bunx tsgo --noEmit` (deve continuar limpo).
-- Testar no `/chat` com contato conhecido: ver no console `[useContactCampaigns] lookup {...}` com `rowsFound > 0`.
-- Reproduzir com contato cujo `chat_contacts.phone` está no formato 12 díg (sem 9) e conferir que a aba aparece habilitada.
-
-## Fora de escopo
-
-- Nenhuma alteração de schema, migration ou edge function.
-- Sem mudanças em `/estrategico/campanhas`.
-- Sem persistir `campaign_data` em `chat_contacts`.
+## Arquivos alterados
+- `src/components/chat/hooks/useContactCampaigns.ts` — novo hook batch.
+- `src/components/chat/ContactCampaignCard.tsx` — novo (extraído + fix imagem).
+- `src/components/chat/ContactDetailPanel.tsx` — import do card, tabs condicionais.
+- `src/components/chat/ChatContactItem.tsx` — nova linha Meta Ads + dialog.
+- `src/components/chat/ChatList.tsx` — hook batch e passagem da prop.
