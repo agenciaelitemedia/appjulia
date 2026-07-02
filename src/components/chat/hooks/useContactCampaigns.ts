@@ -91,7 +91,9 @@ export function useContactCampaigns(phone: string | null | undefined) {
 // - HITS são mantidos para sempre na sessão (não re-consultados).
 // - MISSES têm TTL curto (60s) para que conversas novas cujo `campaing_ads`
 //   seja gravado logo após a chegada sejam re-consultadas e apareçam.
-const MISS_TTL_MS = 60_000;
+// TTL curto — permite que leads recém-chegados apareçam com Meta Ads
+// assim que o webhook grava em `campaing_ads` (segundos após a mensagem).
+const MISS_TTL_MS = 10_000;
 // Fase 2 · item 13: LRU cap para evitar crescimento indefinido do cache
 // em sessões longas com muitos telefones distintos.
 const LRU_CAP = 2000;
@@ -120,6 +122,16 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
   // Debounce input phone list — scroll-triggered updates coalesce into a single fetch.
   const [debouncedPhones, setDebouncedPhones] = React.useState<(string | null | undefined)[]>(phones);
   React.useEffect(() => {
+    // Flush imediato quando houver phone novo (nunca visto no cache) — evita
+    // segurar novos chats por 250 ms. Para simples re-renderizações, mantém
+    // o debounce para agrupar updates.
+    const hasNewPhone = phones.some(
+      (p) => p && !campaignPhoneCache.has(String(p)),
+    );
+    if (hasNewPhone) {
+      setDebouncedPhones(phones);
+      return;
+    }
     const id = setTimeout(() => setDebouncedPhones(phones), 250);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
