@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone, ExternalLink } from 'lucide-react';
+import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone, ExternalLink, ImageOff, Copy, MessageSquareQuote, Instagram, Facebook, Globe } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -28,6 +28,90 @@ import { SlaBadge } from './SlaBadge';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useContactCampaigns } from './hooks/useContactCampaigns';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// ─── ContactCampaignCard ────────────────────────────────────────────────────
+function ContactCampaignCard({ row }: { row: { id: string | number; created_at: string; campaign_data: Record<string, any> | null } }) {
+  const cd = (row.campaign_data || {}) as Record<string, any>;
+  const title = cd.title || 'Campanha sem título';
+  const body = cd.body as string | undefined;
+  const platform = (cd.sourceApp || 'outros').toString().toLowerCase();
+  const sourceURL = cd.sourceURL as string | undefined;
+  const thumb = (cd.thumbnailURL || cd.mediaURL) as string | undefined;
+  const greeting = cd.greetingMessageBody as string | undefined;
+  const [imageError, setImageError] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const PlatformIcon = platform === 'instagram' ? Instagram : platform === 'facebook' ? Facebook : Globe;
+  const platformBadgeCls =
+    platform === 'instagram' ? 'bg-gradient-to-tr from-fuchsia-500 to-orange-400 text-white border-transparent' :
+    platform === 'facebook' ? 'bg-blue-600 text-white border-transparent' :
+    platform === 'google' ? 'bg-emerald-600 text-white border-transparent' :
+    'bg-muted text-muted-foreground border-border';
+
+  const handleCopy = async () => {
+    if (!greeting) return;
+    await navigator.clipboard.writeText(greeting);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+      <div className="relative aspect-video bg-muted">
+        {!imageError && thumb ? (
+          <img
+            src={thumb}
+            alt={title}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <ImageOff className="h-10 w-10 text-muted-foreground" />
+          </div>
+        )}
+        <div className="absolute top-2 left-2">
+          <span className={cn('inline-flex h-7 w-7 items-center justify-center rounded-full border', platformBadgeCls)}>
+            <PlatformIcon className="h-3.5 w-3.5" />
+          </span>
+        </div>
+      </div>
+      <div className="p-3 space-y-2">
+        <h3 className="font-semibold text-sm line-clamp-1" title={title}>{title}</h3>
+        {body && (
+          <p className="text-xs text-muted-foreground line-clamp-3">{body}</p>
+        )}
+        {greeting && (
+          <div className="bg-muted/50 rounded-md p-2 space-y-1">
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <MessageSquareQuote className="h-3 w-3" />
+              <span>Frase do lead:</span>
+            </div>
+            <p className="text-xs italic line-clamp-3">"{greeting}"</p>
+          </div>
+        )}
+        <p className="text-[11px] text-muted-foreground">
+          Último lead: {format(new Date(row.created_at), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
+        </p>
+        <div className="flex gap-2 pt-1">
+          {sourceURL && (
+            <Button variant="outline" size="sm" className="flex-1" asChild>
+              <a href={sourceURL} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Acessar
+              </a>
+            </Button>
+          )}
+          {greeting && (
+            <Button variant="ghost" size="sm" onClick={handleCopy} className="shrink-0">
+              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── TagSelector ─────────────────────────────────────────────────────────────
 interface TagSelectorProps {
@@ -575,81 +659,20 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
         {/* Campanhas */}
         <TabsContent value="campanhas" className="flex-1 mt-0 min-h-0">
           <ScrollArea className="h-full">
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-4">
               {isLoadingCampaigns ? (
                 <>
-                  <Skeleton className="h-24 w-full" />
-                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-72 w-full" />
+                  <Skeleton className="h-72 w-full" />
                 </>
               ) : contactCampaigns.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-8">
                   Este contato não veio de nenhuma campanha registrada.
                 </p>
               ) : (
-                contactCampaigns.map((row) => {
-                  const cd = (row.campaign_data || {}) as Record<string, any>;
-                  const title = cd.title || 'Campanha sem título';
-                  const platform = (cd.sourceApp || 'outros').toString().toLowerCase();
-                  const sourceType = cd.sourceType as string | undefined;
-                  const sourceDevice = cd.sourceDevice as string | undefined;
-                  const sourceURL = cd.sourceURL as string | undefined;
-                  const thumb = (cd.thumbnailURL || cd.mediaURL) as string | undefined;
-                  const greeting = cd.greetingMessageBody as string | undefined;
-                  const body = cd.body as string | undefined;
-                  const platformColor: Record<string, string> = {
-                    facebook: 'bg-blue-100 text-blue-700 border-blue-200',
-                    instagram: 'bg-pink-100 text-pink-700 border-pink-200',
-                    google: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-                  };
-                  const badgeCls = platformColor[platform] || 'bg-muted text-muted-foreground border-border';
-                  return (
-                    <div key={String(row.id)} className="rounded-md border p-3 space-y-2 bg-card">
-                      <div className="flex items-start gap-3">
-                        {thumb && (
-                          <img
-                            src={thumb}
-                            alt=""
-                            className="h-14 w-14 rounded object-cover border shrink-0"
-                            loading="lazy"
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                          />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-medium leading-tight truncate" title={title}>{title}</p>
-                            <Badge variant="outline" className={cn('text-[10px] capitalize shrink-0', badgeCls)}>
-                              {platform}
-                            </Badge>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground mt-1">
-                            {format(new Date(row.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                            {sourceType ? ` · ${sourceType}` : ''}
-                            {sourceDevice ? ` · ${sourceDevice}` : ''}
-                          </p>
-                        </div>
-                      </div>
-                      {body && (
-                        <p className="text-xs text-muted-foreground line-clamp-3">{body}</p>
-                      )}
-                      {greeting && (
-                        <blockquote className="text-xs italic border-l-2 pl-2 text-muted-foreground">
-                          "{greeting}"
-                        </blockquote>
-                      )}
-                      {sourceURL && (
-                        <a
-                          href={sourceURL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          Abrir origem
-                        </a>
-                      )}
-                    </div>
-                  );
-                })
+                contactCampaigns.map((row) => (
+                  <ContactCampaignCard key={String(row.id)} row={row} />
+                ))
               )}
             </div>
           </ScrollArea>
