@@ -146,7 +146,7 @@ export function useChatBootstrap(
 
   // Tick apenas dispara re-render quando há de fato phone com miss expirado
   // aguardando nova avaliação — antes o setInterval acordava toda a lista
-  // a cada 60s mesmo sem trabalho a fazer.
+  // a cada TTL mesmo sem trabalho a fazer.
   React.useEffect(() => {
     const id = setInterval(() => {
       let hasExpiredMiss = false;
