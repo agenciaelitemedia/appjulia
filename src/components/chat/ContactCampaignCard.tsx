@@ -15,6 +15,16 @@ import {
 } from 'lucide-react';
 import type { ContactCampaignRow } from './hooks/useContactCampaigns';
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+
+/** Wrap a remote image URL through our edge proxy so Meta CDN's expiring
+ *  signed URLs (oe=...) and referrer restrictions don't break the preview. */
+function proxied(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+  return `${SUPABASE_URL}/functions/v1/image-proxy?url=${encodeURIComponent(url)}`;
+}
+
 interface Props {
   row: ContactCampaignRow;
   /** Sobrescreve a "Frase do lead" (ex.: primeira mensagem real recebida). */
@@ -43,7 +53,7 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
   // falharem.
   const imgCandidates = [thumb, media].filter(Boolean) as string[];
   const [imgIdx, setImgIdx] = useState(0);
-  const currentSrc = imgCandidates[imgIdx];
+  const currentSrc = proxied(imgCandidates[imgIdx]);
   const handleImgError = () => {
     if (imgIdx < imgCandidates.length - 1) {
       setImgIdx(imgIdx + 1);
