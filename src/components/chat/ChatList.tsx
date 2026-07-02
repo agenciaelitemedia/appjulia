@@ -434,8 +434,8 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     return pairs;
   }, [sortedConversations, queueAgentMap, contactPhoneById]);
 
-  // sessionActiveMap agora vem do aggregator `useChatBootstrap` (declarado
-  // adiante, após montarmos os pares CRM e a lista de telefones de campanha).
+  const { data: sessionActiveMap, isFetching: sessionStatusesFetching } =
+    useAgentSessionStatusesBatch(sessionPairs);
 
   // Resolve session.active for a (contactId, queueLink) pair. Returns:
   //  - true: Julia ativa
@@ -524,8 +524,6 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     }
     return out;
   }, [filteredContacts, sortedConversations, contactPhoneById, convMetaByContact, queueAgentMap]);
-  const { data: stageByPhone, isFetching: stageByPhoneFetching } =
-    useCRMStageByPhone(allPhoneAgentPairs);
   const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
   const { data: ticketLinkMap } = useTicketLinkedConversations();
   // Meta Ads: mapa telefone → campanha para decorar a lista sem 1 query/linha.
@@ -540,7 +538,21 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     }
     return Array.from(set);
   }, [filteredContacts, sortedConversations, contactPhoneById]);
-  const { data: campaignByPhone } = useContactsCampaignsMap(campaignPhones);
+  // Fase 2 · aggregator: 1 round-trip HTTP para CRM stages + Meta Ads
+  // (as 2 consultas mais pesadas do /chat). Ambas rodam em paralelo
+  // dentro da mesma conexão do pool no edge function. Sessions Julia
+  // continuam via `useAgentSessionStatusesBatch` porque seu ciclo de
+  // vida está atrelado a `sessionPairs`, montado antes do callback
+  // `getSessionActive`.
+  const {
+    campaignByPhone,
+    stageByPhone,
+    stageByPhoneFetching,
+  } = useChatBootstrap({
+    campaignPhones,
+    crmPairs: allPhoneAgentPairs,
+    sessionPairs: [],
+  });
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
   const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
