@@ -111,6 +111,18 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phones.join('|')]);
 
+  // Version bumps when the cache mutates so the returned map reflects freshly resolved phones.
+  const [cacheVersion, setCacheVersion] = React.useState(0);
+
+  // Periodic tick: every MISS_TTL_MS, force re-evaluation so phones whose
+  // miss expired are re-queued and re-fetched. Without this, a lead that
+  // arrives BEFORE its `campaing_ads` row is written would stay flagged as
+  // "no campaign" forever until the phone list changes.
+  React.useEffect(() => {
+    const id = setInterval(() => setCacheVersion((v) => v + 1), MISS_TTL_MS);
+    return () => clearInterval(id);
+  }, []);
+
   // Build "phone → variants" index; skip phones already resolved by the cache.
   const phoneToVariants = new Map<string, string[]>();
   const unresolvedVariants = new Set<string>();
@@ -125,9 +137,9 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
     for (const v of vs) unresolvedVariants.add(v);
   }
   const variantList = [...unresolvedVariants].sort();
-  const cacheKey = variantList.join(',');
-  // Version bumps when the cache mutates so the returned map reflects freshly resolved phones.
-  const [cacheVersion, setCacheVersion] = React.useState(0);
+  // Include cacheVersion in the key so the periodic tick re-runs the query
+  // when there are still unresolved (or newly-expired-miss) phones.
+  const cacheKey = `${variantList.join(',')}|v${cacheVersion}`;
 
   const query = useQuery({
     queryKey: ['contacts-campaigns-map', cacheKey],
