@@ -77,6 +77,7 @@ function appendImageUrl(
     out.push(url);
     return;
   }
+  if (!/^https?:\/\//i.test(url)) return;
   // Tenta primeiro pelo proxy e depois direto no navegador. Em alguns links do
   // Meta o proxy é bloqueado, mas o <img> direto ainda funciona; em outros é o
   // inverso. Manter ambos evita cair prematuramente no placeholder.
