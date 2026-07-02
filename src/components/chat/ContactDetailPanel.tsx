@@ -188,10 +188,8 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const { data: contactCampaigns = [], isLoading: isLoadingCampaigns } = useContactCampaigns(contact.phone);
   const hasCampaigns = contactCampaigns.length > 0;
   const { data: firstInbound } = useContactFirstInboundMessage(contact.id);
-  const tabsGridClass =
-    ['grid-cols-2', 'grid-cols-3', 'grid-cols-4'][
-      Number(showResumosTab) + Number(hasCampaigns)
-    ] || 'grid-cols-2';
+  // Aba Campanhas é sempre exibida — o conteúdo mostra loading/vazio conforme o estado.
+  const tabsGridClass = showResumosTab ? 'grid-cols-4' : 'grid-cols-3';
 
   // Past conversations — cached by React Query, avoids re-fetch on every re-render
   const { data: pastConversations = [] } = useQuery<ChatConversation[]>({
@@ -420,12 +418,10 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
             <Info className="h-3 w-3" />
             Geral
           </TabsTrigger>
-          {hasCampaigns && (
-            <TabsTrigger value="campanhas" className="gap-1.5 text-xs">
-              <Megaphone className="h-3 w-3" />
-              Campanhas · {contactCampaigns.length}
-            </TabsTrigger>
-          )}
+          <TabsTrigger value="campanhas" className="gap-1.5 text-xs">
+            <Megaphone className="h-3 w-3" />
+            Campanhas{hasCampaigns ? ` · ${contactCampaigns.length}` : ''}
+          </TabsTrigger>
           {showResumosTab && (
             <TabsTrigger value="resumos" className="gap-1.5 text-xs">
               <FileText className="h-3 w-3" />
@@ -576,13 +572,13 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
           <ScrollArea className="h-full">
             <div className="p-4 space-y-4">
               {isLoadingCampaigns ? (
-                <>
-                  <Skeleton className="h-72 w-full" />
-                  <Skeleton className="h-72 w-full" />
-                </>
+                <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <span className="text-xs">Carregando campanhas…</span>
+                </div>
               ) : contactCampaigns.length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-8">
-                  Este contato não veio de nenhuma campanha registrada.
+                  Sem Campanha
                 </p>
               ) : (
                 contactCampaigns.map((row) => (
