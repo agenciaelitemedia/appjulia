@@ -183,6 +183,14 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const { resolve: resolveAssignee } = useAssigneeNameResolver();
   const showResumosTab = automationFlags.autoSummaryOnResolve || automationFlags.autoSummaryOnClose;
 
+  // Campanhas: só habilita a aba quando o contato tem origem de campanha
+  const { data: contactCampaigns = [], isLoading: isLoadingCampaigns } = useContactCampaigns(contact.phone);
+  const hasCampaigns = contactCampaigns.length > 0;
+  const tabsGridClass =
+    ['grid-cols-2', 'grid-cols-3', 'grid-cols-4'][
+      Number(showResumosTab) + Number(hasCampaigns)
+    ] || 'grid-cols-2';
+
   // Past conversations — cached by React Query, avoids re-fetch on every re-render
   const { data: pastConversations = [] } = useQuery<ChatConversation[]>({
     queryKey: ['contact-past-convs', contact.id],
