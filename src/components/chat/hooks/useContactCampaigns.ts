@@ -92,8 +92,22 @@ export function useContactCampaigns(phone: string | null | undefined) {
 // - MISSES têm TTL curto (60s) para que conversas novas cujo `campaing_ads`
 //   seja gravado logo após a chegada sejam re-consultadas e apareçam.
 const MISS_TTL_MS = 60_000;
-type CacheEntry = { row: ContactCampaignRow | null; expires: number };
+// Fase 2 · item 13: LRU cap para evitar crescimento indefinido do cache
+// em sessões longas com muitos telefones distintos.
+const LRU_CAP = 2000;
+type CacheEntry = { row: ContactCampaignRow | null; expires: number; touched: number };
 const campaignPhoneCache = new Map<string, CacheEntry>();
+
+function touchCache(key: string, entry: Omit<CacheEntry, 'touched'>) {
+  campaignPhoneCache.set(key, { ...entry, touched: Date.now() });
+  if (campaignPhoneCache.size > LRU_CAP) {
+    const sorted = [...campaignPhoneCache.entries()].sort(
+      (a, b) => a[1].touched - b[1].touched,
+    );
+    const drop = sorted.slice(0, campaignPhoneCache.size - LRU_CAP);
+    for (const [k] of drop) campaignPhoneCache.delete(k);
+  }
+}
 
 function isResolved(key: string): boolean {
   const e = campaignPhoneCache.get(key);
@@ -114,14 +128,25 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
   // Version bumps when the cache mutates so the returned map reflects freshly resolved phones.
   const [cacheVersion, setCacheVersion] = React.useState(0);
 
-  // Periodic tick: every MISS_TTL_MS, force re-evaluation so phones whose
-  // miss expired are re-queued and re-fetched. Without this, a lead that
-  // arrives BEFORE its `campaing_ads` row is written would stay flagged as
-  // "no campaign" forever until the phone list changes.
+  // Periodic tick: a cada MISS_TTL_MS, força re-avaliação SOMENTE se houver
+  // miss expirado real na lista atual — evita disparar re-render toda vez
+  // que o tick estoura sem nada a fazer (era o comportamento anterior).
   React.useEffect(() => {
-    const id = setInterval(() => setCacheVersion((v) => v + 1), MISS_TTL_MS);
+    const id = setInterval(() => {
+      let hasExpiredMiss = false;
+      const now = Date.now();
+      for (const p of debouncedPhones) {
+        if (!p) continue;
+        const e = campaignPhoneCache.get(String(p));
+        if (e && !e.row && e.expires <= now) {
+          hasExpiredMiss = true;
+          break;
+        }
+      }
+      if (hasExpiredMiss) setCacheVersion((v) => v + 1);
+    }, MISS_TTL_MS);
     return () => clearInterval(id);
-  }, []);
+  }, [debouncedPhones]);
 
   // Build "phone → variants" index; skip phones already resolved by the cache.
   const phoneToVariants = new Map<string, string[]>();
@@ -187,7 +212,7 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
           const m = byMatched.get(v);
           if (m) { hit = m; break; }
         }
-        campaignPhoneCache.set(origPhone, {
+        touchCache(origPhone, {
           row: hit,
           // hits: sem expiração; misses: expiram em 60s
           expires: hit ? Number.POSITIVE_INFINITY : now + MISS_TTL_MS,
