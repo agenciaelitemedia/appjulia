@@ -285,8 +285,13 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   );
   const { metaMap: lastMsgMetaMap, getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(openConvIds);
 
-  const slaStatusByContact = React.useMemo(() => {
-    const map = new Map<string, SlaStatus>();
+  // Avalia SLA UMA vez por conversa aqui em batch e mantém a `SlaEvaluation`
+  // completa (não só o status). ChatContactItem recebe a avaliação pronta
+  // via prop — não precisa mais executar `evaluateSla` nem `useChatSlaConfigs`
+  // por linha. Guarda a pior avaliação por contato.
+  const { slaStatusByContact, slaEvalByConversation } = React.useMemo(() => {
+    const statusMap = new Map<string, SlaStatus>();
+    const evalMap = new Map<string, SlaEvaluation>();
     const rank: Record<SlaStatus, number> = { breached: 3, at_risk: 2, on_track: 1, unknown: 0 };
     conversations.forEach((conv) => {
       if (!['pending', 'open'].includes(conv.status)) return;
@@ -304,12 +309,13 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
         },
         slaConfigs
       );
-      const prev = map.get(conv.contact_id);
+      evalMap.set(conv.id, evalRes);
+      const prev = statusMap.get(conv.contact_id);
       if (!prev || rank[evalRes.status] > rank[prev]) {
-        map.set(conv.contact_id, evalRes.status);
+        statusMap.set(conv.contact_id, evalRes.status);
       }
     });
-    return map;
+    return { slaStatusByContact: statusMap, slaEvalByConversation: evalMap };
   }, [conversations, slaConfigs, lastMsgMetaMap]);
 
   const breachedCount = React.useMemo(
