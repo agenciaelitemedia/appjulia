@@ -1606,12 +1606,19 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
         )}
         {(isLoading && contacts.length === 0) || (isSearching && isSearchFetching && !searchResults) ? (
           <div className="py-1">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-3">
-                <Skeleton className="h-10 w-10 rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="flex items-start gap-3 px-3 py-3 border-b border-border/50">
+                <Skeleton className="h-12 w-12 rounded-full shrink-0" />
+                <div className="flex-1 space-y-2 min-w-0">
+                  <div className="flex justify-between items-center gap-2">
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-3 w-12" />
+                  </div>
+                  <Skeleton className="h-3 w-3/4" />
+                  <div className="flex gap-1.5 pt-1">
+                    <Skeleton className="h-5 w-16 rounded-sm" />
+                    <Skeleton className="h-5 w-24 rounded-sm" />
+                  </div>
                 </div>
               </div>
             ))}

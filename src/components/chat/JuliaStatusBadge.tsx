@@ -76,7 +76,7 @@ function QueueModeBadge({
     hasAgent ? resolvedCodAgent : null,
   );
 
-  if (loadingLink) return null;
+  if (loadingLink) return <div className="h-4 w-4 shrink-0 rounded bg-muted animate-pulse" />;
 
   if (hasAgent) {
     // No session record => treat as inactive (humano), not "missing badge".
