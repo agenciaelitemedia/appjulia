@@ -192,7 +192,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const tabsGridClass = showResumosTab ? 'grid-cols-4' : 'grid-cols-3';
 
   // Past conversations — cached by React Query, avoids re-fetch on every re-render
-  const { data: pastConversations = [] } = useQuery<ChatConversation[]>({
+  const { data: pastConversations = [], isLoading: isLoadingHistory } = useQuery<ChatConversation[]>({
     queryKey: ['contact-past-convs', contact.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -447,7 +447,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                         <span className="text-muted-foreground flex items-center gap-1.5">
                           <Hash className="h-3 w-3" /> Protocolo
                         </span>
-                        <span className="font-mono text-xs">{selectedConversation.protocol}</span>
+                        <span className="font-mono text-xs">{selectedConversation.protocol || <Skeleton className="h-3 w-20" />}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground flex items-center gap-1.5">
@@ -459,7 +459,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                         <span className="text-muted-foreground flex items-center gap-1.5">
                           <Users className="h-3 w-3" /> Fila
                         </span>
-                        <span className="text-xs font-medium">{queueName || 'N/A'}</span>
+                        <span className="text-xs font-medium">{queueName || (selectedConversation.queue_id ? <Skeleton className="h-3 w-24" /> : 'N/A')}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground flex items-center gap-1.5">
@@ -486,15 +486,16 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                         {juliaStage?.stageName ? (
                           <span
                             className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold text-white"
-                            style={{ backgroundColor: juliaStage.stageColor || '#3b82f6' }}
+                            style={{ backgroundColor: juliaStage.stageColor || "#3b82f6" }}
                             title={juliaStage.stageName}
                           >
                             {juliaStage.stageName}
                           </span>
+                        ) : (stagePairs.length > 0 && !stageMap) ? (
+                          <Skeleton className="h-5 w-24 rounded" />
                         ) : (
                           <span className="text-xs text-muted-foreground">N/A</span>
                         )}
-                      </div>
                       {(() => {
                         const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
                           low:    { label: 'Baixa',   color: 'text-muted-foreground' },
@@ -617,8 +618,12 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
               <div className="space-y-2">
                 <h5 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-1">
                   <MessageSquare className="h-3 w-3" /> Conversas
-                </h5>
-                {pastConversations.length === 0 ? (
+                {isLoadingHistory ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : pastConversations.length === 0 ? (
                   <span className="text-xs text-muted-foreground">Nenhuma conversa registrada</span>
                 ) : (
                   <div className="space-y-1.5">
