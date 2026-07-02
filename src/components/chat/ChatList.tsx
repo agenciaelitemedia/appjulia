@@ -37,6 +37,7 @@ import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
 import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
+import { useContactsCampaignsMap } from '@/components/chat/hooks/useContactCampaigns';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { buildAssigneeIndex, resolveAssigneeName } from '@/hooks/useAssigneeNameResolver';
 import { externalDb } from '@/lib/externalDb';
@@ -515,6 +516,12 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     useCRMStageByPhone(allPhoneAgentPairs);
   const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
   const { data: ticketLinkMap } = useTicketLinkedConversations();
+  // Meta Ads: mapa telefone → campanha para decorar a lista sem 1 query/linha.
+  const campaignPhones = React.useMemo(
+    () => Array.from(new Set(filteredContacts.map(c => c.phone).filter(Boolean))),
+    [filteredContacts]
+  );
+  const { data: campaignByPhone } = useContactsCampaignsMap(campaignPhones);
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
   const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
@@ -1674,6 +1681,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     hasCrmCard={conv?.id ? !!crmBuilderMap?.has(conv.id) : false}
                     crmBuilderLink={conv?.id ? crmBuilderMap?.get(conv.id) : undefined}
                     ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
+                    campaignLink={contact.phone ? campaignByPhone?.get(contact.phone) ?? null : null}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
                     onOpenTicket={
                       onOpenTicketPanel

@@ -2,7 +2,7 @@ import React from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
 import { Badge } from '@/components/ui/badge';
-import { Users, MessageCircle, Globe, Instagram, Kanban, Bot, Ticket, LifeBuoy, Eye } from 'lucide-react';
+import { Users, MessageCircle, Globe, Instagram, Kanban, Bot, Ticket, LifeBuoy, Eye, Megaphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import {
@@ -31,6 +31,9 @@ import { ConversationQuickActions } from '@/components/chat/ConversationQuickAct
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 import type { CrmBuilderLink } from '@/hooks/useCRMBuilderLinkedConversations';
 import type { TicketConversationLink } from '@/hooks/useTicketLinkedConversations';
+import type { ContactCampaignRow } from '@/components/chat/hooks/useContactCampaigns';
+import { ContactCampaignCard } from '@/components/chat/ContactCampaignCard';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { STATUS_LABEL as TICKET_STATUS_LABEL, STATUS_BADGE as TICKET_STATUS_BADGE, PRIORITY_LABEL as TICKET_PRIORITY_LABEL } from '@/pages/tickets/types';
 
 function toTitleCase(s: string): string {
@@ -61,6 +64,8 @@ interface ChatContactItemProps {
   crmBuilderLink?: CrmBuilderLink;
   /** Vínculo com ticket de suporte aberto (TICKET #N · status). */
   ticketLink?: TicketConversationLink;
+  /** Vínculo com anúncio Meta Ads que originou o lead (Meta Ads · nome). */
+  campaignLink?: ContactCampaignRow | null;
   /** Metadados derivados de chat_messages para avaliar NRT corretamente. */
   lastMessageMeta?: LastMessageMeta;
   /** Acionado pelo menu de contexto para abrir/visualizar ticket de suporte. */
@@ -143,6 +148,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   hasCrmCard,
   crmBuilderLink,
   ticketLink,
+  campaignLink,
   lastMessageMeta,
   onOpenTicket,
   isQueueDisconnected,
@@ -185,6 +191,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   const visibleTags = convTags || [];
 
   const [showDisconnectedDialog, setShowDisconnectedDialog] = React.useState(false);
+  const [showCampaignDialog, setShowCampaignDialog] = React.useState(false);
 
   const handleItemClick = React.useCallback(() => {
     if (isQueueDisconnected) {
@@ -355,6 +362,31 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           </TooltipProvider>
         )}
 
+        {/* Linha Meta Ads: badge META ADS + nome + "Ver Ads" (popup) */}
+        {campaignLink && (
+          <div className="flex items-center justify-between min-w-0 w-full pt-1 mt-0.5 bg-fuchsia-50/40 dark:bg-fuchsia-950/20 rounded-sm border border-fuchsia-100/70 dark:border-fuchsia-900/40 px-0 gap-0 py-[2px] my-0">
+            <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
+              <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300 whitespace-nowrap flex-shrink-0">
+                <Megaphone className="h-2.5 w-2.5 flex-shrink-0" />
+                META ADS
+              </span>
+              <span
+                className="text-[10px] text-muted-foreground truncate min-w-0"
+                title={(campaignLink.campaign_data as any)?.title || 'Campanha'}
+              >
+                {(campaignLink.campaign_data as any)?.title || 'Campanha sem título'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShowCampaignDialog(true); }}
+              className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-fuchsia-600 text-white hover:bg-fuchsia-700 whitespace-nowrap"
+            >
+              Ver Ads
+            </button>
+          </div>
+        )}
+
         {/* Linha Ticket de Suporte: badge TICKET #N + status (lazy) */}
         {ticketLink && (
           <TooltipProvider delayDuration={200}>
@@ -483,11 +515,28 @@ export const ChatContactItem = React.memo(function ChatContactItem({
     </AlertDialog>
   );
 
+  const campaignDialog = campaignLink ? (
+    <Dialog open={showCampaignDialog} onOpenChange={setShowCampaignDialog}>
+      <DialogContent
+        className="max-w-md p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DialogHeader className="px-4 pt-4 pb-2">
+          <DialogTitle className="text-sm">Anúncio de origem</DialogTitle>
+        </DialogHeader>
+        <div className="px-4 pb-4">
+          <ContactCampaignCard row={campaignLink} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  ) : null;
+
   if (!canViewTickets || !onOpenTicket) {
     return (
       <>
         {itemContent}
         {disconnectedDialog}
+        {campaignDialog}
       </>
     );
   }
@@ -526,6 +575,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       </ContextMenuContent>
     </ContextMenu>
     {disconnectedDialog}
+    {campaignDialog}
     </>
   );
 }, (prev, next) => {
@@ -544,6 +594,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   if (prev.ticketLink?.ticketId !== next.ticketLink?.ticketId) return false;
   if (prev.ticketLink?.status !== next.ticketLink?.status) return false;
   if (prev.ticketLink?.number !== next.ticketLink?.number) return false;
+  if (prev.campaignLink?.id !== next.campaignLink?.id) return false;
   if (prev.onOpenTicket !== next.onOpenTicket) return false;
   if (prev.isQueueDisconnected !== next.isQueueDisconnected) return false;
   if (prev.index !== next.index) return false;

@@ -79,6 +79,84 @@ export function useContactCampaigns(phone: string | null | undefined) {
   });
 }
 
+/**
+ * Batched version of {@link useContactCampaigns}: takes a list of phones
+ * and returns a Map keyed by the original (raw) phone → most recent
+ * campaign row. Used by the chat list to decorate items with a Meta Ads
+ * line without triggering N per-row queries.
+ */
+export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
+  // Build a stable "phone → variants" index and the flat variant list.
+  const phoneToVariants = new Map<string, string[]>();
+  const allVariants = new Set<string>();
+  for (const p of phones) {
+    if (!p) continue;
+    const key = String(p);
+    if (phoneToVariants.has(key)) continue;
+    const vs = buildPhoneVariants(p);
+    if (vs.length === 0) continue;
+    phoneToVariants.set(key, vs);
+    for (const v of vs) allVariants.add(v);
+  }
+  const variantList = [...allVariants].sort();
+  const cacheKey = variantList.join(',');
+
+  return useQuery({
+    queryKey: ['contacts-campaigns-map', cacheKey],
+    queryFn: async () => {
+      const result = new Map<string, ContactCampaignRow>();
+      if (variantList.length === 0) return result;
+      const query = `
+        SELECT DISTINCT ON (matched_phone)
+               ca.id,
+               ca.created_at,
+               (ca.campaign_data::jsonb) AS campaign_data,
+               regexp_replace(
+                 COALESCE(
+                   NULLIF((ca.campaign_data::jsonb)->>'phone', ''),
+                   s.whatsapp_number::text,
+                   ''
+                 ),
+                 '\\D', '', 'g'
+               ) AS matched_phone
+          FROM campaing_ads ca
+          LEFT JOIN sessions s ON s.id = ca.session_id::bigint
+         WHERE regexp_replace(
+                 COALESCE(
+                   NULLIF((ca.campaign_data::jsonb)->>'phone', ''),
+                   s.whatsapp_number::text,
+                   ''
+                 ),
+                 '\\D', '', 'g'
+               ) = ANY($1::varchar[])
+         ORDER BY matched_phone, ca.created_at DESC
+      `;
+      const rows = (await externalDb.raw<
+        ContactCampaignRow & { matched_phone: string }
+      >({ query, params: [variantList] })) || [];
+      // Index by matched_phone.
+      const byMatched = new Map<string, ContactCampaignRow>();
+      for (const r of rows) {
+        if (r.matched_phone) byMatched.set(r.matched_phone, r);
+      }
+      // Fan-out: for each original phone, check its variants.
+      for (const [origPhone, vs] of phoneToVariants) {
+        for (const v of vs) {
+          const hit = byMatched.get(v);
+          if (hit) {
+            result.set(origPhone, hit);
+            break;
+          }
+        }
+      }
+      return result;
+    },
+    enabled: variantList.length > 0,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
 export interface FirstInboundMessage {
   id: string;
   text: string | null;
