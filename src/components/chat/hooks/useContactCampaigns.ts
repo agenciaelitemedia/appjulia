@@ -87,10 +87,20 @@ export function useContactCampaigns(phone: string | null | undefined) {
  * campaign row. Used by the chat list to decorate items with a Meta Ads
  * line without triggering N per-row queries.
  */
-// Persistent in-memory cache across renders and hook instances so already-resolved
-// phones (both hits and misses) are never re-queried while the session is open.
-// Value = campaign row when found, or `null` when confirmed "no campaign".
-const campaignPhoneCache = new Map<string, ContactCampaignRow | null>();
+// Persistent in-memory cache across renders and hook instances.
+// - HITS são mantidos para sempre na sessão (não re-consultados).
+// - MISSES têm TTL curto (60s) para que conversas novas cujo `campaing_ads`
+//   seja gravado logo após a chegada sejam re-consultadas e apareçam.
+const MISS_TTL_MS = 60_000;
+type CacheEntry = { row: ContactCampaignRow | null; expires: number };
+const campaignPhoneCache = new Map<string, CacheEntry>();
+
+function isResolved(key: string): boolean {
+  const e = campaignPhoneCache.get(key);
+  if (!e) return false;
+  if (e.row) return true; // hit — sempre válido
+  return e.expires > Date.now(); // miss — válido enquanto não expirar
+}
 
 export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
   // Debounce input phone list — scroll-triggered updates coalesce into a single fetch.
@@ -111,7 +121,7 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
     const vs = buildPhoneVariants(p);
     if (vs.length === 0) continue;
     phoneToVariants.set(key, vs);
-    if (campaignPhoneCache.has(key)) continue; // already resolved (hit or miss)
+    if (isResolved(key)) continue; // hit persistente ou miss ainda válido
     for (const v of vs) unresolvedVariants.add(v);
   }
   const variantList = [...unresolvedVariants].sort();
@@ -157,14 +167,19 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
         if (r.matched_phone) byMatched.set(r.matched_phone, r);
       }
       // Fan-out: for each phone queried this round, cache hit OR confirmed miss.
+      const now = Date.now();
       for (const [origPhone, vs] of phoneToVariants) {
-        if (campaignPhoneCache.has(origPhone)) continue;
+        if (isResolved(origPhone)) continue;
         let hit: ContactCampaignRow | null = null;
         for (const v of vs) {
           const m = byMatched.get(v);
           if (m) { hit = m; break; }
         }
-        campaignPhoneCache.set(origPhone, hit);
+        campaignPhoneCache.set(origPhone, {
+          row: hit,
+          // hits: sem expiração; misses: expiram em 60s
+          expires: hit ? Number.POSITIVE_INFINITY : now + MISS_TTL_MS,
+        });
       }
       return rows.length;
     },
@@ -190,7 +205,7 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
       if (!p) continue;
       const key = String(p);
       const cached = campaignPhoneCache.get(key);
-      if (cached) result.set(key, cached);
+      if (cached?.row) result.set(key, cached.row);
     }
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
