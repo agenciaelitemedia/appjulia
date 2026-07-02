@@ -65,7 +65,12 @@ function isLikelyImageUrl(url: string | undefined): boolean {
   return /(fbcdn\.net|cdninstagram\.com|scontent\.|lookaside\.fbsbx\.com|graph\.facebook\.com|instagram\.f[a-z0-9-]+\.fna)/i.test(url);
 }
 
-function appendImageUrl(out: string[], value: unknown, trustThumbnailField = false) {
+function appendImageUrl(
+  out: string[],
+  value: unknown,
+  trustThumbnailField = false,
+  directFirst = false,
+) {
   const url = asString(value);
   if (!url || (!trustThumbnailField && !isLikelyImageUrl(url))) return;
   if (url.startsWith('data:image/') || url.startsWith('blob:')) {
@@ -75,7 +80,11 @@ function appendImageUrl(out: string[], value: unknown, trustThumbnailField = fal
   // Tenta primeiro pelo proxy e depois direto no navegador. Em alguns links do
   // Meta o proxy é bloqueado, mas o <img> direto ainda funciona; em outros é o
   // inverso. Manter ambos evita cair prematuramente no placeholder.
-  out.push(proxied(url) || url, url);
+  if (directFirst) {
+    out.push(url, proxied(url) || url);
+  } else {
+    out.push(proxied(url) || url, url);
+  }
 }
 
 interface Props {
@@ -104,19 +113,20 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
   const fallbackGreeting = cd.greetingMessageBody as string | undefined;
   const greeting = (greetingOverride && greetingOverride.trim()) || fallbackGreeting;
 
-  // Cascata de fontes para o preview da imagem. Se o CDN do Meta rejeitar
-  // (referrer/CORS), tenta a próxima; só cai em `ImageOff` quando todas
-  // falharem.
+  // Cascata de fontes para o preview da imagem. A tela "Campanhas Ads" usa
+  // `thumbnailURL` diretamente; por isso esta lista prioriza a URL original
+  // antes do `thumbnail` em base64, que em alguns registros é um preview
+  // pequeno e fica pixelado/craquelado quando ampliado no chat.
   const imgCandidates = useMemo(() => {
     const candidates: string[] = [];
-    if (inlineThumbnail) candidates.push(inlineThumbnail);
 
-    appendImageUrl(candidates, cd.thumbnailURL, true);
-    appendImageUrl(candidates, rawThumbnail, true);
-    appendImageUrl(candidates, cd.thumbnail_url, true);
-    appendImageUrl(candidates, cd.imageURL ?? cd.imageUrl ?? cd.image_url ?? cd.image, true);
-    appendImageUrl(candidates, cd.picture ?? cd.pictureURL ?? cd.pictureUrl, true);
+    appendImageUrl(candidates, cd.thumbnailURL, true, true);
+    appendImageUrl(candidates, cd.thumbnail_url, true, true);
+    appendImageUrl(candidates, rawThumbnail, true, true);
+    appendImageUrl(candidates, cd.imageURL ?? cd.imageUrl ?? cd.image_url ?? cd.image, true, true);
+    appendImageUrl(candidates, cd.picture ?? cd.pictureURL ?? cd.pictureUrl, true, true);
     appendImageUrl(candidates, rawMedia);
+    if (inlineThumbnail) candidates.push(inlineThumbnail);
 
     return [...new Set(candidates)];
   }, [cd, inlineThumbnail, rawMedia, rawThumbnail]);
@@ -171,7 +181,7 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
             key={currentSrc}
             src={currentSrc}
             alt={title}
-            className="h-full w-full object-contain"
+            className="h-full w-full object-cover"
             referrerPolicy="no-referrer"
             loading="lazy"
             decoding="async"
