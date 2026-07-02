@@ -191,6 +191,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   const visibleTags = convTags || [];
 
   const [showDisconnectedDialog, setShowDisconnectedDialog] = React.useState(false);
+  const [showCampaignDialog, setShowCampaignDialog] = React.useState(false);
 
   const handleItemClick = React.useCallback(() => {
     if (isQueueDisconnected) {
