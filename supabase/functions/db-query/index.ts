@@ -2302,6 +2302,115 @@ serve(async (req) => {
         break;
       }
 
+      case 'chat_bootstrap': {
+        // Fase 2 · aggregator: roda em paralelo as 3 queries que o /chat
+        // hoje dispara em requisições separadas (campanhas Meta Ads,
+        // etapa CRM por telefone e status das sessões Julia). Reduz 3
+        // round-trips HTTP+TLS+PG para 1 e reutiliza a mesma conexão do
+        // pool. Retorna as linhas cruas — o frontend continua indexando
+        // no mesmo formato dos hooks originais.
+        const {
+          campaignPhoneVariants = [],
+          crmPhoneVariants = [],
+          sessionPairs = [],
+        } = data || {};
+
+        const runCampaigns = async () => {
+          const list = Array.isArray(campaignPhoneVariants) ? campaignPhoneVariants : [];
+          if (list.length === 0) return [];
+          return await sql.unsafe(
+            `SELECT DISTINCT ON (matched_phone)
+                    ca.id,
+                    ca.created_at,
+                    (ca.campaign_data::jsonb) AS campaign_data,
+                    regexp_replace(
+                      COALESCE(
+                        NULLIF((ca.campaign_data::jsonb)->>'phone', ''),
+                        s.whatsapp_number::text,
+                        ''
+                      ),
+                      '\\D', '', 'g'
+                    ) AS matched_phone
+               FROM campaing_ads ca
+               LEFT JOIN sessions s ON s.id = ca.session_id::bigint
+              WHERE regexp_replace(
+                      COALESCE(
+                        NULLIF((ca.campaign_data::jsonb)->>'phone', ''),
+                        s.whatsapp_number::text,
+                        ''
+                      ),
+                      '\\D', '', 'g'
+                    ) = ANY($1::varchar[])
+              ORDER BY matched_phone, ca.created_at DESC`,
+            [list]
+          );
+        };
+
+        const runCrmStages = async () => {
+          const list = Array.isArray(crmPhoneVariants) ? crmPhoneVariants : [];
+          if (list.length === 0) return [];
+          return await sql.unsafe(
+            `SELECT
+               c.whatsapp_number,
+               c.cod_agent::text AS cod_agent,
+               c.stage_id,
+               s.name  AS stage_name,
+               s.color AS stage_color,
+               c.updated_at
+             FROM crm_atendimento_cards c
+             LEFT JOIN crm_atendimento_stages s ON c.stage_id = s.id
+             WHERE c.whatsapp_number = ANY($1::varchar[])
+             ORDER BY c.whatsapp_number, c.updated_at DESC NULLS LAST`,
+            [list]
+          );
+        };
+
+        const runSessions = async () => {
+          const pairsIn = Array.isArray(sessionPairs) ? sessionPairs : [];
+          if (pairsIn.length === 0) return [];
+          const numbersSet = new Set<string>();
+          for (const p of pairsIn) {
+            const d = String(p?.whatsappNumber || '').replace(/\D/g, '');
+            if (!d) continue;
+            numbersSet.add(d);
+            if (d.startsWith('55')) {
+              const ddd = d.slice(2, 4);
+              if (d.length === 13 && d[4] === '9' && /[6-9]/.test(d[5] ?? '')) {
+                numbersSet.add(`55${ddd}${d.slice(5)}`);
+              } else if (d.length === 12 && /[6-9]/.test(d[4] ?? '')) {
+                numbersSet.add(`55${ddd}9${d.slice(4)}`);
+              }
+            }
+          }
+          const numbers = Array.from(numbersSet);
+          const codes = Array.from(
+            new Set(pairsIn.map((p: any) => String(p.codAgent || '')).filter(Boolean))
+          );
+          if (numbers.length === 0 || codes.length === 0) return [];
+          return await sql.unsafe(
+            `SELECT DISTINCT ON (s.whatsapp_number::text, a.cod_agent::text)
+               s.whatsapp_number::text AS whatsapp_number,
+               a.cod_agent::text AS cod_agent,
+               s.active
+             FROM sessions s
+             JOIN agents a ON a.id = s.agent_id
+             WHERE s.whatsapp_number::text = ANY($1)
+               AND a.cod_agent::text = ANY($2::varchar[])
+             ORDER BY s.whatsapp_number::text, a.cod_agent::text, s.created_at DESC`,
+            [numbers, codes]
+          );
+        };
+
+        const [campaigns, crmStages, sessions] = await Promise.all([
+          runCampaigns().catch((e) => { console.warn('[chat_bootstrap] campaigns err', e?.message); return []; }),
+          runCrmStages().catch((e) => { console.warn('[chat_bootstrap] crm err', e?.message); return []; }),
+          runSessions().catch((e) => { console.warn('[chat_bootstrap] sessions err', e?.message); return []; }),
+        ]);
+
+        result = { campaigns, crmStages, sessions };
+        break;
+      }
+
       // ================== ADVBOX INTEGRATION ACTIONS ==================
 
       case 'advbox_get_integration': {

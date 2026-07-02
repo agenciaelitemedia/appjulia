@@ -34,10 +34,11 @@ import { normalizeBrPhone } from '@/lib/phoneNormalize';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
-import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
+// import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
 import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
-import { useContactsCampaignsMap } from '@/components/chat/hooks/useContactCampaigns';
+// import { useContactsCampaignsMap } from '@/components/chat/hooks/useContactCampaigns';
+import { useChatBootstrap } from '@/components/chat/hooks/useChatBootstrap';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { buildAssigneeIndex, resolveAssigneeName } from '@/hooks/useAssigneeNameResolver';
 import { externalDb } from '@/lib/externalDb';
@@ -523,8 +524,6 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     }
     return out;
   }, [filteredContacts, sortedConversations, contactPhoneById, convMetaByContact, queueAgentMap]);
-  const { data: stageByPhone, isFetching: stageByPhoneFetching } =
-    useCRMStageByPhone(allPhoneAgentPairs);
   const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
   const { data: ticketLinkMap } = useTicketLinkedConversations();
   // Meta Ads: mapa telefone → campanha para decorar a lista sem 1 query/linha.
@@ -539,7 +538,21 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     }
     return Array.from(set);
   }, [filteredContacts, sortedConversations, contactPhoneById]);
-  const { data: campaignByPhone } = useContactsCampaignsMap(campaignPhones);
+  // Fase 2 · aggregator: 1 round-trip HTTP para CRM stages + Meta Ads
+  // (as 2 consultas mais pesadas do /chat). Ambas rodam em paralelo
+  // dentro da mesma conexão do pool no edge function. Sessions Julia
+  // continuam via `useAgentSessionStatusesBatch` porque seu ciclo de
+  // vida está atrelado a `sessionPairs`, montado antes do callback
+  // `getSessionActive`.
+  const {
+    campaignByPhone,
+    stageByPhone,
+    stageByPhoneFetching,
+  } = useChatBootstrap({
+    campaignPhones,
+    crmPairs: allPhoneAgentPairs,
+    sessionPairs: [],
+  });
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
   const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
