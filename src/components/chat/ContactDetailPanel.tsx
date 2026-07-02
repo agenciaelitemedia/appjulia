@@ -420,15 +420,12 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
             <Info className="h-3 w-3" />
             Geral
           </TabsTrigger>
-          <TabsTrigger
-            value="campanhas"
-            disabled={!hasCampaigns}
-            className="gap-1.5 text-xs"
-            title={hasCampaigns ? undefined : 'Este contato não veio de campanha'}
-          >
-            <Megaphone className="h-3 w-3" />
-            Campanhas{hasCampaigns ? ` · ${contactCampaigns.length}` : ''}
-          </TabsTrigger>
+          {hasCampaigns && (
+            <TabsTrigger value="campanhas" className="gap-1.5 text-xs">
+              <Megaphone className="h-3 w-3" />
+              Campanhas · {contactCampaigns.length}
+            </TabsTrigger>
+          )}
           {showResumosTab && (
             <TabsTrigger value="resumos" className="gap-1.5 text-xs">
               <FileText className="h-3 w-3" />
