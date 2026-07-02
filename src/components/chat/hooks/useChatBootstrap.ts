@@ -211,8 +211,8 @@ export function useChatBootstrap(
     const sKey = [...new Set(cleanedSessionPairs.map((p) => `${p.whatsappNumber}:${p.codAgent}`))]
       .sort()
       .join(',');
-    return `${cKey}||${rKey}||${sKey}`;
-  }, [unresolvedCampaignVariants, crmPhoneVariants, cleanedSessionPairs]);
+    return `${cKey}||${rKey}||${sKey}||v${cacheVersion}`;
+  }, [unresolvedCampaignVariants, crmPhoneVariants, cleanedSessionPairs, cacheVersion]);
 
   const enabled =
     unresolvedCampaignVariants.length > 0 ||
