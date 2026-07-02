@@ -26,18 +26,19 @@ import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from './SlaBadge';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
-import { useContactCampaigns } from './hooks/useContactCampaigns';
+import { useContactCampaigns, useContactFirstInboundMessage, type ContactCampaignRow } from './hooks/useContactCampaigns';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // ─── ContactCampaignCard ────────────────────────────────────────────────────
-function ContactCampaignCard({ row }: { row: { id: string | number; created_at: string; campaign_data: Record<string, any> | null } }) {
+function ContactCampaignCard({ row, greetingOverride }: { row: ContactCampaignRow; greetingOverride?: string | null }) {
   const cd = (row.campaign_data || {}) as Record<string, any>;
   const title = cd.title || 'Campanha sem título';
   const body = cd.body as string | undefined;
   const platform = (cd.sourceApp || 'outros').toString().toLowerCase();
   const sourceURL = cd.sourceURL as string | undefined;
   const thumb = (cd.thumbnailURL || cd.mediaURL) as string | undefined;
-  const greeting = cd.greetingMessageBody as string | undefined;
+  const fallbackGreeting = cd.greetingMessageBody as string | undefined;
+  const greeting = (greetingOverride && greetingOverride.trim()) || fallbackGreeting;
   const [imageError, setImageError] = useState(false);
   const [copied, setCopied] = useState(false);
 
