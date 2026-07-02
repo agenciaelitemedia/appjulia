@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers } from 'lucide-react';
+import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone, ExternalLink } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -26,6 +26,8 @@ import { useChatSlaConfigs, evaluateSla } from '@/hooks/useChatSlaConfigs';
 import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
 import { SlaBadge } from './SlaBadge';
 import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
+import { useContactCampaigns } from './hooks/useContactCampaigns';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // ─── TagSelector ─────────────────────────────────────────────────────────────
 interface TagSelectorProps {
@@ -180,6 +182,14 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const { flags: automationFlags } = useClientAutomationFlags();
   const { resolve: resolveAssignee } = useAssigneeNameResolver();
   const showResumosTab = automationFlags.autoSummaryOnResolve || automationFlags.autoSummaryOnClose;
+
+  // Campanhas: só habilita a aba quando o contato tem origem de campanha
+  const { data: contactCampaigns = [], isLoading: isLoadingCampaigns } = useContactCampaigns(contact.phone);
+  const hasCampaigns = contactCampaigns.length > 0;
+  const tabsGridClass =
+    ['grid-cols-2', 'grid-cols-3', 'grid-cols-4'][
+      Number(showResumosTab) + Number(hasCampaigns)
+    ] || 'grid-cols-2';
 
   // Past conversations — cached by React Query, avoids re-fetch on every re-render
   const { data: pastConversations = [] } = useQuery<ChatConversation[]>({
@@ -403,10 +413,19 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
 
       {/* Tabs */}
       <Tabs defaultValue="geral" className="flex-1 flex flex-col min-h-0">
-        <TabsList className={cn("mx-4 mt-3 mb-0 grid w-auto", showResumosTab ? "grid-cols-3" : "grid-cols-2")}>
+        <TabsList className={cn("mx-4 mt-3 mb-0 grid w-auto", tabsGridClass)}>
           <TabsTrigger value="geral" className="gap-1.5 text-xs">
             <Info className="h-3 w-3" />
             Geral
+          </TabsTrigger>
+          <TabsTrigger
+            value="campanhas"
+            disabled={!hasCampaigns}
+            className="gap-1.5 text-xs"
+            title={hasCampaigns ? undefined : 'Este contato não veio de campanha'}
+          >
+            <Megaphone className="h-3 w-3" />
+            Campanhas{hasCampaigns ? ` · ${contactCampaigns.length}` : ''}
           </TabsTrigger>
           {showResumosTab && (
             <TabsTrigger value="resumos" className="gap-1.5 text-xs">
@@ -549,6 +568,89 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                 </>
               )}
 
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        {/* Campanhas */}
+        <TabsContent value="campanhas" className="flex-1 mt-0 min-h-0">
+          <ScrollArea className="h-full">
+            <div className="p-4 space-y-3">
+              {isLoadingCampaigns ? (
+                <>
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </>
+              ) : contactCampaigns.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">
+                  Este contato não veio de nenhuma campanha registrada.
+                </p>
+              ) : (
+                contactCampaigns.map((row) => {
+                  const cd = (row.campaign_data || {}) as Record<string, any>;
+                  const title = cd.title || 'Campanha sem título';
+                  const platform = (cd.sourceApp || 'outros').toString().toLowerCase();
+                  const sourceType = cd.sourceType as string | undefined;
+                  const sourceDevice = cd.sourceDevice as string | undefined;
+                  const sourceURL = cd.sourceURL as string | undefined;
+                  const thumb = (cd.thumbnailURL || cd.mediaURL) as string | undefined;
+                  const greeting = cd.greetingMessageBody as string | undefined;
+                  const body = cd.body as string | undefined;
+                  const platformColor: Record<string, string> = {
+                    facebook: 'bg-blue-100 text-blue-700 border-blue-200',
+                    instagram: 'bg-pink-100 text-pink-700 border-pink-200',
+                    google: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                  };
+                  const badgeCls = platformColor[platform] || 'bg-muted text-muted-foreground border-border';
+                  return (
+                    <div key={String(row.id)} className="rounded-md border p-3 space-y-2 bg-card">
+                      <div className="flex items-start gap-3">
+                        {thumb && (
+                          <img
+                            src={thumb}
+                            alt=""
+                            className="h-14 w-14 rounded object-cover border shrink-0"
+                            loading="lazy"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium leading-tight truncate" title={title}>{title}</p>
+                            <Badge variant="outline" className={cn('text-[10px] capitalize shrink-0', badgeCls)}>
+                              {platform}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            {format(new Date(row.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                            {sourceType ? ` · ${sourceType}` : ''}
+                            {sourceDevice ? ` · ${sourceDevice}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      {body && (
+                        <p className="text-xs text-muted-foreground line-clamp-3">{body}</p>
+                      )}
+                      {greeting && (
+                        <blockquote className="text-xs italic border-l-2 pl-2 text-muted-foreground">
+                          "{greeting}"
+                        </blockquote>
+                      )}
+                      {sourceURL && (
+                        <a
+                          href={sourceURL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Abrir origem
+                        </a>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </ScrollArea>
         </TabsContent>
