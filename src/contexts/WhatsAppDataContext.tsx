@@ -84,7 +84,7 @@ function normalizeSendError(err: unknown): { message: string; code: string | nul
 // Conversation pagination — bigger initial page for instant context, then
 // smaller chunks on demand (scroll/click). Avoids the previous "infinite
 // auto-loop" that flooded the DB and the browser DOM with thousands of rows.
-const CONVERSATIONS_INITIAL_PAGE_SIZE = 1000;
+const CONVERSATIONS_INITIAL_PAGE_SIZE = 200;
 const CONVERSATIONS_NEXT_PAGE_SIZE = 200;
 // Auto-bootstrap loads exactly the initial page; everything beyond is on
 // demand via `loadMoreConversations`. Kept as a guard against runaway loops.
