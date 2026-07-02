@@ -362,6 +362,31 @@ export const ChatContactItem = React.memo(function ChatContactItem({
           </TooltipProvider>
         )}
 
+        {/* Linha Meta Ads: badge META ADS + nome + "Ver Ads" (popup) */}
+        {campaignLink && (
+          <div className="flex items-center justify-between min-w-0 w-full pt-1 mt-0.5 bg-fuchsia-50/40 dark:bg-fuchsia-950/20 rounded-sm border border-fuchsia-100/70 dark:border-fuchsia-900/40 px-0 gap-0 py-[2px] my-0">
+            <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
+              <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300 whitespace-nowrap flex-shrink-0">
+                <Megaphone className="h-2.5 w-2.5 flex-shrink-0" />
+                META ADS
+              </span>
+              <span
+                className="text-[10px] text-muted-foreground truncate min-w-0"
+                title={(campaignLink.campaign_data as any)?.title || 'Campanha'}
+              >
+                {(campaignLink.campaign_data as any)?.title || 'Campanha sem título'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShowCampaignDialog(true); }}
+              className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-fuchsia-600 text-white hover:bg-fuchsia-700 whitespace-nowrap"
+            >
+              Ver Ads
+            </button>
+          </div>
+        )}
+
         {/* Linha Ticket de Suporte: badge TICKET #N + status (lazy) */}
         {ticketLink && (
           <TooltipProvider delayDuration={200}>
