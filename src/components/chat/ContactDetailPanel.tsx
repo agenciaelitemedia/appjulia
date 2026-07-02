@@ -572,6 +572,89 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
           </ScrollArea>
         </TabsContent>
 
+        {/* Campanhas */}
+        <TabsContent value="campanhas" className="flex-1 mt-0 min-h-0">
+          <ScrollArea className="h-full">
+            <div className="p-4 space-y-3">
+              {isLoadingCampaigns ? (
+                <>
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </>
+              ) : contactCampaigns.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">
+                  Este contato não veio de nenhuma campanha registrada.
+                </p>
+              ) : (
+                contactCampaigns.map((row) => {
+                  const cd = (row.campaign_data || {}) as Record<string, any>;
+                  const title = cd.title || 'Campanha sem título';
+                  const platform = (cd.sourceApp || 'outros').toString().toLowerCase();
+                  const sourceType = cd.sourceType as string | undefined;
+                  const sourceDevice = cd.sourceDevice as string | undefined;
+                  const sourceURL = cd.sourceURL as string | undefined;
+                  const thumb = (cd.thumbnailURL || cd.mediaURL) as string | undefined;
+                  const greeting = cd.greetingMessageBody as string | undefined;
+                  const body = cd.body as string | undefined;
+                  const platformColor: Record<string, string> = {
+                    facebook: 'bg-blue-100 text-blue-700 border-blue-200',
+                    instagram: 'bg-pink-100 text-pink-700 border-pink-200',
+                    google: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                  };
+                  const badgeCls = platformColor[platform] || 'bg-muted text-muted-foreground border-border';
+                  return (
+                    <div key={String(row.id)} className="rounded-md border p-3 space-y-2 bg-card">
+                      <div className="flex items-start gap-3">
+                        {thumb && (
+                          <img
+                            src={thumb}
+                            alt=""
+                            className="h-14 w-14 rounded object-cover border shrink-0"
+                            loading="lazy"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium leading-tight truncate" title={title}>{title}</p>
+                            <Badge variant="outline" className={cn('text-[10px] capitalize shrink-0', badgeCls)}>
+                              {platform}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            {format(new Date(row.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                            {sourceType ? ` · ${sourceType}` : ''}
+                            {sourceDevice ? ` · ${sourceDevice}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      {body && (
+                        <p className="text-xs text-muted-foreground line-clamp-3">{body}</p>
+                      )}
+                      {greeting && (
+                        <blockquote className="text-xs italic border-l-2 pl-2 text-muted-foreground">
+                          "{greeting}"
+                        </blockquote>
+                      )}
+                      {sourceURL && (
+                        <a
+                          href={sourceURL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Abrir origem
+                        </a>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
         {/* Resumos */}
         {showResumosTab && (
         <TabsContent value="resumos" className="flex-1 mt-0 min-h-0">
