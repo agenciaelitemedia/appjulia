@@ -8,12 +8,14 @@ import {
   ImageOff,
   Copy,
   Check,
+  Play,
   MessageSquareQuote,
   Instagram,
   Facebook,
   Globe,
 } from 'lucide-react';
 import type { ContactCampaignRow } from './hooks/useContactCampaigns';
+import { getExternalLink } from '@/lib/externalLink';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
@@ -60,12 +62,12 @@ function isLikelyImageUrl(url: string | undefined): boolean {
   if (!url) return false;
   if (url.startsWith('data:image/') || url.startsWith('blob:')) return true;
   if (/\.(jpe?g|png|gif|webp|avif)(\?|#|$)/i.test(url)) return true;
-  return /(fbcdn\.net|cdninstagram\.com|scontent\.|instagram\.f[a-z0-9-]+\.fna)/i.test(url);
+  return /(fbcdn\.net|cdninstagram\.com|scontent\.|lookaside\.fbsbx\.com|graph\.facebook\.com|instagram\.f[a-z0-9-]+\.fna)/i.test(url);
 }
 
-function appendImageUrl(out: string[], value: unknown) {
+function appendImageUrl(out: string[], value: unknown, trustThumbnailField = false) {
   const url = asString(value);
-  if (!url || !isLikelyImageUrl(url)) return;
+  if (!url || (!trustThumbnailField && !isLikelyImageUrl(url))) return;
   if (url.startsWith('data:image/') || url.startsWith('blob:')) {
     out.push(url);
     return;
@@ -96,6 +98,7 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
   const sourceURL = cd.sourceURL as string | undefined;
   const rawThumbnail = cd.thumbnail;
   const rawMedia = cd.mediaURL ?? cd.mediaUrl ?? cd.media_url;
+  const mediaLink = asString(rawMedia) || sourceURL;
   const inlineThumbnail =
     asDataImage(cd.thumbnail) || asDataImage(cd.thumbnailBase64) || asDataImage(cd.imageBase64);
   const fallbackGreeting = cd.greetingMessageBody as string | undefined;
@@ -108,11 +111,11 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
     const candidates: string[] = [];
     if (inlineThumbnail) candidates.push(inlineThumbnail);
 
-    appendImageUrl(candidates, cd.thumbnailURL);
-    appendImageUrl(candidates, rawThumbnail);
-    appendImageUrl(candidates, cd.thumbnail_url);
-    appendImageUrl(candidates, cd.imageURL ?? cd.imageUrl ?? cd.image_url ?? cd.image);
-    appendImageUrl(candidates, cd.picture ?? cd.pictureURL ?? cd.pictureUrl);
+    appendImageUrl(candidates, cd.thumbnailURL, true);
+    appendImageUrl(candidates, rawThumbnail, true);
+    appendImageUrl(candidates, cd.thumbnail_url, true);
+    appendImageUrl(candidates, cd.imageURL ?? cd.imageUrl ?? cd.image_url ?? cd.image, true);
+    appendImageUrl(candidates, cd.picture ?? cd.pictureURL ?? cd.pictureUrl, true);
     appendImageUrl(candidates, rawMedia);
 
     return [...new Set(candidates)];
@@ -189,6 +192,18 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
             <PlatformIcon className="h-3.5 w-3.5" />
           </span>
         </div>
+        {mediaLink && (
+          <a
+            href={getExternalLink(mediaLink)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute inset-0 flex items-center justify-center bg-foreground/30 opacity-0 transition-opacity hover:opacity-100"
+          >
+            <div className="rounded-full bg-background/90 p-3">
+              <Play className="h-6 w-6 fill-current text-foreground" />
+            </div>
+          </a>
+        )}
       </div>
       <div className="p-3 space-y-2">
         <h3 className="font-semibold text-sm line-clamp-1" title={title}>
