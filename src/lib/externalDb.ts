@@ -797,6 +797,46 @@ class ExternalDatabase {
       data: { pairs },
     });
   }
+
+  /**
+   * Fase 2 · aggregator: 1 round-trip que devolve campanhas Meta Ads,
+   * etapas CRM por telefone e status das sessões Julia — todas as três
+   * queries são executadas em paralelo no edge function reutilizando a
+   * mesma conexão do pool.
+   */
+  async getChatBootstrap(input: {
+    campaignPhoneVariants: string[];
+    crmPhoneVariants: string[];
+    sessionPairs: { whatsappNumber: string; codAgent: string }[];
+  }): Promise<{
+    campaigns: Array<{
+      id: string | number;
+      created_at: string;
+      campaign_data: Record<string, any> | null;
+      matched_phone: string;
+    }>;
+    crmStages: Array<{
+      whatsapp_number: string;
+      cod_agent: string;
+      stage_id: number;
+      stage_name: string | null;
+      stage_color: string | null;
+      updated_at: string | null;
+    }>;
+    sessions: Array<{
+      whatsapp_number: string;
+      cod_agent: string;
+      active: boolean;
+    }>;
+  }> {
+    const res = await this.invoke({
+      action: 'chat_bootstrap',
+      data: input,
+    });
+    return (
+      res ?? { campaigns: [], crmStages: [], sessions: [] }
+    );
+  }
 }
 
 export interface AgentInsertData {
