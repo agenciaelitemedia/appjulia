@@ -437,8 +437,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
     return pairs;
   }, [sortedConversations, queueAgentMap, contactPhoneById]);
 
-  const { data: sessionActiveMap, isFetching: sessionStatusesFetching } =
-    useAgentSessionStatusesBatch(sessionPairs);
+  // sessionActiveMap agora vem do aggregator (ver abaixo).
 
   // Resolve session.active for a (contactId, queueLink) pair. Returns:
   //  - true: Julia ativa
