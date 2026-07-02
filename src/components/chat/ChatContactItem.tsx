@@ -591,6 +591,12 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   if (prev.campaignLink?.id !== next.campaignLink?.id) return false;
   if (prev.onOpenTicket !== next.onOpenTicket) return false;
   if (prev.isQueueDisconnected !== next.isQueueDisconnected) return false;
+  if (prev.queueHasAgent !== next.queueHasAgent) return false;
+  if (prev.sessionIsActive !== next.sessionIsActive) return false;
+  if (prev.canViewTickets !== next.canViewTickets) return false;
+  if (prev.canCreateTickets !== next.canCreateTickets) return false;
+  if (prev.slaEvaluation?.status !== next.slaEvaluation?.status) return false;
+  if ((prev.slaEvaluation as any)?.remainingMs !== (next.slaEvaluation as any)?.remainingMs) return false;
   if (prev.index !== next.index) return false;
   if (prev.contact?.id !== next.contact?.id) return false;
   if (prev.contact?.name !== next.contact?.name) return false;
