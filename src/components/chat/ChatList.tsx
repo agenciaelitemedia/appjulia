@@ -1163,6 +1163,26 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
         : effClosedConvCount;
   const activeTabLoaded = displayContacts.length;
 
+  // Handlers estáveis por contato — evita gerar arrow functions inline dentro
+  // do map do virtualizer (que invalidam o React.memo do ChatContactItem a
+  // cada scroll/render, mesmo sem mudança de dados).
+  const clickHandlerByContact = React.useMemo(() => {
+    const m = new Map<string, () => void>();
+    displayContacts.forEach((c) => m.set(c.id, () => selectContact(c.id)));
+    return m;
+  }, [displayContacts, selectContact]);
+
+  const openTicketHandlerByContact = React.useMemo(() => {
+    if (!onOpenTicketPanel) return null;
+    const m = new Map<string, (mode: 'create' | 'detail', ticketId?: string) => void>();
+    displayContacts.forEach((c) => {
+      const convs = displayConvsByContact.get(c.id) || [];
+      const conv = convs[0];
+      m.set(c.id, (mode, ticketId) => onOpenTicketPanel(c, mode, ticketId, conv));
+    });
+    return m;
+  }, [displayContacts, displayConvsByContact, onOpenTicketPanel]);
+
   // Virtual scroll — only renders items in the visible viewport.
   // estimateSize ≈ base item height (3 info rows + tags). measureElement
   // corrects actual heights so taller items (with tags) still display correctly.
