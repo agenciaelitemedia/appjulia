@@ -1708,7 +1708,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                   <ChatContactItem
                     contact={contact}
                     isSelected={contact.id === selectedContactId}
-                    onClick={() => selectContact(contact.id)}
+                    onClick={clickHandlerByContact.get(contact.id)!}
                     conversation={conv}
                     queueName={convQueue?.name}
                     assignedAgentName={resolveAssigneeName(conv?.assigned_to, assigneeIndex) || undefined}
@@ -1728,14 +1728,17 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
                     campaignLink={contact.phone ? campaignByPhone?.get(contact.phone) ?? null : null}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
-                    onOpenTicket={
-                      onOpenTicketPanel
-                        ? (mode, ticketId) => {
-                            onOpenTicketPanel(contact, mode, ticketId, conv);
-                          }
-                        : undefined
-                    }
+                    onOpenTicket={openTicketHandlerByContact?.get(contact.id)}
                     isQueueDisconnected={isQueueDisconnected}
+                    slaEvaluation={conv ? slaEvalByConversation.get(conv.id) ?? null : null}
+                    canViewTickets={canViewTickets}
+                    canCreateTickets={canCreateTickets}
+                    queueHasAgent={queueLink?.hasAgent}
+                    sessionIsActive={
+                      queueLink?.hasAgent && contact.phone
+                        ? (sessionStatusMap?.get(String(contact.phone).replace(/\D/g, '')) ?? null)
+                        : null
+                    }
                   />
                 </div>
               );
