@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import React from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { externalDb } from '@/lib/externalDb';
 import { getBrPhoneVariants } from '@/lib/phoneVariants';
 import { normalizeBrPhone, brPhoneVariants } from '@/lib/phoneNormalize';
@@ -76,6 +77,7 @@ export function useContactCampaigns(phone: string | null | undefined) {
     enabled: variants.length > 0,
     staleTime: 5 * 60_000,
     retry: 1,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -85,28 +87,43 @@ export function useContactCampaigns(phone: string | null | undefined) {
  * campaign row. Used by the chat list to decorate items with a Meta Ads
  * line without triggering N per-row queries.
  */
+// Persistent in-memory cache across renders and hook instances so already-resolved
+// phones (both hits and misses) are never re-queried while the session is open.
+// Value = campaign row when found, or `null` when confirmed "no campaign".
+const campaignPhoneCache = new Map<string, ContactCampaignRow | null>();
+
 export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
-  // Build a stable "phone → variants" index and the flat variant list.
+  // Debounce input phone list — scroll-triggered updates coalesce into a single fetch.
+  const [debouncedPhones, setDebouncedPhones] = React.useState<(string | null | undefined)[]>(phones);
+  React.useEffect(() => {
+    const id = setTimeout(() => setDebouncedPhones(phones), 250);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phones.join('|')]);
+
+  // Build "phone → variants" index; skip phones already resolved by the cache.
   const phoneToVariants = new Map<string, string[]>();
-  const allVariants = new Set<string>();
-  for (const p of phones) {
+  const unresolvedVariants = new Set<string>();
+  for (const p of debouncedPhones) {
     if (!p) continue;
     const key = String(p);
     if (phoneToVariants.has(key)) continue;
     const vs = buildPhoneVariants(p);
     if (vs.length === 0) continue;
     phoneToVariants.set(key, vs);
-    for (const v of vs) allVariants.add(v);
+    if (campaignPhoneCache.has(key)) continue; // already resolved (hit or miss)
+    for (const v of vs) unresolvedVariants.add(v);
   }
-  const variantList = [...allVariants].sort();
+  const variantList = [...unresolvedVariants].sort();
   const cacheKey = variantList.join(',');
+  // Version bumps when the cache mutates so the returned map reflects freshly resolved phones.
+  const [cacheVersion, setCacheVersion] = React.useState(0);
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['contacts-campaigns-map', cacheKey],
     queryFn: async () => {
-      const result = new Map<string, ContactCampaignRow>();
-      if (variantList.length === 0) return result;
-      const query = `
+      if (variantList.length === 0) return null;
+      const sql = `
         SELECT DISTINCT ON (matched_phone)
                ca.id,
                ca.created_at,
@@ -133,28 +150,53 @@ export function useContactsCampaignsMap(phones: (string | null | undefined)[]) {
       `;
       const rows = (await externalDb.raw<
         ContactCampaignRow & { matched_phone: string }
-      >({ query, params: [variantList] })) || [];
+      >({ query: sql, params: [variantList] })) || [];
       // Index by matched_phone.
       const byMatched = new Map<string, ContactCampaignRow>();
       for (const r of rows) {
         if (r.matched_phone) byMatched.set(r.matched_phone, r);
       }
-      // Fan-out: for each original phone, check its variants.
+      // Fan-out: for each phone queried this round, cache hit OR confirmed miss.
       for (const [origPhone, vs] of phoneToVariants) {
+        if (campaignPhoneCache.has(origPhone)) continue;
+        let hit: ContactCampaignRow | null = null;
         for (const v of vs) {
-          const hit = byMatched.get(v);
-          if (hit) {
-            result.set(origPhone, hit);
-            break;
-          }
+          const m = byMatched.get(v);
+          if (m) { hit = m; break; }
         }
+        campaignPhoneCache.set(origPhone, hit);
       }
-      return result;
+      return rows.length;
     },
     enabled: variantList.length > 0,
     staleTime: 5 * 60_000,
     retry: 1,
+    placeholderData: keepPreviousData,
   });
+
+  // Bump version whenever a fetch completes so consumers get the merged map.
+  React.useEffect(() => {
+    if (!query.isFetching && query.data !== undefined) {
+      setCacheVersion((v) => v + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.isFetching, query.dataUpdatedAt]);
+
+  // Build the returned map from the persistent cache — includes ALL previously
+  // resolved phones, so rows never lose their Meta Ads badge on scroll.
+  const data = React.useMemo(() => {
+    const result = new Map<string, ContactCampaignRow>();
+    for (const p of debouncedPhones) {
+      if (!p) continue;
+      const key = String(p);
+      const cached = campaignPhoneCache.get(key);
+      if (cached) result.set(key, cached);
+    }
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedPhones.join('|'), cacheVersion]);
+
+  return { ...query, data };
 }
 
 export interface FirstInboundMessage {
