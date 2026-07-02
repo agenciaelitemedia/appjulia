@@ -517,10 +517,17 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
   const { data: ticketLinkMap } = useTicketLinkedConversations();
   // Meta Ads: mapa telefone → campanha para decorar a lista sem 1 query/linha.
-  const campaignPhones = React.useMemo(
-    () => Array.from(new Set(filteredContacts.map(c => c.phone).filter(Boolean))),
-    [filteredContacts]
-  );
+  // Inclui contatos paginados + qualquer telefone já resolvido pelas conversas
+  // em memória, para pré-aquecer a busca antes do usuário rolar.
+  const campaignPhones = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const c of filteredContacts) if (c.phone) set.add(c.phone);
+    for (const conv of sortedConversations) {
+      const p = contactPhoneById.get(conv.contact_id);
+      if (p) set.add(p);
+    }
+    return Array.from(set);
+  }, [filteredContacts, sortedConversations, contactPhoneById]);
   const { data: campaignByPhone } = useContactsCampaignsMap(campaignPhones);
 
   const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
