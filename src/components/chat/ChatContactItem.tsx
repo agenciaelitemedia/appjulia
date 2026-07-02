@@ -148,6 +148,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
   hasCrmCard,
   crmBuilderLink,
   ticketLink,
+  campaignLink,
   lastMessageMeta,
   onOpenTicket,
   isQueueDisconnected,
