@@ -24,7 +24,11 @@ import type { SessionPair } from '@/hooks/useAgentSessionStatusesBatch';
 // Hits vivem para sempre nesta sessão; misses expiram em 60s para que
 // leads que ainda não tinham `campaing_ads` gravado sejam reavaliados.
 // LRU cap para evitar crescimento indefinido em sessões longas.
-const MISS_TTL_MS = 60_000;
+// TTL curto para que leads recém-chegados cuja campanha ainda não foi
+// gravada em `campaing_ads` sejam reavaliados rapidamente (o webhook do
+// Meta Ads costuma gravar em segundos). Um TTL longo fazia novos chats
+// aparecerem sem badge por até 1 minuto.
+const MISS_TTL_MS = 10_000;
 const LRU_CAP = 2000;
 type CampCacheEntry = { row: ContactCampaignRow | null; expires: number; touched: number };
 const campaignPhoneCache = new Map<string, CampCacheEntry>();
@@ -86,8 +90,18 @@ export function useChatBootstrap(
   const { campaignPhones, crmPairs, sessionPairs } = input;
 
   // ---------- Meta Ads variants (com cache persistente) ----------
+  // Debounce dinâmico: quando aparece telefone NOVO (nunca visto no cache),
+  // aplicamos flush imediato para não segurar novos chats por 250 ms. Só
+  // debouncamos quando a mudança é apenas re-ordenação/paginção da lista.
   const [debouncedPhones, setDebouncedPhones] = React.useState<string[]>(campaignPhones);
   React.useEffect(() => {
+    const hasNewPhone = campaignPhones.some(
+      (p) => p && !campaignPhoneCache.has(String(p)),
+    );
+    if (hasNewPhone) {
+      setDebouncedPhones(campaignPhones);
+      return;
+    }
     const id = setTimeout(() => setDebouncedPhones(campaignPhones), 250);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
