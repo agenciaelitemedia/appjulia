@@ -211,7 +211,11 @@ export function useChatBootstrap(
     const sKey = [...new Set(cleanedSessionPairs.map((p) => `${p.whatsappNumber}:${p.codAgent}`))]
       .sort()
       .join(',');
-    return `${cKey}||${rKey}||${sKey}||v${cacheVersion}`;
+    // Version only matters for campaign misses that expire before React Query's
+    // staleTime. Do not include it when there are no campaign phones pending,
+    // otherwise CRM/session batches would refetch forever after every response.
+    const campaignRetryKey = unresolvedCampaignVariants.length > 0 ? `v${cacheVersion}` : 'v0';
+    return `${cKey}||${rKey}||${sKey}||${campaignRetryKey}`;
   }, [unresolvedCampaignVariants, crmPhoneVariants, cleanedSessionPairs, cacheVersion]);
 
   const enabled =
