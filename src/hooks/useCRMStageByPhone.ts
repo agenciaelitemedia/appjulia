@@ -126,8 +126,10 @@ export function useCRMStageByPhone(pairs: PhoneAgentPair[]) {
       return map;
     },
     enabled: phoneVariants.length > 0,
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    // Stale por 5 min sem polling: mudanças reais chegam via invalidateQueries
+    // no fluxo do CRM. Antes fazia SELECT no DB externo a cada 60s por sessão.
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
     placeholderData: keepPreviousData,
   });
 }
