@@ -271,6 +271,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   // Campanhas: só habilita a aba quando o contato tem origem de campanha
   const { data: contactCampaigns = [], isLoading: isLoadingCampaigns } = useContactCampaigns(contact.phone);
   const hasCampaigns = contactCampaigns.length > 0;
+  const { data: firstInbound } = useContactFirstInboundMessage(contact.id);
   const tabsGridClass =
     ['grid-cols-2', 'grid-cols-3', 'grid-cols-4'][
       Number(showResumosTab) + Number(hasCampaigns)
@@ -672,7 +673,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                 </p>
               ) : (
                 contactCampaigns.map((row) => (
-                  <ContactCampaignCard key={String(row.id)} row={row} />
+                  <ContactCampaignCard key={String(row.id)} row={row} greetingOverride={firstInbound?.text ?? null} />
                 ))
               )}
             </div>
