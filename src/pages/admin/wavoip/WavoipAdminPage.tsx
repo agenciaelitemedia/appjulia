@@ -1,9 +1,10 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PhoneCall, CreditCard, Users, ShoppingCart, Smartphone, History } from 'lucide-react';
+import { PhoneCall, CreditCard, Users, ShoppingCart, Smartphone, History, Server } from 'lucide-react';
 import { WavoipClientsTab } from './components/WavoipClientsTab';
 import { WavoipPlansTab } from './components/WavoipPlansTab';
 import { WavoipOrdersTab } from './components/WavoipOrdersTab';
 import { WavoipDevicesTab } from './components/WavoipDevicesTab';
+import { WavoipProvidersTab } from './components/WavoipProvidersTab';
 import { WavoipHistoryTab } from './components/WavoipHistoryTab';
 
 export default function WavoipAdminPage() {
@@ -20,7 +21,7 @@ export default function WavoipAdminPage() {
       </div>
 
       <Tabs defaultValue="clients" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="clients" className="gap-1.5">
             <Users className="h-4 w-4" />
             Clientes
@@ -37,6 +38,10 @@ export default function WavoipAdminPage() {
             <Smartphone className="h-4 w-4" />
             Dispositivos
           </TabsTrigger>
+          <TabsTrigger value="providers" className="gap-1.5">
+            <Server className="h-4 w-4" />
+            Provedores
+          </TabsTrigger>
           <TabsTrigger value="history" className="gap-1.5">
             <History className="h-4 w-4" />
             Histórico
@@ -47,6 +52,7 @@ export default function WavoipAdminPage() {
         <TabsContent value="plans"><WavoipPlansTab /></TabsContent>
         <TabsContent value="orders"><WavoipOrdersTab /></TabsContent>
         <TabsContent value="devices"><WavoipDevicesTab /></TabsContent>
+        <TabsContent value="providers"><WavoipProvidersTab /></TabsContent>
         <TabsContent value="history"><WavoipHistoryTab /></TabsContent>
       </Tabs>
     </div>

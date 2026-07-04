@@ -7881,6 +7881,57 @@ export type Database = {
         }
         Relationships: []
       }
+      wavoip_providers: {
+        Row: {
+          api_base: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          last_login_error: string | null
+          last_login_status: string | null
+          name: string
+          password: string
+          token: string | null
+          token_updated_at: string | null
+          type: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          api_base?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_login_error?: string | null
+          last_login_status?: string | null
+          name: string
+          password: string
+          token?: string | null
+          token_updated_at?: string | null
+          type: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          api_base?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_login_error?: string | null
+          last_login_status?: string | null
+          name?: string
+          password?: string
+          token?: string | null
+          token_updated_at?: string | null
+          type?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       wavoip_user_plans: {
         Row: {
           activated_at: string
