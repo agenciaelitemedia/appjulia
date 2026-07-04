@@ -33,6 +33,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({} as any));
     const whatsappCallId = String(body?.whatsapp_call_id ?? '').trim();
     const bodyToken = body?.device_token ? String(body.device_token) : null;
+    const bodyClientId = body?.client_id ? String(body.client_id) : null;
     if (!whatsappCallId) {
       return new Response(JSON.stringify({ error: 'whatsapp_call_id obrigatório' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -56,6 +57,26 @@ Deno.serve(async (req) => {
           .select('id,device_token,provider_id,client_id,app_user_id')
           .eq('id', log.device_id).maybeSingle();
         device = data ?? null;
+      }
+      // Fallback: qualquer dispositivo com provider_id do mesmo client.
+      if (!device?.provider_id) {
+        const cid = log?.client_id ?? bodyClientId;
+        if (cid) {
+          const { data } = await admin.from('wavoip_devices')
+            .select('id,device_token,provider_id,client_id,app_user_id')
+            .eq('client_id', cid)
+            .not('provider_id', 'is', null)
+            .limit(1).maybeSingle();
+          if (data) device = data;
+        }
+      }
+      // Último recurso: qualquer dispositivo global com provider_id.
+      if (!device?.provider_id) {
+        const { data } = await admin.from('wavoip_devices')
+          .select('id,device_token,provider_id,client_id,app_user_id')
+          .not('provider_id', 'is', null)
+          .limit(1).maybeSingle();
+        if (data) device = data;
       }
     }
     if (!device?.provider_id) {
