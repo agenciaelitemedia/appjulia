@@ -33,6 +33,9 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   const [connectedNumbers, setConnectedNumbers] = useState<string[]>([]);
   const apiRef = useRef<WavoipApi | null>(null);
   const listenersBoundRef = useRef(false);
+  // Dispositivos do usuário logado — usados para injetar `displayName` = device_name
+  // gravado em /wavoip ao habilitar o dispositivo, e para escolher o `fromTokens`.
+  const userDevicesRef = useRef<Array<{ id: string; token: string; name: string | null; connection_status: string }>>([]);
 
   const loadPlanAndDevices = useCallback(async (): Promise<{ active: boolean; tokens: string[] }> => {
     if (!clientId) {
@@ -55,7 +58,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
     const { data: devs } = await (supabase as any)
       .from('wavoip_devices')
-      .select('device_token,status,connection_status,whatsapp_jids')
+      .select('id,device_token,device_name,status,connection_status,whatsapp_jids')
       .eq('client_id', clientId)
       .eq('app_user_id', user?.id ?? -1)
       .eq('connection_status', 'connected');
@@ -67,6 +70,12 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
     setDevicesCount(tokens.length);
     setConnectedNumbers(numbers);
+    userDevicesRef.current = (devs ?? []).map((d: any) => ({
+      id: d.id,
+      token: d.device_token,
+      name: d.device_name ?? null,
+      connection_status: d.connection_status,
+    }));
     return { active: true, tokens };
   }, [clientId, user?.id]);
 
@@ -80,7 +89,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     try {
       const webphone = await loadWebphone();
       const api = await webphone.render({
-        theme: 'system',
+        theme: 'light',
         buttonPosition: 'bottom-right',
         position: 'bottom-right',
         widget: { startOpen: false, showWidgetButton: true },
@@ -193,7 +202,9 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
             } catch (err) { console.warn('[Wavoip] log upsert failed', err); }
           };
 
-          ['call:started', 'call:answered', 'call:accepted', 'call:ended', 'call:rejected'].forEach((e) => {
+          // Eventos reais do SDK Wavoip (docs: /webphone/referencia/api-publica).
+          // NÃO existem `call:answered` nem `call:rejected` — `call:ended` traz o status terminal.
+          ['call:started', 'call:accepted', 'call:ended', 'offer:received'].forEach((e) => {
             try { wp?.on?.(e, (payload: any) => upsertCallLog(e, payload)); } catch {}
           });
         } catch {}
