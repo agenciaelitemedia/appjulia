@@ -61,9 +61,12 @@ export type WavoipDevice = {
   app_user_id: number | null;
   client_id: number | null;
   user_plan_id: string | null;
+  provider_id: string | null;
   device_token: string;
   device_name: string | null;
   friendly_code: string | null;
+  wavoip_device_id: number | null;
+  wavoip_raw: any | null;
   whatsapp_number: string | null;
   whatsapp_jid: string | null;
   status: string;
