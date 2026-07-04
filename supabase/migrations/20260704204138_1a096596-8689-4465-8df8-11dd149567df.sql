@@ -1,0 +1,2 @@
+DELETE FROM public.wavoip_call_logs a USING public.wavoip_call_logs b WHERE a.ctid < b.ctid AND a.whatsapp_call_id = b.whatsapp_call_id AND a.whatsapp_call_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS wavoip_call_logs_whatsapp_call_id_key ON public.wavoip_call_logs (whatsapp_call_id) WHERE whatsapp_call_id IS NOT NULL;
