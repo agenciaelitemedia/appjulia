@@ -10,11 +10,13 @@ export type WavoipPlan = {
   included_minutes: number;
   max_devices: number;
   device_model: string;
+  provider_id: string | null;
   features: any;
   active: boolean;
   sort_order: number;
   created_at: string;
   updated_at: string;
+  provider?: { id: string; name: string; type: string } | null;
 };
 
 export type WavoipUserPlan = {
@@ -59,9 +61,12 @@ export type WavoipDevice = {
   app_user_id: number | null;
   client_id: number | null;
   user_plan_id: string | null;
+  provider_id: string | null;
   device_token: string;
   device_name: string | null;
   friendly_code: string | null;
+  wavoip_device_id: number | null;
+  wavoip_raw: any | null;
   whatsapp_number: string | null;
   whatsapp_jid: string | null;
   status: string;
@@ -100,7 +105,7 @@ export function useWavoipPlans() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('wavoip_plans')
-        .select('*')
+        .select('*, provider:wavoip_providers(id,name,type)')
         .order('sort_order', { ascending: true });
       if (error) throw error;
       return (data ?? []) as WavoipPlan[];
@@ -168,8 +173,17 @@ export function useActivateWavoipForUser() {
       business_name?: string | null;
       extra_devices?: number;
       billing_period?: string;
-      device_ids?: string[];
+      device_names: string[];
     }) => {
+      // Load plan + provider
+      const { data: plan, error: planErr } = await (supabase as any)
+        .from('wavoip_plans')
+        .select('id, provider_id, max_devices')
+        .eq('id', params.plan_id)
+        .single();
+      if (planErr) throw planErr;
+      if (!plan?.provider_id) throw new Error('Plano sem provedor configurado');
+
       // Deactivate previous plans for this client
       await (supabase as any)
         .from('wavoip_user_plans')
@@ -190,13 +204,31 @@ export function useActivateWavoipForUser() {
       }).select('id').single();
       if (error) throw error;
 
-      if (params.device_ids && params.device_ids.length > 0) {
-        const { error: assignErr } = await (supabase as any).rpc('assign_wavoip_devices_to_plan', {
-          p_device_ids: params.device_ids,
-          p_user_plan_id: created.id,
-          p_client_id: params.client_id,
+      // Provision each device via Wavoip API
+      const failures: string[] = [];
+      for (const name of params.device_names) {
+        const { data: res, error: invErr } = await supabase.functions.invoke('wavoip-device-provision', {
+          body: {
+            provider_id: plan.provider_id,
+            plan_id: plan.id,
+            client_id: params.client_id,
+            user_plan_id: created.id,
+            device_name: name,
+            channels: 1,
+          },
         });
-        if (assignErr) throw assignErr;
+        if (invErr || (res as any)?.error) {
+          failures.push(`${name}: ${invErr?.message || (res as any)?.error}`);
+        }
+      }
+      if (failures.length > 0) {
+        // rollback: cancel the plan; devices already created stay linked for inspection
+        await (supabase as any)
+          .from('wavoip_user_plans')
+          .update({ is_active: false, status: 'cancelled', cancelled_at: new Date().toISOString(),
+                    notes: `Provisionamento falhou: ${failures.join(' | ')}` })
+          .eq('id', created.id);
+        throw new Error(`Falha ao criar dispositivo(s): ${failures.join(' | ')}`);
       }
     },
     onSuccess: () => {
@@ -330,10 +362,6 @@ export function useDeletePoolDevice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data: row, error: getErr } = await (supabase as any)
-        .from('wavoip_devices').select('status').eq('id', id).single();
-      if (getErr) throw getErr;
-      if (row?.status === 'in_use') throw new Error('Dispositivo em uso — não pode ser removido');
       const { error } = await (supabase as any).from('wavoip_devices').delete().eq('id', id);
       if (error) throw error;
     },

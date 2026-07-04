@@ -6,18 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useDeletePoolDevice, useRegisterPoolDevice, useUpdatePoolDevice, useWavoipDevices, type WavoipDevice } from '../hooks/useWavoipAdmin';
+import { Loader2, Pencil, Trash2 } from 'lucide-react';
+import { useDeletePoolDevice, useUpdatePoolDevice, useWavoipDevices, type WavoipDevice } from '../hooks/useWavoipAdmin';
 import { format } from 'date-fns';
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
 
 export function WavoipDevicesTab() {
   const { data: devices = [], isLoading } = useWavoipDevices();
-  const register = useRegisterPoolDevice();
   const remove = useDeletePoolDevice();
   const update = useUpdatePoolDevice();
-  const [open, setOpen] = useState(false);
-  const [token, setToken] = useState('');
   const [editTarget, setEditTarget] = useState<WavoipDevice | null>(null);
   const [editName, setEditName] = useState('');
   const [editToken, setEditToken] = useState('');
@@ -37,25 +34,21 @@ export function WavoipDevicesTab() {
     );
   };
 
-  const handleRegister = () => {
-    register.mutate(token, { onSuccess: () => { setToken(''); setOpen(false); } });
-  };
-
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Pool de dispositivos Wavoip</CardTitle>
-        <Button size="sm" onClick={() => setOpen(true)} className="gap-1.5">
-          <Plus className="h-4 w-4" /> Cadastrar dispositivo
-        </Button>
+      <CardHeader>
+        <CardTitle className="text-lg">Dispositivos Wavoip</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Dispositivos são criados automaticamente quando um cliente é ativado em um plano Wavoip.
+        </p>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
+              <TableHead>Wavoip ID</TableHead>
               <TableHead>Token</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Conexão</TableHead>
               <TableHead>Visto em</TableHead>
@@ -64,16 +57,12 @@ export function WavoipDevicesTab() {
           </TableHeader>
           <TableBody>
             {isLoading && (<TableRow><TableCell colSpan={7}>Carregando...</TableCell></TableRow>)}
-            {!isLoading && devices.length === 0 && (<TableRow><TableCell colSpan={7} className="text-muted-foreground">Nenhum dispositivo cadastrado.</TableCell></TableRow>)}
+            {!isLoading && devices.length === 0 && (<TableRow><TableCell colSpan={7} className="text-muted-foreground">Nenhum dispositivo criado ainda.</TableCell></TableRow>)}
             {devices.map((d) => (
               <TableRow key={d.id}>
-                <TableCell className="font-medium">{d.device_name ?? `WAPhone_${d.friendly_code ?? ''}`}</TableCell>
+                <TableCell className="font-medium">{d.device_name ?? '-'}</TableCell>
+                <TableCell className="font-mono text-xs">{d.wavoip_device_id ?? '-'}</TableCell>
                 <TableCell className="font-mono text-xs">{d.device_token.slice(0, 8)}…{d.device_token.slice(-4)}</TableCell>
-                <TableCell>
-                  <Badge variant={d.status === 'free' ? 'outline' : 'default'}>
-                    {d.status === 'free' ? 'Livre' : 'Em uso'}
-                  </Badge>
-                </TableCell>
                 <TableCell className="font-mono text-xs">{d.client_id ?? '-'}</TableCell>
                 <TableCell>
                   <Badge variant={d.connection_status === 'connected' ? 'default' : 'outline'}>
@@ -88,9 +77,8 @@ export function WavoipDevicesTab() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    disabled={d.status === 'in_use'}
                     onClick={() => setDeleteTarget(d)}
-                    title={d.status === 'in_use' ? 'Em uso — não pode ser removido' : 'Remover'}
+                    title="Remover"
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -101,32 +89,13 @@ export function WavoipDevicesTab() {
         </Table>
       </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Cadastrar dispositivo Wavoip</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Token Wavoip *</Label>
-              <Input value={token} onChange={(e) => setToken(e.target.value)} placeholder="cole o token do dispositivo criado no painel Wavoip" />
-              <p className="text-xs text-muted-foreground mt-1">O nome (WAPhone_XXXX) será gerado automaticamente.</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={handleRegister} disabled={!token.trim() || register.isPending}>
-              {register.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Cadastrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={!!editTarget} onOpenChange={(o) => { if (!o) setEditTarget(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Editar dispositivo</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Nome</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="WAPhone_XXXX" />
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
             </div>
             <div>
               <Label>Substituir token (opcional)</Label>

@@ -69,3 +69,8 @@ Auth: Bearer JWT obtido em `/v2/login`, salvo em `wavoip_providers.token`.
 - Edge function `wavoip-providers` expõe ações: `list`, `create`, `update`, `delete`, `refresh_token`, `get_token`.
 - Ao cadastrar/atualizar credenciais, a edge function chama `POST /v2/login` e persiste `data.token`.
 - Outras edge functions devem chamar `wavoip-providers` action `get_token` para obter o JWT atualizado antes de invocar endpoints protegidos.
+
+### Provisionamento automático de dispositivos
+- Plano Wavoip (`wavoip_plans`) tem `provider_id` obrigatório — define qual conta Wavoip cria os dispositivos.
+- Edge function `wavoip-device-provision`: recebe `{ provider_id, plan_id, client_id, user_plan_id, device_name, channels }`, faz `POST /v2/sales/buy-device` (`{type:"FREE",name}` ou `{type:"PAID",deviceProps:[{name,channels,count:1}]}`, name = `JU_<clientId>_<device_name>`), depois `GET /devices/:id` para pegar `token`/`phone`/`id_server`, e insere em `wavoip_devices` com `provider_id`, `wavoip_device_id`, `wavoip_raw` (jsonb do retorno) e `device_token`.
+- Ativação do cliente em `useActivateWavoipForUser` chama a edge function uma vez por dispositivo solicitado (o campo `device_names[]` substitui a antiga seleção de pool). Se qualquer criação falhar, o `wavoip_user_plans` é marcado cancelado com o motivo em `notes`.
