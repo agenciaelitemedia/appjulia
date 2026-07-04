@@ -6,8 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useDeleteWavoipPlan, useUpsertWavoipPlan, useWavoipPlans, type WavoipPlan } from '../hooks/useWavoipAdmin';
+import { useWavoipProviders } from '../hooks/useWavoipProviders';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
 
@@ -18,12 +20,14 @@ const emptyPlan: Partial<WavoipPlan> = {
   included_minutes: 0,
   max_devices: 1,
   device_model: 'free',
+  provider_id: null,
   active: true,
   sort_order: 0,
 };
 
 export function WavoipPlansTab() {
   const { data: plans = [], isLoading } = useWavoipPlans();
+  const { data: providers = [] } = useWavoipProviders();
   const upsert = useUpsertWavoipPlan();
   const del = useDeleteWavoipPlan();
   const [open, setOpen] = useState(false);
@@ -31,10 +35,16 @@ export function WavoipPlansTab() {
   const [deleteTarget, setDeleteTarget] = useState<WavoipPlan | null>(null);
 
   const startNew = () => { setEditing(emptyPlan); setOpen(true); };
-  const startEdit = (p: WavoipPlan) => { setEditing(p); setOpen(true); };
+  const startEdit = (p: WavoipPlan) => {
+    const { provider: _p, ...rest } = p as any;
+    setEditing(rest);
+    setOpen(true);
+  };
 
   const save = async () => {
-    await upsert.mutateAsync(editing);
+    const provider = providers.find((p) => p.id === editing.provider_id);
+    const derivedModel = provider?.type === 'wavoip_free' ? 'free' : 'paid';
+    await upsert.mutateAsync({ ...editing, device_model: derivedModel });
     setOpen(false);
   };
 
@@ -61,6 +71,22 @@ export function WavoipPlansTab() {
                 <Label>Descrição</Label>
                 <Input value={editing.description ?? ''} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
               </div>
+              <div>
+                <Label>Provedor Wavoip *</Label>
+                <Select
+                  value={editing.provider_id ?? ''}
+                  onValueChange={(v) => setEditing({ ...editing, provider_id: v })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione o provedor..." /></SelectTrigger>
+                  <SelectContent>
+                    {providers.filter((p) => p.is_active).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({p.type === 'wavoip_free' ? 'Free' : 'Pago'})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Preço mensal (R$)</Label>
@@ -75,10 +101,6 @@ export function WavoipPlansTab() {
                   <Input type="number" value={editing.max_devices ?? 1} onChange={(e) => setEditing({ ...editing, max_devices: Number(e.target.value) })} />
                 </div>
                 <div>
-                  <Label>Modelo dispositivo</Label>
-                  <Input value={editing.device_model ?? 'free'} onChange={(e) => setEditing({ ...editing, device_model: e.target.value })} />
-                </div>
-                <div>
                   <Label>Ordem</Label>
                   <Input type="number" value={editing.sort_order ?? 0} onChange={(e) => setEditing({ ...editing, sort_order: Number(e.target.value) })} />
                 </div>
@@ -90,7 +112,7 @@ export function WavoipPlansTab() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button onClick={save} disabled={upsert.isPending || !editing.name}>Salvar</Button>
+              <Button onClick={save} disabled={upsert.isPending || !editing.name || !editing.provider_id}>Salvar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -100,6 +122,7 @@ export function WavoipPlansTab() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
+              <TableHead>Provedor</TableHead>
               <TableHead>Preço</TableHead>
               <TableHead>Minutos</TableHead>
               <TableHead>Dispositivos</TableHead>
@@ -109,11 +132,12 @@ export function WavoipPlansTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (<TableRow><TableCell colSpan={7}>Carregando...</TableCell></TableRow>)}
-            {!isLoading && plans.length === 0 && (<TableRow><TableCell colSpan={7} className="text-muted-foreground">Nenhum plano cadastrado.</TableCell></TableRow>)}
+            {isLoading && (<TableRow><TableCell colSpan={8}>Carregando...</TableCell></TableRow>)}
+            {!isLoading && plans.length === 0 && (<TableRow><TableCell colSpan={8} className="text-muted-foreground">Nenhum plano cadastrado.</TableCell></TableRow>)}
             {plans.map((p) => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">{p.name}</TableCell>
+                <TableCell className="text-sm">{p.provider?.name ?? <span className="text-destructive text-xs">sem provedor</span>}</TableCell>
                 <TableCell>R$ {Number(p.monthly_price).toFixed(2)}</TableCell>
                 <TableCell>{p.included_minutes}</TableCell>
                 <TableCell>{p.max_devices}</TableCell>
