@@ -362,10 +362,6 @@ export function useDeletePoolDevice() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data: row, error: getErr } = await (supabase as any)
-        .from('wavoip_devices').select('status').eq('id', id).single();
-      if (getErr) throw getErr;
-      if (row?.status === 'in_use') throw new Error('Dispositivo em uso — não pode ser removido');
       const { error } = await (supabase as any).from('wavoip_devices').delete().eq('id', id);
       if (error) throw error;
     },
