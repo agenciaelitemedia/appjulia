@@ -7959,6 +7959,39 @@ export type Database = {
         }
         Relationships: []
       }
+      wavoip_reconcile_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          last_error: string | null
+          run_after: string
+          status: string
+          updated_at: string
+          whatsapp_call_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          run_after?: string
+          status?: string
+          updated_at?: string
+          whatsapp_call_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          run_after?: string
+          status?: string
+          updated_at?: string
+          whatsapp_call_id?: string
+        }
+        Relationships: []
+      }
       wavoip_user_plans: {
         Row: {
           activated_at: string
