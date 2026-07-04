@@ -273,14 +273,43 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     const digits = (phone || '').replace(/\D/g, '');
     if (!digits) return { ok: false, error: 'Telefone inválido' };
     try { wp.widget?.open?.(); } catch {}
+
+    // Escolhe o dispositivo do usuário para originar a chamada.
+    // O displayName mostrado ao destinatário é o `device_name` gravado em /wavoip.
+    const devices = userDevicesRef.current ?? [];
+    const device = devices.find((d) => d.connection_status === 'connected') ?? devices[0] ?? null;
+    const resolvedDisplayName = displayName ?? device?.name ?? 'Atendimento';
+    const startConfig: any = { displayName: resolvedDisplayName };
+    if (device?.token) startConfig.fromTokens = [device.token];
+
     try {
-      const res = await wp.call.start(digits, displayName ? { displayName } : undefined);
-      if ((res as any)?.err) return { ok: false, error: (res as any).err?.message ?? 'Falha ao iniciar chamada' };
+      const res: any = await wp.call.start(digits, startConfig);
+      if (res?.err) return { ok: false, error: res.err?.message ?? 'Falha ao iniciar chamada' };
+
+      // Upsert imediato com o whatsapp_call_id retornado pelo SDK.
+      const whatsappCallId: string | null = res?.call?.id ? String(res.call.id) : null;
+      if (whatsappCallId) {
+        try {
+          const nowIso = new Date().toISOString();
+          await (supabase as any).from('wavoip_call_logs').upsert({
+            whatsapp_call_id: whatsappCallId,
+            client_id: clientId,
+            app_user_id: user?.id ?? null,
+            device_id: device?.id ?? null,
+            direction: 'outbound',
+            status: 'started',
+            to_number: digits,
+            started_at: nowIso,
+            recording_status: 'unavailable',
+            metadata: { source: 'webphone.start', displayName: resolvedDisplayName, peer: res?.call?.peer ?? null },
+          }, { onConflict: 'whatsapp_call_id' });
+        } catch (e) { console.warn('[Wavoip] start upsert failed', e); }
+      }
       return { ok: true };
     } catch (e: any) {
       return { ok: false, error: e?.message ?? 'Erro ao chamar' };
     }
-  }, [ensureWebphone]);
+  }, [ensureWebphone, clientId, user?.id]);
 
   const openWidget = useCallback(() => {
     const wp: any = (window as any).wavoip;
