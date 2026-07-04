@@ -1,36 +1,71 @@
-## Diagnóstico
+## Objetivo
 
-A falha atual não é erro do payload nem da API Wavoip ainda. A chamada do frontend está indo para:
+Ajustar o webphone Wavoip para (1) usar tema claro por padrão, (2) exibir como `displayName` da chamada o **`device_name` que o usuário gravou na aba "Meus dispositivos" em `/wavoip`** ao habilitar o dispositivo, e (3) capturar corretamente o `whatsapp_call_id` no início da chamada, gravar no histórico e, ao encerrar, buscar os dados completos da chamada na API Wavoip para consolidar em `wavoip_call_logs` — sem quebrar as funcionalidades atuais (QR/conexão, provisionamento, webhook oficial, gravação).
 
-`wavoip-device-provision`
+## Descobertas da documentação (webphone SDK)
 
-Mas o backend respondeu `404 Requested function was not found`, e não existem logs dessa função. Isso indica que a função criada no código ainda não está disponível no backend publicado. Também há uma função antiga com nome parecido (`wavoip-provision-device`) já configurada, o que aumenta o risco de desalinhamento de nomes.
+- `webphone.render({...})` aceita `theme: "light" | "dark" | "system"` e `callSettings.displayName` (fallback global).
+- `api.call.start(to, { displayName, fromTokens })` retorna `{ call: { id, peer }, err }`. `call.id` é o `whatsapp_call_id`. `displayName` aqui **sobrescreve** o global — é aqui que injetaremos o `device_name`.
+- Eventos reais expostos por `api.on`: `call:started` (payload com `id` e `peer`), `call:accepted`, `call:ended` (`{ id, status }` com status terminal `ENDED | FAILED | REJECTED | NOT_ANSWERED`), `offer:received`.
+- **Não existem** os eventos `call:answered` nem `call:rejected` que o código atual escuta — por isso nunca disparam.
 
-## Plano de correção
+## Origem do `displayName`
 
-1. **Padronizar o nome da função usada no fluxo novo**
-   - Manter `wavoip-device-provision` como função oficial do novo cadastro automático, pois é o nome que contém a lógica correta de `/v2/sales/buy-device`.
-   - Garantir que ela esteja registrada/publicada no backend.
+- Tabela `wavoip_devices`, coluna `device_name` — preenchida em `/wavoip` no fluxo `handleClaim` (`WavoipPage.tsx`) quando o usuário clica em "Adicionar dispositivo" e informa o nome.
+- Um usuário (`app_user_id`) pode ter mais de um dispositivo conectado. Regra:
+  - Se `startCall` receber um token específico → usa o `device_name` daquele dispositivo.
+  - Senão, escolhe o primeiro dispositivo do usuário com `connection_status='connected'` (ordem por `created_at`) e usa o `device_name` dele.
+  - Fallback final: `"Atendimento"` (só se o dispositivo não tiver nome salvo).
 
-2. **Implantar e validar a função correta**
-   - Publicar `wavoip-device-provision` no backend.
-   - Testar uma chamada direta com payload mínimo para confirmar que a resposta deixa de ser `404` e passa a retornar erro controlado de validação quando faltar campo obrigatório.
+## Mudanças
 
-3. **Adicionar proteção contra chamadas presas/erro genérico no frontend**
-   - Melhorar o tratamento de erro em `useActivateWavoipForUser` para mostrar a causa real quando a função retornar erro JSON.
-   - Se ainda houver erro de rede/função inexistente, exibir mensagem específica: “Função de provisionamento Wavoip indisponível”, em vez de apenas “Failed to send a request to the Edge Function”.
+### 1) `src/contexts/WavoipContext.tsx`
 
-4. **Revisar função antiga duplicada**
-   - Confirmar que `wavoip-provision-device` não é mais usada no fluxo novo.
-   - Não excluir agora para evitar quebrar integrações antigas, mas deixar o fluxo de clientes usando somente `wavoip-device-provision`.
+- No `webphone.render(...)`: `theme: 'light'` (era `system`). Manter `callSettings.displayName: 'Atendimento'` apenas como fallback global.
+- Ampliar o state do contexto com `userDevices: Array<{ id, token, name, connection_status }>`, populado dentro de `loadPlanAndDevices` a partir do mesmo SELECT em `wavoip_devices` (adicionando `id, device_name` às colunas).
+- Refatorar `startCall(phone, displayName?)`:
+  - Escolher `device` conforme a regra acima.
+  - Chamar `wp.call.start(digits, { displayName: displayName ?? device.name ?? 'Atendimento', fromTokens: [device.token] })`.
+  - Ao receber `{ call, err }`, se `call.id` existir, upsert imediato em `wavoip_call_logs` com `whatsapp_call_id = call.id`, `status='started'`, `direction='outbound'`, `to_number=digits`, `client_id`, `app_user_id`, `device_id=device.id`, `started_at=now`.
+- Reescrever os listeners de `on`:
+  - Trocar `['call:started','call:answered','call:accepted','call:ended','call:rejected']` por `['call:started','call:accepted','call:ended','offer:received']`.
+  - `call:started`: upsert `status='started'`; guarda `id` no cache por `device_token`.
+  - `call:accepted`: upsert `status='answered'`, `answered_at=now`.
+  - `call:ended`: mapear `status` (`ENDED→ended`, `FAILED→failed`, `REJECTED→rejected`, `NOT_ANSWERED→not_answered`), `ended_at=now`, `recording_status='pending'`; disparar o retry existente de gravação **e** invocar a nova edge function `wavoip-fetch-call-details` (ver item 3).
+  - `offer:received`: upsert com `direction='inbound'`, `status='ringing'`, `from_number` de `offer.peer`.
+- Manter o restante do fluxo (conexão QR, `refreshDevices`, `prefillDialer`, webhook oficial) intacto.
 
-5. **Validação final**
-   - Testar criação de dispositivo com o mesmo payload visto na falha:
-     - `provider_id`
-     - `plan_id`
-     - `client_id`
-     - `user_plan_id`
-     - `device_name: Comercial`
-     - `channels: 1`
-   - Confirmar que o erro de função não encontrada desapareceu.
-   - Se a API Wavoip retornar erro real depois disso, capturar e exibir o detalhe para ajustar o payload/API sem mascarar como falha de Edge Function.
+### 2) `wavoip_call_logs` (sem mudança de esquema)
+
+- Reutilizar colunas existentes; upserts continuam idempotentes por `onConflict: 'whatsapp_call_id'` (compatível com o webhook oficial que é a fonte da verdade).
+
+### 3) Nova edge function `wavoip-fetch-call-details`
+
+- Body: `{ whatsapp_call_id: string, device_token?: string }`.
+- Resolve o dispositivo pela linha atual em `wavoip_call_logs` (ou pelo `device_token`) para obter `provider_id` e o Bearer JWT via `wavoip-providers` action `get_token`.
+- `GET {api_base}/calls/whatsapp/{whatsapp_call_id}` com o JWT.
+- Upsert em `wavoip_call_logs` mesclando: `status`, `direction`, `from_number`, `to_number`, `whatsapp_jid`, `started_at`, `answered_at`, `ended_at`, `duration_seconds`, `end_reason`, `metadata.details=payload`. Não sobrescreve `recording_status`/`recording_url`.
+- CORS padrão, sem alteração em `config.toml`.
+
+### 4) Ajustes de UI
+
+- Nenhuma mudança visual além do tema. `WavoipCallButton` e `HeaderDialer` seguem chamando `startCall` sem `displayName` — o contexto injeta o `device_name` automaticamente.
+
+## Segurança para não quebrar o que já funciona
+
+- Webhook oficial `wavoip-call-webhook` continua sendo a fonte da verdade.
+- `wavoip-fetch-recording`, `wavoip-device-provision`, `wavoip-connect-device`, `wavoip-configure-webhook` não são tocadas.
+- Fallbacks DOM/iframe de `prefillDialer` preservados.
+
+## Arquivos a editar / criar
+
+- editar `src/contexts/WavoipContext.tsx`
+- criar `supabase/functions/wavoip-fetch-call-details/index.ts`
+- atualizar `mem/integrations/wavoip/api-reference.md` (eventos reais do SDK + nova função + regra do displayName = device_name).
+
+## Validação
+
+1. `/wavoip` abre em tema claro.
+2. Discar → `wavoip_call_logs` recebe linha imediata com `whatsapp_call_id` no `status='started'`.
+3. Destinatário vê como caller o `device_name` cadastrado em `/wavoip` (não mais "Atendimento").
+4. Ao encerrar → `status`, `ended_at`, `duration_seconds` e `metadata.details` consolidados via `/calls/whatsapp/:id`.
