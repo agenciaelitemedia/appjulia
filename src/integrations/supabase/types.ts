@@ -7705,11 +7705,14 @@ export type Database = {
           id: string
           last_seen_at: string | null
           metadata: Json
+          provider_id: string | null
           provisioned_at: string | null
           status: string
           updated_at: string
           user_id: string | null
           user_plan_id: string | null
+          wavoip_device_id: number | null
+          wavoip_raw: Json | null
           webhook_checked_at: string | null
           webhook_last_error: string | null
           webhook_last_received_at: string | null
@@ -7732,11 +7735,14 @@ export type Database = {
           id?: string
           last_seen_at?: string | null
           metadata?: Json
+          provider_id?: string | null
           provisioned_at?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
           user_plan_id?: string | null
+          wavoip_device_id?: number | null
+          wavoip_raw?: Json | null
           webhook_checked_at?: string | null
           webhook_last_error?: string | null
           webhook_last_received_at?: string | null
@@ -7759,11 +7765,14 @@ export type Database = {
           id?: string
           last_seen_at?: string | null
           metadata?: Json
+          provider_id?: string | null
           provisioned_at?: string | null
           status?: string
           updated_at?: string
           user_id?: string | null
           user_plan_id?: string | null
+          wavoip_device_id?: number | null
+          wavoip_raw?: Json | null
           webhook_checked_at?: string | null
           webhook_last_error?: string | null
           webhook_last_received_at?: string | null
@@ -7774,6 +7783,13 @@ export type Database = {
           whatsapp_number?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wavoip_devices_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "wavoip_providers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wavoip_devices_user_plan_id_fkey"
             columns: ["user_plan_id"]
@@ -7848,6 +7864,7 @@ export type Database = {
           max_devices: number
           monthly_price: number
           name: string
+          provider_id: string | null
           sort_order: number
           updated_at: string
         }
@@ -7862,6 +7879,7 @@ export type Database = {
           max_devices?: number
           monthly_price?: number
           name: string
+          provider_id?: string | null
           sort_order?: number
           updated_at?: string
         }
@@ -7876,10 +7894,19 @@ export type Database = {
           max_devices?: number
           monthly_price?: number
           name?: string
+          provider_id?: string | null
           sort_order?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wavoip_plans_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "wavoip_providers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wavoip_providers: {
         Row: {
