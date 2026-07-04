@@ -1,73 +1,29 @@
-## Objetivo
+## Problema
 
-Adicionar aba **Provedores** em `/admin/wavoip` (após Dispositivos) para cadastrar contas Wavoip. Ao salvar, faz login na Wavoip API e persiste o token retornado.
+O `list` já funcionou (a aba abre vazia), mas ao chamar `create` o cliente recebe **"Failed to send a request to the Edge Function"**. Esse erro do supabase-js aparece quando a função **retorna sem uma resposta HTTP válida** (crash não capturado, boot falhou, ou timeout). Como o handler está inteiro dentro de `try/catch`, o suspeito mais provável é o **fetch para `https://api.wavoip.com/v2/login`** — se a Wavoip demorar/derrubar a conexão, o `fetch` estoura sem timeout e a runtime encerra a função com erro de rede antes de responder.
 
-## 1. Banco (migration)
+Sinais:
+- `list` (não chama Wavoip) funciona.
+- `create` (chama Wavoip antes de responder) falha.
+- Não há logs de erro em `wavoip-providers` porque a runtime é encerrada antes do `console.log`.
 
-Tabela `wavoip_providers`:
-- `id` uuid PK
-- `name` text (nome do provedor)
-- `type` text CHECK IN (`wavoip_multicanal`, `wavoip_free`)
-- `api_base` text NOT NULL DEFAULT `https://api.wavoip.com`
-- `username` text (email)
-- `password` text (em texto plano, armazenado no banco — sem criptografia extra; RLS restringe leitura só a admins)
-- `token` text (JWT retornado do login)
-- `token_updated_at` timestamptz
-- `last_login_status` text, `last_login_error` text
-- `is_active` boolean default true
-- `created_by` uuid, `created_at`, `updated_at` (+ trigger update_updated_at)
+## Correção
 
-GRANTs: `SELECT/INSERT/UPDATE/DELETE` para `authenticated`, `ALL` para `service_role`. RLS: apenas admins (`has_role(auth.uid(),'admin')`) fazem CRUD.
+1. **Tornar o login opcional/tolerante a falhas de rede** em `supabase/functions/wavoip-providers/index.ts`:
+   - Envolver `wavoipLogin` com `AbortController` + timeout de 10s.
+   - Capturar `TypeError` / `AbortError` e retornar `{ ok:false, error }` — **nunca deixar o fetch derrubar a função**.
+   - Adicionar `console.log`/`console.error` no início e no fim de cada action para diagnóstico futuro.
+2. **Sempre persistir o provedor primeiro** e tentar login depois (para `create` e `update`):
+   - Insere o registro com `last_login_status='pending'`.
+   - Chama `wavoipLogin`; em qualquer erro persiste `last_login_status='error'` + `last_login_error` e devolve `200` com `warning`.
+   - Assim, mesmo se a Wavoip estiver fora, o cadastro conclui e o usuário pode usar "Refazer login" depois.
+3. **Redeploy explícito** de `wavoip-providers` após a alteração (`supabase--deploy_edge_functions`) e validar com `supabase--curl_edge_functions` chamando `action:"create"` com credenciais fake para confirmar que a resposta HTTP chega (esperado: `200` com `warning`).
+4. **Frontend (`useWavoipProviders.ts`)**: exibir `res.warning` no toast do `useCreateWavoipProvider`/`useUpdateWavoipProvider` para o usuário saber que o token não foi obtido.
 
-Sem secrets novos.
+## Arquivos alterados
 
-## 2. Edge Function `wavoip-providers`
+- `supabase/functions/wavoip-providers/index.ts` — timeout + try/catch em `wavoipLogin`, insert-first, logs.
+- `src/pages/admin/wavoip/hooks/useWavoipProviders.ts` — propagar `warning`.
+- `src/pages/admin/wavoip/components/WavoipProvidersTab.tsx` — mostrar `warning` no toast.
 
-Actions:
-- `list` → retorna provedores (mascara `password` e `token` no retorno para o frontend)
-- `create` → recebe `{name, type, api_base, username, password}`. Chama `POST {api_base}/v2/login` com `{email:username, password}`, extrai `data.token`, insere no banco com `token`, `token_updated_at=now()`, `last_login_status='ok'`. Em erro grava `last_login_status='error'` + `last_login_error`.
-- `update` → edita cadastro; se senha/username/api_base mudar, refaz login
-- `delete` → remove
-- `refresh_token(id)` → refaz login com credenciais salvas
-- `get_token(id)` → helper interno (para outras edge functions) retorna token bruto
-
-Validação com Zod, CORS padrão, verificação de admin via `has_role`.
-
-## 3. Frontend
-
-- `src/pages/admin/wavoip/WavoipAdminPage.tsx`: adicionar `<TabsTrigger value="providers">` (ícone `Server`) entre Dispositivos e Histórico, `grid-cols-6`.
-- `src/pages/admin/wavoip/components/WavoipProvidersTab.tsx` (novo):
-  - Tabela: Nome, Tipo (badge), API Base, Usuário, Status Token (OK/Erro + data), Ações (Editar, Refazer Login, Excluir com dupla confirmação)
-  - Botão "Novo Provedor" → dialog com formulário:
-    - Nome (text)
-    - Tipo (Select: Wavoip Multicanal / Wavoip Free)
-    - API Base (text, default preenchido `https://api.wavoip.com`)
-    - Usuário (email)
-    - Senha (password)
-  - Toast: "Login realizado e token salvo" ou mensagem de erro da Wavoip
-- `src/pages/admin/wavoip/hooks/useWavoipProviders.ts` (novo): CRUD via `supabase.functions.invoke('wavoip-providers', ...)`.
-
-## 4. Memória Wavoip API
-
-- Novo `mem/integrations/wavoip/api-reference.md` com resumo estruturado de todos endpoints do Postman (`API_-_Wavoip.postman_collection.json`): Auth (Login), Devices (list/calls), demais WAV Painel — método, path, body, resposta.
-- Atualizar `mem/index.md`:
-  `- [Wavoip API](mem://integrations/wavoip/api-reference) — Referência completa endpoints Wavoip V2 e WAV Painel`
-
-## Detalhes técnicos
-
-- Login: `POST {api_base}/v2/login` body `{email, password}` → `data.token` (JWT)
-- Token JWT sem expiração curta observada; `refresh_token` disponível sob demanda
-- Password em texto plano no banco, protegido apenas por RLS de admin (conforme solicitado)
-
-## Arquivos
-
-Novos:
-- `supabase/migrations/<ts>_wavoip_providers.sql`
-- `supabase/functions/wavoip-providers/index.ts`
-- `src/pages/admin/wavoip/components/WavoipProvidersTab.tsx`
-- `src/pages/admin/wavoip/hooks/useWavoipProviders.ts`
-- `mem/integrations/wavoip/api-reference.md`
-
-Editados:
-- `src/pages/admin/wavoip/WavoipAdminPage.tsx`
-- `mem/index.md`
+Sem mudanças de schema, sem novos secrets.
