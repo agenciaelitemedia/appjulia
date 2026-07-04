@@ -35,11 +35,14 @@ function sanitize(row: ProviderRow) {
 
 async function wavoipLogin(apiBase: string, username: string, password: string) {
   const url = `${apiBase.replace(/\/$/, '')}/v2/login`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
   try {
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: username, password }),
+      signal: ctrl.signal,
     });
     const raw = await resp.text();
     let data: any = {};
@@ -51,7 +54,13 @@ async function wavoipLogin(apiBase: string, username: string, password: string) 
     if (!token) return { ok: false as const, error: 'Token não retornado pelo endpoint de login', data };
     return { ok: true as const, token: String(token), data };
   } catch (e) {
-    return { ok: false as const, error: String((e as Error)?.message ?? e) };
+    const msg = (e as Error)?.name === 'AbortError'
+      ? 'Timeout ao conectar na Wavoip (10s)'
+      : String((e as Error)?.message ?? e);
+    console.error('[wavoip-providers] login error:', msg);
+    return { ok: false as const, error: msg };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -62,6 +71,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({} as any));
     const action: string = body?.action ?? '';
     const data = body?.data ?? {};
+    console.log('[wavoip-providers] action:', action);
 
     switch (action) {
       case 'list': {
@@ -82,18 +92,21 @@ Deno.serve(async (req) => {
           return json(400, { error: 'Tipo inválido' });
         }
         const base = (api_base || 'https://api.wavoip.com').trim();
-        const login = await wavoipLogin(base, username, password);
-        const insert = {
+        // Insert first so the provider is saved even if Wavoip is down
+        const { data: row, error } = await admin.from('wavoip_providers').insert({
           name, type, api_base: base, username, password,
-          token: login.ok ? login.token : null,
-          token_updated_at: login.ok ? new Date().toISOString() : null,
-          last_login_status: login.ok ? 'ok' : 'error',
-          last_login_error: login.ok ? null : login.error,
-        };
-        const { data: row, error } = await admin.from('wavoip_providers').insert(insert).select('*').single();
+          last_login_status: 'pending',
+        }).select('*').single();
         if (error) return json(500, { error: error.message });
-        if (!login.ok) return json(200, { data: sanitize(row as ProviderRow), warning: `Provedor salvo, mas login falhou: ${login.error}` });
-        return json(200, { data: sanitize(row as ProviderRow) });
+
+        const login = await wavoipLogin(base, username, password);
+        const patch = login.ok
+          ? { token: login.token, token_updated_at: new Date().toISOString(), last_login_status: 'ok', last_login_error: null }
+          : { last_login_status: 'error', last_login_error: login.error };
+        const { data: updated } = await admin.from('wavoip_providers').update(patch).eq('id', (row as any).id).select('*').single();
+        const final = (updated ?? row) as ProviderRow;
+        if (!login.ok) return json(200, { data: sanitize(final), warning: `Provedor salvo, mas login falhou: ${login.error}` });
+        return json(200, { data: sanitize(final) });
       }
 
       case 'update': {
