@@ -204,7 +204,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
                   // Consolidar dados oficiais da chamada via API Wavoip.
                   try {
                     await supabase.functions.invoke('wavoip-fetch-call-details', {
-                      body: { whatsapp_call_id: String(whatsappCallId), device_token: deviceToken },
+                      body: { whatsapp_call_id: String(whatsappCallId), device_token: deviceToken, client_id: clientId },
                     });
                   } catch (e) { console.warn('[Wavoip] fetch-call-details failed', e); }
                   if (deviceToken) currentCallByToken.delete(deviceToken);
