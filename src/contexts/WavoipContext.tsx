@@ -150,17 +150,24 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
           const upsertCallLog = async (ev: string, payload: any) => {
             try {
               const active = readActiveCall();
-              const isEnd = ev.includes('ended') || ev.includes('rejected');
-              const status = ev.includes('answered') || ev.includes('accepted') ? 'answered'
-                : ev.includes('ended') ? 'ended'
-                : ev.includes('rejected') ? 'rejected' : 'started';
+              const isEnd = ev === 'call:ended';
+              // Mapeamento oficial dos status terminais do SDK.
+              const endedStatusMap: Record<string, string> = {
+                ENDED: 'ended', FAILED: 'failed', REJECTED: 'rejected', NOT_ANSWERED: 'not_answered',
+              };
+              const rawEndStatus = String(payload?.status ?? '').toUpperCase();
+              const status = ev === 'call:accepted' ? 'answered'
+                : ev === 'call:ended' ? (endedStatusMap[rawEndStatus] ?? 'ended')
+                : ev === 'offer:received' ? 'ringing'
+                : 'started';
 
               const deviceToken = payload?.device_token ?? active?.device_token ?? null;
               const whatsappCallId = payload?.id ?? payload?.call?.id ?? active?.id
                 ?? (deviceToken ? currentCallByToken.get(deviceToken) : null);
               if (whatsappCallId && deviceToken) currentCallByToken.set(deviceToken, String(whatsappCallId));
 
-              const rawDir = (payload?.direction || payload?.call?.direction || active?.direction || 'outbound').toString().toLowerCase();
+              const rawDir = (payload?.direction || payload?.call?.direction || active?.direction
+                || (ev === 'offer:received' ? 'inbound' : 'outbound')).toString().toLowerCase();
               const direction = rawDir.includes('in') ? 'inbound' : 'outbound';
               const peer = payload?.peer || payload?.call?.peer || active?.peer || {};
               const peerNumber = peer?.number ?? peer?.phone ?? null;
@@ -194,6 +201,12 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
                   .upsert(baseRow, { onConflict: 'whatsapp_call_id' });
                 if (isEnd) {
                   scheduleRecordingFetch(String(whatsappCallId));
+                  // Consolidar dados oficiais da chamada via API Wavoip.
+                  try {
+                    await supabase.functions.invoke('wavoip-fetch-call-details', {
+                      body: { whatsapp_call_id: String(whatsappCallId), device_token: deviceToken },
+                    });
+                  } catch (e) { console.warn('[Wavoip] fetch-call-details failed', e); }
                   if (deviceToken) currentCallByToken.delete(deviceToken);
                 }
               }
