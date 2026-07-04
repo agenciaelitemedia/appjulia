@@ -5,7 +5,19 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // Auth: device_token via query string (?device_token=...). Wavoip não assina o body.
 // Doc: https://app.wavoip.com (Integrações > Webhook).
 
-const TERMINAL = new Set(['ENDED', 'REJECTED', 'NOT_ANSWERED', 'FAILED', 'HANDLED_REMOTELY']);
+const START = new Set(['CALLING', 'RINGING', 'INCOMING_RING', 'OUTGOING_RING', 'OUTGOING_CALLING', 'CONNECTING']);
+const ANSWERED = new Set(['ACTIVE', 'ACCEPT', 'ACCEPTED']);
+const TERMINAL = new Set(['ENDED', 'CANCELLED', 'REJECTED', 'NOT_ANSWERED', 'FAILED', 'HANDLED_REMOTELY', 'MISSED']);
+
+const STATUS_CANON: Record<string, string> = {
+  CALLING: 'calling', OUTGOING_CALLING: 'calling',
+  RINGING: 'ringing', INCOMING_RING: 'ringing', OUTGOING_RING: 'ringing',
+  CONNECTING: 'connecting',
+  ACTIVE: 'active', ACCEPT: 'active', ACCEPTED: 'active',
+  ENDED: 'ended', CANCELLED: 'cancelled', REJECTED: 'rejected',
+  NOT_ANSWERED: 'not_answered', FAILED: 'failed',
+  HANDLED_REMOTELY: 'handled_remotely', MISSED: 'missed',
+};
 
 function mapDeviceStatus(s?: string | null): string {
   const v = String(s ?? '').toLowerCase();
@@ -122,22 +134,22 @@ Deno.serve(async (req) => {
       }
 
       const rawStatus = String(payload?.status ?? 'NONE').toUpperCase();
-      const status = rawStatus.toLowerCase();
+      const status = STATUS_CANON[rawStatus] ?? rawStatus.toLowerCase();
       const rawDir = String(payload?.direction ?? 'OUTCOMING').toUpperCase();
       const direction = rawDir.startsWith('IN') ? 'inbound' : 'outbound';
       const caller = pickStr(payload?.caller);
       const receiver = pickStr(payload?.receiver);
-      const duration = Number(payload?.duration ?? 0) || 0;
+      const rawDuration = Number(payload?.duration ?? 0) || 0;
       const nowIso = new Date().toISOString();
 
       // Carrega linha existente p/ preservar timestamps anteriores em UPDATEs parciais.
       const { data: existing } = await admin
         .from('wavoip_call_logs')
-        .select('id,started_at,answered_at,ended_at,from_number,to_number')
+        .select('id,started_at,answered_at,ended_at,from_number,to_number,duration_seconds,end_reason,recording_status')
         .eq('whatsapp_call_id', wid).maybeSingle();
 
-      const isStartish = ['INCOMING_RING', 'OUTGOING_RING', 'OUTGOING_CALLING', 'CONNECTING'].includes(rawStatus);
-      const isAnswered = rawStatus === 'ACTIVE';
+      const isStartish = START.has(rawStatus);
+      const isAnswered = ANSWERED.has(rawStatus);
       const isTerminal = TERMINAL.has(rawStatus);
 
       const row: any = {
@@ -146,11 +158,11 @@ Deno.serve(async (req) => {
         direction, status,
         from_number: caller ?? existing?.from_number ?? null,
         to_number: receiver ?? existing?.to_number ?? null,
-        duration_seconds: duration,
+        duration_seconds: rawDuration > 0 ? rawDuration : (existing?.duration_seconds ?? 0),
         started_at: existing?.started_at ?? (isStartish || isAnswered || isTerminal ? nowIso : null),
-        answered_at: existing?.answered_at ?? (isAnswered ? nowIso : null),
+        answered_at: existing?.answered_at ?? (isAnswered ? nowIso : (isTerminal && rawDuration > 0 ? nowIso : null)),
         ended_at: existing?.ended_at ?? (isTerminal ? nowIso : null),
-        end_reason: isTerminal ? rawStatus : null,
+        end_reason: isTerminal ? rawStatus : (existing?.end_reason ?? null),
         metadata: { source: 'webhook', last_event: action, payload },
       };
       if (isTerminal && existing?.recording_status !== 'available') {
