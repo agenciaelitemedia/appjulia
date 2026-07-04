@@ -33,6 +33,9 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   const [connectedNumbers, setConnectedNumbers] = useState<string[]>([]);
   const apiRef = useRef<WavoipApi | null>(null);
   const listenersBoundRef = useRef(false);
+  // Dispositivos do usuário logado — usados para injetar `displayName` = device_name
+  // gravado em /wavoip ao habilitar o dispositivo, e para escolher o `fromTokens`.
+  const userDevicesRef = useRef<Array<{ id: string; token: string; name: string | null; connection_status: string }>>([]);
 
   const loadPlanAndDevices = useCallback(async (): Promise<{ active: boolean; tokens: string[] }> => {
     if (!clientId) {
@@ -55,7 +58,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
     const { data: devs } = await (supabase as any)
       .from('wavoip_devices')
-      .select('device_token,status,connection_status,whatsapp_jids')
+      .select('id,device_token,device_name,status,connection_status,whatsapp_jids')
       .eq('client_id', clientId)
       .eq('app_user_id', user?.id ?? -1)
       .eq('connection_status', 'connected');
@@ -67,6 +70,12 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
     setDevicesCount(tokens.length);
     setConnectedNumbers(numbers);
+    userDevicesRef.current = (devs ?? []).map((d: any) => ({
+      id: d.id,
+      token: d.device_token,
+      name: d.device_name ?? null,
+      connection_status: d.connection_status,
+    }));
     return { active: true, tokens };
   }, [clientId, user?.id]);
 
@@ -80,7 +89,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     try {
       const webphone = await loadWebphone();
       const api = await webphone.render({
-        theme: 'system',
+        theme: 'light',
         buttonPosition: 'bottom-right',
         position: 'bottom-right',
         widget: { startOpen: false, showWidgetButton: true },
@@ -141,17 +150,24 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
           const upsertCallLog = async (ev: string, payload: any) => {
             try {
               const active = readActiveCall();
-              const isEnd = ev.includes('ended') || ev.includes('rejected');
-              const status = ev.includes('answered') || ev.includes('accepted') ? 'answered'
-                : ev.includes('ended') ? 'ended'
-                : ev.includes('rejected') ? 'rejected' : 'started';
+              const isEnd = ev === 'call:ended';
+              // Mapeamento oficial dos status terminais do SDK.
+              const endedStatusMap: Record<string, string> = {
+                ENDED: 'ended', FAILED: 'failed', REJECTED: 'rejected', NOT_ANSWERED: 'not_answered',
+              };
+              const rawEndStatus = String(payload?.status ?? '').toUpperCase();
+              const status = ev === 'call:accepted' ? 'answered'
+                : ev === 'call:ended' ? (endedStatusMap[rawEndStatus] ?? 'ended')
+                : ev === 'offer:received' ? 'ringing'
+                : 'started';
 
               const deviceToken = payload?.device_token ?? active?.device_token ?? null;
               const whatsappCallId = payload?.id ?? payload?.call?.id ?? active?.id
                 ?? (deviceToken ? currentCallByToken.get(deviceToken) : null);
               if (whatsappCallId && deviceToken) currentCallByToken.set(deviceToken, String(whatsappCallId));
 
-              const rawDir = (payload?.direction || payload?.call?.direction || active?.direction || 'outbound').toString().toLowerCase();
+              const rawDir = (payload?.direction || payload?.call?.direction || active?.direction
+                || (ev === 'offer:received' ? 'inbound' : 'outbound')).toString().toLowerCase();
               const direction = rawDir.includes('in') ? 'inbound' : 'outbound';
               const peer = payload?.peer || payload?.call?.peer || active?.peer || {};
               const peerNumber = peer?.number ?? peer?.phone ?? null;
@@ -185,6 +201,12 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
                   .upsert(baseRow, { onConflict: 'whatsapp_call_id' });
                 if (isEnd) {
                   scheduleRecordingFetch(String(whatsappCallId));
+                  // Consolidar dados oficiais da chamada via API Wavoip.
+                  try {
+                    await supabase.functions.invoke('wavoip-fetch-call-details', {
+                      body: { whatsapp_call_id: String(whatsappCallId), device_token: deviceToken },
+                    });
+                  } catch (e) { console.warn('[Wavoip] fetch-call-details failed', e); }
                   if (deviceToken) currentCallByToken.delete(deviceToken);
                 }
               }
@@ -193,7 +215,9 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
             } catch (err) { console.warn('[Wavoip] log upsert failed', err); }
           };
 
-          ['call:started', 'call:answered', 'call:accepted', 'call:ended', 'call:rejected'].forEach((e) => {
+          // Eventos reais do SDK Wavoip (docs: /webphone/referencia/api-publica).
+          // NÃO existem `call:answered` nem `call:rejected` — `call:ended` traz o status terminal.
+          ['call:started', 'call:accepted', 'call:ended', 'offer:received'].forEach((e) => {
             try { wp?.on?.(e, (payload: any) => upsertCallLog(e, payload)); } catch {}
           });
         } catch {}
@@ -249,14 +273,43 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     const digits = (phone || '').replace(/\D/g, '');
     if (!digits) return { ok: false, error: 'Telefone inválido' };
     try { wp.widget?.open?.(); } catch {}
+
+    // Escolhe o dispositivo do usuário para originar a chamada.
+    // O displayName mostrado ao destinatário é o `device_name` gravado em /wavoip.
+    const devices = userDevicesRef.current ?? [];
+    const device = devices.find((d) => d.connection_status === 'connected') ?? devices[0] ?? null;
+    const resolvedDisplayName = displayName ?? device?.name ?? 'Atendimento';
+    const startConfig: any = { displayName: resolvedDisplayName };
+    if (device?.token) startConfig.fromTokens = [device.token];
+
     try {
-      const res = await wp.call.start(digits, displayName ? { displayName } : undefined);
-      if ((res as any)?.err) return { ok: false, error: (res as any).err?.message ?? 'Falha ao iniciar chamada' };
+      const res: any = await wp.call.start(digits, startConfig);
+      if (res?.err) return { ok: false, error: res.err?.message ?? 'Falha ao iniciar chamada' };
+
+      // Upsert imediato com o whatsapp_call_id retornado pelo SDK.
+      const whatsappCallId: string | null = res?.call?.id ? String(res.call.id) : null;
+      if (whatsappCallId) {
+        try {
+          const nowIso = new Date().toISOString();
+          await (supabase as any).from('wavoip_call_logs').upsert({
+            whatsapp_call_id: whatsappCallId,
+            client_id: clientId,
+            app_user_id: user?.id ?? null,
+            device_id: device?.id ?? null,
+            direction: 'outbound',
+            status: 'started',
+            to_number: digits,
+            started_at: nowIso,
+            recording_status: 'unavailable',
+            metadata: { source: 'webphone.start', displayName: resolvedDisplayName, peer: res?.call?.peer ?? null },
+          }, { onConflict: 'whatsapp_call_id' });
+        } catch (e) { console.warn('[Wavoip] start upsert failed', e); }
+      }
       return { ok: true };
     } catch (e: any) {
       return { ok: false, error: e?.message ?? 'Erro ao chamar' };
     }
-  }, [ensureWebphone]);
+  }, [ensureWebphone, clientId, user?.id]);
 
   const openWidget = useCallback(() => {
     const wp: any = (window as any).wavoip;

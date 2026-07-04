@@ -74,3 +74,15 @@ Auth: Bearer JWT obtido em `/v2/login`, salvo em `wavoip_providers.token`.
 - Plano Wavoip (`wavoip_plans`) tem `provider_id` obrigatório — define qual conta Wavoip cria os dispositivos.
 - Edge function `wavoip-device-provision`: recebe `{ provider_id, plan_id, client_id, user_plan_id, device_name, channels }`, faz `POST /v2/sales/buy-device` (`{type:"FREE",name}` ou `{type:"PAID",deviceProps:[{name,channels,count:1}]}`, name = `JU_<clientId>_<device_name>`), depois `GET /devices/:id` para pegar `token`/`phone`/`id_server`, e insere em `wavoip_devices` com `provider_id`, `wavoip_device_id`, `wavoip_raw` (jsonb do retorno) e `device_token`.
 - Ativação do cliente em `useActivateWavoipForUser` chama a edge function uma vez por dispositivo solicitado (o campo `device_names[]` substitui a antiga seleção de pool). Se qualquer criação falhar, o `wavoip_user_plans` é marcado cancelado com o motivo em `notes`.
+
+### Discador webphone (SDK) — eventos e displayName
+- `webphone.render({ theme: 'light', callSettings: { displayName: 'Atendimento' }, ... })`. O tema padrão do app é claro.
+- `api.call.start(digits, { displayName, fromTokens: [device_token] })` retorna `{ call: { id, peer }, err }`. `call.id` é o `whatsapp_call_id`.
+- `displayName` por chamada = `wavoip_devices.device_name` gravado em `/wavoip` (aba "Meus dispositivos") pelo próprio usuário ao habilitar o dispositivo. Isso sobrescreve o `callSettings.displayName` global.
+- Eventos reais do SDK escutáveis via `api.on(evt, cb)`:
+  - `call:started` → `CallOutgoingProps` (contém `id`, `peer`).
+  - `call:accepted` → `CallActiveProps` (peer aceitou).
+  - `call:ended` → `{ id, status }` com status `ENDED | FAILED | REJECTED | NOT_ANSWERED`.
+  - `offer:received` → chamada entrante.
+  - NÃO existem `call:answered` nem `call:rejected`.
+- Edge function `wavoip-fetch-call-details`: body `{ whatsapp_call_id, device_token? }`. Descobre `provider_id` pelo dispositivo, obtém JWT via `wavoip-providers` (`get_token`), chama `GET {api_base}/calls/whatsapp/:id` e faz upsert idempotente em `wavoip_call_logs` (não sobrescreve `recording_status`/`recording_url`). Disparada pelo `WavoipContext` no `call:ended`.
