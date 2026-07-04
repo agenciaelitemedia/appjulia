@@ -163,6 +163,37 @@ export function useWavoipUserPlans() {
   });
 }
 
+async function getWavoipProvisionFailure(deviceName: string, invErr: any, res: any) {
+  const functionError = invErr?.message ? String(invErr.message) : '';
+  const response = invErr?.context;
+
+  if (response && typeof response.status === 'number') {
+    let details = '';
+    try {
+      const data = await response.clone().json();
+      details = data?.error || data?.message || JSON.stringify(data);
+    } catch {
+      try {
+        details = await response.clone().text();
+      } catch {
+        details = '';
+      }
+    }
+
+    if (response.status === 404) {
+      return `${deviceName}: Função de provisionamento Wavoip indisponível (não publicada no backend)`;
+    }
+
+    return `${deviceName}: ${details || functionError || `Erro HTTP ${response.status} na função Wavoip`}`;
+  }
+
+  if (functionError.includes('Failed to send a request to the Edge Function') || functionError.includes('Failed to fetch')) {
+    return `${deviceName}: Função de provisionamento Wavoip indisponível ou sem resposta`;
+  }
+
+  return `${deviceName}: ${functionError || res?.error || res?.message || 'Falha desconhecida no provisionamento Wavoip'}`;
+}
+
 export function useActivateWavoipForUser() {
   const qc = useQueryClient();
   return useMutation({
@@ -218,7 +249,7 @@ export function useActivateWavoipForUser() {
           },
         });
         if (invErr || (res as any)?.error) {
-          failures.push(`${name}: ${invErr?.message || (res as any)?.error}`);
+          failures.push(await getWavoipProvisionFailure(name, invErr, res));
         }
       }
       if (failures.length > 0) {
