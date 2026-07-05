@@ -52,6 +52,7 @@ export function CallHistoryTab() {
   const isAdmin = Boolean((user as any)?.is_admin);
   const [ownOnly, setOwnOnly] = useState(!isAdmin);
   const { data: calls = [], isLoading, refetch } = useWavoipCallHistory(clientId, appUserId, { ownOnly });
+  const { hasPending, count, nextRunAt, isLoading: queueLoading } = useWavoipReconcileQueue(clientId);
   const [processing, setProcessing] = useState(false);
   const [deviceNames, setDeviceNames] = useState<Record<string, string>>({});
 
