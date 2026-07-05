@@ -282,9 +282,10 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     const deviceId = opts?.deviceId;
     const wp: any = (window as any).wavoip ?? await ensureWebphone();
     if (!wp?.call?.start) return { ok: false, error: 'Webphone não inicializado' };
-    const digits = (phone || '').replace(/\D/g, '');
+    let digits = (phone || '').replace(/\D/g, '');
     if (!digits) return { ok: false, error: 'Telefone inválido' };
-    try { wp.widget?.open?.(); } catch {}
+    // Normaliza para E.164 BR quando o número vier sem código do país.
+    if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
 
     // Escolhe o dispositivo do usuário para originar a chamada.
     // O displayName mostrado ao destinatário é o `device_name` gravado em /wavoip.
@@ -298,7 +299,12 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
 
     try {
       const res: any = await wp.call.start(digits, startConfig);
-      if (res?.err) return { ok: false, error: res.err?.message ?? 'Falha ao iniciar chamada' };
+      if (res?.err) {
+        console.warn('[Wavoip] call.start error', res.err);
+        return { ok: false, error: res.err?.message ?? 'Falha ao iniciar chamada' };
+      }
+      // Garante que a UI do webphone fique visível após o call.start.
+      try { wp.widget?.open?.(); } catch {}
 
       // Upsert imediato com o whatsapp_call_id retornado pelo SDK.
       const whatsappCallId: string | null = res?.call?.id ? String(res.call.id) : null;
