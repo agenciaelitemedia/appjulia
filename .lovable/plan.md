@@ -1,50 +1,51 @@
-# Fluxo "Chamada WA" com modal + seleção de dispositivo
+# Corrigir gravação de número, finalização e dispositivo
 
-## Viabilidade (após leitura da API Wavoip + código atual)
+## Diagnóstico
 
-Confirmado pela docs do SDK (`webphone/primeiros-passos/inicializacao` e `webphone/referencia/api-publica`) e pelo `WavoipContext`:
+Últimos 6 registros em `wavoip_call_logs`:
+- `from_number`, `to_number`, `started_at`, `ended_at` **nulos** e `duration_seconds = 0`, mesmo com o `metadata` mostrando a resposta oficial da Wavoip (`caller: 553488860163`, `receiver: 553497221869`, `duration`, `status: 'CANCELLED'`, `created_date`, `last_updated_date`).
+- Todos com `metadata.source = 'fetch-call-details'`.
+- `device_id` fixo em `c5acf958-…` — quando o usuário escolhe outro dispositivo no modal, ainda assim o log pode aparecer com o dispositivo errado.
 
-- `api.call.start(digits, { displayName, fromTokens: [device_token] })` já aceita **`fromTokens`** para escolher explicitamente por qual dispositivo originar a chamada. É o único ponto de decisão real — hoje o contexto pega automaticamente o primeiro dispositivo conectado (`userDevicesRef`).
-- Múltiplos dispositivos podem estar `device.add`/`device.enable` simultaneamente no webphone; o SDK só precisa saber qual usar via `fromTokens` na hora do `start`.
-- O widget do webphone pode ser aberto/fechado via `wp.widget.open()/close()`. Não há efeito colateral em não abrir o widget antes — ele é aberto no `start`.
+Causas:
 
-Conclusão: viável 100% com o SDK atual, sem novas edge functions nem migrations. Toda a mudança é frontend.
+1. `supabase/functions/wavoip-fetch-call-details/index.ts` faz `payload = detailsJson?.data ?? detailsJson` e lê `payload.from / payload.to / payload.duration / payload.started_at`. A resposta real é `{ type: 'success', result: [ { caller, receiver, duration, status, created_date, last_updated_date, direction: 'OUTCOMING', ... } ] }`. Nenhum campo bate → tudo grava nulo e sobrescreve o que o webphone/webhook já tinha gravado.
+2. A mesma função resolve `device` com um fallback agressivo ("qualquer dispositivo global com provider_id") e depois faz `device_id: device.id` no upsert — isso pode trocar o dispositivo correto (o que o usuário selecionou no modal) por um qualquer.
+3. A `wavoip-reconcile-call` já parseia certo, mas só roda quando a chamada é enfileirada; hoje o `call:ended` chama só a `fetch-call-details`.
 
-## O que muda
+## Correção
 
-### 1) Novo componente `src/components/chat/WavoipCallDialog.tsx`
-Modal (shadcn `Dialog`) exibido ao clicar em "Chamada WA". Conteúdo:
+### 1) `supabase/functions/wavoip-fetch-call-details/index.ts` — parser correto
+Alinhar com `wavoip-reconcile-call`:
+- `const item = detailsJson?.result?.[0] ?? detailsJson?.data ?? detailsJson;`
+- Mapear:
+  - `from_number ← item.caller`
+  - `to_number ← item.receiver`
+  - `duration_seconds ← Number(item.duration) || 0`
+  - `direction`: `item.direction` começando com `IN` → `inbound`, senão `outbound`
+  - `status`: aplicar o mesmo `STATUS_CANON` do reconcile (`CANCELLED → cancelled`, `ENDED → ended`, `NOT_ANSWERED → not_answered`, etc.)
+  - `end_reason ← item.status` (raw)
+  - `started_at ← item.created_date` (ISO)
+  - `ended_at ← item.last_updated_date` (ISO)
+- Só sobrescrever `from_number/to_number/started_at/ended_at/duration_seconds` quando o novo valor for válido (não zerar o que o webphone/webhook gravou).
+- Manter preservação de `recording_status/recording_url`.
+- `metadata.source = 'fetch-call-details'`, `metadata.details = item`.
 
-- **Cabeçalho**: "Iniciar chamada WhatsApp"
-- **Dados do destinatário**: nome do contato + telefone formatado (E.164 BR).
-- **Seletor de dispositivo** (`Select` shadcn): lista `userDevicesRef` filtrado por `connection_status === 'connected'`. Rótulo = `device_name` (fallback: últimos 6 do token). Default = primeiro conectado. Se só houver 1, mostra o Select desabilitado.
-- **Estado vazio**: se nenhum dispositivo conectado → mensagem "Nenhum dispositivo Wavoip conectado" + link para `/wavoip`; botão Ligar desabilitado.
-- **Rodapé com 2 botões circulares** (`Button` `size="icon"` `rounded-full`):
-  - Vermelho (`PhoneOff`): fecha o modal sem qualquer ação de chamada.
-  - Verde (`Phone`): dispara `startCall(phone, { deviceId })` e fecha o modal.
+### 2) `supabase/functions/wavoip-fetch-call-details/index.ts` — não trocar o dispositivo
+- Ler `device_id` existente do log antes do upsert.
+- **Só** setar `device_id: device.id` no upsert quando o log ainda não tiver `device_id`. Se já tiver, preservar.
+- Idem para `client_id` e `app_user_id`: preservar os valores existentes se já preenchidos.
+- Remover o fallback "qualquer dispositivo global com provider_id"; manter só (a) `device_token` do body, (b) dispositivo referenciado pelo `wavoip_call_logs.device_id`, (c) qualquer dispositivo do mesmo `client_id`. Se nada bater → responder `no_device` (sem tocar na linha).
 
-Props: `{ open, onOpenChange, phone, contactName }`.
+### 3) Enfileirar reconciliação
+No fim do `wavoip-fetch-call-details`, upsert em `wavoip_reconcile_queue` (`onConflict: 'whatsapp_call_id'`, `run_after = now + 60s`, `status = 'pending'`), para o runner de 1 min completar `duration/recording` quando ainda estiverem pendentes. Isso também alimenta o botão "Processar fila pendente".
 
-### 2) `WavoipContext.tsx` — aceitar dispositivo explícito
-Ampliar assinatura:
-
-```ts
-startCall(phoneE164: string, opts?: { displayName?: string; deviceId?: string })
-```
-
-- Se `opts.deviceId` for informado, resolve o device em `userDevicesRef` por `id`; caso contrário mantém o comportamento atual (primeiro conectado).
-- `displayName` padrão continua vindo do `device_name` escolhido.
-- Expor novo campo `devices` (lista já carregada em `userDevicesRef`) no contexto para o modal renderizar sem re-consulta.
-- Remover a dependência do `prefillDialer` neste fluxo — o clique em "Ligar" chama diretamente `startCall`, que já abre o widget via `wp.widget.open()` no fluxo existente. `prefillDialer` continua disponível para outros pontos.
-
-### 3) `src/components/chat/WavoipCallButton.tsx`
-Substituir o `onClick` que chama `prefillDialer` por: abrir `WavoipCallDialog` com `phone` e `contactName`. Mantém validações (`hasActivePlan`, `ready`, `canDial`).
+### 4) Backfill
+Rodar `wavoip-reconcile-call` para cada `whatsapp_call_id` dos 6 registros afetados, para popular `from_number/to_number/started_at/ended_at/duration/status`. `device_id` permanece o que já está gravado.
 
 ## Fora de escopo
-- Nenhuma edge function nova, nenhuma migration, nenhuma alteração no `WavoipPage` ou no histórico.
-- Sem mudança visual do widget do Wavoip em si.
+Migrations, mudanças de UI, `WavoipContext`, `wavoip-call-webhook`.
 
 ## Arquivos afetados
-- criar `src/components/chat/WavoipCallDialog.tsx`
-- editar `src/components/chat/WavoipCallButton.tsx`
-- editar `src/contexts/WavoipContext.tsx` (assinatura do `startCall` + expor `devices`)
+- editar `supabase/functions/wavoip-fetch-call-details/index.ts`
+- backfill via chamadas à edge `wavoip-reconcile-call`
