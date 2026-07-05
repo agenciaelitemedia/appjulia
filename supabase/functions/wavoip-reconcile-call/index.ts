@@ -61,20 +61,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // device_token
-    let deviceToken: string | null = null;
+    // Provider JWT (o endpoint /calls/whatsapp usa JWT do provider, não device_token)
+    let providerId: string | null = null;
     if (log.device_id) {
-      const { data: dev } = await admin.from('wavoip_devices').select('device_token').eq('id', log.device_id).maybeSingle();
-      deviceToken = (dev as any)?.device_token ?? null;
+      const { data: dev } = await admin.from('wavoip_devices').select('provider_id').eq('id', log.device_id).maybeSingle();
+      providerId = (dev as any)?.provider_id ?? null;
     }
-    if (!deviceToken) {
-      return new Response(JSON.stringify({ ok: false, error: 'no_device_token' }), {
+    if (!providerId) {
+      return new Response(JSON.stringify({ ok: false, error: 'no_provider' }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const provRes = await fetch(`${supabaseUrl}/functions/v1/wavoip-providers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
+      body: JSON.stringify({ action: 'get_token', data: { id: providerId } }),
+    });
+    const provJson = await provRes.json().catch(() => ({} as any));
+    const apiBase: string = (provJson?.data?.api_base || WAVOIP_API).replace(/\/$/, '');
+    const jwt: string | null = provJson?.data?.token ?? null;
+    if (!jwt) {
+      return new Response(JSON.stringify({ ok: false, error: 'no_provider_token' }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const res = await fetch(`${WAVOIP_API}/calls/whatsapp/${encodeURIComponent(callId)}`, {
-      headers: { 'Authorization': `Bearer ${deviceToken}` },
+    const res = await fetch(`${apiBase}/calls/whatsapp/${encodeURIComponent(callId)}`, {
+      headers: { 'Authorization': `Bearer ${jwt}`, Accept: 'application/json' },
     });
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
