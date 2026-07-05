@@ -1,30 +1,31 @@
-# Ajustes na IA de transcrição e resumo Wavoip
+## Diagnóstico
 
-## Contexto
-Já existem dois agentes separados em `/configuracoes` (`wavoip_transcription` e `wavoip_call_summary`), cada um com seu próprio seletor de modelo e prompt. O problema atual é na edge function `wavoip-transcribe-recording`: ela roda uma etapa intermediária de "reescrita" da transcrição com um modelo **hardcoded** (`google/gemini-2.5-flash`), o que ignora a seleção do usuário e pode inventar/alterar conteúdo antes de chegar ao resumo.
+Nas configurações o usuário selecionou:
+- **Transcrição Wavoip** → provider `openrouter`, modelo `openai/whisper-large-v3`
+- **Resumo Wavoip** → provider `openrouter`, modelo `deepseek/deepseek-v4-pro`
 
-## O que mudar
+Porém a edge `wavoip-transcribe-recording` **ignora o provider** e sempre chama o gateway da Lovable, tanto para STT quanto para o chat de resumo (endpoints hardcoded `https://ai.gateway.lovable.dev/...`). Como `whisper-large-v3` não está no allowlist da Lovable, o gateway responde `400 invalid model` e a transcrição falha. É por isso que o log mostra repetidamente:
 
-### 1. `supabase/functions/wavoip-transcribe-recording/index.ts`
-- **Remover a etapa de "reescrita via chat"** (`callChat` com `google/gemini-2.5-flash`). A transcrição salva passa a ser exatamente o texto retornado pelo STT (`rawText`), sem passar por outro LLM. Assim nenhum modelo intermediário inventa fala.
-- O prompt do STT (`wavoip_transcription`) continua responsável por instruir formato `Atendente:/Cliente:`. O modelo STT pode ser trocado livremente em `/configuracoes`.
-- **Resumo** passa a receber estritamente `transcription_text` como única fonte, e o prompt padrão será reforçado com regra explícita de "não inventar / usar apenas o que estiver na transcrição / se não houver informação suficiente, dizer isso".
-- Usar o modelo/prompt configurado em `wavoip_call_summary` (já é assim); nada hardcoded.
+```
+[wavoip-transcribe-recording] STT 400: invalid model: openai/whisper-large-v3
+```
 
-### 2. `src/hooks/useAIModelsConfig.ts`
-- Atualizar `DEFAULT_PROMPTS.wavoip_transcription`: manter formato de diálogo, mas reforçar "transcreva literalmente, não parafraseie, não invente, use `[trecho inaudível]` quando não entender".
-- Atualizar `DEFAULT_PROMPTS.wavoip_call_summary`: adicionar "baseie-se EXCLUSIVAMENTE na transcrição fornecida abaixo; não invente fatos, nomes, valores ou compromissos; se a transcrição for muito curta ou incompleta, diga isso em vez de preencher".
+## Correção
 
-### 3. UI `/configuracoes` (AIModelsConfig.tsx)
-- Nenhuma mudança estrutural — os dois cards já existem e permitem escolher modelo e editar prompt separadamente. Apenas ajustar as `description` para deixar claro:
-  - Transcrição: "Modelo de STT (áudio→texto). Escolha um modelo de transcrição (ex.: `openai/gpt-4o-mini-transcribe`)."
-  - Resumo: "Modelo de chat que resume a transcrição já gerada. Opere apenas sobre o texto transcrito — não recebe o áudio."
+### `supabase/functions/wavoip-transcribe-recording/index.ts`
+
+1. **STT respeita o provider resolvido por `resolveAI('wavoip_transcription')`:**
+   - `provider === 'openrouter'` → POST em `OPENROUTER_TRANSCRIBE_ENDPOINT` (`https://openrouter.ai/api/v1/audio/transcriptions`) com `Authorization: Bearer <chave OpenRouter>` e headers de `providerHeaders('openrouter')`.
+   - Caso contrário → mantém o gateway da Lovable com `LOVABLE_API_KEY`.
+   - Se `provider = openrouter` mas a chave não está configurada, cai automaticamente para Lovable + modelo default (`openai/gpt-4o-mini-transcribe`) e loga aviso (mesmo padrão do `aiGateway.ts`).
+   - Fallback adicional: se a resposta for `400` com `invalid model`, re-tentar uma vez usando o default (`openai/gpt-4o-mini-transcribe` no Lovable) para não deixar a chamada travada só porque o admin escolheu um modelo incompatível.
+
+2. **Resumo (chat) respeita o provider:** trocar o `callChat` hardcoded pelo endpoint/chave/headers vindos de `resolveAI('wavoip_call_summary')` (`sum.endpoint`, `sum.apiKey`, `providerHeaders(sum.provider)`).
+
+3. Ajustar `logAIUsage` para refletir o `provider`/`endpoint` realmente usados (Lovable ou OpenRouter).
+
+### Nada muda no frontend
+As telas de `/configurações` já permitem escolher provider + modelo; o problema é 100% no backend que não estava roteando. O usuário mantém o modelo que quiser sem precisar re-configurar nada.
 
 ## Fora de escopo
-- Retranscrever chamadas já processadas (usuário pode clicar em "Regerar" quando quiser).
-- Mudanças na tabela de features do plano.
-
-## Arquivos afetados
-- `supabase/functions/wavoip-transcribe-recording/index.ts`
-- `src/hooks/useAIModelsConfig.ts`
-- `src/pages/configuracoes/components/AIModelsConfig.tsx` (apenas textos de descrição)
+- Não altero prompts, planos, UI, nem retranscrevo chamadas antigas (o botão "Iniciar transcrição" continua funcionando; após o fix, novas tentativas passam a usar o provider correto).
