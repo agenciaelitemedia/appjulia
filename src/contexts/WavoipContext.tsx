@@ -4,14 +4,22 @@ import { useAuth } from '@/contexts/AuthContext';
 
 type WavoipApi = any;
 
+export interface WavoipDeviceInfo {
+  id: string;
+  token: string;
+  name: string | null;
+  connection_status: string;
+}
+
 interface WavoipContextValue {
   ready: boolean;
   hasActivePlan: boolean;
   devicesCount: number;
   connectedNumbers: string[];
   canDial: boolean;
+  devices: WavoipDeviceInfo[];
   ensureWebphone: () => Promise<WavoipApi | null>;
-  startCall: (phoneE164: string, displayName?: string) => Promise<{ ok: boolean; error?: string }>;
+  startCall: (phoneE164: string, opts?: { displayName?: string; deviceId?: string }) => Promise<{ ok: boolean; error?: string }>;
   prefillDialer: (phoneE164: string, displayName?: string) => Promise<{ ok: boolean; error?: string }>;
   openWidget: () => void;
   refreshDevices: () => Promise<void>;
@@ -35,7 +43,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   const listenersBoundRef = useRef(false);
   // Dispositivos do usuário logado — usados para injetar `displayName` = device_name
   // gravado em /wavoip ao habilitar o dispositivo, e para escolher o `fromTokens`.
-  const userDevicesRef = useRef<Array<{ id: string; token: string; name: string | null; connection_status: string }>>([]);
+  const userDevicesRef = useRef<WavoipDeviceInfo[]>([]);
+  const [devices, setDevices] = useState<WavoipDeviceInfo[]>([]);
 
   const loadPlanAndDevices = useCallback(async (): Promise<{ active: boolean; tokens: string[] }> => {
     if (!clientId) {
@@ -76,6 +85,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       name: d.device_name ?? null,
       connection_status: d.connection_status,
     }));
+    setDevices(userDevicesRef.current);
     return { active: true, tokens };
   }, [clientId, user?.id]);
 
@@ -267,7 +277,9 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
   }, [ensureWebphone, loadPlanAndDevices]);
 
-  const startCall = useCallback(async (phone: string, displayName?: string) => {
+  const startCall = useCallback(async (phone: string, opts?: { displayName?: string; deviceId?: string }) => {
+    const displayName = opts?.displayName;
+    const deviceId = opts?.deviceId;
     const wp: any = (window as any).wavoip ?? await ensureWebphone();
     if (!wp?.call?.start) return { ok: false, error: 'Webphone não inicializado' };
     const digits = (phone || '').replace(/\D/g, '');
@@ -277,7 +289,9 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     // Escolhe o dispositivo do usuário para originar a chamada.
     // O displayName mostrado ao destinatário é o `device_name` gravado em /wavoip.
     const devices = userDevicesRef.current ?? [];
-    const device = devices.find((d) => d.connection_status === 'connected') ?? devices[0] ?? null;
+    const device = (deviceId ? devices.find((d) => d.id === deviceId) : null)
+      ?? devices.find((d) => d.connection_status === 'connected')
+      ?? devices[0] ?? null;
     const resolvedDisplayName = displayName ?? device?.name ?? 'Atendimento';
     const startConfig: any = { displayName: resolvedDisplayName };
     if (device?.token) startConfig.fromTokens = [device.token];
@@ -394,8 +408,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   const canDial = ready && devicesCount > 0;
 
   const value = useMemo<WavoipContextValue>(() => ({
-    ready, hasActivePlan, devicesCount, connectedNumbers, canDial, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices,
-  }), [ready, hasActivePlan, devicesCount, connectedNumbers, canDial, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices]);
+    ready, hasActivePlan, devicesCount, connectedNumbers, canDial, devices, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices,
+  }), [ready, hasActivePlan, devicesCount, connectedNumbers, canDial, devices, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices]);
 
   return <WavoipContext.Provider value={value}>{children}</WavoipContext.Provider>;
 }
