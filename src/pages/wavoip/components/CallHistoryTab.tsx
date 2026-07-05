@@ -12,8 +12,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useWavoipCallHistory, type WavoipCall } from '../hooks/useWavoipCallHistory';
 import { useWavoipReconcileQueue } from '../hooks/useWavoipReconcileQueue';
+import { useWavoipClientPlanFeatures } from '../hooks/useWavoipClientPlanFeatures';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { RecordingPlayer } from './RecordingPlayer';
+import { TranscriptionButton } from './TranscriptionButton';
 
 function formatBRPhone(raw?: string | null): string {
   if (!raw) return '-';
@@ -54,6 +56,8 @@ export function CallHistoryTab() {
   const [ownOnly, setOwnOnly] = useState(!isAdmin);
   const { data: calls = [], isLoading, refetch } = useWavoipCallHistory(clientId, appUserId, { ownOnly });
   const { hasPending, count, nextRunAt } = useWavoipReconcileQueue(clientId);
+  const { data: planFeatures } = useWavoipClientPlanFeatures(clientId);
+  const planAllowsTranscription = !!planFeatures?.transcription;
   const [processing, setProcessing] = useState(false);
   const [deviceNames, setDeviceNames] = useState<Record<string, string>>({});
   const { data: team = [] } = useTeamByClient();
@@ -183,6 +187,7 @@ export function CallHistoryTab() {
                 <TableHead>Status</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead className="w-16 text-center">Gravação</TableHead>
+                <TableHead className="w-16 text-center">Transcrição</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -228,6 +233,13 @@ export function CallHistoryTab() {
                         status={c.recording_status}
                         durationSeconds={c.duration_seconds}
                         onRefetched={refetch}
+                      />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <TranscriptionButton
+                        call={c}
+                        planAllowsTranscription={planAllowsTranscription}
+                        onRefetch={refetch}
                       />
                     </TableCell>
                   </TableRow>
