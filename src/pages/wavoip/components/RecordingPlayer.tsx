@@ -1,72 +1,47 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Play, Download, RefreshCw, AlertCircle, Clock } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Play, Download, Clock, CircleX, AlertCircle } from 'lucide-react';
 
 interface Props {
   callId: string;
   whatsappCallId: string | null;
-  recordingPath: string | null;
+  recordingPath: string | null; // agora contém a URL final (signed longa) ou null
   status: string;
+  durationSeconds?: number;
   onRefetched?: () => void;
 }
 
-export function RecordingPlayer({ callId, whatsappCallId, recordingPath, status, onRefetched }: Props) {
+function Wrap({ tooltip, children }: { tooltip: string; children: React.ReactNode }) {
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild><span className="inline-flex">{children}</span></TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+export function RecordingPlayer({ whatsappCallId, recordingPath, status, durationSeconds = 0 }: Props) {
   const [open, setOpen] = useState(false);
-  const [signedUrl, setSignedUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  // Polling leve: enquanto pending/downloading, tenta buscar a cada 20s por até 3min.
-  useEffect(() => {
-    if (!whatsappCallId) return;
-    if (!['pending', 'downloading'].includes(status)) return;
-    let cancelled = false;
-    let attempts = 0;
-    const tick = async () => {
-      if (cancelled || attempts >= 9) return;
-      attempts++;
-      try {
-        const { data } = await supabase.functions.invoke('wavoip-fetch-recording', {
-          body: { call_log_id: callId, whatsapp_call_id: whatsappCallId },
-        });
-        if ((data as any)?.status === 'available') { onRefetched?.(); return; }
-      } catch { /* keep trying */ }
-      if (!cancelled) setTimeout(tick, 20000);
-    };
-    const t = setTimeout(tick, 5000);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [callId, whatsappCallId, status, onRefetched]);
+  // Sem áudio (duração zero ou marcado como none)
+  if (status === 'none' || (durationSeconds === 0 && status !== 'available')) {
+    return (
+      <Wrap tooltip="Sem gravação disponível (chamada não atendida ou sem áudio)">
+        <Button variant="ghost" size="icon" disabled className="text-muted-foreground">
+          <CircleX className="h-4 w-4" />
+        </Button>
+      </Wrap>
+    );
+  }
 
-  const loadSignedUrl = async () => {
-    if (!recordingPath) return;
-    const { data, error } = await supabase.storage.from('wavoip-recordings').createSignedUrl(recordingPath, 60 * 60);
-    if (error) { toast.error(error.message); return; }
-    setSignedUrl(data.signedUrl);
-  };
-
-  const fetchFromWavoip = async () => {
-    if (!whatsappCallId) { toast.error('Sem ID da chamada na Wavoip'); return; }
-    setBusy(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('wavoip-fetch-recording', {
-        body: { call_log_id: callId, whatsapp_call_id: whatsappCallId },
-      });
-      if (error) throw error;
-      if ((data as any)?.status === 'available') toast.success('Gravação importada');
-      else toast.message('Gravação ainda não disponível. Tente novamente em alguns minutos.');
-      onRefetched?.();
-    } catch (e: any) {
-      toast.error(e?.message || 'Erro ao buscar gravação');
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  // Disponível
   if (status === 'available' && recordingPath) {
     return (
-      <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o && !signedUrl) void loadSignedUrl(); }}>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="icon" title="Ouvir gravação" className="text-emerald-600 hover:text-emerald-700">
             <Play className="h-4 w-4" />
@@ -75,39 +50,36 @@ export function RecordingPlayer({ callId, whatsappCallId, recordingPath, status,
         <PopoverContent className="w-80">
           <div className="space-y-2">
             <div className="text-xs text-muted-foreground">Gravação Wavoip</div>
-            {signedUrl ? (
-              <>
-                <audio src={signedUrl} controls className="w-full" />
-                <a href={signedUrl} download className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                  <Download className="h-3 w-3" /> Baixar
-                </a>
-              </>
-            ) : (
-              <div className="flex items-center gap-2 text-sm"><RefreshCw className="h-3 w-3 animate-spin" /> Carregando…</div>
-            )}
+            <audio src={recordingPath} controls className="w-full" />
+            <a href={recordingPath} download className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              <Download className="h-3 w-3" /> Baixar
+            </a>
           </div>
         </PopoverContent>
       </Popover>
     );
   }
 
+  // Erro
+  if (status === 'error') {
+    return (
+      <Wrap tooltip="Erro ao baixar a gravação. Nova tentativa será feita em breve.">
+        <Button variant="ghost" size="icon" disabled className="text-destructive">
+          <AlertCircle className="h-4 w-4" />
+        </Button>
+      </Wrap>
+    );
+  }
+
+  // Aguardando (pending / downloading / recording / ready ainda não baixado)
   if (!whatsappCallId) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
-
-  const icon = status === 'error'
-    ? <AlertCircle className="h-4 w-4 text-destructive" />
-    : <Clock className="h-4 w-4 text-muted-foreground" />;
-
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      title={status === 'error' ? 'Erro ao baixar — tentar novamente' : 'Buscar gravação na Wavoip'}
-      onClick={fetchFromWavoip}
-      disabled={busy}
-    >
-      {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : icon}
-    </Button>
+    <Wrap tooltip="Aguardando processamento da gravação pela Wavoip">
+      <Button variant="ghost" size="icon" disabled className="text-muted-foreground">
+        <Clock className="h-4 w-4" />
+      </Button>
+    </Wrap>
   );
 }
