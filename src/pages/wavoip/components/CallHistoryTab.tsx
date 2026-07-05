@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, PhoneIncoming, PhoneOutgoing } from 'lucide-react';
+import { RefreshCw, PhoneIncoming, PhoneOutgoing, Smartphone } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,21 +51,39 @@ export function CallHistoryTab() {
   const isAdmin = Boolean((user as any)?.is_admin);
   const [ownOnly, setOwnOnly] = useState(!isAdmin);
   const { data: calls = [], isLoading, refetch } = useWavoipCallHistory(clientId, appUserId, { ownOnly });
-  const [syncing, setSyncing] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [deviceNames, setDeviceNames] = useState<Record<string, string>>({});
 
-  const syncNow = async () => {
+  useEffect(() => {
     if (!clientId) return;
-    setSyncing(true);
+    let cancelled = false;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from('wavoip_devices')
+        .select('id, device_name, device_token')
+        .eq('client_id', clientId);
+      if (cancelled || !data) return;
+      const map: Record<string, string> = {};
+      for (const d of data) {
+        map[d.id] = d.device_name || (d.device_token ? `Dispositivo ••${String(d.device_token).slice(-6)}` : 'Dispositivo');
+      }
+      setDeviceNames(map);
+    })();
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  const processQueue = async () => {
+    setProcessing(true);
     try {
-      const { error } = await supabase.functions.invoke('wavoip-sync-history', {
-        body: { client_id: clientId },
+      const { error } = await supabase.functions.invoke('wavoip-reconcile-runner', {
+        body: { client_id: clientId, force: true },
       });
       if (error) throw error;
-      toast.success('Histórico sincronizado com a Wavoip');
+      toast.success('Fila de atualização processada');
       await refetch();
     } catch (e: any) {
-      toast.error(e?.message || 'Falha ao sincronizar');
-    } finally { setSyncing(false); }
+      toast.error(e?.message || 'Falha ao processar fila');
+    } finally { setProcessing(false); }
   };
 
   const [search, setSearch] = useState('');
@@ -95,11 +113,14 @@ export function CallHistoryTab() {
           <CardTitle>Histórico de Chamadas</CardTitle>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{filtered.length} de {calls.length} registro(s)</span>
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} /> Atualizar
-            </Button>
-            <Button variant="default" size="sm" onClick={syncNow} disabled={syncing}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} /> Sincronizar com Wavoip
+            <Button
+              variant="default"
+              size="sm"
+              onClick={processQueue}
+              disabled={processing || isLoading}
+              title="Processa agora as chamadas pendentes na fila (normalmente atualizadas 1 min após o término)"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${processing ? 'animate-spin' : ''}`} /> Processar fila pendente
             </Button>
           </div>
         </div>
@@ -137,6 +158,7 @@ export function CallHistoryTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Origem</TableHead>
+                <TableHead>Dispositivo</TableHead>
                 <TableHead>Número discado</TableHead>
                 <TableHead>Iniciou às</TableHead>
                 <TableHead>Finalizou às</TableHead>
@@ -152,9 +174,16 @@ export function CallHistoryTab() {
                 const numero = c.direction === 'inbound' ? c.from_number : c.to_number;
                 const started = c.started_at ?? c.created_at;
                 const ended = c.ended_at;
+                const deviceLabel = c.device_id ? (deviceNames[c.device_id] ?? 'Dispositivo') : '-';
                 return (
                   <TableRow key={c.id}>
                     <TableCell><Badge variant="outline">Wavoip</Badge></TableCell>
+                    <TableCell className="text-xs">
+                      <span className="inline-flex items-center gap-1">
+                        <Smartphone className="h-3 w-3 text-muted-foreground" />
+                        {deviceLabel}
+                      </span>
+                    </TableCell>
                     <TableCell className="font-mono text-xs">{formatBRPhone(numero)}</TableCell>
                     <TableCell className="text-xs">{started ? format(new Date(started), 'dd/MM/yyyy, HH:mm:ss') : '-'}</TableCell>
                     <TableCell className="text-xs">{ended ? format(new Date(ended), 'dd/MM/yyyy, HH:mm:ss') : '-'}</TableCell>
