@@ -284,6 +284,11 @@ export default function WavoipPage() {
       if (updErr) throw updErr;
 
       toast.success('Dispositivo adicionado. Escaneie o QR Code para conectar.');
+      // Sincroniza o nome amigável no backend Wavoip para que o widget mostre
+      // "Ligando de <device_name>" em vez do UUID do dispositivo.
+      try {
+        supabase.functions.invoke('wavoip-rename-device', { body: { device_id: device.id } });
+      } catch {}
       setDialogOpen(false);
       setNewName('');
       await load();
