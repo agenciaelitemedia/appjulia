@@ -11,7 +11,7 @@
 // ============================================
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { resolveAI, providerHeaders } from '../_shared/aiGateway.ts';
+import { resolveAI, providerHeaders, OPENROUTER_TRANSCRIBE_ENDPOINT } from '../_shared/aiGateway.ts';
 import { logAIUsage } from '../_shared/aiUsageLogger.ts';
 
 const corsHeaders = {
@@ -20,8 +20,9 @@ const corsHeaders = {
 };
 
 const BUCKET = 'wavoip-recordings';
-const STT_ENDPOINT = 'https://ai.gateway.lovable.dev/v1/audio/transcriptions';
-const LOVABLE_CHAT = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+const LOVABLE_STT_ENDPOINT = 'https://ai.gateway.lovable.dev/v1/audio/transcriptions';
+const LOVABLE_CHAT_ENDPOINT = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+const DEFAULT_STT_MODEL = 'openai/gpt-4o-mini-transcribe';
 
 function ok(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -152,64 +153,27 @@ Deno.serve(async (req) => {
     }
 
     // 5) Resolve STT model + prompt
-    const stt = await resolveAI(supabase, 'wavoip_transcription', 'openai/gpt-4o-mini-transcribe');
+    const stt = await resolveAI(supabase, 'wavoip_transcription', DEFAULT_STT_MODEL);
     const lovableKey = Deno.env.get('LOVABLE_API_KEY') ?? '';
     if (!lovableKey) {
       await markFailed(supabase, log.id, 'no_api_key');
       return ok({ ok: false, reason: 'no_api_key' });
     }
 
-    // 6) Call STT via Lovable gateway
-    const form = new FormData();
-    // Recording was uploaded with contentType audio/mpeg (see wavoip-fetch-recording),
-    // so name it as mp3 for the model to infer the format.
-    form.append('file', new Blob([audioBuf], { type: 'audio/mpeg' }), 'recording.mp3');
-    form.append('model', stt.model);
-    form.append('language', 'pt');
-    const sttStarted = Date.now();
-    const sttResp = await fetch(STT_ENDPOINT, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${lovableKey}` },
-      body: form,
+    // 6) Call STT respecting the configured provider (Lovable or OpenRouter).
+    //    Falls back to Lovable default if the OpenRouter model is rejected.
+    const sttResult = await runSTT({
+      supabase,
+      log,
+      audioBuf,
+      lovableKey,
+      resolved: stt,
     });
-    const sttMs = Date.now() - sttStarted;
-    if (!sttResp.ok) {
-      const errTxt = await sttResp.text().catch(() => '');
-      console.warn(`[wavoip-transcribe-recording] STT ${sttResp.status}: ${errTxt}`);
-      await markFailed(supabase, log.id, `stt_${sttResp.status}`);
-      await logAIUsage(supabase, {
-        client_id: log.client_id,
-        feature: 'wavoip_transcription',
-        provider: 'lovable',
-        endpoint: STT_ENDPOINT,
-        model: stt.model,
-        status: 'failed',
-        duration_ms: sttMs,
-        error_reason: `stt_${sttResp.status}`,
-        audio_seconds: log.duration_seconds,
-        context: { call_id: log.id },
-      });
-      return ok({ ok: false, reason: `stt_${sttResp.status}` });
+    if (!sttResult.ok) {
+      await markFailed(supabase, log.id, sttResult.reason);
+      return ok({ ok: false, reason: sttResult.reason });
     }
-    const sttData = await sttResp.json();
-    const rawText: string = (sttData?.text ?? '').toString().trim();
-    if (!rawText) {
-      await markFailed(supabase, log.id, 'empty_transcript');
-      return ok({ ok: false, reason: 'empty_transcript' });
-    }
-
-    await logAIUsage(supabase, {
-      client_id: log.client_id,
-      feature: 'wavoip_transcription',
-      provider: 'lovable',
-      endpoint: STT_ENDPOINT,
-      model: stt.model,
-      status: 'ok',
-      duration_ms: sttMs,
-      usage: sttData?.usage ?? {},
-      audio_seconds: log.duration_seconds,
-      context: { call_id: log.id, chars: rawText.length },
-    });
+    const rawText = sttResult.text;
 
     // 7) Use STT output directly — no intermediate LLM rewrite (would risk
     //    inventing/altering content). The STT prompt itself instructs the
@@ -222,7 +186,7 @@ Deno.serve(async (req) => {
       const sum = await resolveAI(supabase, 'wavoip_call_summary', 'google/gemini-2.5-flash');
       const summaryPrompt = sum.prompt ??
         'Você é um analista de atendimento. Gere um RESUMO OBJETIVO e COMPACTO em pt-BR baseado EXCLUSIVAMENTE na transcrição abaixo. Não invente fatos, nomes, valores ou compromissos. Se a transcrição estiver vazia ou insuficiente, responda apenas "Transcrição insuficiente para gerar resumo.". Quando houver conteúdo: 1 frase inicial em **negrito** com o motivo do contato e até 5 bullets curtos cobrindo apenas o que foi efetivamente dito.';
-      summary = await callChat(lovableKey, sum.model, [
+      summary = await callChat(sum.endpoint, sum.apiKey, sum.provider, sum.model, [
         { role: 'system', content: summaryPrompt },
         { role: 'user', content: `Transcrição da chamada (única fonte permitida):\n\n${dialogText}` },
       ]);
@@ -256,17 +220,19 @@ async function markFailed(supabase: any, id: string, reason: string) {
 }
 
 async function callChat(
+  endpoint: string,
   key: string,
+  provider: string,
   model: string,
   messages: Array<{ role: string; content: string }>,
 ): Promise<string | null> {
   try {
-    const resp = await fetch(LOVABLE_CHAT, {
+    const resp = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
-        ...providerHeaders('lovable'),
+        ...providerHeaders(provider),
       },
       body: JSON.stringify({ model, messages }),
     });
@@ -281,4 +247,112 @@ async function callChat(
     console.warn('[wavoip-transcribe-recording] chat exception', e);
     return null;
   }
+}
+
+// Runs STT once for the configured provider; on invalid_model / 400 with
+// OpenRouter, retries on Lovable with the safe default model so a bad admin
+// selection never leaves the call stuck.
+// deno-lint-ignore no-explicit-any
+async function runSTT(args: {
+  supabase: any;
+  log: any;
+  audioBuf: Uint8Array;
+  lovableKey: string;
+  resolved: { provider: string; model: string; endpoint: string; apiKey: string };
+}): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  const { supabase, log, audioBuf, lovableKey, resolved } = args;
+
+  // Pick real endpoint/key/model for STT (resolved.endpoint is the chat URL;
+  // audio uses a dedicated URL per provider).
+  let useProvider = resolved.provider;
+  let useModel = resolved.model;
+  let useEndpoint = LOVABLE_STT_ENDPOINT;
+  let useKey = lovableKey;
+
+  if (useProvider === 'openrouter') {
+    if (!resolved.apiKey) {
+      console.warn('[wavoip-transcribe-recording] provider=openrouter but no key; falling back to Lovable');
+      useProvider = 'lovable';
+      useModel = DEFAULT_STT_MODEL;
+      useEndpoint = LOVABLE_STT_ENDPOINT;
+      useKey = lovableKey;
+    } else {
+      useEndpoint = OPENROUTER_TRANSCRIBE_ENDPOINT;
+      useKey = resolved.apiKey;
+    }
+  }
+
+  const first = await doSTT(supabase, log, audioBuf, useProvider, useEndpoint, useKey, useModel);
+  if (first.ok) return { ok: true, text: first.text };
+
+  // Fallback to Lovable default if the chosen model is not accepted upstream.
+  const shouldFallback =
+    first.status === 400 || first.status === 404 ||
+    (typeof first.body === 'string' && /invalid model|not.*found|unsupported/i.test(first.body));
+  if (shouldFallback && !(useProvider === 'lovable' && useModel === DEFAULT_STT_MODEL)) {
+    console.warn(`[wavoip-transcribe-recording] falling back to Lovable ${DEFAULT_STT_MODEL} after ${first.status}`);
+    const retry = await doSTT(supabase, log, audioBuf, 'lovable', LOVABLE_STT_ENDPOINT, lovableKey, DEFAULT_STT_MODEL);
+    if (retry.ok) return { ok: true, text: retry.text };
+    return { ok: false, reason: `stt_${retry.status}` };
+  }
+  return { ok: false, reason: `stt_${first.status}` };
+}
+
+// deno-lint-ignore no-explicit-any
+async function doSTT(
+  supabase: any,
+  log: any,
+  audioBuf: Uint8Array,
+  provider: string,
+  endpoint: string,
+  apiKey: string,
+  model: string,
+): Promise<{ ok: true; text: string } | { ok: false; status: number; body: string }> {
+  const form = new FormData();
+  form.append('file', new Blob([audioBuf], { type: 'audio/mpeg' }), 'recording.mp3');
+  form.append('model', model);
+  form.append('language', 'pt');
+  const started = Date.now();
+  const resp = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      ...providerHeaders(provider),
+    },
+    body: form,
+  });
+  const ms = Date.now() - started;
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    console.warn(`[wavoip-transcribe-recording] STT ${provider} ${resp.status}: ${body}`);
+    await logAIUsage(supabase, {
+      client_id: log.client_id,
+      feature: 'wavoip_transcription',
+      provider,
+      endpoint,
+      model,
+      status: 'failed',
+      duration_ms: ms,
+      error_reason: `stt_${resp.status}`,
+      audio_seconds: log.duration_seconds,
+      context: { call_id: log.id },
+    });
+    return { ok: false, status: resp.status, body };
+  }
+  const data = await resp.json();
+  const text = (data?.text ?? '').toString().trim();
+  await logAIUsage(supabase, {
+    client_id: log.client_id,
+    feature: 'wavoip_transcription',
+    provider,
+    endpoint,
+    model,
+    status: 'ok',
+    duration_ms: ms,
+    usage: data?.usage ?? {},
+    audio_seconds: log.duration_seconds,
+    context: { call_id: log.id, chars: text.length },
+  });
+  if (!text) return { ok: false, status: 200, body: 'empty_transcript' };
+  return { ok: true, text };
 }
