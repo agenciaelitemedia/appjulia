@@ -178,6 +178,24 @@ Deno.serve(async (req) => {
       return json(500, { error: insErr.message });
     }
 
+    // Renomear no Wavoip para exibir device_name amigável no widget ("Ligando de <nome>")
+    // em vez do nome técnico "JU_<client>_<nome>" usado no buy-device.
+    try {
+      const ren = await apiFetch(provider.api_base, `/v2/devices/${deviceId}/name`, token, {
+        method: 'PUT', body: JSON.stringify({ name: device_name }),
+      });
+      if (ren.ok) {
+        await admin.from('wavoip_devices').update({
+          wavoip_raw: { ...(result || {}), name: device_name },
+          metadata: { last_rename_at: new Date().toISOString(), last_rename_name: device_name },
+        }).eq('id', inserted.id);
+      } else {
+        console.warn('[wavoip-device-provision] rename after insert failed', ren.status, ren.data);
+      }
+    } catch (e) {
+      console.warn('[wavoip-device-provision] rename after insert threw', e);
+    }
+
     return json(200, { data: inserted });
   } catch (e) {
     console.error('[wavoip-device-provision] fatal', e);

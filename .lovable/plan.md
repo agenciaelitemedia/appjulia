@@ -1,114 +1,43 @@
-
 ## Objetivo
 
-Deixar o histórico `/wavoip` refletindo o que realmente aconteceu com a chamada (ENCERRADA / CANCELADA / NÃO ATENDIDA / REJEITADA / FALHOU / OCUPADA REMOTAMENTE), usar o endpoint oficial `GET {base_url}/calls/whatsapp/:call_id` como fonte de verdade após 1 min, e disponibilizar a gravação como link **público** com UI clara (play / relógio / círculo-com-X).
+No webphone Wavoip, a tela de discagem mostra "Ligando de {UUID}" porque o SDK exibe o **nome do dispositivo cadastrado no backend Wavoip** — não o `callSettings.displayName` da nossa `render()` nem o `device_name` local. Precisamos empurrar o `device_name` que o usuário define em `/wavoip` para o endpoint `PUT /v2/devices/:id_device/name` do Wavoip, para que o próprio widget mostre o nome amigável em todas as chamadas (inclusive as iniciadas dentro do widget nativo, que não passam pelo nosso `startCall`).
 
----
+## Referência da API
 
-## 1. Nova edge function: `wavoip-reconcile-call`
+- Docs confirmam: `callSettings.displayName` é fixado no `render()` e `call.start(to, { displayName })` sobrescreve por chamada. Não existe API runtime para renomear o dispositivo pelo webphone.
+- Renomeação oficial: `PUT {api_base}/v2/devices/:id_device/name` com body `{ name }` (Wavoip V2, autenticado com o JWT do provider — já usado em `wavoip-device-provision`).
 
-Endpoint: `GET https://api.wavoip.com/calls/whatsapp/{whatsapp_call_id}` com Bearer `device_token`.
+## Mudanças
 
-Fluxo por chamada:
+### 1) Nova edge function `wavoip-rename-device`
+- Body: `{ device_id: uuid }` (id em `wavoip_devices`).
+- Fluxo:
+  1. Carrega `wavoip_devices` (com `provider_id`, `wavoip_device_id`, `device_name`).
+  2. Carrega `wavoip_providers` e garante JWT via `wavoipLogin` (mesmo padrão de `wavoip-device-provision`; refresh em 401).
+  3. Chama `PUT /v2/devices/{wavoip_device_id}/name` com `{ name: device_name }`. Se `device_name` estiver vazio, usa fallback `WAPhone_{friendly_code}`.
+  4. Persiste `wavoip_raw.name` e `metadata.last_rename_at` em `wavoip_devices`.
+  5. Retorna `{ ok: true, wavoip_name }`.
+- CORS + validação Zod, sem exposição de secrets.
 
-1. Ler `wavoip_call_logs` pelo `whatsapp_call_id` (pega `device_id` → `device_token` do `wavoip_devices`).
-2. Chamar o endpoint. Do payload (`result[0]`) mapear:
-   - `status` cru → `status` canônico (mesmo map do webhook + `end_reason` = valor cru).
-   - `duration` (string em segundos, pode ter decimal) → `duration_seconds = Math.round(Number(duration))`.
-   - `ended_at`: se ainda nulo, usar `last_updated_date`.
-   - `started_at`: se nulo, usar `created_date`.
-   - `answered_at`: se `duration > 0` e nulo, usar `created_date`.
-   - `from_number`/`to_number`: `caller`/`receiver`.
-   - `direction`: `IN*` → inbound, resto outbound.
-   - `metadata.reconciled_payload = result[0]`, `metadata.reconciled_at = now`.
-3. Regras de gravação:
-   - Se `duration > 0` e `record_status = READY` → invocar `wavoip-fetch-recording` (será público agora).
-   - Se `duration > 0` e `record_status != READY` → agendar novo reconcile em 1 min (contador `metadata.reconcile_attempts`, máx **5**). Marcar `recording_status='pending'`.
-   - Se `duration = 0` → sem gravação. Setar `recording_status='none'`.
+### 2) Disparo automático quando o usuário nomeia/renomeia o dispositivo
+- `src/pages/wavoip/WavoipPage.tsx` → `handleClaim` (linha 262): logo após `update({ device_name })`, invocar `supabase.functions.invoke('wavoip-rename-device', { body: { device_id: updated.id } })` (fire-and-forget com `.catch` silencioso; toast só em erro explícito).
+- Também disparar após qualquer futura edição de `device_name` (a página hoje só cria; se houver botão de renomear, adiciona-se o mesmo invoke).
 
-Aceita `POST { whatsapp_call_id }` ou `POST { call_log_id }`.
+### 3) Provisionamento inicial já correto
+- Em `wavoip-device-provision`, o nome enviado no `buy-device` é `JU_{client_id}_{device_name}`. Vamos manter (nome interno técnico), mas **imediatamente após inserir** em `wavoip_devices`, chamar o mesmo `PUT /v2/devices/:id/name` com o `device_name` puro (o que o usuário digitou) — assim o widget mostra "Ligando de {device_name}" desde a primeira ligação, sem depender do rename posterior.
 
----
+### 4) `WavoipContext.startCall` já passa `displayName = device.name`
+- Nenhuma mudança necessária lá. Serve como reforço quando a chamada é iniciada pela nossa UI; o `PUT` acima cobre o caso do discador nativo do widget.
 
-## 2. Agendamento pós-terminal (1 min)
+### 5) Backfill único
+- Script (executado via `supabase--insert` + invoke em loop): para todo `wavoip_devices` com `wavoip_device_id IS NOT NULL` e `device_name IS NOT NULL`, invocar `wavoip-rename-device` para alinhar o backend Wavoip aos nomes atuais.
 
-No `wavoip-call-webhook`, quando `isTerminal`:
+## Arquivos
 
-- **Remover** o `triggerFetchRecording` imediato.
-- Em vez disso: agendar reconcile após 60s. Como Edge Functions não têm setTimeout confiável entre requests, usar tabela leve `wavoip_reconcile_queue (whatsapp_call_id, run_after, attempts, last_error)` + pg_cron a cada 1 min chamando `wavoip-reconcile-runner` que puxa itens vencidos e invoca `wavoip-reconcile-call` para cada um (reagenda se `record_status != READY` e attempts < 5).
+- **Criar** `supabase/functions/wavoip-rename-device/index.ts`
+- **Editar** `supabase/functions/wavoip-device-provision/index.ts` (chamar rename após insert)
+- **Editar** `src/pages/wavoip/WavoipPage.tsx` (invoke após `handleClaim`)
+- **Backfill** (execução pontual, sem código versionado)
 
-Migração:
-- Criar `wavoip_reconcile_queue` com GRANTs + RLS (service_role only).
-- pg_cron 1 min → `wavoip-reconcile-runner`.
-
----
-
-## 3. Gravação pública
-
-Alterar bucket `wavoip-recordings` para **público** (via `supabase--storage_update_bucket`). Se a política workspace bloquear, avisar usuário.
-
-`wavoip-fetch-recording`:
-- Nome do arquivo fixo: `{client_id}/{whatsapp_call_id}.mp3` (sempre `.mp3`, `contentType: audio/mpeg`).
-- Após upload, salvar em `recording_url` a **URL pública** (`storage.from(BUCKET).getPublicUrl(path).data.publicUrl`) — não mais o path.
-- `recording_status='available'` só quando o arquivo estiver no storage.
-
-Adicionar policy pública de SELECT em `storage.objects` para o bucket `wavoip-recordings`.
-
----
-
-## 4. Status legível (UI)
-
-`CallHistoryTab.tsx`: mapear `status` para label PT-BR (badge com cor):
-
-| status canônico   | label           | cor          |
-|-------------------|-----------------|--------------|
-| ended             | ENCERRADA       | emerald      |
-| cancelled         | CANCELADA       | amber        |
-| rejected          | REJEITADA       | rose         |
-| not_answered      | NÃO ATENDIDA    | rose         |
-| missed            | PERDIDA         | rose         |
-| failed            | FALHOU          | destructive  |
-| handled_remotely  | ATENDIDA EM OUTRO DISPOSITIVO | slate |
-| active            | EM CURSO        | blue         |
-| calling/ringing/connecting | CHAMANDO | blue         |
-
----
-
-## 5. `RecordingPlayer` — 3 estados visuais
-
-Baseado em `recording_status` + `duration_seconds`:
-
-- `available` + `recording_url`: ícone **Play verde**, tooltip "Ouvir gravação". Audio direto na URL pública (sem signed URL).
-- `none` (sem áudio, `duration=0` ou marcado explicitamente): ícone **círculo com X** (`CircleX`) cinza, `disabled`, tooltip "Sem gravação disponível".
-- pending / downloading / recording ainda esperando: ícone **relógio** (`Clock`), tooltip "Aguardando gravação (tentativa X/5)".
-- error: `AlertCircle`, tooltip com mensagem.
-
-Remover polling do front — o reconcile-runner é quem baixa.
-
----
-
-## 6. Backfill dos registros existentes
-
-Script one-shot invocando `wavoip-reconcile-call` para todo log com `whatsapp_call_id` não nulo e (`status` cru / duração inconsistente / gravação não `available`). Isso corrige históricos antigos.
-
-Re-upload das gravações já baixadas: como o bucket vai virar público e o nome muda para `.mp3`, apenas atualizar `recording_url` para a URL pública equivalente (o arquivo já existe no path `{client_id}/{whatsapp_call_id}.{ext}`); para os `.ogg`/`.webm` antigos, deixar como está — o Player toca qualquer content-type via URL pública.
-
----
-
-## Detalhes técnicos (resumo dev)
-
-**Novos artefatos**
-- `supabase/functions/wavoip-reconcile-call/index.ts`
-- `supabase/functions/wavoip-reconcile-runner/index.ts`
-- Migração: tabela `wavoip_reconcile_queue`, pg_cron 1 min, policy pública em `storage.objects` para bucket `wavoip-recordings`, `storage_update_bucket` para tornar público.
-
-**Alterados**
-- `wavoip-call-webhook/index.ts`: substitui trigger imediato por `INSERT INTO wavoip_reconcile_queue (run_after = now()+60s)` no terminal.
-- `wavoip-fetch-recording/index.ts`: força `.mp3`, salva URL pública em `recording_url`.
-- `src/pages/wavoip/components/RecordingPlayer.tsx`: 3 estados + tooltip, sem polling, usa URL pública direta.
-- `src/pages/wavoip/components/CallHistoryTab.tsx`: helper `statusLabel/statusVariant` para o Badge.
-- `src/pages/wavoip/hooks/useWavoipCallHistory.ts`: garantir que retorna `recording_status`, `recording_url`, `duration_seconds`, `status`.
-
-**Fora do escopo**
-- Alterar SDK/webphone.
-- Trocar bucket privado por outro; só flip para público.
+## Fora do escopo
+- Nenhuma mudança no SDK do webphone, no `callSettings.displayName` global, ou nas tabelas.
