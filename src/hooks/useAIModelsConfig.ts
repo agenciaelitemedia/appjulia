@@ -9,7 +9,9 @@ export type AIFeature =
   | 'chat_transcription'
   | 'chat_autoreply'
   | 'support_transcription'
-  | 'script_generation';
+  | 'script_generation'
+  | 'wavoip_transcription'
+  | 'wavoip_call_summary';
 
 export type AIProvider = 'lovable' | 'openrouter';
 
@@ -35,6 +37,8 @@ export const DEFAULT_MODELS: Record<AIFeature, string> = {
   chat_autoreply: 'google/gemini-2.5-flash',
   support_transcription: 'google/gemini-2.5-flash',
   script_generation: 'google/gemini-3-flash-preview',
+  wavoip_transcription: 'openai/gpt-4o-mini-transcribe',
+  wavoip_call_summary: 'google/gemini-2.5-flash',
 };
 
 export const DEFAULT_PROMPTS: Record<AIFeature, string> = {
@@ -46,6 +50,8 @@ export const DEFAULT_PROMPTS: Record<AIFeature, string> = {
   chat_autoreply: '',
   support_transcription: '',
   script_generation: '',
+  wavoip_transcription: `Você é um transcritor profissional em português (pt-BR) de CHAMADAS TELEFÔNICAS entre um Atendente (operador do escritório) e um Cliente. Transcreva fielmente o áudio como um DIÁLOGO, alternando linhas no formato:\nAtendente: ...\nCliente: ...\nUse apenas esses dois rótulos. Preserve pontuação. Não traduza, não resuma, não invente. Se estiver inaudível, escreva "[trecho inaudível]". Devolva apenas o diálogo, sem cabeçalhos ou comentários.`,
+  wavoip_call_summary: `Você é um analista de atendimento. Gere um RESUMO OBJETIVO em português (pt-BR) da chamada telefônica transcrita abaixo, o mais COMPACTO possível, mas suficiente para entender os pontos principais da conversa. Formato: 1 frase de abertura em **negrito** identificando o motivo do contato, seguida de até 5 bullets curtos cobrindo pedidos do cliente, decisões, compromissos assumidos e próximos passos. Não invente informações.`,
 };
 
 export function useAIModelsConfig() {
