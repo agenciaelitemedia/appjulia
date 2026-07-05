@@ -48,6 +48,19 @@ export function TranscriptionButton({ call, planAllowsTranscription, onRefetch }
   let disabled = false;
   let onClick: (() => void) | undefined;
 
+  const startTranscription = async () => {
+    setBusy(true);
+    try {
+      await supabase.functions.invoke('wavoip-transcribe-recording', {
+        body: { call_id: call.id, force: true },
+      });
+      toast.success('Transcrição iniciada');
+      onRefetch?.();
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao iniciar transcrição');
+    } finally { setBusy(false); }
+  };
+
   if (!planAllowsTranscription) {
     tooltip = 'Transcrição desativada no plano — ative em Planos Wavoip';
     iconColor = 'text-destructive';
@@ -56,25 +69,18 @@ export function TranscriptionButton({ call, planAllowsTranscription, onRefetch }
     tooltip = 'Sem gravação disponível para transcrever';
     iconColor = 'text-muted-foreground';
     disabled = true;
-  } else if (status === 'processing' || status === 'pending') {
+  } else if (status === 'processing') {
     tooltip = 'Transcrevendo…';
     iconColor = 'text-amber-500';
     disabled = true;
+  } else if (status === 'pending') {
+    tooltip = 'Iniciar transcrição';
+    iconColor = 'text-muted-foreground';
+    onClick = startTranscription;
   } else if (status === 'failed') {
     tooltip = 'Falha na transcrição — clique para tentar novamente';
     iconColor = 'text-muted-foreground';
-    onClick = async () => {
-      setBusy(true);
-      try {
-        await supabase.functions.invoke('wavoip-transcribe-recording', {
-          body: { call_id: call.id, force: true },
-        });
-        toast.success('Transcrição em processamento');
-        onRefetch?.();
-      } catch (e: any) {
-        toast.error(e?.message || 'Falha ao iniciar transcrição');
-      } finally { setBusy(false); }
-    };
+    onClick = startTranscription;
   } else if (status === 'disabled') {
     tooltip = 'Transcrição desativada no plano — ative em Planos Wavoip';
     iconColor = 'text-destructive';
@@ -123,7 +129,7 @@ export function TranscriptionButton({ call, planAllowsTranscription, onRefetch }
                 className="h-8 w-8"
                 aria-label={tooltip}
               >
-                {busy || status === 'processing' || status === 'pending' && hasRecording && planAllowsTranscription ? (
+              {busy || status === 'processing' ? (
                   <Loader2 className={cn('h-4 w-4 animate-spin', iconColor)} />
                 ) : (
                   <FileText className={cn('h-4 w-4', iconColor)} />
