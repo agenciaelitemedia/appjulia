@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useWavoipCallHistory, type WavoipCall } from '../hooks/useWavoipCallHistory';
 import { useWavoipReconcileQueue } from '../hooks/useWavoipReconcileQueue';
 import { RecordingPlayer } from './RecordingPlayer';
 
