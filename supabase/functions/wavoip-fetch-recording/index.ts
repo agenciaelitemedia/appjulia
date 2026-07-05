@@ -7,17 +7,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const WAVOIP_STORAGE = 'https://storage.wavoip.com';
 const BUCKET = 'wavoip-recordings';
-
-function extFromContentType(ct?: string | null): string {
-  if (!ct) return 'ogg';
-  const c = ct.toLowerCase();
-  if (c.includes('mpeg')) return 'mp3';
-  if (c.includes('wav')) return 'wav';
-  if (c.includes('mp4')) return 'm4a';
-  if (c.includes('ogg') || c.includes('opus')) return 'ogg';
-  if (c.includes('webm')) return 'webm';
-  return 'ogg';
-}
+const SIGNED_URL_TTL = 60 * 60 * 24 * 365 * 5; // 5 anos (bucket privado, workspace bloqueia público)
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -82,12 +72,11 @@ Deno.serve(async (req) => {
     }
 
     const contentType = res.headers.get('content-type') || 'audio/ogg';
-    const ext = extFromContentType(contentType);
-    const path = `${log.client_id ?? 'unknown'}/${callId}.${ext}`;
+    const path = `${log.client_id ?? 'unknown'}/${callId}.mp3`;
     const buf = new Uint8Array(await res.arrayBuffer());
 
     const { error: upErr } = await admin.storage.from(BUCKET).upload(path, buf, {
-      contentType,
+      contentType: 'audio/mpeg',
       upsert: true,
     });
     if (upErr) {
@@ -98,13 +87,17 @@ Deno.serve(async (req) => {
       throw upErr;
     }
 
+    // Bucket é privado (workspace bloqueia público). Geramos signed URL longa e salvamos direto.
+    const { data: signed } = await admin.storage.from(BUCKET).createSignedUrl(path, SIGNED_URL_TTL);
+    const finalUrl = signed?.signedUrl ?? path;
+
     await admin.from('wavoip_call_logs').update({
-      recording_url: path,
+      recording_url: finalUrl,
       recording_status: 'available',
       recording_downloaded_at: new Date().toISOString(),
     }).eq('id', log.id);
 
-    return new Response(JSON.stringify({ ok: true, status: 'available', path }), {
+    return new Response(JSON.stringify({ ok: true, status: 'available', path, url: finalUrl }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {

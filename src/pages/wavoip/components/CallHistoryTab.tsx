@@ -32,13 +32,16 @@ function durationLabel(s: number) {
 
 function statusInfo(c: WavoipCall): { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' } {
   const s = (c.status || '').toLowerCase();
-  if (['answered', 'active', 'ended'].includes(s) && (c.answered_at || c.duration_seconds > 0)) return { label: 'Atendida', variant: 'default' };
-  if (['rejected', 'cancelled', 'canceled'].includes(s)) return { label: 'Cancelada', variant: 'secondary' };
-  if (['not_answered', 'no_answer'].includes(s)) return { label: 'Não atendida', variant: 'secondary' };
-  if (['failed', 'error', 'connection_lost'].includes(s)) return { label: 'Falhou', variant: 'destructive' };
-  if (['ended', 'handled_remotely'].includes(s)) return { label: 'Encerrada', variant: 'outline' };
-  if (['incoming_ring', 'outgoing_ring', 'outgoing_calling', 'connecting', 'active'].includes(s)) return { label: 'Em andamento', variant: 'outline' };
-  return { label: c.status || '-', variant: 'outline' };
+  if (s === 'ended') return { label: 'ENCERRADA', variant: 'default' };
+  if (s === 'cancelled' || s === 'canceled') return { label: 'CANCELADA', variant: 'secondary' };
+  if (s === 'rejected') return { label: 'REJEITADA', variant: 'secondary' };
+  if (s === 'not_answered' || s === 'no_answer') return { label: 'NÃO ATENDIDA', variant: 'secondary' };
+  if (s === 'missed') return { label: 'PERDIDA', variant: 'secondary' };
+  if (s === 'failed' || s === 'error' || s === 'connection_lost') return { label: 'FALHOU', variant: 'destructive' };
+  if (s === 'handled_remotely') return { label: 'ATENDIDA EM OUTRO DISPOSITIVO', variant: 'outline' };
+  if (s === 'active') return { label: 'EM CURSO', variant: 'outline' };
+  if (['calling', 'ringing', 'incoming_ring', 'outgoing_ring', 'outgoing_calling', 'connecting'].includes(s)) return { label: 'CHAMANDO', variant: 'outline' };
+  return { label: (c.status || '-').toUpperCase(), variant: 'outline' };
 }
 
 export function CallHistoryTab() {
@@ -74,9 +77,9 @@ export function CallHistoryTab() {
     return calls.filter((c) => {
       if (typeFilter !== 'all' && c.direction !== typeFilter) return false;
       const si = statusInfo(c).label;
-      if (causeFilter === 'answered' && si !== 'Atendida') return false;
-      if (causeFilter === 'missed' && !['Não atendida', 'Cancelada'].includes(si)) return false;
-      if (causeFilter === 'failed' && si !== 'Falhou') return false;
+      if (causeFilter === 'answered' && si !== 'ENCERRADA') return false;
+      if (causeFilter === 'missed' && !['NÃO ATENDIDA', 'CANCELADA', 'REJEITADA', 'PERDIDA'].includes(si)) return false;
+      if (causeFilter === 'failed' && si !== 'FALHOU') return false;
       if (term) {
         const blob = `${c.to_number ?? ''} ${c.from_number ?? ''}`.replace(/\D/g, '');
         if (!blob.includes(term)) return false;
@@ -138,7 +141,7 @@ export function CallHistoryTab() {
                 <TableHead>Iniciou às</TableHead>
                 <TableHead>Finalizou às</TableHead>
                 <TableHead>Duração</TableHead>
-                <TableHead>Causa</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead className="w-16 text-center">Gravação</TableHead>
               </TableRow>
@@ -171,6 +174,7 @@ export function CallHistoryTab() {
                         whatsappCallId={c.whatsapp_call_id}
                         recordingPath={c.recording_url}
                         status={c.recording_status}
+                        durationSeconds={c.duration_seconds}
                         onRefetched={refetch}
                       />
                     </TableCell>
