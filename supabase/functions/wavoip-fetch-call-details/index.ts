@@ -23,6 +23,16 @@ function pickNum(...vals: any[]): number {
   return 0;
 }
 
+const STATUS_CANON: Record<string, string> = {
+  CALLING: 'calling', OUTGOING_CALLING: 'calling',
+  RINGING: 'ringing', INCOMING_RING: 'ringing', OUTGOING_RING: 'ringing',
+  CONNECTING: 'connecting',
+  ACTIVE: 'active', ACCEPT: 'active', ACCEPTED: 'active',
+  ENDED: 'ended', CANCELLED: 'cancelled', REJECTED: 'rejected',
+  NOT_ANSWERED: 'not_answered', FAILED: 'failed',
+  HANDLED_REMOTELY: 'handled_remotely', MISSED: 'missed',
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
@@ -42,6 +52,11 @@ Deno.serve(async (req) => {
 
     // 1) Localizar o dispositivo.
     let device: any = null;
+    // Carrega log existente para preservar device_id/client_id/app_user_id já gravados.
+    const { data: existingLog } = await admin.from('wavoip_call_logs')
+      .select('id,device_id,client_id,app_user_id,from_number,to_number,started_at,ended_at,answered_at,duration_seconds,recording_status,recording_url,metadata')
+      .eq('whatsapp_call_id', whatsappCallId).maybeSingle();
+
     if (bodyToken) {
       const { data } = await admin.from('wavoip_devices')
         .select('id,device_token,provider_id,client_id,app_user_id')
@@ -49,18 +64,15 @@ Deno.serve(async (req) => {
       device = data ?? null;
     }
     if (!device) {
-      const { data: log } = await admin.from('wavoip_call_logs')
-        .select('device_id,client_id,app_user_id')
-        .eq('whatsapp_call_id', whatsappCallId).maybeSingle();
-      if (log?.device_id) {
+      if (existingLog?.device_id) {
         const { data } = await admin.from('wavoip_devices')
           .select('id,device_token,provider_id,client_id,app_user_id')
-          .eq('id', log.device_id).maybeSingle();
+          .eq('id', existingLog.device_id).maybeSingle();
         device = data ?? null;
       }
       // Fallback: qualquer dispositivo com provider_id do mesmo client.
       if (!device?.provider_id) {
-        const cid = log?.client_id ?? bodyClientId;
+        const cid = existingLog?.client_id ?? bodyClientId;
         if (cid) {
           const { data } = await admin.from('wavoip_devices')
             .select('id,device_token,provider_id,client_id,app_user_id')
@@ -69,14 +81,6 @@ Deno.serve(async (req) => {
             .limit(1).maybeSingle();
           if (data) device = data;
         }
-      }
-      // Último recurso: qualquer dispositivo global com provider_id.
-      if (!device?.provider_id) {
-        const { data } = await admin.from('wavoip_devices')
-          .select('id,device_token,provider_id,client_id,app_user_id')
-          .not('provider_id', 'is', null)
-          .limit(1).maybeSingle();
-        if (data) device = data;
       }
     }
     if (!device?.provider_id) {
@@ -110,32 +114,68 @@ Deno.serve(async (req) => {
         status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const payload = detailsJson?.data ?? detailsJson;
+    // Resposta oficial: { type:'success', result:[ { caller, receiver, duration, status,
+    //   direction:'OUTCOMING'|'INCOMING', created_date, last_updated_date, record_status, ... } ] }
+    const item: any = detailsJson?.result?.[0] ?? detailsJson?.data ?? detailsJson;
 
-    // 4) Upsert idempotente (preserva recording_status/recording_url).
-    const rawDir = String(payload?.direction ?? '').toLowerCase();
-    const direction = rawDir.includes('in') ? 'inbound' : 'outbound';
-    const peer = payload?.peer ?? {};
+    const rawStatus = String(item?.status ?? 'NONE').toUpperCase();
+    const canonical = STATUS_CANON[rawStatus] ?? rawStatus.toLowerCase();
+    const rawDir = String(item?.direction ?? 'OUTCOMING').toUpperCase();
+    const direction = rawDir.startsWith('IN') ? 'inbound' : 'outbound';
+    const durationSec = pickNum(item?.duration, item?.duration_seconds);
+    const fromNumber = pickStr(item?.caller, item?.from, item?.from_number);
+    const toNumber   = pickStr(item?.receiver, item?.to, item?.to_number);
+    const startedAt = item?.created_date
+      ? new Date(item.created_date).toISOString()
+      : (item?.started_at ?? item?.start_at ?? null);
+    const endedAt = item?.last_updated_date
+      ? new Date(item.last_updated_date).toISOString()
+      : (item?.ended_at ?? item?.end_at ?? null);
+
+    // Preserva o dispositivo/cliente já gravado (evita trocar o device escolhido pelo usuário).
+    const preservedDeviceId = existingLog?.device_id ?? device.id;
+    const preservedClientId = existingLog?.client_id ?? device.client_id ?? null;
+    const preservedAppUserId = existingLog?.app_user_id ?? device.app_user_id ?? null;
+
+    const prevMeta = (existingLog?.metadata as any) ?? {};
     const row: Record<string, any> = {
       whatsapp_call_id: whatsappCallId,
-      device_id: device.id,
-      client_id: device.client_id,
-      app_user_id: device.app_user_id,
+      device_id: preservedDeviceId,
+      client_id: preservedClientId,
+      app_user_id: preservedAppUserId,
       direction,
-      status: String(payload?.status ?? 'ended').toLowerCase(),
-      from_number: pickStr(payload?.from, payload?.from_number, direction === 'inbound' ? (peer?.number ?? peer?.phone) : null),
-      to_number:   pickStr(payload?.to,   payload?.to_number,   direction === 'outbound' ? (peer?.number ?? peer?.phone) : null),
-      whatsapp_jid: pickStr(payload?.jid, payload?.whatsapp_jid),
-      started_at:  payload?.started_at ?? payload?.start_at ?? null,
-      answered_at: payload?.answered_at ?? null,
-      ended_at:    payload?.ended_at ?? payload?.end_at ?? null,
-      duration_seconds: pickNum(payload?.duration, payload?.duration_seconds),
-      end_reason:  pickStr(payload?.end_reason, payload?.reason),
-      metadata: { source: 'fetch-call-details', details: payload },
+      status: canonical,
+      from_number: fromNumber ?? existingLog?.from_number ?? null,
+      to_number:   toNumber   ?? existingLog?.to_number   ?? null,
+      whatsapp_jid: pickStr(item?.jid, item?.whatsapp_jid) ?? undefined,
+      started_at:  startedAt ?? existingLog?.started_at ?? null,
+      answered_at: existingLog?.answered_at ?? (durationSec > 0 ? (startedAt ?? null) : null),
+      ended_at:    endedAt ?? existingLog?.ended_at ?? null,
+      duration_seconds: durationSec > 0 ? durationSec : (existingLog?.duration_seconds ?? 0),
+      end_reason:  rawStatus,
+      metadata: { ...prevMeta, source: 'fetch-call-details', details: item },
     };
+    // Preserva gravação já resolvida.
+    if (existingLog?.recording_status) row.recording_status = existingLog.recording_status;
+    if (existingLog?.recording_url)    row.recording_url    = existingLog.recording_url;
+
     const { error: upErr } = await admin.from('wavoip_call_logs')
       .upsert(row, { onConflict: 'whatsapp_call_id' });
     if (upErr) throw upErr;
+
+    // Enfileira reconcile em 1 min para completar duração/gravação quando ainda pendentes.
+    try {
+      await admin.from('wavoip_reconcile_queue').upsert(
+        {
+          whatsapp_call_id: whatsappCallId,
+          run_after: new Date(Date.now() + 60_000).toISOString(),
+          attempts: 0,
+          status: 'pending',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'whatsapp_call_id' } as any,
+      );
+    } catch (e) { console.warn('[fetch-call-details] enqueue reconcile failed', e); }
 
     return new Response(JSON.stringify({ ok: true, whatsapp_call_id: whatsappCallId }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
