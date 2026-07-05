@@ -141,7 +141,7 @@ export function CallHistoryTab() {
                 <TableHead>Iniciou às</TableHead>
                 <TableHead>Finalizou às</TableHead>
                 <TableHead>Duração</TableHead>
-                <TableHead>Causa</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead className="w-16 text-center">Gravação</TableHead>
               </TableRow>
