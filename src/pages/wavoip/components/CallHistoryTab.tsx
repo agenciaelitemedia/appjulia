@@ -115,15 +115,22 @@ export function CallHistoryTab() {
           <CardTitle>Histórico de Chamadas</CardTitle>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{filtered.length} de {calls.length} registro(s)</span>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={processQueue}
-              disabled={processing || isLoading}
-              title="Processa agora as chamadas pendentes na fila (normalmente atualizadas 1 min após o término)"
-            >
-              <RefreshCw className={`h-4 w-4 mr-1 ${processing ? 'animate-spin' : ''}`} /> Processar fila pendente
-            </Button>
+            {hasPending && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={processQueue}
+                disabled={processing || isLoading}
+                title="Processa agora as chamadas pendentes na fila (normalmente atualizadas 1 min após o término)"
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${processing ? 'animate-spin' : ''}`} /> Processar fila pendente ({count})
+              </Button>
+            )}
+            {nextRunAt && (
+              <span className="text-xs text-muted-foreground">
+                Próxima execução: {format(nextRunAt, 'HH:mm')}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
