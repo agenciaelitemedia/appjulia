@@ -97,6 +97,18 @@ Deno.serve(async (req) => {
       recording_downloaded_at: new Date().toISOString(),
     }).eq('id', log.id);
 
+    // Fire-and-forget: trigger transcription (checks plan flags internally).
+    try {
+      fetch(`${supabaseUrl}/functions/v1/wavoip-transcribe-recording`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ call_id: log.id }),
+      }).catch(() => {});
+    } catch (_e) { /* ignore */ }
+
     return new Response(JSON.stringify({ ok: true, status: 'available', path, url: finalUrl }), {
       status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
