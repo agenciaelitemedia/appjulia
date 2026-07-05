@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   MessageSquare, BarChart2, MessagesSquare, FileText, AudioLines,
-  Bot, Headphones, ScrollText, Settings, RotateCcw, Plus, Trash2, Star, KeyRound,
+  Bot, Headphones, ScrollText, Settings, RotateCcw, Plus, Trash2, Star, KeyRound, Phone,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -82,6 +82,20 @@ const AGENTS: AgentDef[] = [
     title: 'Geração de Roteiros',
     description: 'Gera roteiros jurídicos, individual e em lote (edge: prompt-generator e batch-generate-scripts). Endpoints: Lovable ou OpenRouter.',
     hasPrompt: false,
+  },
+  {
+    feature: 'wavoip_transcription',
+    icon: <Phone className="w-4 h-4 text-cyan-600" />,
+    title: 'Transcrição de Chamadas Wavoip',
+    description: 'Transcreve as gravações das chamadas Wavoip no formato "Atendente:/Cliente:" logo após a gravação ser salva (edge: wavoip-transcribe-recording). Depende da flag do plano do cliente.',
+    hasPrompt: true,
+  },
+  {
+    feature: 'wavoip_call_summary',
+    icon: <FileText className="w-4 h-4 text-cyan-800" />,
+    title: 'Resumo de Chamadas Wavoip',
+    description: 'Gera um resumo compacto da transcrição da chamada Wavoip. Depende da flag "Resumo da gravação" no plano do cliente.',
+    hasPrompt: true,
   },
 ];
 

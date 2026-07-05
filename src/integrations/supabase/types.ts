@@ -7627,6 +7627,11 @@ export type Database = {
           started_at: string | null
           status: string
           to_number: string | null
+          transcription_error: string | null
+          transcription_generated_at: string | null
+          transcription_status: string
+          transcription_summary: string | null
+          transcription_text: string | null
           user_id: string | null
           whatsapp_call_id: string | null
           whatsapp_jid: string | null
@@ -7652,6 +7657,11 @@ export type Database = {
           started_at?: string | null
           status: string
           to_number?: string | null
+          transcription_error?: string | null
+          transcription_generated_at?: string | null
+          transcription_status?: string
+          transcription_summary?: string | null
+          transcription_text?: string | null
           user_id?: string | null
           whatsapp_call_id?: string | null
           whatsapp_jid?: string | null
@@ -7677,6 +7687,11 @@ export type Database = {
           started_at?: string | null
           status?: string
           to_number?: string | null
+          transcription_error?: string | null
+          transcription_generated_at?: string | null
+          transcription_status?: string
+          transcription_summary?: string | null
+          transcription_text?: string | null
           user_id?: string | null
           whatsapp_call_id?: string | null
           whatsapp_jid?: string | null

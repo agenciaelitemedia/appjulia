@@ -23,6 +23,7 @@ const emptyPlan: Partial<WavoipPlan> = {
   provider_id: null,
   active: true,
   sort_order: 0,
+  features: {},
 };
 
 export function WavoipPlansTab() {
@@ -39,6 +40,32 @@ export function WavoipPlansTab() {
     const { provider: _p, ...rest } = p as any;
     setEditing(rest);
     setOpen(true);
+  };
+
+  const featuresObj = (): Record<string, boolean> => {
+    const f: any = editing.features;
+    if (!f) return {};
+    if (Array.isArray(f)) {
+      const o: Record<string, boolean> = {};
+      for (const k of f) if (typeof k === 'string') o[k] = true;
+      return o;
+    }
+    if (typeof f === 'object') return f as Record<string, boolean>;
+    return {};
+  };
+  const toggleFeature = (key: string, v: boolean) => {
+    const next = { ...featuresObj(), [key]: v };
+    setEditing({ ...editing, features: next });
+  };
+  const planHasFeature = (p: WavoipPlan, key: string): boolean => {
+    const f: any = p.features;
+    if (!f) return false;
+    if (Array.isArray(f)) return f.includes(key);
+    if (typeof f === 'object') {
+      const v = f[key];
+      return v === true || v === 'true' || v === 1 || v === '1';
+    }
+    return false;
   };
 
   const save = async () => {
@@ -109,6 +136,23 @@ export function WavoipPlansTab() {
                   <Label>Ativo</Label>
                 </div>
               </div>
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="text-sm font-medium">Recursos de IA</div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!featuresObj().transcription}
+                    onCheckedChange={(v) => toggleFeature('transcription', v)}
+                  />
+                  <Label className="cursor-pointer">Transcrição de gravações</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={!!featuresObj().recording_summary}
+                    onCheckedChange={(v) => toggleFeature('recording_summary', v)}
+                  />
+                  <Label className="cursor-pointer">Resumo da gravação</Label>
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -127,13 +171,14 @@ export function WavoipPlansTab() {
               <TableHead>Minutos</TableHead>
               <TableHead>Dispositivos</TableHead>
               <TableHead>Modelo</TableHead>
+              <TableHead>Recursos IA</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (<TableRow><TableCell colSpan={8}>Carregando...</TableCell></TableRow>)}
-            {!isLoading && plans.length === 0 && (<TableRow><TableCell colSpan={8} className="text-muted-foreground">Nenhum plano cadastrado.</TableCell></TableRow>)}
+            {isLoading && (<TableRow><TableCell colSpan={9}>Carregando...</TableCell></TableRow>)}
+            {!isLoading && plans.length === 0 && (<TableRow><TableCell colSpan={9} className="text-muted-foreground">Nenhum plano cadastrado.</TableCell></TableRow>)}
             {plans.map((p) => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">{p.name}</TableCell>
@@ -142,6 +187,10 @@ export function WavoipPlansTab() {
                 <TableCell>{p.included_minutes}</TableCell>
                 <TableCell>{p.max_devices}</TableCell>
                 <TableCell>{p.device_model}</TableCell>
+                <TableCell className="space-x-1">
+                  {planHasFeature(p, 'transcription') && <Badge variant="secondary">Transcrição</Badge>}
+                  {planHasFeature(p, 'recording_summary') && <Badge variant="secondary">Resumo</Badge>}
+                </TableCell>
                 <TableCell>{p.active ? <Badge>Ativo</Badge> : <Badge variant="outline">Inativo</Badge>}</TableCell>
                 <TableCell className="text-right">
                   <Button size="icon" variant="ghost" onClick={() => startEdit(p)}><Pencil className="h-4 w-4" /></Button>
