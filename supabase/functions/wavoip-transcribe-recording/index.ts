@@ -87,6 +87,10 @@ Deno.serve(async (req) => {
       return ok({ ok: true, status: 'ok', skipped: 'already_transcribed' });
     }
 
+    if (!force && log.transcription_status === 'processing') {
+      return ok({ ok: false, reason: 'already_processing' });
+    }
+
     // 2) Verify plan flags
     let allowTranscription = false;
     let allowSummary = false;
