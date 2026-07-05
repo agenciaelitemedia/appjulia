@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { PhoneCall } from 'lucide-react';
 import { useWavoip } from '@/contexts/WavoipContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { WavoipCallDialog } from './WavoipCallDialog';
 
 interface Props {
   phone?: string | null;
@@ -10,29 +12,39 @@ interface Props {
 }
 
 export function WavoipCallButton({ phone, contactName }: Props) {
-  const { hasActivePlan, ready, canDial, prefillDialer } = useWavoip();
+  const { hasActivePlan, ready, canDial } = useWavoip();
+  const [open, setOpen] = useState(false);
   if (!hasActivePlan) return null;
 
-  const onClick = async () => {
+  const onClick = () => {
     if (!phone) { toast.error('Contato sem telefone'); return; }
     if (!ready) { toast.error('Webphone Wavoip carregando...'); return; }
     if (!canDial) { toast.error('Conecte um dispositivo Wavoip para ligar'); return; }
-    const res = await prefillDialer(phone, contactName ?? undefined);
-    if (!res.ok) toast.error(res.error ?? 'Falha ao abrir discador');
+    setOpen(true);
   };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      className={cn('gap-1.5', canDial
-        ? 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100'
-        : 'text-muted-foreground')}
-      onClick={onClick}
-      title="Abrir discador com número preenchido (Wavoip)"
-    >
-      <PhoneCall className="h-4 w-4" />
-      Chamada WA
-    </Button>
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className={cn('gap-1.5', canDial
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100'
+          : 'text-muted-foreground')}
+        onClick={onClick}
+        title="Iniciar chamada WhatsApp (Wavoip)"
+      >
+        <PhoneCall className="h-4 w-4" />
+        Chamada WA
+      </Button>
+      {phone ? (
+        <WavoipCallDialog
+          open={open}
+          onOpenChange={setOpen}
+          phone={phone}
+          contactName={contactName}
+        />
+      ) : null}
+    </>
   );
 }
