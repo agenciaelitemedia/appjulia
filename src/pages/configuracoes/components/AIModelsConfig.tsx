@@ -87,14 +87,14 @@ const AGENTS: AgentDef[] = [
     feature: 'wavoip_transcription',
     icon: <Phone className="w-4 h-4 text-cyan-600" />,
     title: 'Transcrição de Chamadas Wavoip',
-    description: 'Transcreve as gravações das chamadas Wavoip no formato "Atendente:/Cliente:" logo após a gravação ser salva (edge: wavoip-transcribe-recording). Depende da flag do plano do cliente.',
+    description: 'Modelo de STT (áudio→texto) que transcreve a gravação da chamada no formato "Atendente:/Cliente:" (edge: wavoip-transcribe-recording). Use um modelo de transcrição, ex.: openai/gpt-4o-mini-transcribe. Depende da flag "Transcrição" no plano do cliente.',
     hasPrompt: true,
   },
   {
     feature: 'wavoip_call_summary',
     icon: <FileText className="w-4 h-4 text-cyan-800" />,
     title: 'Resumo de Chamadas Wavoip',
-    description: 'Gera um resumo compacto da transcrição da chamada Wavoip. Depende da flag "Resumo da gravação" no plano do cliente.',
+    description: 'Modelo de chat que gera um resumo compacto a partir da transcrição já gerada (opera apenas sobre o texto — não recebe o áudio). Configurável independentemente do modelo de transcrição. Depende da flag "Resumo da gravação" no plano do cliente.',
     hasPrompt: true,
   },
 ];
