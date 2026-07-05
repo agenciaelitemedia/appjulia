@@ -17,6 +17,8 @@ export const FEATURE_DEFAULT_MODEL: Record<string, string> = {
   chat_autoreply: "google/gemini-2.5-flash",
   support_transcription: "google/gemini-2.5-flash",
   script_generation: "google/gemini-3-flash-preview",
+  wavoip_transcription: "openai/gpt-4o-mini-transcribe",
+  wavoip_call_summary: "google/gemini-2.5-flash",
 };
 
 export interface ResolvedAI {
