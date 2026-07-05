@@ -33,14 +33,14 @@ function pickStr(...vals: any[]): string | null {
   return null;
 }
 
-async function triggerFetchRecording(supabaseUrl: string, serviceKey: string, whatsapp_call_id: string) {
+async function enqueueReconcile(admin: any, whatsapp_call_id: string, delayMs = 60_000) {
   try {
-    await fetch(`${supabaseUrl}/functions/v1/wavoip-fetch-recording`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}`, 'apikey': serviceKey },
-      body: JSON.stringify({ whatsapp_call_id }),
-    });
-  } catch (e) { console.warn('[wavoip-call-webhook] trigger rec failed', e); }
+    const runAfter = new Date(Date.now() + delayMs).toISOString();
+    await admin.from('wavoip_reconcile_queue').upsert(
+      { whatsapp_call_id, run_after: runAfter, attempts: 0, status: 'pending', updated_at: new Date().toISOString() },
+      { onConflict: 'whatsapp_call_id' } as any,
+    );
+  } catch (e) { console.warn('[wavoip-call-webhook] enqueue reconcile failed', e); }
 }
 
 Deno.serve(async (req) => {
@@ -112,11 +112,8 @@ Deno.serve(async (req) => {
         await admin.from('wavoip_call_logs').update({
           recording_status: recStatus === 'READY' ? 'pending' : recStatus.toLowerCase(),
         }).eq('whatsapp_call_id', wid);
-        if (recStatus === 'READY') {
-          // @ts-ignore EdgeRuntime
-          const wait = (globalThis as any)?.EdgeRuntime?.waitUntil ?? ((p: Promise<unknown>) => p);
-          wait(triggerFetchRecording(supabaseUrl, serviceKey, wid));
-        }
+        // Deixa o reconcile-runner cuidar do download (após 1 min).
+        if (recStatus === 'READY') await enqueueReconcile(admin, wid, 0);
       }
       return new Response(JSON.stringify({ ok: true, type }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -179,9 +176,8 @@ Deno.serve(async (req) => {
       }
 
       if (isTerminal) {
-        // @ts-ignore EdgeRuntime
-        const wait = (globalThis as any)?.EdgeRuntime?.waitUntil ?? ((p: Promise<unknown>) => p);
-        wait(triggerFetchRecording(supabaseUrl, serviceKey, wid));
+        // Após 1 min, o reconcile-runner consulta o endpoint oficial e cuida da gravação.
+        await enqueueReconcile(admin, wid, 60_000);
       }
 
       return new Response(JSON.stringify({ ok: true, type, wid }), {
