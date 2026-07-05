@@ -22,6 +22,11 @@ export type WavoipCall = {
   recording_status: string;
   recording_downloaded_at: string | null;
   created_at: string;
+  transcription_status?: string | null;
+  transcription_text?: string | null;
+  transcription_summary?: string | null;
+  transcription_error?: string | null;
+  transcription_generated_at?: string | null;
 };
 
 export function useWavoipCallHistory(clientId: number | null, appUserId: number | null, opts?: { ownOnly?: boolean }) {
