@@ -211,23 +211,20 @@ Deno.serve(async (req) => {
       context: { call_id: log.id, chars: rawText.length },
     });
 
-    // 7) Convert to Atendente/Cliente dialog via chat LLM
-    const dialogPrompt = stt.prompt ??
-      'Você é um transcritor pt-BR de chamadas telefônicas entre um Atendente (operador do escritório) e um Cliente. Reescreva a transcrição a seguir como um DIÁLOGO alternando estritamente linhas no formato "Atendente: ..." e "Cliente: ...". Não invente informações; mantenha o conteúdo original. Devolva APENAS o diálogo.';
-    const dialogText = await callChat(lovableKey, 'google/gemini-2.5-flash', [
-      { role: 'system', content: dialogPrompt },
-      { role: 'user', content: `Transcrição bruta:\n\n${rawText}` },
-    ]) ?? rawText;
+    // 7) Use STT output directly — no intermediate LLM rewrite (would risk
+    //    inventing/altering content). The STT prompt itself instructs the
+    //    dialog format "Atendente:/Cliente:".
+    const dialogText = rawText;
 
     // 8) Summary (only when plan allows)
     let summary: string | null = null;
     if (allowSummary) {
       const sum = await resolveAI(supabase, 'wavoip_call_summary', 'google/gemini-2.5-flash');
       const summaryPrompt = sum.prompt ??
-        'Você é um analista de atendimento. Gere um RESUMO OBJETIVO e COMPACTO em pt-BR da chamada transcrita: 1 frase inicial em **negrito** com o motivo do contato e até 5 bullets curtos cobrindo pedidos, decisões e próximos passos. Não invente.';
+        'Você é um analista de atendimento. Gere um RESUMO OBJETIVO e COMPACTO em pt-BR baseado EXCLUSIVAMENTE na transcrição abaixo. Não invente fatos, nomes, valores ou compromissos. Se a transcrição estiver vazia ou insuficiente, responda apenas "Transcrição insuficiente para gerar resumo.". Quando houver conteúdo: 1 frase inicial em **negrito** com o motivo do contato e até 5 bullets curtos cobrindo apenas o que foi efetivamente dito.';
       summary = await callChat(lovableKey, sum.model, [
         { role: 'system', content: summaryPrompt },
-        { role: 'user', content: dialogText },
+        { role: 'user', content: `Transcrição da chamada (única fonte permitida):\n\n${dialogText}` },
       ]);
     }
 
