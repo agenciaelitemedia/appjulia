@@ -85,6 +85,27 @@ export function CallHistoryTab() {
     return () => { cancelled = true; };
   }, [clientId]);
 
+  // Auto-dispatch transcription for pending rows that already have a recording.
+  // Covers backfill: rows whose recording became available before the auto-dispatch
+  // hook was added to wavoip-fetch-recording.
+  const [autoDispatched] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (!planAllowsTranscription) return;
+    const pending = calls.filter(
+      (c) =>
+        c.recording_status === 'available' &&
+        (c.transcription_status ?? 'pending') === 'pending' &&
+        !autoDispatched.has(c.id),
+    );
+    if (pending.length === 0) return;
+    for (const c of pending) {
+      autoDispatched.add(c.id);
+      supabase.functions
+        .invoke('wavoip-transcribe-recording', { body: { call_id: c.id } })
+        .catch(() => { /* ignore; UI will show failed state on next refresh */ });
+    }
+  }, [calls, planAllowsTranscription, autoDispatched]);
+
   const processQueue = async () => {
     setProcessing(true);
     try {
