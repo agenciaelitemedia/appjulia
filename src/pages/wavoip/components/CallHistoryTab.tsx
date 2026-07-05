@@ -5,13 +5,14 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, PhoneIncoming, PhoneOutgoing, Smartphone } from 'lucide-react';
+import { RefreshCw, PhoneIncoming, PhoneOutgoing, Smartphone, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useWavoipCallHistory, type WavoipCall } from '../hooks/useWavoipCallHistory';
 import { useWavoipReconcileQueue } from '../hooks/useWavoipReconcileQueue';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
 import { RecordingPlayer } from './RecordingPlayer';
 
 function formatBRPhone(raw?: string | null): string {
@@ -55,6 +56,12 @@ export function CallHistoryTab() {
   const { hasPending, count, nextRunAt } = useWavoipReconcileQueue(clientId);
   const [processing, setProcessing] = useState(false);
   const [deviceNames, setDeviceNames] = useState<Record<string, string>>({});
+  const { data: team = [] } = useTeamByClient();
+  const userNames = useMemo(() => {
+    const map: Record<number, string> = {};
+    for (const m of team) map[Number(m.id)] = m.name;
+    return map;
+  }, [team]);
 
   useEffect(() => {
     if (!clientId) return;
@@ -168,6 +175,7 @@ export function CallHistoryTab() {
               <TableRow>
                 <TableHead>Origem</TableHead>
                 <TableHead>Dispositivo</TableHead>
+                <TableHead>Usuário</TableHead>
                 <TableHead>Número discado</TableHead>
                 <TableHead>Iniciou às</TableHead>
                 <TableHead>Finalizou às</TableHead>
@@ -191,6 +199,12 @@ export function CallHistoryTab() {
                       <span className="inline-flex items-center gap-1">
                         <Smartphone className="h-3 w-3 text-muted-foreground" />
                         {deviceLabel}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <span className="inline-flex items-center gap-1">
+                        <User className="h-3 w-3 text-muted-foreground" />
+                        {c.app_user_id != null ? (userNames[Number(c.app_user_id)] ?? `#${c.app_user_id}`) : '—'}
                       </span>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{formatBRPhone(numero)}</TableCell>
