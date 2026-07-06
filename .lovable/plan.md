@@ -1,31 +1,31 @@
-## Diagnóstico
+## Correção do registro + fix da marcação errada de direção
 
-Nas configurações o usuário selecionou:
-- **Transcrição Wavoip** → provider `openrouter`, modelo `openai/whisper-large-v3`
-- **Resumo Wavoip** → provider `openrouter`, modelo `deepseek/deepseek-v4-pro`
+### 1. Corrigir o registro atual
 
-Porém a edge `wavoip-transcribe-recording` **ignora o provider** e sempre chama o gateway da Lovable, tanto para STT quanto para o chat de resumo (endpoints hardcoded `https://ai.gateway.lovable.dev/...`). Como `whisper-large-v3` não está no allowlist da Lovable, o gateway responde `400 invalid model` e a transcrição falha. É por isso que o log mostra repetidamente:
+Atualizar a linha `aaf7a907-2fcc-43c2-b5b6-65ab5aa32d52` (WhatsApp Call ID `15EFBE841B2F362D11787D5E3C3F4576`) em `wavoip_call_logs`:
 
-```
-[wavoip-transcribe-recording] STT 400: invalid model: openai/whisper-large-v3
-```
+- `direction`: `inbound` → `outbound`
+- `from_number`: `558499506625` → `553488860163` (dispositivo "Meu Atendimento" que originou)
+- `to_number`: `null` → `558499506625` (número chamado)
+- `metadata.corrected_manually = true`
 
-## Correção
+### 2. Corrigir a causa raiz no webphone (`src/contexts/WavoipContext.tsx`)
 
-### `supabase/functions/wavoip-transcribe-recording/index.ts`
+Hoje o `upsertCallLog` decide `direction` a partir do payload do SDK e cai em `inbound` sempre que `rawDir` contém "in" (inclui `incoming`, mas também qualquer string com "in"). Além disso, `payload.from` é usado direto como `from_number` — em `call:ended` de chamada feita, o SDK às vezes envia `from = número do outro lado`, invertendo os papéis.
 
-1. **STT respeita o provider resolvido por `resolveAI('wavoip_transcription')`:**
-   - `provider === 'openrouter'` → POST em `OPENROUTER_TRANSCRIBE_ENDPOINT` (`https://openrouter.ai/api/v1/audio/transcriptions`) com `Authorization: Bearer <chave OpenRouter>` e headers de `providerHeaders('openrouter')`.
-   - Caso contrário → mantém o gateway da Lovable com `LOVABLE_API_KEY`.
-   - Se `provider = openrouter` mas a chave não está configurada, cai automaticamente para Lovable + modelo default (`openai/gpt-4o-mini-transcribe`) e loga aviso (mesmo padrão do `aiGateway.ts`).
-   - Fallback adicional: se a resposta for `400` com `invalid model`, re-tentar uma vez usando o default (`openai/gpt-4o-mini-transcribe` no Lovable) para não deixar a chamada travada só porque o admin escolheu um modelo incompatível.
+Ajustes:
 
-2. **Resumo (chat) respeita o provider:** trocar o `callChat` hardcoded pelo endpoint/chave/headers vindos de `resolveAI('wavoip_call_summary')` (`sum.endpoint`, `sum.apiKey`, `providerHeaders(sum.provider)`).
+- **Travar a direção pela primeira vez que a chamada é vista**:
+  - `dial(...)` já grava a linha com `direction: 'outbound'` — passar a guardar `direction: 'outbound'` no `activeCall` e no cache `currentCallByToken` (virar `Map<token, { id, direction }>`).
+  - `offer:received` → `direction: 'inbound'` (também travado no cache).
+  - Nos eventos seguintes (`call:accepted`, `call:ended`), **ignorar** `payload.direction` e usar a direção travada. Fallback só se não houver nada travado.
+- **Derivar from/to a partir da direção travada, não de `payload.from/to`**:
+  - `outbound` → `from_number = whatsapp_number do dispositivo`, `to_number = peer/digits`
+  - `inbound`  → `from_number = peer`, `to_number = whatsapp_number do dispositivo`
+  - Buscar `whatsapp_number` uma vez em `resolveDeviceId` (retornar `{ id, whatsapp_number }`).
+- **Manter `wavoip-fetch-call-details` como fonte oficial**: ele já roda no `call:ended` e sobrescreve `direction`/`from_number`/`to_number` com os dados oficiais da API Wavoip — reforçar isso removendo o `?? existingLog?.from_number` quando a API traz valor, para garantir correção pós-fato de qualquer linha nova.
 
-3. Ajustar `logAIUsage` para refletir o `provider`/`endpoint` realmente usados (Lovable ou OpenRouter).
+### Fora de escopo
 
-### Nada muda no frontend
-As telas de `/configurações` já permitem escolher provider + modelo; o problema é 100% no backend que não estava roteando. O usuário mantém o modelo que quiser sem precisar re-configurar nada.
-
-## Fora de escopo
-- Não altero prompts, planos, UI, nem retranscrevo chamadas antigas (o botão "Iniciar transcrição" continua funcionando; após o fix, novas tentativas passam a usar o provider correto).
+- Não mexer no webhook oficial (`wavoip-call-webhook`) — ele já usa `caller/receiver` da própria Wavoip e não tem esse bug.
+- Não reprocessar chamadas antigas em massa; apenas a linha citada é corrigida manualmente.
