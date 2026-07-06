@@ -22,6 +22,9 @@ function pickNum(...vals: any[]): number {
   }
   return 0;
 }
+function toInt(n: number): number {
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
 
 const STATUS_CANON: Record<string, string> = {
   CALLING: 'calling', OUTGOING_CALLING: 'calling',
@@ -122,7 +125,7 @@ Deno.serve(async (req) => {
     const canonical = STATUS_CANON[rawStatus] ?? rawStatus.toLowerCase();
     const rawDir = String(item?.direction ?? 'OUTCOMING').toUpperCase();
     const direction = rawDir.startsWith('IN') ? 'inbound' : 'outbound';
-    const durationSec = pickNum(item?.duration, item?.duration_seconds);
+    const durationSec = toInt(pickNum(item?.duration, item?.duration_seconds));
     const fromNumber = pickStr(item?.caller, item?.from, item?.from_number);
     const toNumber   = pickStr(item?.receiver, item?.to, item?.to_number);
     const startedAt = item?.created_date
