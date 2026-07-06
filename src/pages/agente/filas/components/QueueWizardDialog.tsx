@@ -203,7 +203,25 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
     }
 
     createQueue.mutate(formData, {
-      onSuccess: () => onOpenChange(false),
+      onSuccess: async (created: any) => {
+        // Auto-inscrever webhook Meta quando a fila WABA acabou de ser criada
+        if (selectedType === 'waba' && created?.id) {
+          try {
+            const { data, error } = await supabase.functions.invoke('waba-admin', {
+              body: { action: 'subscribe_queue', queueId: created.id },
+            });
+            if (error || !data?.success) {
+              toast.warning('Fila criada, mas falhou ao inscrever o webhook na Meta. Use "Reinscrever webhook" no menu da fila.');
+            } else {
+              toast.success('Webhook Meta inscrito com sucesso');
+            }
+          } catch (e) {
+            console.warn('subscribe_queue failed', e);
+            toast.warning('Fila criada, mas falhou ao inscrever o webhook na Meta.');
+          }
+        }
+        onOpenChange(false);
+      },
     });
   };
 
