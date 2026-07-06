@@ -1,31 +1,41 @@
-## Correção do registro + fix da marcação errada de direção
+## Diagnóstico
 
-### 1. Corrigir o registro atual
+Usuário: `advlimaealbuquerque@gmail.com` — fila **TESTE API** (client_id 400)
+- `waba_id`: 1062909349731148
+- `waba_number_id`: 1237858579405750 (número 5521991007071)
+- `waba_token`: presente (476 chars)
 
-Atualizar a linha `aaf7a907-2fcc-43c2-b5b6-65ab5aa32d52` (WhatsApp Call ID `15EFBE841B2F362D11787D5E3C3F4576`) em `wavoip_call_logs`:
+**Verificações feitas:**
+- `queues`: credenciais WABA salvas corretamente e `is_active=true`.
+- `webhook_logs`: **zero registros** para `phone_number_id=1237858579405750`. O último webhook Meta recebido em toda a plataforma foi em **junho/2026** e era de outro WABA. A Meta nunca chamou nosso webhook para essa conta.
+- Código: `WabaEmbeddedSignupButton` (fluxo por fila em `QueueWizardDialog`) chama apenas `waba-admin/exchange_token` e salva o token. **Nunca chama `subscribed_apps`** para vincular o app da Meta à WABA. Apenas o antigo caminho por agente (`save_credentials`) faz esse auto-subscribe.
 
-- `direction`: `inbound` → `outbound`
-- `from_number`: `558499506625` → `553488860163` (dispositivo "Meu Atendimento" que originou)
-- `to_number`: `null` → `558499506625` (número chamado)
-- `metadata.corrected_manually = true`
+**Causa raiz:** a WABA foi conectada via fila, e por isso o app da Meta **não foi inscrito** (`POST /{waba_id}/subscribed_apps`). Sem essa inscrição a Meta não envia webhooks para nós, mesmo com o número "conectado" e token válido. Por isso a mensagem de 5534988860163 para 5521991007071 não chegou.
 
-### 2. Corrigir a causa raiz no webphone (`src/contexts/WavoipContext.tsx`)
+## Correção
 
-Hoje o `upsertCallLog` decide `direction` a partir do payload do SDK e cai em `inbound` sempre que `rawDir` contém "in" (inclui `incoming`, mas também qualquer string com "in"). Além disso, `payload.from` é usado direto como `from_number` — em `call:ended` de chamada feita, o SDK às vezes envia `from = número do outro lado`, invertendo os papéis.
+Todas as chamadas Graph API novas usarão **v25.0** (o restante do código continua na versão atual até migração futura).
 
-Ajustes:
+### 1. Reinscrição imediata da fila TESTE API
+Nova action em `waba-admin`: `subscribe_queue` (recebe `queueId`).
+- Busca `waba_id` + `waba_token` da fila no Supabase.
+- `POST https://graph.facebook.com/v25.0/{waba_id}/subscribed_apps` com Bearer do token.
+- `GET https://graph.facebook.com/v25.0/{waba_id}/subscribed_apps` para confirmar e retornar apps inscritos.
+- Também registra callback no app: `POST https://graph.facebook.com/v25.0/{META_APP_ID}/subscriptions` com `object=whatsapp_business_account`, `fields=['messages']`, `callback_url=SUPABASE_URL/functions/v1/meta-webhook`, `verify_token=META_WEBHOOK_VERIFY_TOKEN` (idempotente).
+- Invocamos com `queueId='72debbfa-c59c-4792-a2b2-dea762273111'` para consertar a conta agora.
 
-- **Travar a direção pela primeira vez que a chamada é vista**:
-  - `dial(...)` já grava a linha com `direction: 'outbound'` — passar a guardar `direction: 'outbound'` no `activeCall` e no cache `currentCallByToken` (virar `Map<token, { id, direction }>`).
-  - `offer:received` → `direction: 'inbound'` (também travado no cache).
-  - Nos eventos seguintes (`call:accepted`, `call:ended`), **ignorar** `payload.direction` e usar a direção travada. Fallback só se não houver nada travado.
-- **Derivar from/to a partir da direção travada, não de `payload.from/to`**:
-  - `outbound` → `from_number = whatsapp_number do dispositivo`, `to_number = peer/digits`
-  - `inbound`  → `from_number = peer`, `to_number = whatsapp_number do dispositivo`
-  - Buscar `whatsapp_number` uma vez em `resolveDeviceId` (retornar `{ id, whatsapp_number }`).
-- **Manter `wavoip-fetch-call-details` como fonte oficial**: ele já roda no `call:ended` e sobrescreve `direction`/`from_number`/`to_number` com os dados oficiais da API Wavoip — reforçar isso removendo o `?? existingLog?.from_number` quando a API traz valor, para garantir correção pós-fato de qualquer linha nova.
+### 2. Prevenção — auto-subscribe ao conectar por fila
+No `QueueWizardDialog` (logo após criar/atualizar fila WABA com token): chamar `waba-admin/subscribe_queue` com o `queueId`. Toda nova fila WABA passa a receber webhooks automaticamente.
 
-### Fora de escopo
+### 3. Botão "Reinscrever webhook Meta" na fila
+Em `QueueCard` (quando `channel_type='waba'` e `waba_token`), item no menu chamando a mesma action. Serve para consertar filas WABA antigas sem recriar.
 
-- Não mexer no webhook oficial (`wavoip-call-webhook`) — ele já usa `caller/receiver` da própria Wavoip e não tem esse bug.
-- Não reprocessar chamadas antigas em massa; apenas a linha citada é corrigida manualmente.
+### 4. Validação
+Após rodar (1), reenviar de 5534988860163 para 5521991007071 e conferir:
+- `SELECT * FROM webhook_logs WHERE phone_number_id='1237858579405750' ORDER BY created_at DESC` — deve aparecer o evento.
+- Mensagem visível no chat da fila TESTE API.
+
+## Fora de escopo
+- Não alteramos o fluxo por agente (`save_credentials`) que já faz auto-subscribe.
+- Não mexemos em `meta-webhook`.
+- Não migramos as chamadas existentes de `v22.0` — apenas o código novo usa `v25.0`.
