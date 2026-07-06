@@ -148,8 +148,10 @@ Deno.serve(async (req) => {
       app_user_id: preservedAppUserId,
       direction,
       status: canonical,
+      // A API oficial da Wavoip é a fonte da verdade: se retornou valor, sobrescreve.
       from_number: fromNumber ?? existingLog?.from_number ?? null,
       to_number:   toNumber   ?? existingLog?.to_number   ?? null,
+      // direction vem sempre do payload oficial (`direction` já resolvido acima).
       whatsapp_jid: pickStr(item?.jid, item?.whatsapp_jid) ?? undefined,
       started_at:  startedAt ?? existingLog?.started_at ?? null,
       answered_at: existingLog?.answered_at ?? (durationSec > 0 ? (startedAt ?? null) : null),
