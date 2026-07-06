@@ -244,7 +244,7 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
               const isWebchat = ch.value === 'webchat';
               const isInstagram = ch.value === 'instagram';
               const hasProvider = allProviders.some((p) => p.provider_type === ch.value && p.is_active);
-              const adminOnly = isWaba || isWebchat || isInstagram;
+              const adminOnly = isWebchat || isInstagram;
               const isDisabled = adminOnly && !isAdmin;
 
               return (
