@@ -121,16 +121,20 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
         listenersBoundRef.current = true;
         try {
           const wp: any = apiRef.current ?? (window as any).wavoip;
-          // Cache de id da chamada por dispositivo p/ correlacionar eventos sem id explícito
-          const currentCallByToken = new Map<string, string>();
+          // Cache por dispositivo: id da chamada + direção travada no primeiro evento.
+          type CallCache = { id: string; direction: 'inbound' | 'outbound'; deviceNumber?: string | null };
+          const currentCallByToken = new Map<string, CallCache>();
+          const currentCallById = new Map<string, CallCache>();
 
-          const resolveDeviceId = async (token?: string | null): Promise<string | null> => {
-            if (!token) return null;
+          const resolveDevice = async (token?: string | null): Promise<{ id: string | null; number: string | null }> => {
+            if (!token) return { id: null, number: null };
             try {
               const { data } = await (supabase as any)
-                .from('wavoip_devices').select('id').eq('device_token', token).maybeSingle();
-              return data?.id ?? null;
-            } catch { return null; }
+                .from('wavoip_devices').select('id,whatsapp_number,whatsapp_jids').eq('device_token', token).maybeSingle();
+              const jids = Array.isArray(data?.whatsapp_jids) ? data.whatsapp_jids : [];
+              const number = data?.whatsapp_number ?? (jids[0] ? String(jids[0]).replace(/\D/g, '') : null);
+              return { id: data?.id ?? null, number: number ?? null };
+            } catch { return { id: null, number: null }; }
           };
 
           const readActiveCall = (): any => {
@@ -173,17 +177,39 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
 
               const deviceToken = payload?.device_token ?? active?.device_token ?? null;
               const whatsappCallId = payload?.id ?? payload?.call?.id ?? active?.id
-                ?? (deviceToken ? currentCallByToken.get(deviceToken) : null);
-              if (whatsappCallId && deviceToken) currentCallByToken.set(deviceToken, String(whatsappCallId));
+                ?? (deviceToken ? currentCallByToken.get(deviceToken)?.id : null);
 
-              const rawDir = (payload?.direction || payload?.call?.direction || active?.direction
-                || (ev === 'offer:received' ? 'inbound' : 'outbound')).toString().toLowerCase();
-              const direction = rawDir.includes('in') ? 'inbound' : 'outbound';
+              // Direção TRAVADA no primeiro evento — não confia em payload.direction depois.
+              const cached = (whatsappCallId ? currentCallById.get(String(whatsappCallId)) : null)
+                ?? (deviceToken ? currentCallByToken.get(deviceToken) : null)
+                ?? null;
+              let direction: 'inbound' | 'outbound';
+              if (cached?.direction) {
+                direction = cached.direction;
+              } else if (ev === 'offer:received') {
+                direction = 'inbound';
+              } else if (ev === 'call:started') {
+                direction = 'outbound';
+              } else {
+                // Fallback só quando não temos nada travado (evento chega solto).
+                const rawDir = String(payload?.direction || payload?.call?.direction || active?.direction || '').toLowerCase();
+                direction = rawDir.startsWith('in') || rawDir === 'incoming' ? 'inbound' : 'outbound';
+              }
+
+              const device = await resolveDevice(deviceToken);
+              const deviceId = device.id;
+              const deviceNumber = cached?.deviceNumber ?? device.number ?? null;
+
+              if (whatsappCallId) {
+                const entry: CallCache = { id: String(whatsappCallId), direction, deviceNumber };
+                currentCallById.set(String(whatsappCallId), entry);
+                if (deviceToken) currentCallByToken.set(deviceToken, entry);
+              }
+
               const peer = payload?.peer || payload?.call?.peer || active?.peer || {};
-              const peerNumber = peer?.number ?? peer?.phone ?? null;
-              const fromNumber = payload?.from ?? (direction === 'inbound' ? peerNumber : null);
-              const toNumber = payload?.to ?? (direction === 'outbound' ? peerNumber : null);
-              const deviceId = await resolveDeviceId(deviceToken);
+              const peerNumber = (peer?.number ?? peer?.phone ?? null) as string | null;
+              const fromNumber = direction === 'outbound' ? deviceNumber : (peerNumber ?? payload?.from ?? null);
+              const toNumber   = direction === 'outbound' ? (peerNumber ?? payload?.to ?? null) : deviceNumber;
 
               const nowIso = new Date().toISOString();
               const baseRow: any = {
@@ -218,6 +244,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
                     });
                   } catch (e) { console.warn('[Wavoip] fetch-call-details failed', e); }
                   if (deviceToken) currentCallByToken.delete(deviceToken);
+                  currentCallById.delete(String(whatsappCallId));
                 }
               }
               // Sem whatsapp_call_id: NÃO grava nada. O webhook oficial da Wavoip
