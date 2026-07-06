@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -512,6 +513,83 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ success: true, agents }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'subscribe_queue': {
+        const queueId = typeof params.queueId === 'string' ? params.queueId.trim() : '';
+        if (!queueId) throw new Error('Missing queueId');
+        if (!META_APP_ID || !META_APP_SECRET) throw new Error('Meta credentials not configured');
+
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        );
+
+        const { data: queue, error: qErr } = await supabase
+          .from('queues')
+          .select('id, channel_type, waba_id, waba_token, waba_number_id')
+          .eq('id', queueId)
+          .maybeSingle();
+
+        if (qErr || !queue) throw new Error('Fila não encontrada');
+        if (queue.channel_type !== 'waba') throw new Error('Fila não é do tipo WABA');
+        if (!queue.waba_id || !queue.waba_token) throw new Error('Credenciais WABA ausentes na fila');
+
+        const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+        const META_VERIFY_TOKEN = Deno.env.get('META_WEBHOOK_VERIFY_TOKEN') ?? '';
+        const callbackUrl = `${SUPABASE_URL}/functions/v1/meta-webhook`;
+
+        console.log('[subscribe_queue] queue', queueId, 'waba', queue.waba_id);
+
+        // 1) Subscribe app to WABA
+        const subRes = await fetch(
+          `https://graph.facebook.com/v25.0/${queue.waba_id}/subscribed_apps`,
+          { method: 'POST', headers: { 'Authorization': `Bearer ${queue.waba_token}` } },
+        );
+        const subData = await subRes.json();
+        console.log('[subscribe_queue] subscribed_apps POST:', JSON.stringify(subData));
+        if (subData?.error) {
+          throw new Error(`Falha ao inscrever app na WABA: ${subData.error.message}`);
+        }
+
+        // 2) Confirm subscription
+        const listRes = await fetch(
+          `https://graph.facebook.com/v25.0/${queue.waba_id}/subscribed_apps`,
+          { headers: { 'Authorization': `Bearer ${queue.waba_token}` } },
+        );
+        const listData = await listRes.json();
+        console.log('[subscribe_queue] subscribed_apps GET:', JSON.stringify(listData));
+
+        // 3) Register callback on the Meta App (idempotent)
+        const appToken = `${META_APP_ID}|${META_APP_SECRET}`;
+        const webhookRes = await fetch(
+          `https://graph.facebook.com/v25.0/${META_APP_ID}/subscriptions`,
+          {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${appToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              object: 'whatsapp_business_account',
+              callback_url: callbackUrl,
+              verify_token: META_VERIFY_TOKEN,
+              fields: ['messages'],
+            }),
+          },
+        );
+        const webhookData = await webhookRes.json();
+        console.log('[subscribe_queue] app subscriptions:', JSON.stringify(webhookData));
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            subscribed: subData?.success === true,
+            subscribed_apps: Array.isArray(listData?.data) ? listData.data : [],
+            webhook_registered: !webhookData?.error,
+            webhook_warning: webhookData?.error?.message || null,
+            callback_url: callbackUrl,
+            waba_id: queue.waba_id,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
 
