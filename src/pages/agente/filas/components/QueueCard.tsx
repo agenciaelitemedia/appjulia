@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain, Copy, Check } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain, Copy, Check, Webhook } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Queue } from '../hooks/useQueues';
@@ -13,6 +13,8 @@ import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { QueueAccessDialog } from './QueueAccessDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const DELETE_ALLOWED_ROLES = ['admin', 'colaborador', 'user'] as const;
 
@@ -48,6 +50,7 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
   const { user } = useAuth();
   const canDelete = !!user?.role && (DELETE_ALLOWED_ROLES as readonly string[]).includes(user.role);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
@@ -71,6 +74,24 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
     await navigator.clipboard.writeText(queue.id);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleResubscribeWebhook = async () => {
+    setSubscribing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('waba-admin', {
+        body: { action: 'subscribe_queue', queueId: queue.id },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || error?.message || 'Falha ao inscrever webhook');
+      } else {
+        toast.success('Webhook Meta reinscrito com sucesso');
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSubscribing(false);
+    }
   };
 
   const channelBadgeClass =
@@ -130,6 +151,11 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                   <DropdownMenuItem onClick={() => setAccessOpen(true)}>
                     <ShieldCheck className="mr-2 h-4 w-4" /> Acessos
                   </DropdownMenuItem>
+                  {hasWabaCreds && (
+                    <DropdownMenuItem onClick={handleResubscribeWebhook} disabled={subscribing}>
+                      <Webhook className="mr-2 h-4 w-4" /> Reinscrever webhook Meta
+                    </DropdownMenuItem>
+                  )}
                   {canDelete && (
                     <DropdownMenuItem onClick={() => onDelete(queue)} className="text-destructive">
                       <Trash2 className="mr-2 h-4 w-4" /> Excluir
