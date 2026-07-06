@@ -338,6 +338,14 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       if (whatsappCallId) {
         try {
           const nowIso = new Date().toISOString();
+          // Descobre o número do dispositivo para gravar como from_number.
+          let deviceNumber: string | null = null;
+          try {
+            const { data: devRow } = await (supabase as any)
+              .from('wavoip_devices').select('whatsapp_number,whatsapp_jids').eq('id', device?.id ?? '').maybeSingle();
+            const jids = Array.isArray(devRow?.whatsapp_jids) ? devRow.whatsapp_jids : [];
+            deviceNumber = devRow?.whatsapp_number ?? (jids[0] ? String(jids[0]).replace(/\D/g, '') : null);
+          } catch {}
           await (supabase as any).from('wavoip_call_logs').upsert({
             whatsapp_call_id: whatsappCallId,
             client_id: clientId,
@@ -345,6 +353,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
             device_id: device?.id ?? null,
             direction: 'outbound',
             status: 'started',
+            from_number: deviceNumber,
             to_number: digits,
             started_at: nowIso,
             recording_status: 'unavailable',
