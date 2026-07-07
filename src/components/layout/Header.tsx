@@ -1,4 +1,5 @@
 import { Menu, Search, LogOut, User, Settings, PanelLeftClose, PanelLeft, Volume2, VolumeX } from 'lucide-react';
+import { HeaderDialer } from './HeaderDialer';
 import { PushNotificationOptIn } from '@/components/notifications/PushNotificationOptIn';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -148,6 +149,9 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
             </TooltipTrigger>
             <TooltipContent side="bottom">{soundTooltip}</TooltipContent>
           </Tooltip>
+
+          {/* Softphone / SIP discador */}
+          <HeaderDialer />
 
           {/* User Menu */}
           <DropdownMenu>

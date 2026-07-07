@@ -102,7 +102,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
         theme: 'light',
         buttonPosition: 'bottom-right',
         position: 'bottom-right',
-        widget: { startOpen: false, showWidgetButton: true },
+        widget: { startOpen: false, showWidgetButton: false },
         statusBar: { showNotificationsIcon: true, showSettingsIcon: true },
         settingsMenu: {
           deviceMenu: {
