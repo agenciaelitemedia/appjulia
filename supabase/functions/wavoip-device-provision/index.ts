@@ -95,7 +95,9 @@ Deno.serve(async (req) => {
       .from('wavoip_providers').select('*').eq('id', provider_id).single();
     if (provErr || !provider) return json(404, { error: 'Provedor não encontrado' });
 
-    const isFree = provider.type === 'wavoip_free';
+    // Regra de negócio: toda ativação de cliente cria dispositivo como conta FREE,
+    // independentemente do tipo do provedor configurado.
+    const isFree = true;
     const wavoipName = `JU_${client_id}_${device_name}`;
 
     // Ensure token (login if missing)
@@ -103,10 +105,8 @@ Deno.serve(async (req) => {
     try { token = await ensureToken(admin, provider); }
     catch (e) { return json(502, { error: (e as Error).message }); }
 
-    // 1) buy-device
-    const buyBody = isFree
-      ? { type: 'FREE', name: wavoipName }
-      : { type: 'PAID', deviceProps: [{ name: wavoipName, channels: Math.max(1, Number(channels || 1)), count: 1 }] };
+    // 1) buy-device — sempre FREE
+    const buyBody = { type: 'FREE', name: wavoipName };
 
     let buy = await apiFetch(provider.api_base, '/v2/sales/buy-device', token, {
       method: 'POST', body: JSON.stringify(buyBody),
