@@ -30,10 +30,28 @@ export function useAgentSessionStatusesBatch(pairs: SessionPair[]) {
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    retry: false,
     queryFn: async (): Promise<Map<string, boolean>> => {
       const map = new Map<string, boolean>();
       if (cleaned.length === 0) return map;
-      const rows = await externalDb.getSessionStatusesBatch(cleaned);
+      // Chunk to avoid db-query 150s IDLE_TIMEOUT when there are many cards.
+      // Each chunk runs in parallel; failures in one chunk don't blank the page.
+      const CHUNK = 40;
+      const chunks: typeof cleaned[] = [];
+      for (let i = 0; i < cleaned.length; i += CHUNK) {
+        chunks.push(cleaned.slice(i, i + CHUNK));
+      }
+      const settled = await Promise.allSettled(
+        chunks.map((c) => externalDb.getSessionStatusesBatch(c))
+      );
+      const rows: any[] = [];
+      for (const s of settled) {
+        if (s.status === 'fulfilled' && Array.isArray(s.value)) {
+          rows.push(...s.value);
+        } else if (s.status === 'rejected') {
+          console.warn('[useAgentSessionStatusesBatch] chunk failed:', s.reason);
+        }
+      }
       // Two passes to avoid order-dependent overwrites when the DB has BOTH
       // a 12-digit (legacy) and 13-digit (canonical) row for the same logical
       // number. We first collapse by canonical (`normalizeBrPhone`) and prefer
