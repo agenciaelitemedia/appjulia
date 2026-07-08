@@ -19,26 +19,48 @@ export interface DealConversationInfo {
  * Retorna null quando o deal não tem vínculo de chat.
  */
 export function useDealConversation(deal: CRMDeal | null) {
-  const conversationId = deal ? getChatLink(deal)?.conversation_id ?? null : null;
+  const chat = deal ? getChatLink(deal) : null;
+  const conversationId = chat?.conversation_id ?? null;
+  const contactIdFallback = chat?.contact_id ?? null;
 
   return useQuery({
-    queryKey: ['deal-conversation', conversationId],
-    enabled: !!conversationId,
+    queryKey: ['deal-conversation', conversationId, contactIdFallback],
+    enabled: !!conversationId || !!contactIdFallback,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<DealConversationInfo | null> => {
-      if (!conversationId) return null;
+      let conv: any = null;
 
-      const { data: conv, error } = await supabase
-        .from('chat_conversations')
-        .select('id, contact_id, queue_id, assigned_to, priority, status, protocol')
-        .eq('id', conversationId)
-        .maybeSingle();
-
-      if (error || !conv) {
-        console.warn('[useDealConversation] conversation not found', error);
-        return null;
+      if (conversationId) {
+        const { data, error } = await supabase
+          .from('chat_conversations')
+          .select('id, contact_id, queue_id, assigned_to, priority, status, protocol')
+          .eq('id', conversationId)
+          .maybeSingle();
+        if (error) {
+          console.warn('[useDealConversation] lookup by id error', error);
+        } else {
+          conv = data;
+        }
       }
+
+      // Fallback: pinned conversation missing → resolve latest by contact_id
+      if (!conv && contactIdFallback) {
+        const { data, error } = await supabase
+          .from('chat_conversations')
+          .select('id, contact_id, queue_id, assigned_to, priority, status, protocol')
+          .eq('contact_id', contactIdFallback)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) {
+          console.warn('[useDealConversation] lookup by contact_id error', error);
+        } else {
+          conv = data;
+        }
+      }
+
+      if (!conv) return null;
 
       let queueName: string | null = null;
       if (conv.queue_id) {
