@@ -104,9 +104,6 @@ export function BoardFilters({
     onFiltersChange({ ...filters, assignedTo: next });
   };
 
-  const handleMyCardsToggle = () => {
-    onFiltersChange({ ...filters, myCards: !filters.myCards });
-  };
 
   const hasActiveFilters = filters.search || activeFiltersCount > 0;
 
