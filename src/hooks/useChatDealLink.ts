@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ChatLinkedDeal {
@@ -28,21 +29,36 @@ export interface ChatLinkedDeal {
 }
 
 /**
- * Returns the open `crm_deals` row whose custom_fields.links.chat.conversation_id
- * matches the active conversation. Used by the chat header CRM button.
+ * Returns the open `crm_deals` row linked to the current chat conversation.
+ *
+ * Lookup order (returns first hit, always with `client_id = clientId` and
+ * `status != 'archived'`, ordered by `created_at desc`):
+ *   1) custom_fields.links.chat.contact_id === contactId   (stable anchor)
+ *   2) custom_fields.links.chat.conversation_id === conversationId (compat)
+ *   3) custom_fields.links.chat.contact_phone === contactPhone (legacy fallback)
+ *
+ * When a deal is found via stages (2) or (3), the row is "self-healed":
+ * we merge the current `contact_id` and `conversation_id` into
+ * `custom_fields.links.chat`, so subsequent lookups hit stage (1) and no
+ * duplicate cards are created after a queue disconnect/reconnect creates
+ * a new conversation row for the same contact.
  */
-export function useChatDealLink(conversationId: string | null | undefined, clientId: string | null | undefined) {
+export function useChatDealLink(
+  conversationId: string | null | undefined,
+  clientId: string | null | undefined,
+  contactId?: string | null,
+  contactPhone?: string | null,
+) {
+  const qc = useQueryClient();
   return useQuery({
-    queryKey: ['chat-deal-link', conversationId, clientId],
-    enabled: !!conversationId && !!clientId,
+    queryKey: ['chat-deal-link', conversationId, clientId, contactId ?? null, contactPhone ?? null],
+    enabled: !!clientId && (!!conversationId || !!contactId || !!contactPhone),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<ChatLinkedDeal | null> => {
-      if (!conversationId || !clientId) return null;
+      if (!clientId) return null;
 
-      const { data, error } = await supabase
-        .from('crm_deals')
-        .select(`
+      const selectCols = `
           id, title, description, value, currency, priority, status,
           contact_name, contact_phone, contact_email,
           assigned_to, tags, expected_close_date,
@@ -51,19 +67,80 @@ export function useChatDealLink(conversationId: string | null | undefined, clien
           custom_fields,
           board:crm_boards(id,name,color),
           pipeline:crm_pipelines(id,name,color)
-        `)
-        .eq('client_id', clientId)
-        .neq('status', 'archived')
-        .contains('custom_fields', { links: { chat: { conversation_id: conversationId } } } as any)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        `;
 
-      if (error) {
-        console.warn('[useChatDealLink] error', error);
-        return null;
+      const lookup = async (filter: Record<string, unknown>): Promise<ChatLinkedDeal | null> => {
+        const { data, error } = await supabase
+          .from('crm_deals')
+          .select(selectCols)
+          .eq('client_id', clientId)
+          .neq('status', 'archived')
+          .contains('custom_fields', { links: { chat: filter } } as any)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) {
+          console.warn('[useChatDealLink] lookup error', error);
+          return null;
+        }
+        return (data as unknown as ChatLinkedDeal) ?? null;
+      };
+
+      // Stage 1 — stable anchor by contact_id
+      let deal: ChatLinkedDeal | null = null;
+      let matchedStage: 1 | 2 | 3 | null = null;
+      if (contactId) {
+        deal = await lookup({ contact_id: contactId });
+        if (deal) matchedStage = 1;
       }
-      return (data as unknown as ChatLinkedDeal) ?? null;
+      // Stage 2 — current conversation_id (legacy primary key)
+      if (!deal && conversationId) {
+        deal = await lookup({ conversation_id: conversationId });
+        if (deal) matchedStage = 2;
+      }
+      // Stage 3 — legacy fallback by phone
+      if (!deal && contactPhone) {
+        deal = await lookup({ contact_phone: contactPhone });
+        if (deal) matchedStage = 3;
+      }
+
+      if (!deal) return null;
+
+      // Self-heal: if matched via legacy stage, backfill contact_id and refresh
+      // conversation_id so future lookups hit stage 1.
+      if (matchedStage !== 1 && (contactId || conversationId)) {
+        try {
+          const cf = (deal.custom_fields ?? {}) as Record<string, any>;
+          const existingLinks = (cf.links ?? {}) as Record<string, any>;
+          const existingChat = (existingLinks.chat ?? {}) as Record<string, any>;
+          const nextChat = {
+            ...existingChat,
+            ...(contactId ? { contact_id: contactId } : {}),
+            ...(conversationId ? { conversation_id: conversationId } : {}),
+            ...(contactPhone && !existingChat.contact_phone ? { contact_phone: contactPhone } : {}),
+          };
+          const nextCustomFields = {
+            ...cf,
+            links: { ...existingLinks, chat: nextChat },
+          };
+          const { error: healErr } = await supabase
+            .from('crm_deals')
+            .update({ custom_fields: nextCustomFields } as any)
+            .eq('id', deal.id);
+          if (healErr) {
+            console.warn('[useChatDealLink] self-heal failed', healErr);
+          } else {
+            // Reflect healed values in returned deal to avoid stale reads
+            deal = { ...deal, custom_fields: nextCustomFields } as ChatLinkedDeal;
+            // Invalidate related caches so builder-side previews refresh
+            qc.invalidateQueries({ queryKey: ['crm-builder-linked-conversations', clientId] });
+          }
+        } catch (e) {
+          console.warn('[useChatDealLink] self-heal exception', e);
+        }
+      }
+
+      return deal;
     },
   });
 }
