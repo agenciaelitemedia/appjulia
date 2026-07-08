@@ -22,7 +22,7 @@ export function DealLinksSection({ deal }: Props) {
   const chat = getChatLink(deal);
   const julia = getJuliaLink(deal);
 
-  const chatPreview = useChatConversationPreview(chat?.conversation_id);
+  const chatPreview = useChatConversationPreview(chat?.conversation_id, chat?.contact_id);
   const juliaPreview = useJuliaCardPreview(julia);
   const { data: stages = [] } = useCRMStages();
 
@@ -31,8 +31,9 @@ export function DealLinksSection({ deal }: Props) {
   if (!chat && !julia) return null;
 
   const handleOpenChat = () => {
-    if (!chat?.conversation_id) return;
-    sessionStorage.setItem('chat_pending_contact_id', chat.conversation_id);
+    const target = chatPreview.data?.id || chat?.conversation_id;
+    if (!target) return;
+    sessionStorage.setItem('chat_pending_contact_id', target);
     navigate('/chat');
   };
 
