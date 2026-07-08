@@ -306,6 +306,17 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       if (cancelled || !active) return;
       const wp = await ensureWebphone();
       if (!wp) return;
+      // Saneamento inicial: remove qualquer token que o SDK tenha carregado
+      // do cache/conta Wavoip e não pertença ao client_id + app_user_id atual.
+      try {
+        const existing = (wp?.device?.get?.() ?? []).map((d: any) => d?.token).filter(Boolean);
+        for (const t of existing) {
+          if (!tokens.includes(t)) {
+            try { wp.device.disable?.(t); } catch {}
+            try { wp.device.remove?.(t); } catch {}
+          }
+        }
+      } catch {}
       for (const t of tokens) {
         try { wp?.device?.add?.(t, true); } catch {}
         try { wp?.device?.enable?.(t); } catch {}
