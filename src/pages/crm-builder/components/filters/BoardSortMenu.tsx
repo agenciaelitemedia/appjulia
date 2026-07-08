@@ -31,7 +31,6 @@ interface Props {
 }
 
 export function BoardSortMenu({ value, onChange }: Props) {
-  const activeLabel = FIELD_LABELS[value.field];
   const dirLabel = value.direction === 'desc' ? 'Decrescente' : 'Crescente';
 
   const select = (field: DealSortField, direction: SortDirection) => {
@@ -41,14 +40,9 @@ export function BoardSortMenu({ value, onChange }: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2" title={`Ordenar: ${activeLabel} (${dirLabel})`}>
+        <Button variant="outline" size="sm" className="gap-2" title={`Ordenar por: ${FIELD_LABELS[value.field]} (${dirLabel})`}>
           <ArrowUpDown className="h-4 w-4" />
-          <span className="hidden sm:inline text-xs">
-            {activeLabel}
-            <span className="ml-1 text-muted-foreground">
-              ({value.direction === 'desc' ? '↓' : '↑'})
-            </span>
-          </span>
+          <span className="hidden sm:inline text-xs">Ordenar por</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
