@@ -1,50 +1,78 @@
-# Ajustes no discador Wavoip
+# Vínculo CRM some ao reconectar a fila — causa e correção
 
-Consultei o SDK `@wavoip/wavoip-webphone` (referência atual: v1.6.1) e o fluxo em `src/contexts/WavoipContext.tsx` + `src/pages/wavoip/WavoipPage.tsx`. Dois ajustes são necessários.
+## Diagnóstico (lead 5584991382710)
 
-## 1. Sempre tema claro
+O contato tem **7 conversas distintas** (`chat_conversations`), todas na mesma fila. A cada desconexão/reconexão da fila (ou reabertura após `resolved`), o sistema cria uma **nova linha em `chat_conversations` com novo UUID**, mesmo sendo o mesmo contato.
 
-Hoje o `render()` já passa `theme: 'light'`, mas o menu de configurações do widget (`statusBar.showSettingsIcon`) permite que o usuário troque para dark, e o SDK persiste essa preferência em `localStorage`, sobrescrevendo o tema light nas próximas sessões. Precisamos:
+Resultado: **6 cards duplicados em `crm_deals`** para o mesmo contato — um por `conversation_id`.
 
-- Manter `theme: 'light'` no `render()`.
-- Adicionar, logo após o `render()`, uma limpeza determinística que force o tema claro em toda sessão:
-  - Remover as chaves de tema salvas pelo SDK (`localStorage.removeItem` para `wavoip:theme`, `wavoip-theme`, `wavoip.webphone.theme` — as três variações usadas por versões diferentes do SDK).
-  - Se o SDK expuser `wp.setTheme?.('light')` ou `wp.theme?.set?.('light')`, chamar após o render (fallback silencioso).
-  - Injetar um pequeno `<style>` global no `<head>` que fixa `data-theme="light"` no root do widget (`.wavoip-webphone[data-theme] { color-scheme: light; }` + `.wavoip-webphone-dark { display: none !important; }` como salvaguarda visual caso o SDK tente aplicar dark classes).
-- Ocultar o toggle de tema do menu de settings do SDK via CSS (seletor `[data-testid="theme-toggle"]`, `.wavoip-theme-switch`) para o usuário não conseguir voltar para dark.
+**Causa raiz:** `useChatDealLink.ts` procura o deal apenas por:
 
-## 2. Lista de dispositivos restrita ao `client_id`
+```ts
+.contains('custom_fields', { links: { chat: { conversation_id } } })
+```
 
-Sintoma: o menu "Dispositivos" do widget e a página `/wavoip` mostram dispositivos que não pertencem ao cliente logado.
+Como o `conversation_id` muda a cada nova conversa, o botão CRM no `ChatHeader` não encontra o deal antigo, mostra "não vinculado" e o `CreateCrmCardSheet` cria um novo deal duplicado.
 
-Causa identificada:
+## Correção proposta — vínculo com `contact_id` + `contact_phone` (dupla âncora)
 
-1. **No SDK**: `settingsMenu.deviceMenu` está com `showAddDevices: true`. Essa opção habilita o botão "Adicionar dispositivo" dentro do widget, que faz o SDK **listar todos os dispositivos da conta Wavoip** (a conta é única, compartilhada por todos os clientes) — daí aparecerem tokens de outros clientes.
-2. **Na página `/wavoip`**: o filtro atual em `myDevices` (`WavoipPage.tsx` ~L85) considera também `!d.app_user_id && d.status === 'in_use' && d.client_id === clientId`. Isso faz aparecerem dispositivos do mesmo `client_id` mesmo que ainda não estejam vinculados ao usuário — ok em teoria, mas o `load()` já busca `.eq('client_id', clientId)`, então a lista base é do cliente. O problema real relatado é o widget do SDK listando outros clientes.
+Passar a persistir `contact_id` no vínculo é a melhor solução: `contact_id` é estável (UUID do contato), enquanto `conversation_id` é volátil e `contact_phone` pode variar por normalização/formatação. Usar as três chaves em ordem de prioridade dá segurança máxima.
 
-Alterações:
+Novo formato de `crm_deals.custom_fields.links.chat`:
 
-- Em `src/contexts/WavoipContext.tsx`, na config passada ao `render()`:
-  - `settingsMenu.deviceMenu.showAddDevices = false` (impede o SDK de puxar a listagem completa da conta Wavoip).
-  - `settingsMenu.deviceMenu.showRemoveDevicesButton = false` (o gerenciamento fica em `/wavoip`).
-  - Manter `showEnableDevicesButton: true` apenas para os tokens que nós adicionamos via `device.add()`.
-- Após o `render()`, chamar `wp.device.get()` e, para cada token retornado que **não** esteja em `userDevicesRef.current` (nossos tokens do `client_id` + `app_user_id`), executar `wp.device.remove(token)`. Isso limpa qualquer cache interno do SDK herdado de outro login/aba.
-- Em `refreshDevices()`, já removemos tokens ausentes. Reforçar o mesmo saneamento em `ensureWebphone()` logo após montar o widget, para o estado inicial.
-- Em `src/pages/wavoip/WavoipPage.tsx`:
-  - Ajustar `myDevices` para exibir somente dispositivos do usuário logado: `devices.filter(d => Number(d.app_user_id) === appUserId)`. Dispositivos livres do pool do cliente continuam disponíveis pelo botão "Adicionar dispositivo" (que chama `handleClaim` e faz o vínculo `app_user_id`), mas não poluem a lista visual.
-  - O `load()` continua com `.eq('client_id', clientId)` — mantém o escopo por cliente no nível da query.
+```json
+{
+  "chat": {
+    "contact_id": "aca8f97c-3a90-46f5-bad7-c95f44915979",
+    "contact_phone": "5584991382710",
+    "contact_name": "...",
+    "conversation_id": "<atual>"
+  }
+}
+```
 
-## Detalhes técnicos
+`contact_id` vira a **âncora primária** do vínculo; os outros campos ficam para retrocompatibilidade e diagnóstico.
 
-Arquivos alterados:
+### 1. `src/hooks/useChatDealLink.ts` — lookup em 3 estágios + auto-heal
 
-- `src/contexts/WavoipContext.tsx` — config de `render()`, saneamento pós-render, injeção de CSS de tema.
-- `src/pages/wavoip/WavoipPage.tsx` — filtro `myDevices` restrito a `app_user_id === user.id`.
+Nova assinatura: `useChatDealLink(conversationId, clientId, contactId?, contactPhone?)`.
 
-Nenhuma alteração de schema, edge function ou RLS. Nenhuma alteração no `HeaderDialer` (o ícone SIP no header não é afetado).
+Ordem de busca (para no primeiro hit):
+1. `contains(custom_fields, { links: { chat: { contact_id } } })` — âncora estável.
+2. `contains(custom_fields, { links: { chat: { conversation_id } } })` — compat com deals antigos.
+3. `contains(custom_fields, { links: { chat: { contact_phone } } })` — fallback para deals antigos sem `contact_id`.
+
+Todas com `client_id = clientId` e `status != 'archived'`, ordenado por `created_at desc limit 1`.
+
+**Auto-heal:** ao achar via estágio 2 ou 3, faz `UPDATE crm_deals` mergindo `contact_id` e `conversation_id` atuais no `custom_fields.links.chat` (preserva `julia` e demais campos). Próximas consultas caem no estágio 1.
+
+### 2. `src/components/chat/CreateCrmCardSheet.tsx` — guarda contra duplicidade
+
+Antes de criar:
+- Buscar deal aberto do mesmo `client_id` por `contact_id` (com fallback para `contact_phone`).
+- Se existir: mostrar aviso "Este contato já possui card no CRM" com botão **"Vincular a este card"** que faz o self-heal e fecha o sheet, em vez de criar novo.
+- Só permite criar se o usuário confirmar explicitamente que quer um segundo card.
+
+Ao criar, gravar `contact_id`, `contact_phone`, `contact_name` e `conversation_id` no `links.chat`.
+
+### 3. Ajustes de leitura
+
+Onde o vínculo é lido (`DealCard`, `DealDetailsSheet`, `getChatLink` em `useCardLinks.ts`, `useChatConversationPreview`), aceitar `contact_id` como campo opcional e, quando presente, preferi-lo para resolver a conversa ativa (ex.: `SELECT id FROM chat_conversations WHERE contact_id = ... ORDER BY updated_at DESC LIMIT 1`). Sem regressão para deals antigos que só têm `conversation_id`.
 
 ## Fora de escopo
 
-- Não altero a lógica de `startCall` / gravação / webhook.
-- Não altero o admin Wavoip (`/admin/wavoip`), que precisa continuar vendo todos os dispositivos.
-- Não mexo no tema global do app — o `theme: 'light'` é aplicado apenas ao widget Wavoip.
+- Não mexer em `chat_crm_links` (integrações legadas).
+- Não alterar a lógica que cria novas conversas ao reconectar/auto-resolve.
+- Não deduplicar os 6 cards já existentes deste lead — requer decisão manual.
+- Sem migration de schema; tudo em `custom_fields` (já `jsonb`).
+
+## Arquivos a editar
+
+- `src/hooks/useChatDealLink.ts` — busca em 3 estágios + self-heal com `contact_id`.
+- `src/components/chat/CreateCrmCardSheet.tsx` — detectar deal existente por `contact_id`/telefone e oferecer vincular; gravar `contact_id` ao criar.
+- `src/pages/crm-builder/hooks/useCardLinks.ts` — `getChatLink`/`useChatConversationPreview` passam a considerar `contact_id`.
+- Call sites de `useChatDealLink` (ChatHeader / ChatCrmButton) — passar `contactId` e `contactPhone` já disponíveis no contexto.
+
+## Resultado esperado
+
+Ao reconectar a fila e abrir uma nova conversa com o mesmo contato, o vínculo é encontrado pelo `contact_id` (estável) e o botão CRM permanece azul apontando ao card original. Deals antigos são "curados" automaticamente na primeira abertura pós-deploy, sem intervenção manual.

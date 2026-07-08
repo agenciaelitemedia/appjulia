@@ -5,6 +5,7 @@ import type { CRMDeal } from '../types';
 
 export interface ChatLink {
   conversation_id: string | null;
+  contact_id?: string | null;
   contact_phone?: string | null;
   contact_name?: string | null;
 }
@@ -34,22 +35,43 @@ export function getJuliaLink(deal: CRMDeal | null | undefined): JuliaLink | null
   return readLinks(deal).julia;
 }
 
-export function useChatConversationPreview(conversationId: string | null | undefined) {
+export function useChatConversationPreview(
+  conversationId: string | null | undefined,
+  contactIdFallback?: string | null,
+) {
   return useQuery({
-    queryKey: ['chat-conversation-preview', conversationId],
+    queryKey: ['chat-conversation-preview', conversationId, contactIdFallback ?? null],
     queryFn: async () => {
-      if (!conversationId) return null;
-      const { data, error } = await supabase
-        .from('chat_conversations')
-        .select('id, status, protocol, channel, updated_at, contact_id, queue_id, queues:queue_id(is_deleted)')
-        .eq('id', conversationId)
-        .maybeSingle();
-      if (error) throw error;
-      // Hide preview if the conversation belongs to a soft-deleted queue
-      if (data && (data as any).queues?.is_deleted === true) return null;
-      return data;
+      const fetchById = async (id: string) => {
+        const { data, error } = await supabase
+          .from('chat_conversations')
+          .select('id, status, protocol, channel, updated_at, contact_id, queue_id, queues:queue_id(is_deleted)')
+          .eq('id', id)
+          .maybeSingle();
+        if (error) throw error;
+        if (data && (data as any).queues?.is_deleted === true) return null;
+        return data;
+      };
+
+      if (conversationId) {
+        const found = await fetchById(conversationId);
+        if (found) return found;
+      }
+      // Fallback: pinned conversation gone / queue deleted → resolve latest by contact_id
+      if (contactIdFallback) {
+        const { data, error } = await supabase
+          .from('chat_conversations')
+          .select('id, status, protocol, channel, updated_at, contact_id, queue_id, queues:queue_id(is_deleted)')
+          .eq('contact_id', contactIdFallback)
+          .order('updated_at', { ascending: false })
+          .limit(5);
+        if (error) throw error;
+        const alive = (data ?? []).find((r: any) => r.queues?.is_deleted !== true);
+        return alive ?? null;
+      }
+      return null;
     },
-    enabled: !!conversationId,
+    enabled: !!conversationId || !!contactIdFallback,
     staleTime: 30_000,
   });
 }

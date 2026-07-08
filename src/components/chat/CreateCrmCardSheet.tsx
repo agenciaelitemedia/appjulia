@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Loader2, Kanban, ChevronRight, MessageSquare, Scale, Check } from 'lucide-react';
+import { Loader2, Kanban, ChevronRight, MessageSquare, Scale, Check, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -85,6 +85,39 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
 
   const [loadingBoards, setLoadingBoards] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [forceCreate, setForceCreate] = useState(false);
+  const [linking, setLinking] = useState(false);
+
+  // ---- Detect existing deal for this contact (avoid duplicates) ----
+  const existingDeal = useQuery({
+    queryKey: ['existing-deal-for-contact', clientId, contact?.id ?? null, contact?.phone ?? null],
+    enabled: open && !!clientId && (!!contact?.id || !!contact?.phone),
+    staleTime: 15_000,
+    queryFn: async () => {
+      const findBy = async (filter: Record<string, unknown>) => {
+        const { data, error } = await supabase
+          .from('crm_deals')
+          .select('id, title, board_id, pipeline_id, custom_fields, board:crm_boards(name,color), pipeline:crm_pipelines(name,color)')
+          .eq('client_id', clientId)
+          .neq('status', 'archived')
+          .contains('custom_fields', { links: { chat: filter } } as any)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) return null;
+        return data as any;
+      };
+      if (contact?.id) {
+        const byId = await findBy({ contact_id: contact.id });
+        if (byId) return byId;
+      }
+      if (contact?.phone) {
+        const byPhone = await findBy({ contact_phone: contact.phone });
+        if (byPhone) return byPhone;
+      }
+      return null;
+    },
+  });
 
   // ---- Detect Julia card ----
   const normalizedPhone = useMemo(
@@ -131,6 +164,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
     setSelectedBoard('');
     setSelectedPipeline('');
     setExpandedBoard('');
+    setForceCreate(false);
     void loadBoards();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -202,6 +236,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
     try {
       const links: Record<string, unknown> = {
         chat: {
+          contact_id: contact.id ?? null,
           conversation_id: conversationId ?? null,
           contact_phone: contact.phone ?? null,
           contact_name: contact.name ?? null,
@@ -278,6 +313,56 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
     }
   };
 
+  const handleLinkExisting = async () => {
+    if (!existingDeal.data) return;
+    setLinking(true);
+    try {
+      const deal = existingDeal.data;
+      const cf = (deal.custom_fields ?? {}) as Record<string, any>;
+      const existingLinks = (cf.links ?? {}) as Record<string, any>;
+      const existingChat = (existingLinks.chat ?? {}) as Record<string, any>;
+      const nextChat = {
+        ...existingChat,
+        ...(contact?.id ? { contact_id: contact.id } : {}),
+        ...(conversationId ? { conversation_id: conversationId } : {}),
+        ...(contact?.phone && !existingChat.contact_phone ? { contact_phone: contact.phone } : {}),
+        ...(contact?.name && !existingChat.contact_name ? { contact_name: contact.name } : {}),
+      };
+      const nextCustomFields = { ...cf, links: { ...existingLinks, chat: nextChat } };
+      const { error } = await supabase
+        .from('crm_deals')
+        .update({ custom_fields: nextCustomFields } as any)
+        .eq('id', deal.id);
+      if (error) throw error;
+
+      // Best-effort chat_crm_links row for the new conversation
+      if (conversationId && effectiveCodAgent) {
+        try {
+          await supabase.from('chat_crm_links').insert({
+            client_id: clientId,
+            cod_agent: effectiveCodAgent,
+            conversation_id: conversationId,
+            external_system: 'crm_builder',
+            external_id: deal.board_id,
+            metadata: { pipeline_id: deal.pipeline_id, relinked: true },
+          } as any);
+        } catch (e) {
+          console.warn('chat_crm_links insert (relink) falhou', e);
+        }
+      }
+
+      toast.success('Conversa vinculada ao card existente');
+      await queryClient.invalidateQueries({ queryKey: ['chat-deal-link'] });
+      await queryClient.invalidateQueries({ queryKey: ['crm-builder-linked-conversations', clientId] });
+      onOpenChange(false);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao vincular ao card existente');
+    } finally {
+      setLinking(false);
+    }
+  };
+
   const stageSelected = !!selectedPipeline;
 
   return (
@@ -313,6 +398,47 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
 
         <ScrollArea className="flex-1">
           <div className="p-6 space-y-5">
+            {/* Duplicate guard — existing deal detected for this contact */}
+            {existingDeal.data && !forceCreate && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-amber-900">
+                    <div className="font-medium">Este contato já possui um card no CRM</div>
+                    <div className="text-xs mt-0.5 opacity-90">
+                      <span className="font-medium">{existingDeal.data.title}</span>
+                      {existingDeal.data.board?.name && (
+                        <> · {existingDeal.data.board.name}</>
+                      )}
+                      {existingDeal.data.pipeline?.name && (
+                        <> · {existingDeal.data.pipeline.name}</>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleLinkExisting}
+                    disabled={linking}
+                    className="flex-1"
+                  >
+                    {linking && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                    Vincular a este card
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setForceCreate(true)}
+                    disabled={linking}
+                    className="flex-1"
+                  >
+                    Criar outro
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Step 1 — Boards list */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -495,7 +621,11 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1">
             Cancelar
           </Button>
-          <Button onClick={handleCreate} disabled={saving || !stageSelected || !effectiveCodAgent || agentResolving} className="flex-1">
+          <Button
+            onClick={handleCreate}
+            disabled={saving || !stageSelected || !effectiveCodAgent || agentResolving || (!!existingDeal.data && !forceCreate)}
+            className="flex-1"
+          >
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Criar Card
           </Button>
         </SheetFooter>
