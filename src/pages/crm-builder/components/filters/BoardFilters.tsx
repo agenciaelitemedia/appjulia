@@ -51,7 +51,6 @@ export function BoardFilters({
   assignees,
   totalDeals,
   filteredDeals,
-  userName,
 }: BoardFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -105,9 +104,6 @@ export function BoardFilters({
     onFiltersChange({ ...filters, assignedTo: next });
   };
 
-  const handleMyCardsToggle = () => {
-    onFiltersChange({ ...filters, myCards: !filters.myCards });
-  };
 
   const hasActiveFilters = filters.search || activeFiltersCount > 0;
 
@@ -266,27 +262,6 @@ export function BoardFilters({
         </PopoverContent>
       </Popover>
 
-      {/* My Cards Button */}
-      {userName && (
-        <button
-          type="button"
-          onClick={handleMyCardsToggle}
-          title={filters.myCards ? 'Mostrar todos os cards' : 'Ver apenas meus cards'}
-          className={cn(
-            'relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all',
-            filters.myCards
-              ? 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 shadow-md'
-              : 'bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary hover:ring-2 hover:ring-primary/40 hover:ring-offset-1'
-          )}
-        >
-          {userName.charAt(0).toUpperCase()}
-          {filters.myCards && (
-            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary border-2 border-background" />
-          )}
-        </button>
-      )}
-
-      {/* Results count */}
       {hasActiveFilters && (
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {filteredDeals} de {totalDeals} {totalDeals === 1 ? 'card' : 'cards'}
