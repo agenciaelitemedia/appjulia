@@ -39,6 +39,7 @@ import { CreateDealDialog } from './components/deals/CreateDealDialog';
 import { DealDetailsSheet } from './components/deals/DealDetailsSheet';
 import { BoardChatSidePanel } from './components/deals/BoardChatSidePanel';
 import { BoardFilters, type BoardFiltersState } from './components/filters/BoardFilters';
+import { BoardSortMenu } from './components/filters/BoardSortMenu';
 import { BoardSettingsSheet } from './components/settings/BoardSettingsSheet';
 import { useCRMPipelines } from './hooks/useCRMPipelines';
 import { useCRMDeals } from './hooks/useCRMDeals';
@@ -47,7 +48,8 @@ import { useCRMBoards } from './hooks/useCRMBoards';
 import { useMoveDealToBoard } from './hooks/useMoveDealToBoard';
 import { useCRMBoardTaskCounts } from './hooks/useCRMBoardTaskCounts';
 import { toast } from 'sonner';
-import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormData } from './types';
+import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormData, BoardSortState } from './types';
+import { DEFAULT_BOARD_SORT } from './types';
 import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation';
 
 export default function BoardPage() {
@@ -104,6 +106,30 @@ export default function BoardPage() {
     assignedTo: [],
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Sort state — persistido por usuário + quadro
+  const sortStorageKey = user?.id && boardId ? `crm-builder:sort:${user.id}:${boardId}` : null;
+  const [sortState, setSortState] = useState<BoardSortState>(DEFAULT_BOARD_SORT);
+  const didLoadSortRef = useRef(false);
+
+  useEffect(() => {
+    if (!sortStorageKey || didLoadSortRef.current) return;
+    try {
+      const raw = localStorage.getItem(sortStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as BoardSortState;
+        if (parsed?.field && parsed?.direction) setSortState(parsed);
+      }
+    } catch { /* ignore */ }
+    didLoadSortRef.current = true;
+  }, [sortStorageKey]);
+
+  const handleSortChange = useCallback((next: BoardSortState) => {
+    setSortState(next);
+    if (sortStorageKey) {
+      try { localStorage.setItem(sortStorageKey, JSON.stringify(next)); } catch { /* ignore */ }
+    }
+  }, [sortStorageKey]);
 
   // Dialog states
   const [isCreatePipelineOpen, setIsCreatePipelineOpen] = useState(false);
@@ -211,10 +237,23 @@ export default function BoardPage() {
 
   // Get filtered deals by pipeline
   const getFilteredDealsByPipeline = useCallback((pipelineId: string) => {
+    const dir = sortState.direction === 'asc' ? 1 : -1;
+    const field = sortState.field;
     return filteredDeals
       .filter(deal => deal.pipeline_id === pipelineId)
-      .sort((a, b) => a.position - b.position);
-  }, [filteredDeals]);
+      .sort((a, b) => {
+        const av = (a as any)[field] as string | null | undefined;
+        const bv = (b as any)[field] as string | null | undefined;
+        // nulls always at the end
+        if (!av && !bv) return a.position - b.position;
+        if (!av) return 1;
+        if (!bv) return -1;
+        const at = new Date(av).getTime();
+        const bt = new Date(bv).getTime();
+        if (at === bt) return a.position - b.position;
+        return (at - bt) * dir;
+      });
+  }, [filteredDeals, sortState]);
 
   // Sensors for DnD
   const sensors = useSensors(
@@ -599,15 +638,18 @@ export default function BoardPage() {
 
       {/* Filters Bar */}
       <div className="px-4 py-3 border-b bg-muted/20">
-          <BoardFilters
-            filters={filters}
-            onFiltersChange={setFilters}
-            pipelines={pipelines.map(p => ({ id: p.id, name: p.name, color: p.color }))}
-            assignees={assignees}
-            totalDeals={deals.length}
-            filteredDeals={filteredDeals.length}
-            userName={user?.name}
-          />
+          <div className="flex items-center gap-3 flex-wrap">
+            <BoardFilters
+              filters={filters}
+              onFiltersChange={setFilters}
+              pipelines={pipelines.map(p => ({ id: p.id, name: p.name, color: p.color }))}
+              assignees={assignees}
+              totalDeals={deals.length}
+              filteredDeals={filteredDeals.length}
+              userName={user?.name}
+            />
+            <BoardSortMenu value={sortState} onChange={handleSortChange} />
+          </div>
       </div>
 
       {/* Pipeline Container */}
