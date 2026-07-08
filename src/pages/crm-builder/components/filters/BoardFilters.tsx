@@ -51,7 +51,6 @@ export function BoardFilters({
   assignees,
   totalDeals,
   filteredDeals,
-  userName,
 }: BoardFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
 
