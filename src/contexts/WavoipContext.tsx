@@ -97,6 +97,26 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      // Força tema claro em toda sessão: remove chaves de tema persistidas
+      // pelo SDK e injeta CSS que oculta o toggle de tema e neutraliza
+      // classes dark caso o SDK tente aplicá-las.
+      try {
+        ['wavoip:theme', 'wavoip-theme', 'wavoip.webphone.theme'].forEach((k) => {
+          try { localStorage.removeItem(k); } catch {}
+        });
+      } catch {}
+      if (typeof document !== 'undefined' && !document.getElementById('wavoip-force-light-style')) {
+        const style = document.createElement('style');
+        style.id = 'wavoip-force-light-style';
+        style.textContent = `
+          .wavoip-webphone, .wavoip-webphone * { color-scheme: light !important; }
+          .wavoip-webphone[data-theme="dark"] { filter: none !important; }
+          .wavoip-webphone-dark, .wavoip-theme-dark { display: none !important; }
+          [data-testid="theme-toggle"], .wavoip-theme-switch, .wavoip-theme-toggle { display: none !important; }
+        `;
+        document.head.appendChild(style);
+      }
+
       const webphone = await loadWebphone();
       const api = await webphone.render({
         theme: 'light',
@@ -107,15 +127,25 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
         settingsMenu: {
           deviceMenu: {
             show: true,
-            showAddDevices: true,
+            // Desabilitado: quando true, o SDK lista TODOS os dispositivos da
+            // conta Wavoip (compartilhada entre clientes). A gestão de
+            // dispositivos vinculados ao client_id fica em /wavoip.
+            showAddDevices: false,
             showEnableDevicesButton: true,
-            showRemoveDevicesButton: true,
+            showRemoveDevicesButton: false,
           },
         },
         callSettings: { displayName: 'Atendimento' },
         platform: 'atende-julia',
       });
       apiRef.current = api ?? (window as any).wavoip;
+
+      // Reforça tema claro caso o SDK exponha API programática.
+      try {
+        const wp: any = apiRef.current;
+        if (typeof wp?.setTheme === 'function') wp.setTheme('light');
+        else if (typeof wp?.theme?.set === 'function') wp.theme.set('light');
+      } catch {}
 
       if (!listenersBoundRef.current) {
         listenersBoundRef.current = true;
@@ -276,6 +306,17 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       if (cancelled || !active) return;
       const wp = await ensureWebphone();
       if (!wp) return;
+      // Saneamento inicial: remove qualquer token que o SDK tenha carregado
+      // do cache/conta Wavoip e não pertença ao client_id + app_user_id atual.
+      try {
+        const existing = (wp?.device?.get?.() ?? []).map((d: any) => d?.token).filter(Boolean);
+        for (const t of existing) {
+          if (!tokens.includes(t)) {
+            try { wp.device.disable?.(t); } catch {}
+            try { wp.device.remove?.(t); } catch {}
+          }
+        }
+      } catch {}
       for (const t of tokens) {
         try { wp?.device?.add?.(t, true); } catch {}
         try { wp?.device?.enable?.(t); } catch {}

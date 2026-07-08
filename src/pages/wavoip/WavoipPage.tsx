@@ -83,7 +83,7 @@ export default function WavoipPage() {
   const completedRef = useRef(false);
 
   const myDevices = useMemo(
-    () => devices.filter((d) => Number(d.app_user_id) === appUserId || (!d.app_user_id && d.status === 'in_use' && d.client_id === clientId)),
+    () => devices.filter((d) => Number(d.app_user_id) === appUserId),
     [devices, appUserId, clientId]
   );
 
