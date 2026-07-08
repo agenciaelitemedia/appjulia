@@ -1,44 +1,40 @@
-## Ordenação persistente dos cards no quadro (CRM Builder)
+# Corrigir filtro Julia ativa/inativa (CRM da Julia)
 
-Adicionar um controle de ordenação no cabeçalho de cada quadro (`BoardPage.tsx`), ao lado do botão de Filtros, com 4 critérios × 2 direções. A escolha fica salva por usuário + quadro e é reaplicada toda vez que o usuário entrar naquele quadro.
+## Causa raiz
 
-### 1. Ícone/menu de ordenação
+Em `src/pages/crm/CRMPage.tsx`, o filtro por status Julia (`juliaStatusFilter`) usa `queryClient.getQueryData(['agent-session-status', codAgent, whatsapp])` para decidir se cada card é "Julia ativa" ou "Atendimento humano".
 
-Novo componente `src/pages/crm-builder/components/filters/BoardSortMenu.tsx`:
-- Botão com ícone `ArrowUpDown` (lucide) + label do critério ativo.
-- `DropdownMenu` com 4 grupos (Tempo na etapa, Criação do card, Atualização do card, Data de entrega).
-- Cada grupo tem duas opções (Crescente / Decrescente) marcadas com check quando ativas.
-- Padrão inicial: **Tempo na etapa — Decrescente** (mais tempo parado no topo).
+Esse cache é populado **de forma preguiçosa por cada card individual** (via `useAgentSessionStatus` dentro do componente do card, um por um, conforme renderizam). No primeiro clique quase nenhum card tem status cacheado ainda, então a regra de fallback "se não está no cache, mantém visível" faz **os dois filtros mostrarem cards demais**. A cada re-render mais status chegam ao cache e as contagens vão convergindo — daí precisar clicar 4-5 vezes.
 
-Tipos (`types.ts`):
+Além disso a lógica atual não trata pares com dois formatos de telefone (12 vs 13 dígitos), o que também pode causar divergência.
+
+## Solução
+
+Trocar o filtro por dados vindos de uma consulta em **lote** que já existe: `useAgentSessionStatusesBatch`. Ela busca o status de todos os pares `(whatsapp, cod_agent)` de uma vez, com normalização de variantes de telefone.
+
+### Passos
+
+1. **`src/pages/crm/CRMPage.tsx`**
+   - Importar `useAgentSessionStatusesBatch` de `@/hooks/useAgentSessionStatusesBatch`.
+   - Montar `pairs` a partir de `cards` (whatsapp_number + cod_agent, deduplicados).
+   - Chamar o hook e obter `statusMap` (`Map<"digits:codAgent", boolean>`).
+   - No `filteredCards`, substituir o lookup por `queryClient.getQueryData(...)` por uma consulta ao `statusMap`. Se o batch ainda está carregando (`isLoading`), manter o comportamento atual (não filtrar) para não "piscar" contagem; assim que resolver, o filtro fica correto de primeira.
+   - Remover o uso de `queryClient` só para esse propósito (mantém para o refresh).
+
+2. **Não mexer** no componente do card nem em `useAgentSessionStatus` — continua funcionando para o indicador visual em tempo real por card. O batch fica dedicado ao filtro/contagem.
+
+### Detalhe técnico da chave do map
+
+O batch indexa por `${digits}:${codAgent}` já expandido nas variantes BR. No filtro basta:
+
 ```ts
-export type DealSortField = 'stage_entered_at' | 'created_at' | 'updated_at' | 'due_date';
-export type SortDirection = 'asc' | 'desc';
-export interface BoardSortState { field: DealSortField; direction: SortDirection; }
+const digits = String(card.whatsapp_number || '').replace(/\D/g, '');
+const key = `${digits}:${card.cod_agent}`;
+const isActive = statusMap?.get(key) ?? false;
 ```
 
-### 2. Persistência por usuário
+Cards sem par válido (sem whatsapp ou sem cod_agent) tratamos como `inactive`.
 
-Chave em `localStorage`: `crm-builder:sort:<userId>:<boardId>`.
-- Ao montar `BoardPage`, ler a chave e aplicar; se ausente, usar o padrão `{ field: 'stage_entered_at', direction: 'desc' }`.
-- Ao trocar, gravar imediatamente.
+## Resultado esperado
 
-O escopo por `userId` garante que cada usuário mantém sua própria preferência mesmo compartilhando o mesmo quadro.
-
-### 3. Aplicação da ordenação
-
-Substituir o `sort((a,b) => a.position - b.position)` em `getFilteredDealsByPipeline` (em `BoardPage.tsx`) por um comparador baseado no `sortState` atual:
-- `stage_entered_at`, `created_at`, `updated_at`, `due_date` → comparar como timestamps.
-- Valores nulos em `due_date` vão sempre ao final (independente da direção).
-- A ordenação manual por drag-and-drop (`position`) continua sendo persistida no banco, mas a exibição respeita o critério escolhido. Enquanto um drag estiver ativo (`activeDeal != null`) OU o critério for o padrão `stage_entered_at desc`, mantemos o comportamento visual do DnD sem "pular" o card — o `previewMove` já atualiza `position` e o comparador de tempo permanece estável.
-
-### 4. Integração no cabeçalho
-
-Em `BoardPage.tsx`, no bloco onde já ficam `BoardFilters` e `Settings2`, inserir `<BoardSortMenu value={sortState} onChange={setSortAndPersist} />` antes do botão de filtros.
-
-### Arquivos alterados
-- `src/pages/crm-builder/types.ts` (novos tipos)
-- `src/pages/crm-builder/BoardPage.tsx` (estado + persistência + sort aplicado)
-- `src/pages/crm-builder/components/filters/BoardSortMenu.tsx` (novo)
-
-Sem migrações — a preferência é 100% client-side por usuário.
+Ao entrar na página, assim que o batch resolve (uma única query), clicar em "Julia" e "Atendimento humano" mostra as contagens corretas já **no primeiro clique**, e a soma bate com o total.
