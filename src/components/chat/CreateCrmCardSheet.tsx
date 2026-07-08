@@ -621,7 +621,11 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1">
             Cancelar
           </Button>
-          <Button onClick={handleCreate} disabled={saving || !stageSelected || !effectiveCodAgent || agentResolving} className="flex-1">
+          <Button
+            onClick={handleCreate}
+            disabled={saving || !stageSelected || !effectiveCodAgent || agentResolving || (!!existingDeal.data && !forceCreate)}
+            className="flex-1"
+          >
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Criar Card
           </Button>
         </SheetFooter>
