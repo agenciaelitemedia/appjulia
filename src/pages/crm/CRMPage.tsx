@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Bot, UserCircle } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SessionStatus } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { CRMHeader } from './components/CRMHeader';
 import { CRMDashboardSummary } from './components/CRMDashboardSummary';
@@ -14,6 +13,7 @@ import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
 import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions, useCRMJuliaConversations, useTeamForAgent } from './hooks/useCRMData';
 import { useFollowupActiveLeads } from './hooks/useFollowupActiveLeads';
 import { useFollowupReturnRate } from './hooks/useFollowupReturnRate';
+import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
 import { CRMCard } from './types';
@@ -62,6 +62,18 @@ export default function CRMPage() {
   const firstAgentCode = filters.agentCodes.length === 1 ? filters.agentCodes[0] : filters.agentCodes[0] || null;
   const { data: teamMembers = [] } = useTeamForAgent(firstAgentCode);
 
+  // Batch fetch de status de sessão Julia para todos os cards de uma vez,
+  // para que o filtro Julia ativa/inativa tenha contagem correta já no 1º clique.
+  const sessionPairs = useMemo(
+    () =>
+      cards
+        .filter((c) => c.whatsapp_number && c.cod_agent)
+        .map((c) => ({ whatsappNumber: c.whatsapp_number, codAgent: String(c.cod_agent) })),
+    [cards]
+  );
+  const { data: sessionStatusMap, isLoading: sessionStatusLoading } =
+    useAgentSessionStatusesBatch(sessionPairs);
+
   // Clean up whatsapp param from URL after consuming it
   useEffect(() => {
     if (whatsappParam) {
@@ -99,15 +111,20 @@ export default function CRMPage() {
     }
 
     if (juliaStatusFilter !== 'all') {
-      result = result.filter((card) => {
-        const cached = queryClient.getQueryData<SessionStatus | null>(
-          ['agent-session-status', card.cod_agent, card.whatsapp_number]
-        );
-        // If not cached yet, keep visible
-        if (cached === undefined) return true;
-        const isActive = cached?.active ?? false;
-        return juliaStatusFilter === 'active' ? isActive : !isActive;
-      });
+      // Enquanto o batch ainda carrega, evita filtrar (não pisca contagem).
+      if (sessionStatusLoading || !sessionStatusMap) {
+        // no-op
+      } else {
+        result = result.filter((card) => {
+          const digits = String(card.whatsapp_number || '').replace(/\D/g, '');
+          const codAgent = String(card.cod_agent || '');
+          if (!digits || !codAgent) {
+            return juliaStatusFilter === 'inactive';
+          }
+          const isActive = sessionStatusMap.get(`${digits}:${codAgent}`) ?? false;
+          return juliaStatusFilter === 'active' ? isActive : !isActive;
+        });
+      }
     }
 
     // Owner filter
@@ -122,7 +139,7 @@ export default function CRMPage() {
     }
 
     return result;
-  }, [cards, filters.search, juliaStatusFilter, ownerFilter, authUser?.name, queryClient]);
+  }, [cards, filters.search, juliaStatusFilter, ownerFilter, authUser?.name, sessionStatusMap, sessionStatusLoading]);
 
   const handleCardClick = (card: CRMCard) => {
     setSelectedCard(card);
