@@ -1,78 +1,44 @@
-# Vínculo CRM some ao reconectar a fila — causa e correção
+## Ordenação persistente dos cards no quadro (CRM Builder)
 
-## Diagnóstico (lead 5584991382710)
+Adicionar um controle de ordenação no cabeçalho de cada quadro (`BoardPage.tsx`), ao lado do botão de Filtros, com 4 critérios × 2 direções. A escolha fica salva por usuário + quadro e é reaplicada toda vez que o usuário entrar naquele quadro.
 
-O contato tem **7 conversas distintas** (`chat_conversations`), todas na mesma fila. A cada desconexão/reconexão da fila (ou reabertura após `resolved`), o sistema cria uma **nova linha em `chat_conversations` com novo UUID**, mesmo sendo o mesmo contato.
+### 1. Ícone/menu de ordenação
 
-Resultado: **6 cards duplicados em `crm_deals`** para o mesmo contato — um por `conversation_id`.
+Novo componente `src/pages/crm-builder/components/filters/BoardSortMenu.tsx`:
+- Botão com ícone `ArrowUpDown` (lucide) + label do critério ativo.
+- `DropdownMenu` com 4 grupos (Tempo na etapa, Criação do card, Atualização do card, Data de entrega).
+- Cada grupo tem duas opções (Crescente / Decrescente) marcadas com check quando ativas.
+- Padrão inicial: **Tempo na etapa — Decrescente** (mais tempo parado no topo).
 
-**Causa raiz:** `useChatDealLink.ts` procura o deal apenas por:
-
+Tipos (`types.ts`):
 ```ts
-.contains('custom_fields', { links: { chat: { conversation_id } } })
+export type DealSortField = 'stage_entered_at' | 'created_at' | 'updated_at' | 'due_date';
+export type SortDirection = 'asc' | 'desc';
+export interface BoardSortState { field: DealSortField; direction: SortDirection; }
 ```
 
-Como o `conversation_id` muda a cada nova conversa, o botão CRM no `ChatHeader` não encontra o deal antigo, mostra "não vinculado" e o `CreateCrmCardSheet` cria um novo deal duplicado.
+### 2. Persistência por usuário
 
-## Correção proposta — vínculo com `contact_id` + `contact_phone` (dupla âncora)
+Chave em `localStorage`: `crm-builder:sort:<userId>:<boardId>`.
+- Ao montar `BoardPage`, ler a chave e aplicar; se ausente, usar o padrão `{ field: 'stage_entered_at', direction: 'desc' }`.
+- Ao trocar, gravar imediatamente.
 
-Passar a persistir `contact_id` no vínculo é a melhor solução: `contact_id` é estável (UUID do contato), enquanto `conversation_id` é volátil e `contact_phone` pode variar por normalização/formatação. Usar as três chaves em ordem de prioridade dá segurança máxima.
+O escopo por `userId` garante que cada usuário mantém sua própria preferência mesmo compartilhando o mesmo quadro.
 
-Novo formato de `crm_deals.custom_fields.links.chat`:
+### 3. Aplicação da ordenação
 
-```json
-{
-  "chat": {
-    "contact_id": "aca8f97c-3a90-46f5-bad7-c95f44915979",
-    "contact_phone": "5584991382710",
-    "contact_name": "...",
-    "conversation_id": "<atual>"
-  }
-}
-```
+Substituir o `sort((a,b) => a.position - b.position)` em `getFilteredDealsByPipeline` (em `BoardPage.tsx`) por um comparador baseado no `sortState` atual:
+- `stage_entered_at`, `created_at`, `updated_at`, `due_date` → comparar como timestamps.
+- Valores nulos em `due_date` vão sempre ao final (independente da direção).
+- A ordenação manual por drag-and-drop (`position`) continua sendo persistida no banco, mas a exibição respeita o critério escolhido. Enquanto um drag estiver ativo (`activeDeal != null`) OU o critério for o padrão `stage_entered_at desc`, mantemos o comportamento visual do DnD sem "pular" o card — o `previewMove` já atualiza `position` e o comparador de tempo permanece estável.
 
-`contact_id` vira a **âncora primária** do vínculo; os outros campos ficam para retrocompatibilidade e diagnóstico.
+### 4. Integração no cabeçalho
 
-### 1. `src/hooks/useChatDealLink.ts` — lookup em 3 estágios + auto-heal
+Em `BoardPage.tsx`, no bloco onde já ficam `BoardFilters` e `Settings2`, inserir `<BoardSortMenu value={sortState} onChange={setSortAndPersist} />` antes do botão de filtros.
 
-Nova assinatura: `useChatDealLink(conversationId, clientId, contactId?, contactPhone?)`.
+### Arquivos alterados
+- `src/pages/crm-builder/types.ts` (novos tipos)
+- `src/pages/crm-builder/BoardPage.tsx` (estado + persistência + sort aplicado)
+- `src/pages/crm-builder/components/filters/BoardSortMenu.tsx` (novo)
 
-Ordem de busca (para no primeiro hit):
-1. `contains(custom_fields, { links: { chat: { contact_id } } })` — âncora estável.
-2. `contains(custom_fields, { links: { chat: { conversation_id } } })` — compat com deals antigos.
-3. `contains(custom_fields, { links: { chat: { contact_phone } } })` — fallback para deals antigos sem `contact_id`.
-
-Todas com `client_id = clientId` e `status != 'archived'`, ordenado por `created_at desc limit 1`.
-
-**Auto-heal:** ao achar via estágio 2 ou 3, faz `UPDATE crm_deals` mergindo `contact_id` e `conversation_id` atuais no `custom_fields.links.chat` (preserva `julia` e demais campos). Próximas consultas caem no estágio 1.
-
-### 2. `src/components/chat/CreateCrmCardSheet.tsx` — guarda contra duplicidade
-
-Antes de criar:
-- Buscar deal aberto do mesmo `client_id` por `contact_id` (com fallback para `contact_phone`).
-- Se existir: mostrar aviso "Este contato já possui card no CRM" com botão **"Vincular a este card"** que faz o self-heal e fecha o sheet, em vez de criar novo.
-- Só permite criar se o usuário confirmar explicitamente que quer um segundo card.
-
-Ao criar, gravar `contact_id`, `contact_phone`, `contact_name` e `conversation_id` no `links.chat`.
-
-### 3. Ajustes de leitura
-
-Onde o vínculo é lido (`DealCard`, `DealDetailsSheet`, `getChatLink` em `useCardLinks.ts`, `useChatConversationPreview`), aceitar `contact_id` como campo opcional e, quando presente, preferi-lo para resolver a conversa ativa (ex.: `SELECT id FROM chat_conversations WHERE contact_id = ... ORDER BY updated_at DESC LIMIT 1`). Sem regressão para deals antigos que só têm `conversation_id`.
-
-## Fora de escopo
-
-- Não mexer em `chat_crm_links` (integrações legadas).
-- Não alterar a lógica que cria novas conversas ao reconectar/auto-resolve.
-- Não deduplicar os 6 cards já existentes deste lead — requer decisão manual.
-- Sem migration de schema; tudo em `custom_fields` (já `jsonb`).
-
-## Arquivos a editar
-
-- `src/hooks/useChatDealLink.ts` — busca em 3 estágios + self-heal com `contact_id`.
-- `src/components/chat/CreateCrmCardSheet.tsx` — detectar deal existente por `contact_id`/telefone e oferecer vincular; gravar `contact_id` ao criar.
-- `src/pages/crm-builder/hooks/useCardLinks.ts` — `getChatLink`/`useChatConversationPreview` passam a considerar `contact_id`.
-- Call sites de `useChatDealLink` (ChatHeader / ChatCrmButton) — passar `contactId` e `contactPhone` já disponíveis no contexto.
-
-## Resultado esperado
-
-Ao reconectar a fila e abrir uma nova conversa com o mesmo contato, o vínculo é encontrado pelo `contact_id` (estável) e o botão CRM permanece azul apontando ao card original. Deals antigos são "curados" automaticamente na primeira abertura pós-deploy, sem intervenção manual.
+Sem migrações — a preferência é 100% client-side por usuário.

@@ -6,6 +6,18 @@ export type DealPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type DealStatus = 'open' | 'won' | 'lost' | 'archived';
 export type DealHistoryAction = 'created' | 'moved' | 'updated' | 'note_added' | 'won' | 'lost' | 'archived';
 
+// Sort options for board deals
+export type DealSortField = 'stage_entered_at' | 'created_at' | 'updated_at' | 'due_date';
+export type SortDirection = 'asc' | 'desc';
+export interface BoardSortState {
+  field: DealSortField;
+  direction: SortDirection;
+}
+export const DEFAULT_BOARD_SORT: BoardSortState = {
+  field: 'stage_entered_at',
+  direction: 'desc',
+};
+
 // Board - Quadro/Painel do CRM
 export interface CRMBoard {
   id: string;
