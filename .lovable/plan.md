@@ -1,41 +1,50 @@
-## Diagnóstico
+# Ajustes no discador Wavoip
 
-Usuário: `advlimaealbuquerque@gmail.com` — fila **TESTE API** (client_id 400)
-- `waba_id`: 1062909349731148
-- `waba_number_id`: 1237858579405750 (número 5521991007071)
-- `waba_token`: presente (476 chars)
+Consultei o SDK `@wavoip/wavoip-webphone` (referência atual: v1.6.1) e o fluxo em `src/contexts/WavoipContext.tsx` + `src/pages/wavoip/WavoipPage.tsx`. Dois ajustes são necessários.
 
-**Verificações feitas:**
-- `queues`: credenciais WABA salvas corretamente e `is_active=true`.
-- `webhook_logs`: **zero registros** para `phone_number_id=1237858579405750`. O último webhook Meta recebido em toda a plataforma foi em **junho/2026** e era de outro WABA. A Meta nunca chamou nosso webhook para essa conta.
-- Código: `WabaEmbeddedSignupButton` (fluxo por fila em `QueueWizardDialog`) chama apenas `waba-admin/exchange_token` e salva o token. **Nunca chama `subscribed_apps`** para vincular o app da Meta à WABA. Apenas o antigo caminho por agente (`save_credentials`) faz esse auto-subscribe.
+## 1. Sempre tema claro
 
-**Causa raiz:** a WABA foi conectada via fila, e por isso o app da Meta **não foi inscrito** (`POST /{waba_id}/subscribed_apps`). Sem essa inscrição a Meta não envia webhooks para nós, mesmo com o número "conectado" e token válido. Por isso a mensagem de 5534988860163 para 5521991007071 não chegou.
+Hoje o `render()` já passa `theme: 'light'`, mas o menu de configurações do widget (`statusBar.showSettingsIcon`) permite que o usuário troque para dark, e o SDK persiste essa preferência em `localStorage`, sobrescrevendo o tema light nas próximas sessões. Precisamos:
 
-## Correção
+- Manter `theme: 'light'` no `render()`.
+- Adicionar, logo após o `render()`, uma limpeza determinística que force o tema claro em toda sessão:
+  - Remover as chaves de tema salvas pelo SDK (`localStorage.removeItem` para `wavoip:theme`, `wavoip-theme`, `wavoip.webphone.theme` — as três variações usadas por versões diferentes do SDK).
+  - Se o SDK expuser `wp.setTheme?.('light')` ou `wp.theme?.set?.('light')`, chamar após o render (fallback silencioso).
+  - Injetar um pequeno `<style>` global no `<head>` que fixa `data-theme="light"` no root do widget (`.wavoip-webphone[data-theme] { color-scheme: light; }` + `.wavoip-webphone-dark { display: none !important; }` como salvaguarda visual caso o SDK tente aplicar dark classes).
+- Ocultar o toggle de tema do menu de settings do SDK via CSS (seletor `[data-testid="theme-toggle"]`, `.wavoip-theme-switch`) para o usuário não conseguir voltar para dark.
 
-Todas as chamadas Graph API novas usarão **v25.0** (o restante do código continua na versão atual até migração futura).
+## 2. Lista de dispositivos restrita ao `client_id`
 
-### 1. Reinscrição imediata da fila TESTE API
-Nova action em `waba-admin`: `subscribe_queue` (recebe `queueId`).
-- Busca `waba_id` + `waba_token` da fila no Supabase.
-- `POST https://graph.facebook.com/v25.0/{waba_id}/subscribed_apps` com Bearer do token.
-- `GET https://graph.facebook.com/v25.0/{waba_id}/subscribed_apps` para confirmar e retornar apps inscritos.
-- Também registra callback no app: `POST https://graph.facebook.com/v25.0/{META_APP_ID}/subscriptions` com `object=whatsapp_business_account`, `fields=['messages']`, `callback_url=SUPABASE_URL/functions/v1/meta-webhook`, `verify_token=META_WEBHOOK_VERIFY_TOKEN` (idempotente).
-- Invocamos com `queueId='72debbfa-c59c-4792-a2b2-dea762273111'` para consertar a conta agora.
+Sintoma: o menu "Dispositivos" do widget e a página `/wavoip` mostram dispositivos que não pertencem ao cliente logado.
 
-### 2. Prevenção — auto-subscribe ao conectar por fila
-No `QueueWizardDialog` (logo após criar/atualizar fila WABA com token): chamar `waba-admin/subscribe_queue` com o `queueId`. Toda nova fila WABA passa a receber webhooks automaticamente.
+Causa identificada:
 
-### 3. Botão "Reinscrever webhook Meta" na fila
-Em `QueueCard` (quando `channel_type='waba'` e `waba_token`), item no menu chamando a mesma action. Serve para consertar filas WABA antigas sem recriar.
+1. **No SDK**: `settingsMenu.deviceMenu` está com `showAddDevices: true`. Essa opção habilita o botão "Adicionar dispositivo" dentro do widget, que faz o SDK **listar todos os dispositivos da conta Wavoip** (a conta é única, compartilhada por todos os clientes) — daí aparecerem tokens de outros clientes.
+2. **Na página `/wavoip`**: o filtro atual em `myDevices` (`WavoipPage.tsx` ~L85) considera também `!d.app_user_id && d.status === 'in_use' && d.client_id === clientId`. Isso faz aparecerem dispositivos do mesmo `client_id` mesmo que ainda não estejam vinculados ao usuário — ok em teoria, mas o `load()` já busca `.eq('client_id', clientId)`, então a lista base é do cliente. O problema real relatado é o widget do SDK listando outros clientes.
 
-### 4. Validação
-Após rodar (1), reenviar de 5534988860163 para 5521991007071 e conferir:
-- `SELECT * FROM webhook_logs WHERE phone_number_id='1237858579405750' ORDER BY created_at DESC` — deve aparecer o evento.
-- Mensagem visível no chat da fila TESTE API.
+Alterações:
+
+- Em `src/contexts/WavoipContext.tsx`, na config passada ao `render()`:
+  - `settingsMenu.deviceMenu.showAddDevices = false` (impede o SDK de puxar a listagem completa da conta Wavoip).
+  - `settingsMenu.deviceMenu.showRemoveDevicesButton = false` (o gerenciamento fica em `/wavoip`).
+  - Manter `showEnableDevicesButton: true` apenas para os tokens que nós adicionamos via `device.add()`.
+- Após o `render()`, chamar `wp.device.get()` e, para cada token retornado que **não** esteja em `userDevicesRef.current` (nossos tokens do `client_id` + `app_user_id`), executar `wp.device.remove(token)`. Isso limpa qualquer cache interno do SDK herdado de outro login/aba.
+- Em `refreshDevices()`, já removemos tokens ausentes. Reforçar o mesmo saneamento em `ensureWebphone()` logo após montar o widget, para o estado inicial.
+- Em `src/pages/wavoip/WavoipPage.tsx`:
+  - Ajustar `myDevices` para exibir somente dispositivos do usuário logado: `devices.filter(d => Number(d.app_user_id) === appUserId)`. Dispositivos livres do pool do cliente continuam disponíveis pelo botão "Adicionar dispositivo" (que chama `handleClaim` e faz o vínculo `app_user_id`), mas não poluem a lista visual.
+  - O `load()` continua com `.eq('client_id', clientId)` — mantém o escopo por cliente no nível da query.
+
+## Detalhes técnicos
+
+Arquivos alterados:
+
+- `src/contexts/WavoipContext.tsx` — config de `render()`, saneamento pós-render, injeção de CSS de tema.
+- `src/pages/wavoip/WavoipPage.tsx` — filtro `myDevices` restrito a `app_user_id === user.id`.
+
+Nenhuma alteração de schema, edge function ou RLS. Nenhuma alteração no `HeaderDialer` (o ícone SIP no header não é afetado).
 
 ## Fora de escopo
-- Não alteramos o fluxo por agente (`save_credentials`) que já faz auto-subscribe.
-- Não mexemos em `meta-webhook`.
-- Não migramos as chamadas existentes de `v22.0` — apenas o código novo usa `v25.0`.
+
+- Não altero a lógica de `startCall` / gravação / webhook.
+- Não altero o admin Wavoip (`/admin/wavoip`), que precisa continuar vendo todos os dispositivos.
+- Não mexo no tema global do app — o `theme: 'light'` é aplicado apenas ao widget Wavoip.
