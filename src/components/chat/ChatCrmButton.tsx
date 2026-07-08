@@ -19,7 +19,12 @@ export function ChatCrmButton({ conversationId, contact, codAgent, queueId }: Pr
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
 
-  const { data: deal, isLoading } = useChatDealLink(conversationId, clientId);
+  const { data: deal, isLoading } = useChatDealLink(
+    conversationId,
+    clientId,
+    contact?.id ?? null,
+    contact?.phone ?? null,
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [linkedOpen, setLinkedOpen] = useState(false);
 
