@@ -51,6 +51,7 @@ import { toast } from 'sonner';
 import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormData, BoardSortState } from './types';
 import { DEFAULT_BOARD_SORT } from './types';
 import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation';
+import { cn } from '@/lib/utils';
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
@@ -649,6 +650,24 @@ export default function BoardPage() {
               userName={user?.name}
             />
             <BoardSortMenu value={sortState} onChange={handleSortChange} />
+            {user?.name && (
+              <button
+                type="button"
+                onClick={() => setFilters(prev => ({ ...prev, myCards: !prev.myCards }))}
+                title={filters.myCards ? 'Mostrar todos os cards' : 'Ver apenas meus cards'}
+                className={cn(
+                  'relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all',
+                  filters.myCards
+                    ? 'bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 shadow-md'
+                    : 'bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary hover:ring-2 hover:ring-primary/40 hover:ring-offset-1'
+                )}
+              >
+                {user.name.charAt(0).toUpperCase()}
+                {filters.myCards && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-primary border-2 border-background" />
+                )}
+              </button>
+            )}
           </div>
       </div>
 
