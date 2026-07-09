@@ -21,7 +21,11 @@ export function useWavoipDeviceMembers(deviceId: string | null | undefined) {
         .select('*')
         .eq('device_id', deviceId);
       if (error) throw error;
-      return (data ?? []) as WavoipDeviceMember[];
+      return ((data ?? []) as WavoipDeviceMember[]).map((member) => ({
+        ...member,
+        app_user_id: Number(member.app_user_id),
+        granted_by: member.granted_by == null ? null : Number(member.granted_by),
+      }));
     },
   });
 }
@@ -51,24 +55,63 @@ export function useToggleWavoipDeviceMember(deviceId: string) {
 
   return useMutation({
     mutationFn: async ({ userId, grant }: { userId: number; grant: boolean }) => {
+      const normalizedUserId = Number(userId);
       if (grant) {
         const { error } = await (supabase as any)
           .from('wavoip_device_members')
-          .insert({ device_id: deviceId, app_user_id: userId, granted_by: granterId });
+          .insert({ device_id: deviceId, app_user_id: normalizedUserId, granted_by: granterId });
         if (error && !String(error.message).includes('duplicate')) throw error;
       } else {
         const { error } = await (supabase as any)
           .from('wavoip_device_members')
           .delete()
           .eq('device_id', deviceId)
-          .eq('app_user_id', userId);
+          .eq('app_user_id', normalizedUserId);
         if (error) throw error;
       }
+    },
+    onMutate: async ({ userId, grant }) => {
+      const normalizedUserId = Number(userId);
+      const queryKey = ['wavoip-device-members', deviceId];
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData<WavoipDeviceMember[]>(queryKey) ?? [];
+
+      qc.setQueryData<WavoipDeviceMember[]>(queryKey, (current = []) => {
+        const normalizedCurrent = current.map((member) => ({
+          ...member,
+          app_user_id: Number(member.app_user_id),
+        }));
+
+        if (grant) {
+          if (normalizedCurrent.some((member) => member.app_user_id === normalizedUserId)) {
+            return normalizedCurrent;
+          }
+          return [
+            ...normalizedCurrent,
+            {
+              id: `optimistic-${deviceId}-${normalizedUserId}`,
+              device_id: deviceId,
+              app_user_id: normalizedUserId,
+              granted_by: granterId,
+              created_at: new Date().toISOString(),
+            },
+          ];
+        }
+
+        return normalizedCurrent.filter((member) => member.app_user_id !== normalizedUserId);
+      });
+
+      return { previous, queryKey };
+    },
+    onError: (e: any, _variables, context) => {
+      if (context?.queryKey) {
+        qc.setQueryData(context.queryKey, context.previous);
+      }
+      toast.error(e?.message || 'Erro ao atualizar acesso');
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['wavoip-device-members', deviceId] });
       qc.invalidateQueries({ queryKey: ['wavoip-shared-device-ids'] });
     },
-    onError: (e: any) => toast.error(e?.message || 'Erro ao atualizar acesso'),
   });
 }
