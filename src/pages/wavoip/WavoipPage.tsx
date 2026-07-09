@@ -627,6 +627,36 @@ export default function WavoipPage() {
         ownerUserId={shareTarget ? Number(shareTarget.app_user_id) : null}
         currentUserId={appUserId}
       />
+
+      <ConfirmDeleteDialog
+        open={!!disconnectTarget}
+        onOpenChange={(o) => { if (!o) setDisconnectTarget(null); }}
+        title="Desconectar dispositivo"
+        description={<>A sessão do WhatsApp em <b>{disconnectTarget?.device_name || 'dispositivo'}</b> será encerrada. Para voltar a usá-lo, será necessário ler um novo QR Code.</>}
+        confirmLabel="Desconectar"
+        toggleLabel="Confirmo que quero desconectar este dispositivo"
+        loading={actionBusy}
+        onConfirm={async () => {
+          if (!disconnectTarget) return;
+          setActionBusy(true);
+          try { await handleDisconnect(disconnectTarget); } finally { setActionBusy(false); setDisconnectTarget(null); }
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={!!releaseTarget}
+        onOpenChange={(o) => { if (!o) setReleaseTarget(null); }}
+        title="Liberar dispositivo"
+        description={<>O dispositivo <b>{releaseTarget?.device_name || ''}</b> será devolvido ao pool do escritório e o vínculo com o seu usuário será removido.</>}
+        confirmLabel="Liberar"
+        toggleLabel="Confirmo que quero liberar este dispositivo"
+        loading={actionBusy}
+        onConfirm={async () => {
+          if (!releaseTarget) return;
+          setActionBusy(true);
+          try { await handleRelease(releaseTarget); } finally { setActionBusy(false); setReleaseTarget(null); }
+        }}
+      />
     </div>
   );
 }
