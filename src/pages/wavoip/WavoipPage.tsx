@@ -590,6 +590,15 @@ export default function WavoipPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ShareDeviceDialog
+        open={!!shareTarget}
+        onOpenChange={(o) => { if (!o) { setShareTarget(null); void load(); } }}
+        deviceId={shareTarget?.id ?? null}
+        deviceName={shareTarget?.device_name || 'Dispositivo'}
+        ownerUserId={shareTarget ? Number(shareTarget.app_user_id) : null}
+        currentUserId={appUserId}
+      />
     </div>
   );
 }
