@@ -181,6 +181,29 @@ serve(async (req) => {
           }
         }
 
+        // For WABA queues, auto-subscribe the Meta webhook (server-side).
+        // Failure is non-blocking — the queue is created and the status is persisted for retry.
+        let waba_webhook_result: unknown = undefined;
+        if (channel_type === 'waba' && queue.waba_id && queue.waba_token) {
+          try {
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+            const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+            const subRes = await fetch(`${supabaseUrl}/functions/v1/waba-admin`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({ action: 'subscribe_queue', queueId: queue.id }),
+            });
+            waba_webhook_result = await subRes.json().catch(() => ({}));
+            console.log('[queue-management] waba subscribe result:', JSON.stringify(waba_webhook_result));
+          } catch (err) {
+            console.error('[queue-management] Failed to subscribe WABA webhook:', err);
+            waba_webhook_result = { success: false, error: (err as Error).message };
+          }
+        }
+
         // Link agents if provided
         if (link_agents && Array.isArray(link_agents) && link_agents.length > 0) {
           const links = link_agents.map((la: { cod_agent: string; is_primary?: boolean }) => ({
@@ -196,15 +219,15 @@ serve(async (req) => {
           if (linkError) {
             console.error('[queue-management] Link error:', linkError);
             // Queue was created, just report link failure
-            return respond({ queue, link_warning: linkError.message });
+            return respond({ queue, link_warning: linkError.message, waba_webhook: waba_webhook_result });
           }
 
           // Trigger sync to external DB
           const syncResult = await triggerSync(queue.id);
-          return respond({ queue, sync: syncResult });
+          return respond({ queue, sync: syncResult, waba_webhook: waba_webhook_result });
         }
 
-        return respond({ queue });
+        return respond({ queue, waba_webhook: waba_webhook_result });
       }
 
       // ==========================================

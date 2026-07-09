@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,7 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
   const [copied, setCopied] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const canDelete = !!user?.role && (DELETE_ALLOWED_ROLES as readonly string[]).includes(user.role);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
   const { flags: clientFlags } = useClientAutomationFlags();
@@ -91,6 +93,7 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
       toast.error((e as Error).message);
     } finally {
       setSubscribing(false);
+      queryClient.invalidateQueries({ queryKey: ['queues'] });
     }
   };
 
@@ -108,6 +111,9 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
         ? queue.waba_number_id
         : null;
   const identifierPrefix = queue.channel_type === 'uazapi' ? 'Instância' : 'ID';
+
+  const wabaWebhookStatus = queue.channel_type === 'waba' ? (queue.waba_webhook_status ?? null) : null;
+  const showWebhookWarning = queue.channel_type === 'waba' && hasWabaCreds && wabaWebhookStatus !== 'subscribed';
 
   return (
     <Card className={`hover:shadow-md transition-shadow ${queue.is_deleted ? 'opacity-60 border-dashed' : ''}`}>
@@ -191,6 +197,31 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
           <p className="text-[10px] text-muted-foreground truncate mb-1">
             {identifierPrefix}: {identifierLabel}
           </p>
+        )}
+
+        {showWebhookWarning && !queue.is_deleted && (
+          <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5">
+            <Webhook className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                Webhook Meta {wabaWebhookStatus === 'failed' ? 'com falha' : 'pendente'}
+              </p>
+              {queue.waba_webhook_last_error && (
+                <p className="text-[10px] text-amber-700/80 dark:text-amber-300/80 truncate" title={queue.waba_webhook_last_error}>
+                  {queue.waba_webhook_last_error}
+                </p>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 mt-1 text-[10px] px-2 border-amber-500/40"
+                onClick={handleResubscribeWebhook}
+                disabled={subscribing}
+              >
+                {subscribing ? 'Reinscrevendo...' : 'Reinscrever agora'}
+              </Button>
+            </div>
+          </div>
         )}
 
         {queue.channel_type === 'uazapi' && queue.evo_instance && !queue.is_deleted && (
