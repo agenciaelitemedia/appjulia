@@ -24,7 +24,7 @@ export function ShareDeviceDialog({ open, onOpenChange, deviceId, deviceName, ow
   const memberIds = useMemo(() => new Set(members.map((m) => m.app_user_id)), [members]);
 
   const eligible = useMemo(
-    () => team.filter((m) => m.id !== ownerUserId && m.id !== currentUserId),
+    () => team.filter((m) => Number(m.id) !== ownerUserId && Number(m.id) !== currentUserId),
     [team, ownerUserId, currentUserId]
   );
 
@@ -56,7 +56,8 @@ export function ShareDeviceDialog({ open, onOpenChange, deviceId, deviceName, ow
               </div>
             )}
             {eligible.map((m) => {
-              const enabled = memberIds.has(m.id);
+              const memberId = Number(m.id);
+              const enabled = memberIds.has(memberId);
               return (
                 <div key={m.id} className="flex items-center justify-between gap-3 p-3">
                   <div className="flex items-center gap-3 min-w-0">
@@ -74,7 +75,7 @@ export function ShareDeviceDialog({ open, onOpenChange, deviceId, deviceName, ow
                   <Switch
                     checked={enabled}
                     disabled={toggle.isPending}
-                    onCheckedChange={(v) => toggle.mutate({ userId: m.id, grant: v })}
+                    onCheckedChange={(v) => toggle.mutate({ userId: memberId, grant: v })}
                   />
                 </div>
               );
