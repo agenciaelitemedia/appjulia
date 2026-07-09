@@ -414,12 +414,22 @@ export default function WavoipPage() {
                   {myDevices.map((d) => {
                     const jids: string[] = Array.isArray(d.whatsapp_jids) ? d.whatsapp_jids : [];
                     const connected = d.connection_status === 'connected';
+                    const isOwner = Number(d.app_user_id) === appUserId;
+                    const memberCount = membersByDevice[d.id] || 0;
                     return (
                       <div key={d.id} className="flex items-center justify-between p-3 gap-4">
                         <div className="min-w-0">
                           <div className="font-medium flex items-center gap-2">
                             <Smartphone className="h-4 w-4 text-muted-foreground" />
                             {d.device_name || `WAPhone_${d.friendly_code ?? ''}`}
+                            {isOwner && memberCount > 0 && (
+                              <Badge variant="secondary" className="gap-1 text-xs">
+                                <Users2 className="h-3 w-3" /> +{memberCount}
+                              </Badge>
+                            )}
+                            {!isOwner && (
+                              <Badge variant="outline" className="text-xs">Compartilhado</Badge>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             Token: <span className="font-mono">{d.device_token.slice(0, 8)}…{d.device_token.slice(-4)}</span>
@@ -463,9 +473,23 @@ export default function WavoipPage() {
                           <Button variant={connected ? 'outline' : 'default'} size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
                             <Plug className="h-4 w-4 mr-1" /> Conectar
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleRelease(d)}>
-                            Liberar
-                          </Button>
+                          {isOwner && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" onClick={() => setShareTarget(d)}>
+                                    <Users2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Liberar acesso à equipe</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {isOwner && (
+                            <Button variant="ghost" size="sm" onClick={() => handleRelease(d)}>
+                              Liberar
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );
