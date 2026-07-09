@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CallHistoryTab } from './components/CallHistoryTab';
 import { ShareDeviceDialog } from './components/ShareDeviceDialog';
+import { ConfirmDeleteDialog } from '@/pages/admin/wavoip/components/ConfirmDeleteDialog';
 
 type Device = {
   id: string;
@@ -71,6 +72,9 @@ export default function WavoipPage() {
   const [sharedIds, setSharedIds] = useState<string[]>([]);
   const [membersByDevice, setMembersByDevice] = useState<Record<string, number>>({});
   const [shareTarget, setShareTarget] = useState<Device | null>(null);
+  const [disconnectTarget, setDisconnectTarget] = useState<Device | null>(null);
+  const [releaseTarget, setReleaseTarget] = useState<Device | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -327,7 +331,6 @@ export default function WavoipPage() {
   };
 
   const handleRelease = async (device: Device) => {
-    if (!confirm('Liberar este dispositivo (devolve para o pool do escritório)?')) return;
     const wp: any = (window as any).wavoip;
     try { wp?.device?.disable?.(device.device_token); } catch {}
     try { wp?.device?.remove?.(device.device_token); } catch {}
@@ -341,6 +344,23 @@ export default function WavoipPage() {
     }).eq('id', device.id);
     if (error) { toast.error(error.message); return; }
     toast.success('Dispositivo liberado');
+    await load();
+    await refreshDevices();
+  };
+
+  const handleDisconnect = async (device: Device) => {
+    const wp: any = (window as any).wavoip;
+    try { wp?.device?.disable?.(device.device_token); } catch {}
+    try { wp?.device?.remove?.(device.device_token); } catch {}
+    const { error } = await (supabase as any).from('wavoip_devices').update({
+      connection_status: 'disconnected',
+      connected_at: null,
+      whatsapp_jids: [],
+      whatsapp_jid: null,
+      whatsapp_number: null,
+    }).eq('id', device.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Dispositivo desconectado');
     await load();
     await refreshDevices();
   };
