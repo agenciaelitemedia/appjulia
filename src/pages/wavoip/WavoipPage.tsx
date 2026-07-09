@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CallHistoryTab } from './components/CallHistoryTab';
+import { ShareDeviceDialog } from './components/ShareDeviceDialog';
 
 type Device = {
   id: string;
@@ -67,6 +68,9 @@ export default function WavoipPage() {
   const clientId = user?.client_id ?? null;
   const [devices, setDevices] = useState<Device[]>([]);
   const [calls, setCalls] = useState<CallLog[]>([]);
+  const [sharedIds, setSharedIds] = useState<string[]>([]);
+  const [membersByDevice, setMembersByDevice] = useState<Record<string, number>>({});
+  const [shareTarget, setShareTarget] = useState<Device | null>(null);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -82,23 +86,45 @@ export default function WavoipPage() {
   const intervalRef = useRef<number | null>(null);
   const completedRef = useRef(false);
 
+  const sharedSet = useMemo(() => new Set(sharedIds), [sharedIds]);
   const myDevices = useMemo(
-    () => devices.filter((d) => Number(d.app_user_id) === appUserId),
-    [devices, appUserId, clientId]
+    () => devices.filter((d) => Number(d.app_user_id) === appUserId || sharedSet.has(d.id)),
+    [devices, appUserId, sharedSet]
   );
 
   const load = useCallback(async () => {
     if (!clientId) return;
     setLoading(true);
-    const [devRes, callRes] = await Promise.all([
+    const [devRes, callRes, sharedRes] = await Promise.all([
       (supabase as any).from('wavoip_devices').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
       (supabase as any).from('wavoip_call_logs').select('id,created_at,direction,status,from_number,to_number,duration_seconds').eq('client_id', clientId).order('created_at', { ascending: false }).limit(50),
+      appUserId
+        ? (supabase as any).from('wavoip_device_members').select('device_id').eq('app_user_id', appUserId)
+        : Promise.resolve({ data: [], error: null }),
     ]);
     setLoading(false);
     if (devRes.error) { toast.error(devRes.error.message); return; }
-    setDevices((devRes.data ?? []) as Device[]);
+    const devs = (devRes.data ?? []) as Device[];
+    setDevices(devs);
     setCalls((callRes.data ?? []) as CallLog[]);
-  }, [clientId]);
+    setSharedIds(((sharedRes as any).data ?? []).map((r: any) => r.device_id));
+
+    // Contagem de membros compartilhados por dispositivo (do usuário logado como dono).
+    const ownedIds = devs.filter((d) => Number(d.app_user_id) === appUserId).map((d) => d.id);
+    if (ownedIds.length > 0) {
+      const { data: memberRows } = await (supabase as any)
+        .from('wavoip_device_members')
+        .select('device_id')
+        .in('device_id', ownedIds);
+      const counts: Record<string, number> = {};
+      ((memberRows ?? []) as { device_id: string }[]).forEach((r) => {
+        counts[r.device_id] = (counts[r.device_id] || 0) + 1;
+      });
+      setMembersByDevice(counts);
+    } else {
+      setMembersByDevice({});
+    }
+  }, [clientId, appUserId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -388,12 +414,22 @@ export default function WavoipPage() {
                   {myDevices.map((d) => {
                     const jids: string[] = Array.isArray(d.whatsapp_jids) ? d.whatsapp_jids : [];
                     const connected = d.connection_status === 'connected';
+                    const isOwner = Number(d.app_user_id) === appUserId;
+                    const memberCount = membersByDevice[d.id] || 0;
                     return (
                       <div key={d.id} className="flex items-center justify-between p-3 gap-4">
                         <div className="min-w-0">
                           <div className="font-medium flex items-center gap-2">
                             <Smartphone className="h-4 w-4 text-muted-foreground" />
                             {d.device_name || `WAPhone_${d.friendly_code ?? ''}`}
+                            {isOwner && memberCount > 0 && (
+                              <Badge variant="secondary" className="gap-1 text-xs">
+                                <Users2 className="h-3 w-3" /> +{memberCount}
+                              </Badge>
+                            )}
+                            {!isOwner && (
+                              <Badge variant="outline" className="text-xs">Compartilhado</Badge>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             Token: <span className="font-mono">{d.device_token.slice(0, 8)}…{d.device_token.slice(-4)}</span>
@@ -437,9 +473,23 @@ export default function WavoipPage() {
                           <Button variant={connected ? 'outline' : 'default'} size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
                             <Plug className="h-4 w-4 mr-1" /> Conectar
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleRelease(d)}>
-                            Liberar
-                          </Button>
+                          {isOwner && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" onClick={() => setShareTarget(d)}>
+                                    <Users2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Liberar acesso à equipe</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {isOwner && (
+                            <Button variant="ghost" size="sm" onClick={() => handleRelease(d)}>
+                              Liberar
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );
@@ -540,6 +590,15 @@ export default function WavoipPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ShareDeviceDialog
+        open={!!shareTarget}
+        onOpenChange={(o) => { if (!o) { setShareTarget(null); void load(); } }}
+        deviceId={shareTarget?.id ?? null}
+        deviceName={shareTarget?.device_name || 'Dispositivo'}
+        ownerUserId={shareTarget ? Number(shareTarget.app_user_id) : null}
+        currentUserId={appUserId}
+      />
     </div>
   );
 }
