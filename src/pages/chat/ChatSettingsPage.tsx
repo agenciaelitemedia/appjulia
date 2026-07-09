@@ -15,7 +15,9 @@ import { ChatAutoDistributionTab } from './components/ChatAutoDistributionTab';
 
 function ChatSettingsContent() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const isClientOwner = !!user?.client_id && !user?.user_id;
+  const canSeeWabaTemplates = isAdmin || isClientOwner;
   return (
     <div className="p-6 space-y-6 w-full">
       <div className="flex items-center gap-3">
@@ -33,7 +35,15 @@ function ChatSettingsContent() {
       </div>
 
       <Tabs defaultValue="geral" className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'max-w-6xl grid-cols-8' : 'max-w-2xl grid-cols-4'}`}>
+        <TabsList
+          className={`grid w-full ${
+            isAdmin
+              ? 'max-w-6xl grid-cols-8'
+              : canSeeWabaTemplates
+              ? 'max-w-3xl grid-cols-5'
+              : 'max-w-2xl grid-cols-4'
+          }`}
+        >
           <TabsTrigger value="geral" className="gap-1.5">
             <Cog className="h-3.5 w-3.5" /> Geral
           </TabsTrigger>
@@ -61,7 +71,8 @@ function ChatSettingsContent() {
               <Zap className="h-3.5 w-3.5" /> Automações
             </TabsTrigger>
           )}
-          {isAdmin && (
+          {canSeeWabaTemplates && !isAdmin && null}
+          {canSeeWabaTemplates && (
             <TabsTrigger value="waba-templates" className="gap-1.5">
               <FileText className="h-3.5 w-3.5" /> Templates WABA
             </TabsTrigger>
@@ -102,7 +113,7 @@ function ChatSettingsContent() {
           </TabsContent>
         )}
 
-        {isAdmin && (
+        {canSeeWabaTemplates && (
           <TabsContent value="waba-templates" className="mt-6">
             <WabaTemplatesPanel />
           </TabsContent>
