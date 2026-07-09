@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CallHistoryTab } from './components/CallHistoryTab';
 import { ShareDeviceDialog } from './components/ShareDeviceDialog';
+import { ConfirmDeleteDialog } from '@/pages/admin/wavoip/components/ConfirmDeleteDialog';
 
 type Device = {
   id: string;
@@ -71,6 +72,9 @@ export default function WavoipPage() {
   const [sharedIds, setSharedIds] = useState<string[]>([]);
   const [membersByDevice, setMembersByDevice] = useState<Record<string, number>>({});
   const [shareTarget, setShareTarget] = useState<Device | null>(null);
+  const [disconnectTarget, setDisconnectTarget] = useState<Device | null>(null);
+  const [releaseTarget, setReleaseTarget] = useState<Device | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -327,7 +331,6 @@ export default function WavoipPage() {
   };
 
   const handleRelease = async (device: Device) => {
-    if (!confirm('Liberar este dispositivo (devolve para o pool do escritório)?')) return;
     const wp: any = (window as any).wavoip;
     try { wp?.device?.disable?.(device.device_token); } catch {}
     try { wp?.device?.remove?.(device.device_token); } catch {}
@@ -341,6 +344,23 @@ export default function WavoipPage() {
     }).eq('id', device.id);
     if (error) { toast.error(error.message); return; }
     toast.success('Dispositivo liberado');
+    await load();
+    await refreshDevices();
+  };
+
+  const handleDisconnect = async (device: Device) => {
+    const wp: any = (window as any).wavoip;
+    try { wp?.device?.disable?.(device.device_token); } catch {}
+    try { wp?.device?.remove?.(device.device_token); } catch {}
+    const { error } = await (supabase as any).from('wavoip_devices').update({
+      connection_status: 'disconnected',
+      connected_at: null,
+      whatsapp_jids: [],
+      whatsapp_jid: null,
+      whatsapp_number: null,
+    }).eq('id', device.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Dispositivo desconectado');
     await load();
     await refreshDevices();
   };
@@ -441,26 +461,28 @@ export default function WavoipPage() {
                           <Badge variant={connected ? 'default' : d.connection_status === 'error' ? 'destructive' : 'outline'}>
                             {connected ? 'conectado' : d.connection_status === 'connecting' ? 'aguardando QR' : d.connection_status === 'error' ? 'erro' : 'desconectado'}
                           </Badge>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge
-                                  variant={d.webhook_status === 'ok' ? 'outline' : 'destructive'}
-                                  className="gap-1 cursor-help"
-                                >
-                                  {d.webhook_status === 'ok' ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
-                                  Webhook {d.webhook_status === 'ok' ? 'OK' : d.webhook_status === 'stale' ? 'inativo' : d.webhook_status === 'never' ? 'não configurado' : 'não verificado'}
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-sm text-xs">
-                                <div className="break-all"><b>URL esperada:</b><br />{d.webhook_url || '—'}</div>
-                                {d.webhook_checked_at && <div><b>Verificado:</b> {format(new Date(d.webhook_checked_at), 'dd/MM HH:mm')}</div>}
-                                {d.webhook_last_error && <div className="text-destructive break-all"><b>Aviso:</b> {d.webhook_last_error}</div>}
-                                <div className="text-muted-foreground pt-1 mt-1 border-t">Configure no painel da Wavoip → Dispositivo → Integrações → Webhook. Eventos: CALL, RECORD, DEVICE.</div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          {d.webhook_status && d.webhook_status !== 'ok' && (
+                          {d.webhook_status && d.webhook_status !== 'never' && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge
+                                    variant={d.webhook_status === 'ok' ? 'outline' : 'destructive'}
+                                    className="gap-1 cursor-help"
+                                  >
+                                    {d.webhook_status === 'ok' ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+                                    Webhook {d.webhook_status === 'ok' ? 'OK' : d.webhook_status === 'stale' ? 'inativo' : 'não verificado'}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-sm text-xs">
+                                  <div className="break-all"><b>URL esperada:</b><br />{d.webhook_url || '—'}</div>
+                                  {d.webhook_checked_at && <div><b>Verificado:</b> {format(new Date(d.webhook_checked_at), 'dd/MM HH:mm')}</div>}
+                                  {d.webhook_last_error && <div className="text-destructive break-all"><b>Aviso:</b> {d.webhook_last_error}</div>}
+                                  <div className="text-muted-foreground pt-1 mt-1 border-t">Configure no painel da Wavoip → Dispositivo → Integrações → Webhook. Eventos: CALL, RECORD, DEVICE.</div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {d.webhook_status && d.webhook_status !== 'ok' && d.webhook_status !== 'never' && (
                             <Button variant="outline" size="sm" onClick={async () => {
                               const url = d.webhook_url || '';
                               if (!url) { toast.error('URL ainda não disponível — clique em Verificar webhooks'); return; }
@@ -470,9 +492,15 @@ export default function WavoipPage() {
                               <Copy className="h-4 w-4 mr-1" /> Copiar URL
                             </Button>
                           )}
-                          <Button variant={connected ? 'outline' : 'default'} size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
-                            <Plug className="h-4 w-4 mr-1" /> Conectar
-                          </Button>
+                          {connected ? (
+                            <Button variant="outline" size="sm" onClick={() => setDisconnectTarget(d)}>
+                              <Plug className="h-4 w-4 mr-1" /> Desconectar
+                            </Button>
+                          ) : (
+                            <Button variant="default" size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
+                              <Plug className="h-4 w-4 mr-1" /> Conectar
+                            </Button>
+                          )}
                           {isOwner && (
                             <TooltipProvider>
                               <Tooltip>
@@ -486,7 +514,7 @@ export default function WavoipPage() {
                             </TooltipProvider>
                           )}
                           {isOwner && (
-                            <Button variant="ghost" size="sm" onClick={() => handleRelease(d)}>
+                            <Button variant="ghost" size="sm" onClick={() => setReleaseTarget(d)}>
                               Liberar
                             </Button>
                           )}
@@ -598,6 +626,36 @@ export default function WavoipPage() {
         deviceName={shareTarget?.device_name || 'Dispositivo'}
         ownerUserId={shareTarget ? Number(shareTarget.app_user_id) : null}
         currentUserId={appUserId}
+      />
+
+      <ConfirmDeleteDialog
+        open={!!disconnectTarget}
+        onOpenChange={(o) => { if (!o) setDisconnectTarget(null); }}
+        title="Desconectar dispositivo"
+        description={<>A sessão do WhatsApp em <b>{disconnectTarget?.device_name || 'dispositivo'}</b> será encerrada. Para voltar a usá-lo, será necessário ler um novo QR Code.</>}
+        confirmLabel="Desconectar"
+        toggleLabel="Confirmo que quero desconectar este dispositivo"
+        loading={actionBusy}
+        onConfirm={async () => {
+          if (!disconnectTarget) return;
+          setActionBusy(true);
+          try { await handleDisconnect(disconnectTarget); } finally { setActionBusy(false); setDisconnectTarget(null); }
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={!!releaseTarget}
+        onOpenChange={(o) => { if (!o) setReleaseTarget(null); }}
+        title="Liberar dispositivo"
+        description={<>O dispositivo <b>{releaseTarget?.device_name || ''}</b> será devolvido ao pool do escritório e o vínculo com o seu usuário será removido.</>}
+        confirmLabel="Liberar"
+        toggleLabel="Confirmo que quero liberar este dispositivo"
+        loading={actionBusy}
+        onConfirm={async () => {
+          if (!releaseTarget) return;
+          setActionBusy(true);
+          try { await handleRelease(releaseTarget); } finally { setActionBusy(false); setReleaseTarget(null); }
+        }}
       />
     </div>
   );
