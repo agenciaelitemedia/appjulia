@@ -1,20 +1,31 @@
 ## Problema
 
-A tabela `wavoip_device_members` foi criada sem `GRANT` explícito para os roles `anon`, `authenticated` e `service_role`. Confirmado via `information_schema.table_privileges`: nenhum privilégio existe.
+Os registros de `wavoip_device_members` existem no banco (confirmado: 3 membros já liberados no dispositivo `f2e45f35...`), mas o frontend não consegue lê-los. A tabela **não tem GRANTs** para os roles `anon` e `authenticated` da Data API:
 
-Consequência no frontend (que usa o Supabase client com a chave anon):
-- O `SELECT` retorna vazio (ou erro silencioso capturado pelo React Query) → os switches dos membros já liberados **não aparecem marcados** ao reabrir.
-- Mesmo quando o insert/delete parece funcionar, o estado não persiste visualmente porque o read subsequente falha.
+```
+grantee      | privilege_type
+sandbox_exec | INSERT
+sandbox_exec | SELECT
+```
 
-## Correção (1 migration)
+Consequência: o `SELECT` do hook `useWavoipDeviceMembers` retorna vazio (bloqueado por permissão antes do RLS ser avaliado), então os switches nunca aparecem marcados ao reabrir o diálogo. A migração anterior que tentava corrigir isso não foi efetivada.
 
-Aplicar os GRANTs padrão de tabela de uso autenticado:
+## Correção (1 migração)
+
+Aplicar os GRANTs de Data API na tabela:
 
 ```sql
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.wavoip_device_members TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.wavoip_device_members TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.wavoip_device_members TO anon;
 GRANT ALL ON public.wavoip_device_members TO service_role;
 ```
 
-Mantém a policy atual `USING (true) WITH CHECK (true)` (o controle de quem pode compartilhar é feito na UI — apenas o dono do dispositivo vê o botão "Liberar acesso").
+Justificativa do `anon`: o app usa a chave anon do Supabase client para todas as chamadas (o `AuthContext` é externo, não usa `auth.uid()`), e a policy atual é `USING (true) WITH CHECK (true)` — o controle de quem pode liberar acesso é feito na UI (botão "Liberar" só aparece para o dono do dispositivo).
 
-Nenhuma alteração de código frontend é necessária — o hook `useWavoipDeviceMembers` e o `ShareDeviceDialog` estão corretos; só faltavam os privilégios de Data API.
+## Validação após aplicar
+
+Verificar via `information_schema.table_privileges` que os 4 roles aparecem, então reabrir o diálogo "Liberar acesso" no dispositivo — os 3 switches (usuários 191, 227, 209) devem aparecer marcados.
+
+## Sem mudanças de frontend
+
+O hook `useWavoipDeviceMembers`, o `ShareDeviceDialog` e o `useToggleWavoipDeviceMember` já estão corretos. Apenas faltam os privilégios de Data API.
