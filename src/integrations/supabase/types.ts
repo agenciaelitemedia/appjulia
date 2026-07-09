@@ -5554,6 +5554,9 @@ export type Database = {
           waba_id: string | null
           waba_number_id: string | null
           waba_token: string | null
+          waba_webhook_last_error: string | null
+          waba_webhook_status: string | null
+          waba_webhook_subscribed_at: string | null
         }
         Insert: {
           channel_type?: string
@@ -5575,6 +5578,9 @@ export type Database = {
           waba_id?: string | null
           waba_number_id?: string | null
           waba_token?: string | null
+          waba_webhook_last_error?: string | null
+          waba_webhook_status?: string | null
+          waba_webhook_subscribed_at?: string | null
         }
         Update: {
           channel_type?: string
@@ -5596,6 +5602,9 @@ export type Database = {
           waba_id?: string | null
           waba_number_id?: string | null
           waba_token?: string | null
+          waba_webhook_last_error?: string | null
+          waba_webhook_status?: string | null
+          waba_webhook_subscribed_at?: string | null
         }
         Relationships: []
       }

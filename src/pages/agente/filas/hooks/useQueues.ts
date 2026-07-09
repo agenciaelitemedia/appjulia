@@ -20,6 +20,9 @@ export interface Queue {
   waba_number_id: string | null;
   phone_number: string | null;
   phone_resolved_at: string | null;
+  waba_webhook_status?: string | null;
+  waba_webhook_last_error?: string | null;
+  waba_webhook_subscribed_at?: string | null;
   is_active: boolean;
   is_deleted: boolean;
   deleted_at: string | null;

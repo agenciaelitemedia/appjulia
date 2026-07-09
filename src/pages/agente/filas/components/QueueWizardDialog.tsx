@@ -204,20 +204,19 @@ export function QueueWizardDialog({ open, onOpenChange }: QueueWizardDialogProps
 
     createQueue.mutate(formData, {
       onSuccess: async (created: any) => {
-        // Auto-inscrever webhook Meta quando a fila WABA acabou de ser criada
-        if (selectedType === 'waba' && created?.id) {
-          try {
-            const { data, error } = await supabase.functions.invoke('waba-admin', {
-              body: { action: 'subscribe_queue', queueId: created.id },
-            });
-            if (error || !data?.success) {
-              toast.warning('Fila criada, mas falhou ao inscrever o webhook na Meta. Use "Reinscrever webhook" no menu da fila.');
-            } else {
-              toast.success('Webhook Meta inscrito com sucesso');
-            }
-          } catch (e) {
-            console.warn('subscribe_queue failed', e);
-            toast.warning('Fila criada, mas falhou ao inscrever o webhook na Meta.');
+        // O server (queue-management) já dispara subscribe_queue automaticamente
+        // e persiste o status em queues.waba_webhook_status. Aqui apenas surfacemos
+        // o resultado real para o usuário quando for WABA.
+        if (selectedType === 'waba') {
+          const webhook = (created as any)?.waba_webhook;
+          if (webhook && webhook.success === false) {
+            const detail = webhook.error || 'erro desconhecido';
+            toast.warning(
+              `Fila criada, mas o webhook Meta não foi inscrito: ${detail}. Use "Reinscrever webhook" no menu da fila.`,
+              { duration: 8000 },
+            );
+          } else if (webhook && webhook.success === true) {
+            toast.success('Webhook Meta inscrito com sucesso');
           }
         }
         onOpenChange(false);
