@@ -1,27 +1,20 @@
-## Alterações em `src/pages/wavoip/WavoipPage.tsx`
+## Problema
 
-1. **Remover badge "Webhook não verificado"**
-   - No bloco do `Tooltip`/`Badge` de webhook (linhas ~444-462), só renderizar o badge quando `d.webhook_status` estiver definido E for diferente de `'never'`/vazio. Ou seja, quando não configurado, nada aparece.
-   - Manter o botão "Copiar URL" como está (só aparece quando `webhook_status && webhook_status !== 'ok'`).
+A tabela `wavoip_device_members` foi criada sem `GRANT` explícito para os roles `anon`, `authenticated` e `service_role`. Confirmado via `information_schema.table_privileges`: nenhum privilégio existe.
 
-2. **Botão Conectar/Desconectar dinâmico**
-   - Quando `connected === true`: mostrar botão "Desconectar" (variant `outline`, ícone `Plug`) que executa desconexão:
-     - `wp?.device?.disable?.(device.device_token)` e `wp?.device?.remove?.(device.device_token)`
-     - Update em `wavoip_devices`: `connection_status='disconnected'`, `connected_at=null`, `whatsapp_jids=[]`, `whatsapp_jid=null`, `whatsapp_number=null`
-     - Recarregar via `load()` e `refreshDevices()`
-   - Quando não conectado: manter botão "Conectar" atual chamando `startConnectFlow(d)`.
+Consequência no frontend (que usa o Supabase client com a chave anon):
+- O `SELECT` retorna vazio (ou erro silencioso capturado pelo React Query) → os switches dos membros já liberados **não aparecem marcados** ao reabrir.
+- Mesmo quando o insert/delete parece funcionar, o estado não persiste visualmente porque o read subsequente falha.
 
-3. **Dupla confirmação em Desconectar e Liberar**
-   - Reutilizar o componente já existente `src/pages/admin/wavoip/components/ConfirmDeleteDialog.tsx` (padrão switch de confirmação da memória `secure-deletion-workflow`).
-   - Adicionar dois estados no `WavoipPage`: `disconnectTarget: Device | null` e `releaseTarget: Device | null`.
-   - Botão "Desconectar" abre `ConfirmDeleteDialog` com:
-     - `title="Desconectar dispositivo"`
-     - `description`: explica que a sessão do WhatsApp será encerrada e será necessário novo QR
-     - `confirmLabel="Desconectar"`, `toggleLabel="Confirmo que quero desconectar este dispositivo"`
-   - Botão "Liberar" (linha 489-491): remover o `confirm()` nativo e abrir `ConfirmDeleteDialog`:
-     - `title="Liberar dispositivo"`
-     - `description`: explica que o dispositivo volta ao pool do escritório e o vínculo com o usuário é removido
-     - `confirmLabel="Liberar"`, `toggleLabel="Confirmo que quero liberar este dispositivo"`
-   - `handleRelease` perde o `confirm()` interno; a confirmação passa para o dialog.
+## Correção (1 migration)
 
-Nenhuma outra alteração (visual, lógica de conexão, compartilhamento) é feita.
+Aplicar os GRANTs padrão de tabela de uso autenticado:
+
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.wavoip_device_members TO anon, authenticated;
+GRANT ALL ON public.wavoip_device_members TO service_role;
+```
+
+Mantém a policy atual `USING (true) WITH CHECK (true)` (o controle de quem pode compartilhar é feito na UI — apenas o dono do dispositivo vê o botão "Liberar acesso").
+
+Nenhuma alteração de código frontend é necessária — o hook `useWavoipDeviceMembers` e o `ShareDeviceDialog` estão corretos; só faltavam os privilégios de Data API.
