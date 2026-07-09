@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CallHistoryTab } from './components/CallHistoryTab';
+import { ShareDeviceDialog } from './components/ShareDeviceDialog';
 
 type Device = {
   id: string;
@@ -67,6 +68,9 @@ export default function WavoipPage() {
   const clientId = user?.client_id ?? null;
   const [devices, setDevices] = useState<Device[]>([]);
   const [calls, setCalls] = useState<CallLog[]>([]);
+  const [sharedIds, setSharedIds] = useState<string[]>([]);
+  const [membersByDevice, setMembersByDevice] = useState<Record<string, number>>({});
+  const [shareTarget, setShareTarget] = useState<Device | null>(null);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -82,23 +86,45 @@ export default function WavoipPage() {
   const intervalRef = useRef<number | null>(null);
   const completedRef = useRef(false);
 
+  const sharedSet = useMemo(() => new Set(sharedIds), [sharedIds]);
   const myDevices = useMemo(
-    () => devices.filter((d) => Number(d.app_user_id) === appUserId),
-    [devices, appUserId, clientId]
+    () => devices.filter((d) => Number(d.app_user_id) === appUserId || sharedSet.has(d.id)),
+    [devices, appUserId, sharedSet]
   );
 
   const load = useCallback(async () => {
     if (!clientId) return;
     setLoading(true);
-    const [devRes, callRes] = await Promise.all([
+    const [devRes, callRes, sharedRes] = await Promise.all([
       (supabase as any).from('wavoip_devices').select('*').eq('client_id', clientId).order('created_at', { ascending: false }),
       (supabase as any).from('wavoip_call_logs').select('id,created_at,direction,status,from_number,to_number,duration_seconds').eq('client_id', clientId).order('created_at', { ascending: false }).limit(50),
+      appUserId
+        ? (supabase as any).from('wavoip_device_members').select('device_id').eq('app_user_id', appUserId)
+        : Promise.resolve({ data: [], error: null }),
     ]);
     setLoading(false);
     if (devRes.error) { toast.error(devRes.error.message); return; }
-    setDevices((devRes.data ?? []) as Device[]);
+    const devs = (devRes.data ?? []) as Device[];
+    setDevices(devs);
     setCalls((callRes.data ?? []) as CallLog[]);
-  }, [clientId]);
+    setSharedIds(((sharedRes as any).data ?? []).map((r: any) => r.device_id));
+
+    // Contagem de membros compartilhados por dispositivo (do usuário logado como dono).
+    const ownedIds = devs.filter((d) => Number(d.app_user_id) === appUserId).map((d) => d.id);
+    if (ownedIds.length > 0) {
+      const { data: memberRows } = await (supabase as any)
+        .from('wavoip_device_members')
+        .select('device_id')
+        .in('device_id', ownedIds);
+      const counts: Record<string, number> = {};
+      ((memberRows ?? []) as { device_id: string }[]).forEach((r) => {
+        counts[r.device_id] = (counts[r.device_id] || 0) + 1;
+      });
+      setMembersByDevice(counts);
+    } else {
+      setMembersByDevice({});
+    }
+  }, [clientId, appUserId]);
 
   useEffect(() => { void load(); }, [load]);
 
