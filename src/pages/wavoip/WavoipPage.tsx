@@ -492,7 +492,7 @@ export default function WavoipPage() {
                               <Copy className="h-4 w-4 mr-1" /> Copiar URL
                             </Button>
                           )}
-                          {connected ? (
+                          {isOwner && (connected ? (
                             <Button variant="outline" size="sm" onClick={() => setDisconnectTarget(d)}>
                               <Plug className="h-4 w-4 mr-1" /> Desconectar
                             </Button>
@@ -500,7 +500,7 @@ export default function WavoipPage() {
                             <Button variant="default" size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
                               <Plug className="h-4 w-4 mr-1" /> Conectar
                             </Button>
-                          )}
+                          ))}
                           {isOwner && (
                             <TooltipProvider>
                               <Tooltip>
