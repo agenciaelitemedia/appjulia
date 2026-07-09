@@ -63,7 +63,7 @@ const extractSnapshotPhone = (snapshot?: any) => {
 const qrImageUrl = (token: string) => `https://devices.wavoip.com/${encodeURIComponent(token)}/whatsapp/qr-image?ts=${Date.now()}`;
 
 export default function WavoipPage() {
-  const { hasActivePlan, ready, openWidget, refreshDevices, canDial, ensureWebphone } = useWavoip();
+  const { hasActivePlan, ready, openWidget, refreshDevices, canDial, ensureWebphone, liveDeviceStatuses } = useWavoip();
   const { user } = useAuth();
   const appUserId = user?.id ? Number(user.id) : null;
   const clientId = user?.client_id ?? null;
@@ -464,7 +464,16 @@ export default function WavoipPage() {
                 <div className="divide-y border rounded-md">
                   {myDevices.map((d) => {
                     const jids: string[] = Array.isArray(d.whatsapp_jids) ? d.whatsapp_jids : [];
-                    const connected = d.connection_status === 'connected';
+                    // Fonte da verdade: status ao vivo do SDK. Se não houver
+                    // resposta do SDK ainda, cai no valor do DB.
+                    const liveRaw = liveDeviceStatuses?.[d.device_token];
+                    const liveStatus: string = liveRaw
+                      ? (liveRaw === 'open' ? 'connected'
+                          : liveRaw === 'connecting' || liveRaw === 'waiting_qr' || liveRaw === 'pairing' ? 'connecting'
+                          : liveRaw === 'error' || liveRaw === 'external_integration_error' || liveRaw === 'waiting_payment' ? 'error'
+                          : 'disconnected')
+                      : d.connection_status;
+                    const connected = liveStatus === 'connected';
                     const isOwner = Number(d.app_user_id) === appUserId;
                     const memberCount = membersByDevice[d.id] || 0;
                     return (
@@ -489,8 +498,8 @@ export default function WavoipPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <Badge variant={connected ? 'default' : d.connection_status === 'error' ? 'destructive' : 'outline'}>
-                            {connected ? 'conectado' : d.connection_status === 'connecting' ? 'aguardando QR' : d.connection_status === 'error' ? 'erro' : 'desconectado'}
+                          <Badge variant={connected ? 'default' : liveStatus === 'error' ? 'destructive' : 'outline'}>
+                            {connected ? 'conectado' : liveStatus === 'connecting' ? 'aguardando QR' : liveStatus === 'error' ? 'erro' : 'desconectado'}
                           </Badge>
                           {d.webhook_status && d.webhook_status !== 'never' && (
                             <TooltipProvider>

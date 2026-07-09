@@ -18,6 +18,7 @@ interface WavoipContextValue {
   connectedNumbers: string[];
   canDial: boolean;
   devices: WavoipDeviceInfo[];
+  liveDeviceStatuses: Record<string, string>;
   ensureWebphone: () => Promise<WavoipApi | null>;
   startCall: (phoneE164: string, opts?: { displayName?: string; deviceId?: string }) => Promise<{ ok: boolean; error?: string }>;
   prefillDialer: (phoneE164: string, displayName?: string) => Promise<{ ok: boolean; error?: string }>;
@@ -45,6 +46,9 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   // gravado em /wavoip ao habilitar o dispositivo, e para escolher o `fromTokens`.
   const userDevicesRef = useRef<WavoipDeviceInfo[]>([]);
   const [devices, setDevices] = useState<WavoipDeviceInfo[]>([]);
+  // Status ao vivo do SDK por token (fonte da verdade — DB pode estar defasado).
+  const [liveDeviceStatuses, setLiveDeviceStatuses] = useState<Record<string, string>>({});
+  const liveDeviceStatusesRef = useRef<Record<string, string>>({});
 
   const loadPlanAndDevices = useCallback(async (): Promise<{ active: boolean; tokens: string[] }> => {
     if (!clientId) {
@@ -77,8 +81,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     let devQuery = (supabase as any)
       .from('wavoip_devices')
       .select('id,device_token,device_name,status,connection_status,whatsapp_jids')
-      .eq('client_id', clientId)
-      .eq('connection_status', 'connected');
+      .eq('client_id', clientId);
     if (sharedDeviceIds.length > 0) {
       const idsCsv = sharedDeviceIds.map((id: string) => `"${id}"`).join(',');
       devQuery = devQuery.or(`app_user_id.eq.${Number(user?.id ?? -1)},id.in.(${idsCsv})`);
@@ -86,22 +89,36 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       devQuery = devQuery.eq('app_user_id', Number(user?.id ?? -1));
     }
     const { data: devs } = await devQuery;
-    const tokens = (devs ?? []).map((d: any) => d.device_token).filter(Boolean);
+    const allDevs = devs ?? [];
+    // Um dispositivo só conta como "conectado" para o discador se o DB diz
+    // connected E o SDK confirma (status open). Se o SDK ainda não respondeu,
+    // confiamos no DB — a próxima reconciliação corrige.
+    const liveMap = liveDeviceStatusesRef.current;
+    const effectivelyConnected = allDevs.filter((d: any) => {
+      if (d.connection_status !== 'connected') return false;
+      const live = liveMap[d.device_token];
+      if (!live) return true;
+      return live === 'open' || live === 'connected';
+    });
+    const tokens = effectivelyConnected.map((d: any) => d.device_token).filter(Boolean);
     const numbers: string[] = [];
-    for (const d of devs ?? []) {
+    for (const d of effectivelyConnected) {
       const j = Array.isArray(d?.whatsapp_jids) ? d.whatsapp_jids : [];
       for (const n of j) if (n) numbers.push(String(n));
     }
     setDevicesCount(tokens.length);
     setConnectedNumbers(numbers);
-    userDevicesRef.current = (devs ?? []).map((d: any) => ({
+    userDevicesRef.current = allDevs.map((d: any) => ({
       id: d.id,
       token: d.device_token,
       name: d.device_name ?? null,
       connection_status: d.connection_status,
     }));
     setDevices(userDevicesRef.current);
-    return { active: true, tokens };
+    // Retorna todos os tokens conhecidos (para o SDK carregar) — quem filtra
+    // por conexão real é o discador via devicesCount/connectedNumbers.
+    const allTokens = allDevs.map((d: any) => d.device_token).filter(Boolean);
+    return { active: true, tokens: allTokens };
   }, [clientId, user?.id]);
 
   const ensureWebphone = useCallback(async (): Promise<WavoipApi | null> => {
@@ -360,6 +377,87 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
   }, [ensureWebphone, loadPlanAndDevices]);
 
+  // ============================================================
+  // Reconciliação contínua: status real do SDK -> DB e UI.
+  // ============================================================
+  const mapSdkStatusToDb = (raw: string | undefined | null): 'connected' | 'connecting' | 'disconnected' | 'error' | null => {
+    if (!raw) return null;
+    const s = String(raw).toLowerCase();
+    if (s === 'open' || s === 'connected') return 'connected';
+    if (s === 'connecting' || s === 'waiting_qr' || s === 'pairing') return 'connecting';
+    if (s === 'error' || s === 'external_integration_error' || s === 'waiting_payment') return 'error';
+    if (s === 'close' || s === 'closed' || s === 'disconnected' || s === 'logged_out' || s === 'logged-out') return 'disconnected';
+    return null;
+  };
+
+  useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+    let interval: number | null = null;
+
+    const reconcile = async () => {
+      const wp: any = apiRef.current ?? (window as any).wavoip;
+      if (!wp?.device?.get) return;
+      let entries: any[] = [];
+      try { entries = wp.device.get() ?? []; } catch { return; }
+
+      const nextLive: Record<string, string> = {};
+      const known = userDevicesRef.current;
+      let dirty = false;
+
+      for (const dev of known) {
+        const entry = entries.find((e: any) => e?.token === dev.token);
+        const rawStatus = entry?.status;
+        const mapped = mapSdkStatusToDb(rawStatus);
+        nextLive[dev.token] = rawStatus ? String(rawStatus).toLowerCase() : 'disconnected';
+
+        // Se o SDK não tem o token (nunca registrado) e o DB diz connected, é
+        // uma inconsistência — trata como desconectado.
+        const effective = mapped ?? (entry ? null : 'disconnected');
+        if (!effective) continue;
+        if (effective !== dev.connection_status) {
+          dirty = true;
+          try {
+            const payload: Record<string, any> = {
+              connection_status: effective,
+              last_seen_at: new Date().toISOString(),
+            };
+            if (effective !== 'connected') payload.connected_at = null;
+            await (supabase as any).from('wavoip_devices').update(payload).eq('id', dev.id);
+          } catch (e) {
+            console.warn('[Wavoip] reconcile update failed', e);
+          }
+        }
+      }
+
+      // Atualiza o mapa de status ao vivo se mudou.
+      const prev = liveDeviceStatusesRef.current;
+      const keys = new Set([...Object.keys(prev), ...Object.keys(nextLive)]);
+      let liveChanged = false;
+      for (const k of keys) { if (prev[k] !== nextLive[k]) { liveChanged = true; break; } }
+      if (liveChanged) {
+        liveDeviceStatusesRef.current = nextLive;
+        if (!cancelled) setLiveDeviceStatuses(nextLive);
+      }
+
+      if (dirty && !cancelled) {
+        await loadPlanAndDevices();
+      }
+    };
+
+    // Primeiro tick após 3s (dá tempo do SDK carregar), depois a cada 10s.
+    const kickoff = window.setTimeout(() => {
+      void reconcile();
+      interval = window.setInterval(() => { void reconcile(); }, 10_000);
+    }, 3_000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(kickoff);
+      if (interval) window.clearInterval(interval);
+    };
+  }, [clientId, ready, loadPlanAndDevices]);
+
   const startCall = useCallback(async (phone: string, opts?: { displayName?: string; deviceId?: string }) => {
     const displayName = opts?.displayName;
     const deviceId = opts?.deviceId;
@@ -506,8 +604,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   const canDial = ready && devicesCount > 0;
 
   const value = useMemo<WavoipContextValue>(() => ({
-    ready, hasActivePlan, devicesCount, connectedNumbers, canDial, devices, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices,
-  }), [ready, hasActivePlan, devicesCount, connectedNumbers, canDial, devices, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices]);
+    ready, hasActivePlan, devicesCount, connectedNumbers, canDial, devices, liveDeviceStatuses, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices,
+  }), [ready, hasActivePlan, devicesCount, connectedNumbers, canDial, devices, liveDeviceStatuses, ensureWebphone, startCall, prefillDialer, openWidget, refreshDevices]);
 
   return <WavoipContext.Provider value={value}>{children}</WavoipContext.Provider>;
 }
