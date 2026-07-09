@@ -461,26 +461,28 @@ export default function WavoipPage() {
                           <Badge variant={connected ? 'default' : d.connection_status === 'error' ? 'destructive' : 'outline'}>
                             {connected ? 'conectado' : d.connection_status === 'connecting' ? 'aguardando QR' : d.connection_status === 'error' ? 'erro' : 'desconectado'}
                           </Badge>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge
-                                  variant={d.webhook_status === 'ok' ? 'outline' : 'destructive'}
-                                  className="gap-1 cursor-help"
-                                >
-                                  {d.webhook_status === 'ok' ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
-                                  Webhook {d.webhook_status === 'ok' ? 'OK' : d.webhook_status === 'stale' ? 'inativo' : d.webhook_status === 'never' ? 'não configurado' : 'não verificado'}
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-sm text-xs">
-                                <div className="break-all"><b>URL esperada:</b><br />{d.webhook_url || '—'}</div>
-                                {d.webhook_checked_at && <div><b>Verificado:</b> {format(new Date(d.webhook_checked_at), 'dd/MM HH:mm')}</div>}
-                                {d.webhook_last_error && <div className="text-destructive break-all"><b>Aviso:</b> {d.webhook_last_error}</div>}
-                                <div className="text-muted-foreground pt-1 mt-1 border-t">Configure no painel da Wavoip → Dispositivo → Integrações → Webhook. Eventos: CALL, RECORD, DEVICE.</div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                          {d.webhook_status && d.webhook_status !== 'ok' && (
+                          {d.webhook_status && d.webhook_status !== 'never' && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge
+                                    variant={d.webhook_status === 'ok' ? 'outline' : 'destructive'}
+                                    className="gap-1 cursor-help"
+                                  >
+                                    {d.webhook_status === 'ok' ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+                                    Webhook {d.webhook_status === 'ok' ? 'OK' : d.webhook_status === 'stale' ? 'inativo' : 'não verificado'}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-sm text-xs">
+                                  <div className="break-all"><b>URL esperada:</b><br />{d.webhook_url || '—'}</div>
+                                  {d.webhook_checked_at && <div><b>Verificado:</b> {format(new Date(d.webhook_checked_at), 'dd/MM HH:mm')}</div>}
+                                  {d.webhook_last_error && <div className="text-destructive break-all"><b>Aviso:</b> {d.webhook_last_error}</div>}
+                                  <div className="text-muted-foreground pt-1 mt-1 border-t">Configure no painel da Wavoip → Dispositivo → Integrações → Webhook. Eventos: CALL, RECORD, DEVICE.</div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {d.webhook_status && d.webhook_status !== 'ok' && d.webhook_status !== 'never' && (
                             <Button variant="outline" size="sm" onClick={async () => {
                               const url = d.webhook_url || '';
                               if (!url) { toast.error('URL ainda não disponível — clique em Verificar webhooks'); return; }
@@ -490,9 +492,15 @@ export default function WavoipPage() {
                               <Copy className="h-4 w-4 mr-1" /> Copiar URL
                             </Button>
                           )}
-                          <Button variant={connected ? 'outline' : 'default'} size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
-                            <Plug className="h-4 w-4 mr-1" /> Conectar
-                          </Button>
+                          {connected ? (
+                            <Button variant="outline" size="sm" onClick={() => setDisconnectTarget(d)}>
+                              <Plug className="h-4 w-4 mr-1" /> Desconectar
+                            </Button>
+                          ) : (
+                            <Button variant="default" size="sm" onClick={() => startConnectFlow(d)} disabled={connectStatus !== 'idle'}>
+                              <Plug className="h-4 w-4 mr-1" /> Conectar
+                            </Button>
+                          )}
                           {isOwner && (
                             <TooltipProvider>
                               <Tooltip>
@@ -506,7 +514,7 @@ export default function WavoipPage() {
                             </TooltipProvider>
                           )}
                           {isOwner && (
-                            <Button variant="ghost" size="sm" onClick={() => handleRelease(d)}>
+                            <Button variant="ghost" size="sm" onClick={() => setReleaseTarget(d)}>
                               Liberar
                             </Button>
                           )}
