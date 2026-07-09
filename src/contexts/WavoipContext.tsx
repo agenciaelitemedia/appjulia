@@ -65,12 +65,27 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       setConnectedNumbers([]);
       return { active: false, tokens: [] };
     }
-    const { data: devs } = await (supabase as any)
+    // Dispositivos: próprios + compartilhados via wavoip_device_members
+    const { data: memberRows } = await (supabase as any)
+      .from('wavoip_device_members')
+      .select('device_id')
+      .eq('app_user_id', Number(user?.id ?? -1));
+    const sharedDeviceIds = (memberRows ?? [])
+      .map((r: any) => r.device_id)
+      .filter(Boolean);
+
+    let devQuery = (supabase as any)
       .from('wavoip_devices')
       .select('id,device_token,device_name,status,connection_status,whatsapp_jids')
       .eq('client_id', clientId)
-      .eq('app_user_id', user?.id ?? -1)
       .eq('connection_status', 'connected');
+    if (sharedDeviceIds.length > 0) {
+      const idsCsv = sharedDeviceIds.map((id: string) => `"${id}"`).join(',');
+      devQuery = devQuery.or(`app_user_id.eq.${Number(user?.id ?? -1)},id.in.(${idsCsv})`);
+    } else {
+      devQuery = devQuery.eq('app_user_id', Number(user?.id ?? -1));
+    }
+    const { data: devs } = await devQuery;
     const tokens = (devs ?? []).map((d: any) => d.device_token).filter(Boolean);
     const numbers: string[] = [];
     for (const d of devs ?? []) {
