@@ -71,7 +71,6 @@ function ChatSettingsContent() {
               <Zap className="h-3.5 w-3.5" /> Automações
             </TabsTrigger>
           )}
-          {canSeeWabaTemplates && !isAdmin && null}
           {canSeeWabaTemplates && (
             <TabsTrigger value="waba-templates" className="gap-1.5">
               <FileText className="h-3.5 w-3.5" /> Templates WABA
