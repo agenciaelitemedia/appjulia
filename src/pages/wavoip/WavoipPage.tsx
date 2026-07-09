@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2 } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2, Pencil } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
@@ -74,6 +74,9 @@ export default function WavoipPage() {
   const [shareTarget, setShareTarget] = useState<Device | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<Device | null>(null);
   const [releaseTarget, setReleaseTarget] = useState<Device | null>(null);
+  const [renameTarget, setRenameTarget] = useState<Device | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameBusy, setRenameBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -365,6 +368,34 @@ export default function WavoipPage() {
     await refreshDevices();
   };
 
+  const handleRename = async () => {
+    if (!renameTarget) return;
+    const name = renameValue.trim();
+    if (!name) { toast.error('Informe um nome'); return; }
+    setRenameBusy(true);
+    try {
+      const { error } = await (supabase as any)
+        .from('wavoip_devices')
+        .update({ device_name: name })
+        .eq('id', renameTarget.id);
+      if (error) throw error;
+      try {
+        await supabase.functions.invoke('wavoip-rename-device', { body: { device_id: renameTarget.id, name } });
+      } catch (e) {
+        console.warn('[wavoip] rename remote falhou', e);
+      }
+      toast.success('Nome atualizado');
+      setRenameTarget(null);
+      setRenameValue('');
+      await load();
+      await refreshDevices();
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao renomear');
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
   const connectProgress = Math.max(0, Math.min(100, ((QR_TIMEOUT_SECONDS - countdown) / QR_TIMEOUT_SECONDS) * 100));
   const activeQrUrl = qrText
     ? `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrText)}`
@@ -514,6 +545,25 @@ export default function WavoipPage() {
                             </TooltipProvider>
                           )}
                           {isOwner && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      setRenameTarget(d);
+                                      setRenameValue(d.device_name || '');
+                                    }}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Renomear dispositivo</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {isOwner && (
                             <Button variant="ghost" size="sm" onClick={() => setReleaseTarget(d)}>
                               Liberar
                             </Button>
@@ -657,6 +707,31 @@ export default function WavoipPage() {
           try { await handleRelease(releaseTarget); } finally { setActionBusy(false); setReleaseTarget(null); }
         }}
       />
+
+      <Dialog open={!!renameTarget} onOpenChange={(o) => { if (!o) { setRenameTarget(null); setRenameValue(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Renomear dispositivo</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome do dispositivo *</Label>
+              <Input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                placeholder="ex: Atendimento 01"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                O nome também é sincronizado no painel da Wavoip para aparecer no discador.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRenameTarget(null); setRenameValue(''); }}>Cancelar</Button>
+            <Button onClick={handleRename} disabled={renameBusy || !renameValue.trim()}>
+              {renameBusy ? 'Salvando…' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
