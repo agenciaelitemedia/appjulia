@@ -1,45 +1,35 @@
-## Diagnóstico (client_id=294, ceo@grupoamjuridico.com)
+## Diagnóstico
 
-Rodei a análise nos vínculos chat↔CRM Builder deste cliente:
+Na lista do /chat, o badge azul "CRM" (quadro · etapa) só aparece quando o `conversation_id` da conversa exibida bate com o `custom_fields.links.chat.conversation_id` guardado no deal do CRM Builder.
 
-- Total de deals: **3.449**
-- Deals com `custom_fields.links.chat` preenchido: **3.344**
-- Deals SEM vínculo com o chat: **105** (103 têm telefone)
-- Deals com vínculo apontando para conversa inexistente: **1**
-- Registros na tabela `chat_crm_links`: **3.344**
+Mas a lista do chat mostra o contato pela "conversa líder" (mais recente entre todas as filas — ver memory `chat-contact-deduplication`). O deal, por outro lado, foi vinculado a UMA conversa específica no momento da criação. Quando o cliente volta a falar por outra fila/canal, a líder muda, o `conv.id` da linha do chat deixa de bater com o do deal, e o badge some — mesmo com o vínculo intacto no banco.
 
-Cruzando os 103 deals órfãos (com telefone) contra o chat:
-- **103/103 têm contato correspondente em `chat_contacts`**
-- **103/103 têm ao menos uma conversa em `chat_conversations`**
+Confirmado no cliente `294`: 3.343 deals guardam `conversation_id`, apenas 105 guardam `contact_id`. Ou seja, hoje o casamento é 1:1 por conversa e não sobrevive à troca de líder.
 
-Ou seja: dá para restaurar 100% dos vínculos perdidos deste cliente pegando a conversa mais recente por telefone.
+## Correção proposta
 
-## Plano de restauração
+Fazer o badge do CRM Builder no /chat resolver por **contato**, não só pela conversa exata.
 
-Uma rotina única (SQL de reparo, executada via ferramenta de dados) que, apenas para `client_id='294'`:
+### `src/hooks/useCRMBuilderLinkedConversations.ts`
+- Continuar buscando `crm_deals` (não arquivados) com `crm_boards`/`crm_pipelines`.
+- Coletar todos os `conversation_id` presentes em `custom_fields.links.chat`.
+- Uma segunda query em `chat_conversations` (`id in (...)`) traz `contact_id` para cada conversa vinculada — resolve os ~3.343 deals que só têm `conversation_id`.
+- Retornar duas estruturas:
+  - `byConversation: Map<conversation_id, CrmBuilderLink>` (comportamento atual, sem regressão).
+  - `byContact: Map<contact_id, CrmBuilderLink>` — construído a partir de (a) `links.chat.contact_id` quando existir e (b) do `contact_id` resolvido via lookup acima. Se um contato tiver múltiplos deals ativos, mantém o de `updated_at` mais recente.
 
-1. **Deals sem `custom_fields.links.chat`** (105 casos)
-   - Localiza o contato via telefone normalizado em `chat_contacts` (`client_id='294'`).
-   - Escolhe a **conversa líder**: `chat_conversations` do mesmo contato, fila não excluída (`queues.is_deleted != true`), maior `updated_at`; desempate por `opened_at`/`created_at`.
-   - Se encontrada:
-     - Escreve em `crm_deals.custom_fields.links.chat` o objeto `{ conversation_id, contact_id, contact_phone, contact_name }` (mesma forma usada por `getChatLink` em `useCardLinks.ts`).
-     - Faz `INSERT` correspondente em `chat_crm_links` (`client_id, cod_agent, conversation_id, contact_id, external_system='crm-builder', external_id=<deal.id>, sync_direction='restore'`), com `ON CONFLICT DO NOTHING` para não duplicar.
-   - Se nenhum contato/conversa for encontrado: deal fica como está (registrado em log/relatório).
+### `src/components/chat/ChatList.tsx`
+- Consumir as duas maps.
+- Trocar a linha atual por:
+  - `crmBuilderLink = crmBuilderMap.byConversation.get(conv.id) ?? crmBuilderMap.byContact.get(contact.id)`.
+  - `hasCrmCard` segue a mesma regra.
+- Nenhuma mudança de layout no `ChatContactItem` — o badge já sabe se renderizar quando `crmBuilderLink` chega preenchido.
 
-2. **Deal com `conversation_id` quebrado** (1 caso)
-   - Mesma lógica do passo 1, substituindo o `links.chat` pelo par contato/conversa mais recente encontrado por telefone. Se não achar nada, remove o `links.chat` inválido.
+### Escopo
+- Só leitura/UI do /chat. Não altera dados do CRM, deals, conversas ou vínculos.
+- Não mexe em `useChatCRMLinks` (painel do lado direito), nem em `ChatLinkedDealSheet`.
+- Não altera regra de "conversa líder"; apenas usa `contact_id` como fallback para casar com o deal.
 
-3. **Relatório final**
-   - Retorno com contagem `restored / skipped / broken_cleaned`, para confirmar o resultado sem precisar rodar nada manualmente.
+## Resultado esperado
 
-## Restrições / segurança
-
-- Escopo travado em `client_id='294'` (nada global).
-- Nenhuma alteração em conversas, contatos ou filas — só em `crm_deals.custom_fields` e `chat_crm_links`.
-- Só grava vínculo quando o telefone bate exatamente após normalização (`regexp_replace(phone,'\D','','g')`) e a fila da conversa não está soft-deleted (`queues.is_deleted != true`), respeitando a regra já aplicada em `useChatConversationPreview` / `useContactConversation`.
-- Operação idempotente: se o deal já tem `links.chat`, é ignorado; `chat_crm_links` usa `ON CONFLICT DO NOTHING`.
-
-## Fora de escopo
-
-- Não vou mexer no fluxo que originalmente causou a perda (isso já foi tratado em memórias anteriores como filtro de fila excluída). Aqui só faço o backfill dos vínculos deste cliente.
-- Não estendo para outros `client_id` — se quiser rodar para todos depois, faço em um segundo passo.
+Após aplicar, "ceo@grupoamjuridico.com" (e demais clientes) passam a ver o badge azul "CRM — Quadro · Etapa" em todo contato que tem deal ativo no CRM Builder, independentemente de qual fila/conversa está liderando a linha no momento.
