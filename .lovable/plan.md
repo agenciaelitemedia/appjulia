@@ -1,38 +1,45 @@
-## Problema
+## Diagnóstico (client_id=294, ceo@grupoamjuridico.com)
 
-O badge de conexão do dispositivo em `/wavoip` (e o `devicesCount`/`connectedNumbers` usados pelo discador global) leem apenas o campo `wavoip_devices.connection_status` do banco. Esse campo só é atualizado nos cliques de Conectar/Desconectar. Se o WhatsApp do celular perder o vínculo, o Wavoip cair, ou o dispositivo for desconectado por outro lado, o banco continua `connected` e a fila "Flavia 01" aparece conectada indevidamente.
+Rodei a análise nos vínculos chat↔CRM Builder deste cliente:
 
-## Solução
+- Total de deals: **3.449**
+- Deals com `custom_fields.links.chat` preenchido: **3.344**
+- Deals SEM vínculo com o chat: **105** (103 têm telefone)
+- Deals com vínculo apontando para conversa inexistente: **1**
+- Registros na tabela `chat_crm_links`: **3.344**
 
-Refletir o status real do SDK Wavoip (`wp.device.get()`, campo `status`) tanto na UI quanto no banco, com reconciliação contínua.
+Cruzando os 103 deals órfãos (com telefone) contra o chat:
+- **103/103 têm contato correspondente em `chat_contacts`**
+- **103/103 têm ao menos uma conversa em `chat_conversations`**
 
-### 1. Monitor de status em tempo real (`WavoipContext.tsx`)
+Ou seja: dá para restaurar 100% dos vínculos perdidos deste cliente pegando a conversa mais recente por telefone.
 
-- Após o webphone estar pronto, iniciar um `setInterval` (a cada 10s) que:
-  - Lê `wp.device.get()` → lista de `{ token, status, ... }`.
-  - Para cada dispositivo em `userDevicesRef.current`, mapeia `status` do SDK para `connection_status`:
-    - `open` → `connected`
-    - `close` / `closed` / ausente → `disconnected`
-    - `waiting_qr` / `connecting` → `connecting`
-    - `error` / `external_integration_error` / `waiting_payment` → `error`
-  - Se o valor do SDK diferir do valor no ref/banco, faz `update` em `wavoip_devices` (`connection_status`, `last_seen_at`, e limpa `connected_at` quando não estiver `open`) e chama `loadPlanAndDevices()` para reatualizar `devicesCount`, `connectedNumbers`, `devices` e `userDevicesRef`.
-- Também escutar eventos do SDK que indicam mudança de estado (`device:status`, `device:closed`, `device:opened` — o que existir; usar try/catch por evento) e disparar a mesma reconciliação imediatamente, sem esperar o intervalo.
-- Ao desmontar (mudança de user/client), limpar o intervalo.
+## Plano de restauração
 
-### 2. UI da página `/wavoip` (`WavoipPage.tsx`)
+Uma rotina única (SQL de reparo, executada via ferramenta de dados) que, apenas para `client_id='294'`:
 
-- Manter um `Map<deviceId, sdkStatus>` em state, alimentado pelo mesmo polling do webphone já disponível (o `ensureWebphone` do contexto).
-- Derivar o `connected` do badge a partir do SDK quando disponível; cair no `d.connection_status` só quando o SDK ainda não tiver resposta para aquele token.
-- Isso garante que, mesmo antes do banco refletir, a UI já mostre "desconectado" assim que o SDK reportar.
-- O botão "Desconectar" (visível só para o owner) continua igual; o botão "Conectar" volta a aparecer automaticamente quando o status real for `disconnected`.
+1. **Deals sem `custom_fields.links.chat`** (105 casos)
+   - Localiza o contato via telefone normalizado em `chat_contacts` (`client_id='294'`).
+   - Escolhe a **conversa líder**: `chat_conversations` do mesmo contato, fila não excluída (`queues.is_deleted != true`), maior `updated_at`; desempate por `opened_at`/`created_at`.
+   - Se encontrada:
+     - Escreve em `crm_deals.custom_fields.links.chat` o objeto `{ conversation_id, contact_id, contact_phone, contact_name }` (mesma forma usada por `getChatLink` em `useCardLinks.ts`).
+     - Faz `INSERT` correspondente em `chat_crm_links` (`client_id, cod_agent, conversation_id, contact_id, external_system='crm-builder', external_id=<deal.id>, sync_direction='restore'`), com `ON CONFLICT DO NOTHING` para não duplicar.
+   - Se nenhum contato/conversa for encontrado: deal fica como está (registrado em log/relatório).
 
-### 3. Discador global
+2. **Deal com `conversation_id` quebrado** (1 caso)
+   - Mesma lógica do passo 1, substituindo o `links.chat` pelo par contato/conversa mais recente encontrado por telefone. Se não achar nada, remove o `links.chat` inválido.
 
-- Como `devicesCount`/`connectedNumbers`/`canDial` são recalculados dentro de `loadPlanAndDevices` (que já filtra por `connection_status = 'connected'`), o passo 1 já basta: assim que o monitor gravar `disconnected`, a próxima reconciliação remove o número dos disponíveis e o discador é bloqueado.
+3. **Relatório final**
+   - Retorno com contagem `restored / skipped / broken_cleaned`, para confirmar o resultado sem precisar rodar nada manualmente.
 
-## Detalhes técnicos
+## Restrições / segurança
 
-- Arquivos alterados: `src/contexts/WavoipContext.tsx`, `src/pages/wavoip/WavoipPage.tsx`.
-- Sem migração de banco — apenas `UPDATE` via cliente Supabase nas colunas já existentes (`connection_status`, `connected_at`, `last_seen_at`).
-- Intervalo de 10s é conservador para não sobrecarregar; reduzir para 5s se necessário.
-- Todas as chamadas ao SDK ficam em `try/catch` porque o Webphone pode ainda não estar pronto.
+- Escopo travado em `client_id='294'` (nada global).
+- Nenhuma alteração em conversas, contatos ou filas — só em `crm_deals.custom_fields` e `chat_crm_links`.
+- Só grava vínculo quando o telefone bate exatamente após normalização (`regexp_replace(phone,'\D','','g')`) e a fila da conversa não está soft-deleted (`queues.is_deleted != true`), respeitando a regra já aplicada em `useChatConversationPreview` / `useContactConversation`.
+- Operação idempotente: se o deal já tem `links.chat`, é ignorado; `chat_crm_links` usa `ON CONFLICT DO NOTHING`.
+
+## Fora de escopo
+
+- Não vou mexer no fluxo que originalmente causou a perda (isso já foi tratado em memórias anteriores como filtro de fila excluída). Aqui só faço o backfill dos vínculos deste cliente.
+- Não estendo para outros `client_id` — se quiser rodar para todos depois, faço em um segundo passo.
