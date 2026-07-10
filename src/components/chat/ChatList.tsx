@@ -1737,8 +1737,14 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                       !stageInfo &&
                       (!stageByPhone || stageByPhoneFetching)
                     }
-                    hasCrmCard={conv?.id ? !!crmBuilderMap?.has(conv.id) : false}
-                    crmBuilderLink={conv?.id ? crmBuilderMap?.get(conv.id) : undefined}
+                    hasCrmCard={
+                      (conv?.id ? !!crmBuilderMap?.byConversation.has(conv.id) : false) ||
+                      !!crmBuilderMap?.byContact.has(contact.id)
+                    }
+                    crmBuilderLink={
+                      (conv?.id ? crmBuilderMap?.byConversation.get(conv.id) : undefined) ??
+                      crmBuilderMap?.byContact.get(contact.id)
+                    }
                     ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
                     campaignLink={contact.phone ? campaignByPhone?.get(contact.phone) ?? null : null}
                     lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
