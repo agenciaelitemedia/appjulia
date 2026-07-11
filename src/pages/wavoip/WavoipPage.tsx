@@ -485,7 +485,14 @@ export default function WavoipPage() {
         <TabsContent value="devices" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Meus dispositivos</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>Meus dispositivos</CardTitle>
+                {hasActivePlan && (
+                  <Badge variant="secondary">
+                    {slotStats.used} {slotStats.used === 1 ? 'usado' : 'usados'} / {slotStats.available} {slotStats.available === 1 ? 'disponível' : 'disponíveis'}
+                  </Badge>
+                )}
+              </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={load} disabled={loading}>
                   <RefreshCw className="h-4 w-4 mr-1" /> Atualizar
