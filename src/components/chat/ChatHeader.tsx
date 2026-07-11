@@ -644,7 +644,11 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                   Ligar
                 </Button>
 
-                <WavoipCallButton phone={contact.phone} contactName={contact.name} />
+                <WavoipCallButton
+                  phone={contact.phone}
+                  contactName={contact.name}
+                  queueId={selectedConversation?.queue_id || null}
+                />
 
                 <div className="inline-flex items-center gap-0.5 border rounded px-1 py-0.5">
                   <Button
