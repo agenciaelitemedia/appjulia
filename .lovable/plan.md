@@ -1,35 +1,53 @@
-## Diagnóstico
+## Objetivo
 
-Na lista do /chat, o badge azul "CRM" (quadro · etapa) só aparece quando o `conversation_id` da conversa exibida bate com o `custom_fields.links.chat.conversation_id` guardado no deal do CRM Builder.
+Permitir vincular cada dispositivo Wavoip a uma ou mais filas. Ao abrir o diálogo de ligação Wavoip a partir do chat, o dispositivo pré-selecionado será aquele vinculado à fila da conversa (quando existir).
 
-Mas a lista do chat mostra o contato pela "conversa líder" (mais recente entre todas as filas — ver memory `chat-contact-deduplication`). O deal, por outro lado, foi vinculado a UMA conversa específica no momento da criação. Quando o cliente volta a falar por outra fila/canal, a líder muda, o `conv.id` da linha do chat deixa de bater com o do deal, e o badge some — mesmo com o vínculo intacto no banco.
+## Alterações
 
-Confirmado no cliente `294`: 3.343 deals guardam `conversation_id`, apenas 105 guardam `contact_id`. Ou seja, hoje o casamento é 1:1 por conversa e não sobrevive à troca de líder.
+### 1. Banco (nova tabela `wavoip_device_queues`)
 
-## Correção proposta
+Tabela N:N entre `wavoip_devices` e `queues`:
 
-Fazer o badge do CRM Builder no /chat resolver por **contato**, não só pela conversa exata.
+- `device_id uuid` → `wavoip_devices.id` (ON DELETE CASCADE)
+- `queue_id uuid` → `queues.id` (ON DELETE CASCADE)
+- `client_id bigint` (para RLS/scoping)
+- `created_at`, `created_by bigint`
+- PK composta `(device_id, queue_id)`
+- Índices em `queue_id` e `device_id`
+- RLS: `authenticated` pode ler/escrever quando o dispositivo pertencer ao mesmo `client_id`; `service_role` full
+- GRANTs padrão para `authenticated` e `service_role`
 
-### `src/hooks/useCRMBuilderLinkedConversations.ts`
-- Continuar buscando `crm_deals` (não arquivados) com `crm_boards`/`crm_pipelines`.
-- Coletar todos os `conversation_id` presentes em `custom_fields.links.chat`.
-- Uma segunda query em `chat_conversations` (`id in (...)`) traz `contact_id` para cada conversa vinculada — resolve os ~3.343 deals que só têm `conversation_id`.
-- Retornar duas estruturas:
-  - `byConversation: Map<conversation_id, CrmBuilderLink>` (comportamento atual, sem regressão).
-  - `byContact: Map<contact_id, CrmBuilderLink>` — construído a partir de (a) `links.chat.contact_id` quando existir e (b) do `contact_id` resolvido via lookup acima. Se um contato tiver múltiplos deals ativos, mantém o de `updated_at` mais recente.
+### 2. `/wavoip` — vínculo com filas na UI
 
-### `src/components/chat/ChatList.tsx`
-- Consumir as duas maps.
-- Trocar a linha atual por:
-  - `crmBuilderLink = crmBuilderMap.byConversation.get(conv.id) ?? crmBuilderMap.byContact.get(contact.id)`.
-  - `hasCrmCard` segue a mesma regra.
-- Nenhuma mudança de layout no `ChatContactItem` — o badge já sabe se renderizar quando `crmBuilderLink` chega preenchido.
+Em `src/pages/wavoip/WavoipPage.tsx`:
 
-### Escopo
-- Só leitura/UI do /chat. Não altera dados do CRM, deals, conversas ou vínculos.
-- Não mexe em `useChatCRMLinks` (painel do lado direito), nem em `ChatLinkedDealSheet`.
-- Não altera regra de "conversa líder"; apenas usa `contact_id` como fallback para casar com o deal.
+- **Dialog "Adicionar dispositivo"**: adicionar campo multi-seleção "Filas vinculadas" (usando filas ativas do client). Ao criar o dispositivo, gravar em `wavoip_device_queues`.
+- **Novo botão "Filas" em cada card de dispositivo** (ao lado de renomear/compartilhar, restrito ao owner): abre um dialog `DeviceQueuesDialog` para editar as filas vinculadas.
+- Mostrar badge `Fila: <nome>` (ou "N filas") no card do dispositivo.
 
-## Resultado esperado
+Novo componente `src/pages/wavoip/components/DeviceQueuesDialog.tsx` com multi-select shadcn (checkbox list) das filas do client. Salva via upsert/delete diff em `wavoip_device_queues`.
 
-Após aplicar, "ceo@grupoamjuridico.com" (e demais clientes) passam a ver o badge azul "CRM — Quadro · Etapa" em todo contato que tem deal ativo no CRM Builder, independentemente de qual fila/conversa está liderando a linha no momento.
+Novo hook `src/pages/wavoip/hooks/useWavoipDeviceQueues.ts`:
+- `useDeviceQueues(deviceId)` → lista de queue_ids do dispositivo
+- `useAllDeviceQueueLinks(clientId)` → mapa `queueId → deviceId[]` (para o dialog do chat)
+- mutations `linkDeviceQueues`, `unlinkDeviceQueue`
+
+### 3. Chat — pré-seleção do dispositivo pela fila
+
+Em `src/components/chat/WavoipCallDialog.tsx`:
+- Aceitar nova prop opcional `queueId?: string | null`.
+- Consultar `wavoip_device_queues` (via `useAllDeviceQueueLinks` ou query pontual) para descobrir os `device_id` vinculados à `queueId`.
+- Ao abrir o diálogo, se algum dispositivo **conectado** estiver vinculado à fila, pré-selecioná-lo (em vez do primeiro conectado). Caso contrário, manter o comportamento atual (primeiro conectado).
+- Mostrar uma linha discreta acima do select do tipo: "Sugerido pela fila <nome>" quando aplicável.
+
+Em `src/components/chat/WavoipCallButton.tsx`:
+- Aceitar `queueId?: string | null` e repassar ao dialog.
+
+Em `src/components/chat/ChatHeader.tsx`:
+- Passar `queueId={selectedConversation?.queue_id}` no `<WavoipCallButton>`.
+
+## Escopo intencionalmente fora
+
+- Nenhuma mudança no comportamento de discagem em si (SDK Wavoip, roteamento, chamadas).
+- Nenhuma alteração em `wavoip_device_members` — vínculo com fila é ortogonal ao compartilhamento com usuários.
+- Sem impacto no admin (`/admin/wavoip`) — vínculo é gerido pelo owner do dispositivo.

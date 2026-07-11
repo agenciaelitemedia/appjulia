@@ -9,9 +9,10 @@ import { WavoipCallDialog } from './WavoipCallDialog';
 interface Props {
   phone?: string | null;
   contactName?: string | null;
+  queueId?: string | null;
 }
 
-export function WavoipCallButton({ phone, contactName }: Props) {
+export function WavoipCallButton({ phone, contactName, queueId }: Props) {
   const { hasActivePlan, ready, canDial } = useWavoip();
   const [open, setOpen] = useState(false);
   if (!hasActivePlan) return null;
@@ -43,6 +44,7 @@ export function WavoipCallButton({ phone, contactName }: Props) {
           onOpenChange={setOpen}
           phone={phone}
           contactName={contactName}
+          queueId={queueId}
         />
       ) : null}
     </>

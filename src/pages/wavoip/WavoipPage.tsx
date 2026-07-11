@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2, Pencil } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2, Pencil, ListTree } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
@@ -19,6 +19,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CallHistoryTab } from './components/CallHistoryTab';
 import { ShareDeviceDialog } from './components/ShareDeviceDialog';
 import { ConfirmDeleteDialog } from '@/pages/admin/wavoip/components/ConfirmDeleteDialog';
+import { DeviceQueuesDialog } from './components/DeviceQueuesDialog';
+import {
+  useClientDeviceQueueLinks,
+  useClientQueuesForLink,
+  useSetDeviceQueues,
+} from './hooks/useWavoipDeviceQueues';
+import { Checkbox } from '@/components/ui/checkbox';
 
 type Device = {
   id: string;
@@ -77,6 +84,24 @@ export default function WavoipPage() {
   const [renameTarget, setRenameTarget] = useState<Device | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
+  const [queuesTarget, setQueuesTarget] = useState<Device | null>(null);
+  const [newDeviceQueueIds, setNewDeviceQueueIds] = useState<string[]>([]);
+  const { data: allQueuesForClient = [] } = useClientQueuesForLink(clientId);
+  const { data: deviceQueueLinks = {} } = useClientDeviceQueueLinks(clientId);
+  const setDeviceQueuesMut = useSetDeviceQueues();
+  // Mapa deviceId -> queueId[] (derivado do inverso de deviceQueueLinks)
+  const queuesByDevice = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    for (const [qid, devIds] of Object.entries(deviceQueueLinks)) {
+      for (const d of devIds) (m[d] ||= []).push(qid);
+    }
+    return m;
+  }, [deviceQueueLinks]);
+  const queueNameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const q of allQueuesForClient) m[q.id] = q.name;
+    return m;
+  }, [allQueuesForClient]);
   const [actionBusy, setActionBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -322,6 +347,18 @@ export default function WavoipPage() {
       try {
         supabase.functions.invoke('wavoip-rename-device', { body: { device_id: device.id } });
       } catch {}
+      // Vincula filas selecionadas, se houver.
+      if (newDeviceQueueIds.length > 0 && clientId != null) {
+        try {
+          await setDeviceQueuesMut.mutateAsync({
+            deviceId: device.id,
+            clientId: Number(clientId),
+            queueIds: newDeviceQueueIds,
+            createdBy: appUserId,
+          });
+        } catch {}
+      }
+      setNewDeviceQueueIds([]);
       setDialogOpen(false);
       setNewName('');
       await load();
@@ -496,6 +533,15 @@ export default function WavoipPage() {
                             {d.whatsapp_number && <> · Número: {d.whatsapp_number}</>}
                             {jids.length > 0 && <> · JID: {jids.join(', ')}</>}
                           </div>
+                          {(queuesByDevice[d.id]?.length ?? 0) > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {queuesByDevice[d.id].map((qid) => (
+                                <Badge key={qid} variant="secondary" className="text-[10px] font-normal">
+                                  {queueNameById[qid] || 'Fila'}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <Badge variant={connected ? 'default' : liveStatus === 'error' ? 'destructive' : 'outline'}>
@@ -557,6 +603,18 @@ export default function WavoipPage() {
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" onClick={() => setQueuesTarget(d)}>
+                                    <ListTree className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Vincular filas</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {isOwner && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -591,7 +649,7 @@ export default function WavoipPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setNewDeviceQueueIds([]); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Adicionar dispositivo Wavoip</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -600,9 +658,37 @@ export default function WavoipPage() {
               <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="ex: Atendimento 01" />
               <p className="text-xs text-muted-foreground mt-1">Um dispositivo disponível do seu plano será reservado e em seguida será exibido o QR Code para vincular o WhatsApp.</p>
             </div>
+            <div>
+              <Label>Vincular às filas (opcional)</Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Ao ligar por Wavoip a partir do chat, este dispositivo será pré-selecionado quando a conversa pertencer a uma dessas filas.
+              </p>
+              {allQueuesForClient.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">Nenhuma fila ativa disponível.</p>
+              ) : (
+                <div className="border rounded-md divide-y max-h-48 overflow-y-auto">
+                  {allQueuesForClient.map((q) => {
+                    const checked = newDeviceQueueIds.includes(q.id);
+                    return (
+                      <label key={q.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => {
+                            setNewDeviceQueueIds((prev) =>
+                              prev.includes(q.id) ? prev.filter((x) => x !== q.id) : [...prev, q.id],
+                            );
+                          }}
+                        />
+                        <span className="text-sm">{q.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setDialogOpen(false); setNewDeviceQueueIds([]); }}>Cancelar</Button>
             <Button onClick={handleClaim} disabled={busy || !newName.trim()}>
               {busy ? 'Adicionando…' : 'Adicionar e conectar'}
             </Button>
@@ -685,6 +771,15 @@ export default function WavoipPage() {
         deviceName={shareTarget?.device_name || 'Dispositivo'}
         ownerUserId={shareTarget ? Number(shareTarget.app_user_id) : null}
         currentUserId={appUserId}
+      />
+
+      <DeviceQueuesDialog
+        open={!!queuesTarget}
+        onOpenChange={(o) => { if (!o) setQueuesTarget(null); }}
+        deviceId={queuesTarget?.id ?? null}
+        deviceName={queuesTarget?.device_name || 'Dispositivo'}
+        clientId={clientId != null ? Number(clientId) : null}
+        createdBy={appUserId}
       />
 
       <ConfirmDeleteDialog

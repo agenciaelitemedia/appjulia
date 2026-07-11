@@ -7747,6 +7747,52 @@ export type Database = {
           },
         ]
       }
+      wavoip_device_queues: {
+        Row: {
+          client_id: number
+          created_at: string
+          created_by: number | null
+          device_id: string
+          queue_id: string
+        }
+        Insert: {
+          client_id: number
+          created_at?: string
+          created_by?: number | null
+          device_id: string
+          queue_id: string
+        }
+        Update: {
+          client_id?: number
+          created_at?: string
+          created_by?: number | null
+          device_id?: string
+          queue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wavoip_device_queues_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "wavoip_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wavoip_device_queues_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "active_queues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wavoip_device_queues_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "queues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wavoip_devices: {
         Row: {
           app_user_id: number | null
