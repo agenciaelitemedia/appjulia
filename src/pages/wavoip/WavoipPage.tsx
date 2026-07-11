@@ -533,6 +533,15 @@ export default function WavoipPage() {
                             {d.whatsapp_number && <> · Número: {d.whatsapp_number}</>}
                             {jids.length > 0 && <> · JID: {jids.join(', ')}</>}
                           </div>
+                          {(queuesByDevice[d.id]?.length ?? 0) > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {queuesByDevice[d.id].map((qid) => (
+                                <Badge key={qid} variant="secondary" className="text-[10px] font-normal">
+                                  {queueNameById[qid] || 'Fila'}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <Badge variant={connected ? 'default' : liveStatus === 'error' ? 'destructive' : 'outline'}>
