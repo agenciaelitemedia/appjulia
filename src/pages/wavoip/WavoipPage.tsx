@@ -603,6 +603,18 @@ export default function WavoipPage() {
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon" onClick={() => setQueuesTarget(d)}>
+                                    <ListTree className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Vincular filas</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {isOwner && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="icon"
