@@ -118,6 +118,11 @@ export function WavoipCallDialog({ open, onOpenChange, phone, contactName, queue
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Dispositivo</label>
+            {suggestedDeviceId && (
+              <p className="text-xs text-emerald-700">
+                Sugerido pela fila desta conversa.
+              </p>
+            )}
             {hasDevice ? (
               <Select
                 value={deviceId}
