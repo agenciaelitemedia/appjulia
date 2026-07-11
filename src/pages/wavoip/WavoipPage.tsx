@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2, Pencil, ListTree } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2, Pencil } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
@@ -19,7 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CallHistoryTab } from './components/CallHistoryTab';
 import { ShareDeviceDialog } from './components/ShareDeviceDialog';
 import { ConfirmDeleteDialog } from '@/pages/admin/wavoip/components/ConfirmDeleteDialog';
-import { DeviceQueuesDialog } from './components/DeviceQueuesDialog';
 import {
   useClientDeviceQueueLinks,
   useClientQueuesForLink,
@@ -84,7 +83,7 @@ export default function WavoipPage() {
   const [renameTarget, setRenameTarget] = useState<Device | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
-  const [queuesTarget, setQueuesTarget] = useState<Device | null>(null);
+  const [renameQueueIds, setRenameQueueIds] = useState<string[]>([]);
   const [newDeviceQueueIds, setNewDeviceQueueIds] = useState<string[]>([]);
   const { data: allQueuesForClient = [] } = useClientQueuesForLink(clientId);
   const { data: deviceQueueLinks = {} } = useClientDeviceQueueLinks(clientId);
@@ -123,6 +122,12 @@ export default function WavoipPage() {
     () => devices.filter((d) => Number(d.app_user_id) === appUserId || sharedSet.has(d.id)),
     [devices, appUserId, sharedSet]
   );
+
+  const slotStats = useMemo(() => {
+    const total = devices.length;
+    const used = devices.filter((d) => d.app_user_id != null).length;
+    return { total, used, available: Math.max(0, total - used) };
+  }, [devices]);
 
   const load = useCallback(async () => {
     if (!clientId) return;
