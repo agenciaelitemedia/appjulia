@@ -772,15 +772,6 @@ export default function WavoipPage() {
         currentUserId={appUserId}
       />
 
-      <DeviceQueuesDialog
-        open={!!queuesTarget}
-        onOpenChange={(o) => { if (!o) setQueuesTarget(null); }}
-        deviceId={queuesTarget?.id ?? null}
-        deviceName={queuesTarget?.device_name || 'Dispositivo'}
-        clientId={clientId != null ? Number(clientId) : null}
-        createdBy={appUserId}
-      />
-
       <ConfirmDeleteDialog
         open={!!disconnectTarget}
         onOpenChange={(o) => { if (!o) setDisconnectTarget(null); }}
