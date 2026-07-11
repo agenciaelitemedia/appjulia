@@ -876,6 +876,30 @@ export default function WavoipPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Limite de dispositivos atingido
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Você já está usando <b>{slotStats.used}</b> de <b>{slotStats.total}</b>{' '}
+              {slotStats.total === 1 ? 'dispositivo disponível' : 'dispositivos disponíveis'} no seu plano.
+            </p>
+            <p>
+              Para adicionar um novo dispositivo, é necessário adquirir mais dispositivos de ligação{' '}
+              <b>ZAP Call</b>.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLimitDialogOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
