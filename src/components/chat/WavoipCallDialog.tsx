@@ -64,19 +64,23 @@ export function WavoipCallDialog({ open, onOpenChange, phone, contactName, queue
     const linkedConnected = connected.find((d) => linkedIds.includes(d.id));
     return linkedConnected?.id ?? null;
   }, [queueId, queueLinks, connected]);
+  const queueHasLink = useMemo(() => {
+    if (!queueId) return false;
+    return (queueLinks[queueId] || []).length > 0;
+  }, [queueId, queueLinks]);
   const [deviceId, setDeviceId] = useState<string>('');
   const [calling, setCalling] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    if (connected.length === 0) return;
-    // Se houver dispositivo vinculado à fila (e conectado), pré-seleciona-o.
-    if (suggestedDeviceId && suggestedDeviceId !== deviceId) {
-      setDeviceId(suggestedDeviceId);
+    // Se houver dispositivo vinculado à fila (e conectado), pré-seleciona-o e trava.
+    if (suggestedDeviceId) {
+      if (suggestedDeviceId !== deviceId) setDeviceId(suggestedDeviceId);
       return;
     }
-    if (!connected.some((d) => d.id === deviceId)) {
-      setDeviceId(connected[0].id);
+    // Sem vínculo: escolha manual obrigatória — não faz auto-select.
+    if (deviceId && !connected.some((d) => d.id === deviceId)) {
+      setDeviceId('');
     }
   }, [open, connected, deviceId, suggestedDeviceId]);
 
@@ -120,17 +124,22 @@ export function WavoipCallDialog({ open, onOpenChange, phone, contactName, queue
             <label className="text-sm font-medium">Dispositivo</label>
             {suggestedDeviceId && (
               <p className="text-xs text-emerald-700">
-                Sugerido pela fila desta conversa.
+                Dispositivo definido pela fila desta conversa.
+              </p>
+            )}
+            {!suggestedDeviceId && queueHasLink && (
+              <p className="text-xs text-amber-700">
+                A fila desta conversa está vinculada a um dispositivo, mas ele não está conectado.
               </p>
             )}
             {hasDevice ? (
               <Select
                 value={deviceId}
                 onValueChange={setDeviceId}
-                disabled={connected.length <= 1}
+                disabled={!!suggestedDeviceId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um dispositivo" />
+                  <SelectValue placeholder="Selecione um dispositivo..." />
                 </SelectTrigger>
                 <SelectContent>
                   {connected.map((d) => (
@@ -172,7 +181,7 @@ export function WavoipCallDialog({ open, onOpenChange, phone, contactName, queue
             size="icon"
             className="h-14 w-14 rounded-full bg-emerald-600 text-white hover:bg-emerald-700"
             onClick={handleCall}
-            disabled={!hasDevice || !deviceId || calling}
+            disabled={!hasDevice || !deviceId || calling || !connected.some((d) => d.id === deviceId)}
             title="Ligar"
           >
             <Phone className="h-6 w-6" />
