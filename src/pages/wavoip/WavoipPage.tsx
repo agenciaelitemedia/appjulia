@@ -431,9 +431,22 @@ export default function WavoipPage() {
       } catch (e) {
         console.warn('[wavoip] rename remote falhou', e);
       }
-      toast.success('Nome atualizado');
+      if (clientId != null) {
+        try {
+          await setDeviceQueuesMut.mutateAsync({
+            deviceId: renameTarget.id,
+            clientId: Number(clientId),
+            queueIds: renameQueueIds,
+            createdBy: appUserId,
+          });
+        } catch (e) {
+          console.warn('[wavoip] salvar filas vinculadas falhou', e);
+        }
+      }
+      toast.success('Dispositivo atualizado');
       setRenameTarget(null);
       setRenameValue('');
+      setRenameQueueIds([]);
       await load();
       await refreshDevices();
     } catch (e: any) {
