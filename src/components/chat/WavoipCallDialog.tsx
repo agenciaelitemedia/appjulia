@@ -18,12 +18,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useWavoip } from '@/contexts/WavoipContext';
+import { useClientDeviceQueueLinks } from '@/pages/wavoip/hooks/useWavoipDeviceQueues';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   phone: string;
   contactName?: string | null;
+  queueId?: string | null;
 }
 
 function formatPhone(phone: string): string {
@@ -45,21 +48,37 @@ function deviceLabel(name: string | null, token: string): string {
   return `Dispositivo ••${token.slice(-6)}`;
 }
 
-export function WavoipCallDialog({ open, onOpenChange, phone, contactName }: Props) {
+export function WavoipCallDialog({ open, onOpenChange, phone, contactName, queueId }: Props) {
   const { devices, startCall } = useWavoip();
+  const { user } = useAuth();
+  const clientId = user?.client_id ?? null;
+  const { data: queueLinks = {} } = useClientDeviceQueueLinks(open ? clientId : null);
   const connected = useMemo(
     () => devices.filter((d) => d.connection_status === 'connected'),
     [devices],
   );
+  const suggestedDeviceId = useMemo(() => {
+    if (!queueId) return null;
+    const linkedIds = queueLinks[queueId] || [];
+    if (linkedIds.length === 0) return null;
+    const linkedConnected = connected.find((d) => linkedIds.includes(d.id));
+    return linkedConnected?.id ?? null;
+  }, [queueId, queueLinks, connected]);
   const [deviceId, setDeviceId] = useState<string>('');
   const [calling, setCalling] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    if (connected.length > 0 && !connected.some((d) => d.id === deviceId)) {
+    if (connected.length === 0) return;
+    // Se houver dispositivo vinculado à fila (e conectado), pré-seleciona-o.
+    if (suggestedDeviceId && suggestedDeviceId !== deviceId) {
+      setDeviceId(suggestedDeviceId);
+      return;
+    }
+    if (!connected.some((d) => d.id === deviceId)) {
       setDeviceId(connected[0].id);
     }
-  }, [open, connected, deviceId]);
+  }, [open, connected, deviceId, suggestedDeviceId]);
 
   const handleClose = () => {
     if (calling) return;
