@@ -84,6 +84,24 @@ export default function WavoipPage() {
   const [renameTarget, setRenameTarget] = useState<Device | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
+  const [queuesTarget, setQueuesTarget] = useState<Device | null>(null);
+  const [newDeviceQueueIds, setNewDeviceQueueIds] = useState<string[]>([]);
+  const { data: allQueuesForClient = [] } = useClientQueuesForLink(clientId);
+  const { data: deviceQueueLinks = {} } = useClientDeviceQueueLinks(clientId);
+  const setDeviceQueuesMut = useSetDeviceQueues();
+  // Mapa deviceId -> queueId[] (derivado do inverso de deviceQueueLinks)
+  const queuesByDevice = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    for (const [qid, devIds] of Object.entries(deviceQueueLinks)) {
+      for (const d of devIds) (m[d] ||= []).push(qid);
+    }
+    return m;
+  }, [deviceQueueLinks]);
+  const queueNameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const q of allQueuesForClient) m[q.id] = q.name;
+    return m;
+  }, [allQueuesForClient]);
   const [actionBusy, setActionBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
