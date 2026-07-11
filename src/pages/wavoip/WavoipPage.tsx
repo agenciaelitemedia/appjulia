@@ -126,8 +126,10 @@ export default function WavoipPage() {
   const slotStats = useMemo(() => {
     const total = devices.length;
     const used = devices.filter((d) => d.app_user_id != null).length;
-    return { total, used, available: Math.max(0, total - used) };
+    return { total, used, remaining: Math.max(0, total - used) };
   }, [devices]);
+  const limitReached = slotStats.total > 0 && slotStats.remaining <= 0;
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!clientId) return;
