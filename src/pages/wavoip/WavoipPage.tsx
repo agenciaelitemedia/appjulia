@@ -347,6 +347,18 @@ export default function WavoipPage() {
       try {
         supabase.functions.invoke('wavoip-rename-device', { body: { device_id: device.id } });
       } catch {}
+      // Vincula filas selecionadas, se houver.
+      if (newDeviceQueueIds.length > 0 && clientId != null) {
+        try {
+          await setDeviceQueuesMut.mutateAsync({
+            deviceId: device.id,
+            clientId: Number(clientId),
+            queueIds: newDeviceQueueIds,
+            createdBy: appUserId,
+          });
+        } catch {}
+      }
+      setNewDeviceQueueIds([]);
       setDialogOpen(false);
       setNewName('');
       await load();
