@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2, Pencil, ListTree } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2, Pencil } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
@@ -19,7 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CallHistoryTab } from './components/CallHistoryTab';
 import { ShareDeviceDialog } from './components/ShareDeviceDialog';
 import { ConfirmDeleteDialog } from '@/pages/admin/wavoip/components/ConfirmDeleteDialog';
-import { DeviceQueuesDialog } from './components/DeviceQueuesDialog';
 import {
   useClientDeviceQueueLinks,
   useClientQueuesForLink,
@@ -84,7 +83,7 @@ export default function WavoipPage() {
   const [renameTarget, setRenameTarget] = useState<Device | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
-  const [queuesTarget, setQueuesTarget] = useState<Device | null>(null);
+  const [renameQueueIds, setRenameQueueIds] = useState<string[]>([]);
   const [newDeviceQueueIds, setNewDeviceQueueIds] = useState<string[]>([]);
   const { data: allQueuesForClient = [] } = useClientQueuesForLink(clientId);
   const { data: deviceQueueLinks = {} } = useClientDeviceQueueLinks(clientId);
@@ -123,6 +122,12 @@ export default function WavoipPage() {
     () => devices.filter((d) => Number(d.app_user_id) === appUserId || sharedSet.has(d.id)),
     [devices, appUserId, sharedSet]
   );
+
+  const slotStats = useMemo(() => {
+    const total = devices.length;
+    const used = devices.filter((d) => d.app_user_id != null).length;
+    return { total, used, available: Math.max(0, total - used) };
+  }, [devices]);
 
   const load = useCallback(async () => {
     if (!clientId) return;
@@ -426,9 +431,22 @@ export default function WavoipPage() {
       } catch (e) {
         console.warn('[wavoip] rename remote falhou', e);
       }
-      toast.success('Nome atualizado');
+      if (clientId != null) {
+        try {
+          await setDeviceQueuesMut.mutateAsync({
+            deviceId: renameTarget.id,
+            clientId: Number(clientId),
+            queueIds: renameQueueIds,
+            createdBy: appUserId,
+          });
+        } catch (e) {
+          console.warn('[wavoip] salvar filas vinculadas falhou', e);
+        }
+      }
+      toast.success('Dispositivo atualizado');
       setRenameTarget(null);
       setRenameValue('');
+      setRenameQueueIds([]);
       await load();
       await refreshDevices();
     } catch (e: any) {
@@ -480,7 +498,14 @@ export default function WavoipPage() {
         <TabsContent value="devices" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Meus dispositivos</CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle>Meus dispositivos</CardTitle>
+                {hasActivePlan && (
+                  <Badge variant="secondary">
+                    {slotStats.used} {slotStats.used === 1 ? 'usado' : 'usados'} / {slotStats.available} {slotStats.available === 1 ? 'disponível' : 'disponíveis'}
+                  </Badge>
+                )}
+              </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={load} disabled={loading}>
                   <RefreshCw className="h-4 w-4 mr-1" /> Atualizar
@@ -608,30 +633,19 @@ export default function WavoipPage() {
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="icon" onClick={() => setQueuesTarget(d)}>
-                                    <ListTree className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Vincular filas</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          {isOwner && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => {
                                       setRenameTarget(d);
                                       setRenameValue(d.device_name || '');
+                                      setRenameQueueIds(queuesByDevice[d.id] ?? []);
                                     }}
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Renomear dispositivo</TooltipContent>
+                                <TooltipContent>Editar dispositivo</TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           )}
@@ -778,15 +792,6 @@ export default function WavoipPage() {
         currentUserId={appUserId}
       />
 
-      <DeviceQueuesDialog
-        open={!!queuesTarget}
-        onOpenChange={(o) => { if (!o) setQueuesTarget(null); }}
-        deviceId={queuesTarget?.id ?? null}
-        deviceName={queuesTarget?.device_name || 'Dispositivo'}
-        clientId={clientId != null ? Number(clientId) : null}
-        createdBy={appUserId}
-      />
-
       <ConfirmDeleteDialog
         open={!!disconnectTarget}
         onOpenChange={(o) => { if (!o) setDisconnectTarget(null); }}
@@ -817,9 +822,9 @@ export default function WavoipPage() {
         }}
       />
 
-      <Dialog open={!!renameTarget} onOpenChange={(o) => { if (!o) { setRenameTarget(null); setRenameValue(''); } }}>
+      <Dialog open={!!renameTarget} onOpenChange={(o) => { if (!o) { setRenameTarget(null); setRenameValue(''); setRenameQueueIds([]); } }}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Renomear dispositivo</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Editar dispositivo</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Nome do dispositivo *</Label>
@@ -832,9 +837,37 @@ export default function WavoipPage() {
                 O nome também é sincronizado no painel da Wavoip para aparecer no discador.
               </p>
             </div>
+            <div>
+              <Label>Vincular às filas (opcional)</Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Ao ligar por Wavoip a partir do chat, este dispositivo será pré-selecionado quando a conversa pertencer a uma dessas filas.
+              </p>
+              {allQueuesForClient.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">Nenhuma fila ativa disponível.</p>
+              ) : (
+                <div className="border rounded-md divide-y max-h-48 overflow-y-auto">
+                  {allQueuesForClient.map((q) => {
+                    const checked = renameQueueIds.includes(q.id);
+                    return (
+                      <label key={q.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => {
+                            setRenameQueueIds((prev) =>
+                              prev.includes(q.id) ? prev.filter((x) => x !== q.id) : [...prev, q.id],
+                            );
+                          }}
+                        />
+                        <span className="text-sm">{q.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setRenameTarget(null); setRenameValue(''); }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setRenameTarget(null); setRenameValue(''); setRenameQueueIds([]); }}>Cancelar</Button>
             <Button onClick={handleRename} disabled={renameBusy || !renameValue.trim()}>
               {renameBusy ? 'Salvando…' : 'Salvar'}
             </Button>
