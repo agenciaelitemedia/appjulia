@@ -126,8 +126,10 @@ export default function WavoipPage() {
   const slotStats = useMemo(() => {
     const total = devices.length;
     const used = devices.filter((d) => d.app_user_id != null).length;
-    return { total, used, available: Math.max(0, total - used) };
+    return { total, used, remaining: Math.max(0, total - used) };
   }, [devices]);
+  const limitReached = slotStats.total > 0 && slotStats.remaining <= 0;
+  const [limitDialogOpen, setLimitDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!clientId) return;
@@ -502,7 +504,7 @@ export default function WavoipPage() {
                 <CardTitle>Meus dispositivos</CardTitle>
                 {hasActivePlan && (
                   <Badge variant="secondary">
-                    {slotStats.used} {slotStats.used === 1 ? 'usado' : 'usados'} / {slotStats.available} {slotStats.available === 1 ? 'disponível' : 'disponíveis'}
+                    {slotStats.used} {slotStats.used === 1 ? 'usado' : 'usados'} / {slotStats.total} {slotStats.total === 1 ? 'disponível' : 'disponíveis'}
                   </Badge>
                 )}
               </div>
@@ -519,7 +521,7 @@ export default function WavoipPage() {
                 }} disabled={loading}>
                   <ShieldCheck className="h-4 w-4 mr-1" /> Verificar webhooks
                 </Button>
-                <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!hasActivePlan}>
+                <Button size="sm" onClick={() => (limitReached ? setLimitDialogOpen(true) : setDialogOpen(true))} disabled={!hasActivePlan}>
                   <Plus className="h-4 w-4 mr-1" /> Adicionar dispositivo
                 </Button>
               </div>
@@ -871,6 +873,30 @@ export default function WavoipPage() {
             <Button onClick={handleRename} disabled={renameBusy || !renameValue.trim()}>
               {renameBusy ? 'Salvando…' : 'Salvar'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={limitDialogOpen} onOpenChange={setLimitDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Limite de dispositivos atingido
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Você já está usando <b>{slotStats.used}</b> de <b>{slotStats.total}</b>{' '}
+              {slotStats.total === 1 ? 'dispositivo disponível' : 'dispositivos disponíveis'} no seu plano.
+            </p>
+            <p>
+              Para adicionar um novo dispositivo, é necessário adquirir mais dispositivos de ligação{' '}
+              <b>ZAP Call</b>.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLimitDialogOpen(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
