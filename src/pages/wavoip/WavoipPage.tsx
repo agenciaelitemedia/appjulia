@@ -504,7 +504,7 @@ export default function WavoipPage() {
                 <CardTitle>Meus dispositivos</CardTitle>
                 {hasActivePlan && (
                   <Badge variant="secondary">
-                    {slotStats.used} {slotStats.used === 1 ? 'usado' : 'usados'} / {slotStats.available} {slotStats.available === 1 ? 'disponível' : 'disponíveis'}
+                    {slotStats.used} {slotStats.used === 1 ? 'usado' : 'usados'} / {slotStats.total} {slotStats.total === 1 ? 'disponível' : 'disponíveis'}
                   </Badge>
                 )}
               </div>
@@ -521,7 +521,7 @@ export default function WavoipPage() {
                 }} disabled={loading}>
                   <ShieldCheck className="h-4 w-4 mr-1" /> Verificar webhooks
                 </Button>
-                <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!hasActivePlan}>
+                <Button size="sm" onClick={() => (limitReached ? setLimitDialogOpen(true) : setDialogOpen(true))} disabled={!hasActivePlan}>
                   <Plus className="h-4 w-4 mr-1" /> Adicionar dispositivo
                 </Button>
               </div>
