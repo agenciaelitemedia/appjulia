@@ -392,15 +392,20 @@ export default function WavoipPage() {
     const wp: any = (window as any).wavoip;
     try { wp?.device?.disable?.(device.device_token); } catch {}
     try { wp?.device?.remove?.(device.device_token); } catch {}
-    const { error } = await (supabase as any).from('wavoip_devices').update({
-      connection_status: 'disconnected',
-      connected_at: null,
-      whatsapp_jids: [],
-      whatsapp_jid: null,
-      whatsapp_number: null,
-    }).eq('id', device.id);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Dispositivo desconectado');
+    try {
+      const { data, error } = await supabase.functions.invoke('wavoip-disconnect-device', {
+        body: { device_id: device.id },
+      });
+      if (error) {
+        toast.error(`Falha ao desconectar na Wavoip: ${error.message}`);
+      } else if (data && (data as any).ok === false) {
+        toast.error('Wavoip não confirmou o logout do WhatsApp; registro marcado como desconectado local.');
+      } else {
+        toast.success('Dispositivo desconectado');
+      }
+    } catch (e: any) {
+      toast.error(`Falha ao desconectar: ${e?.message ?? e}`);
+    }
     await load();
     await refreshDevices();
   };
