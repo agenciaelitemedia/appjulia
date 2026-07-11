@@ -822,9 +822,9 @@ export default function WavoipPage() {
         }}
       />
 
-      <Dialog open={!!renameTarget} onOpenChange={(o) => { if (!o) { setRenameTarget(null); setRenameValue(''); } }}>
+      <Dialog open={!!renameTarget} onOpenChange={(o) => { if (!o) { setRenameTarget(null); setRenameValue(''); setRenameQueueIds([]); } }}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Renomear dispositivo</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Editar dispositivo</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Nome do dispositivo *</Label>
@@ -837,9 +837,37 @@ export default function WavoipPage() {
                 O nome também é sincronizado no painel da Wavoip para aparecer no discador.
               </p>
             </div>
+            <div>
+              <Label>Vincular às filas (opcional)</Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Ao ligar por Wavoip a partir do chat, este dispositivo será pré-selecionado quando a conversa pertencer a uma dessas filas.
+              </p>
+              {allQueuesForClient.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">Nenhuma fila ativa disponível.</p>
+              ) : (
+                <div className="border rounded-md divide-y max-h-48 overflow-y-auto">
+                  {allQueuesForClient.map((q) => {
+                    const checked = renameQueueIds.includes(q.id);
+                    return (
+                      <label key={q.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-muted/40">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => {
+                            setRenameQueueIds((prev) =>
+                              prev.includes(q.id) ? prev.filter((x) => x !== q.id) : [...prev, q.id],
+                            );
+                          }}
+                        />
+                        <span className="text-sm">{q.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setRenameTarget(null); setRenameValue(''); }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setRenameTarget(null); setRenameValue(''); setRenameQueueIds([]); }}>Cancelar</Button>
             <Button onClick={handleRename} disabled={renameBusy || !renameValue.trim()}>
               {renameBusy ? 'Salvando…' : 'Salvar'}
             </Button>
