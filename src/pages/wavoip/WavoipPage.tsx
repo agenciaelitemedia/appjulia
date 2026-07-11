@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2, Pencil } from 'lucide-react';
+import { PhoneCall, Plus, RefreshCw, Plug, QrCode, CheckCircle2, AlertTriangle, Smartphone, ShieldCheck, ShieldAlert, Copy, Users2, Pencil, ListTree } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useWavoip } from '@/contexts/WavoipContext';
@@ -19,6 +19,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CallHistoryTab } from './components/CallHistoryTab';
 import { ShareDeviceDialog } from './components/ShareDeviceDialog';
 import { ConfirmDeleteDialog } from '@/pages/admin/wavoip/components/ConfirmDeleteDialog';
+import { DeviceQueuesDialog } from './components/DeviceQueuesDialog';
+import {
+  useClientDeviceQueueLinks,
+  useClientQueuesForLink,
+  useSetDeviceQueues,
+} from './hooks/useWavoipDeviceQueues';
+import { Checkbox } from '@/components/ui/checkbox';
 
 type Device = {
   id: string;
