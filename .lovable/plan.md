@@ -1,34 +1,29 @@
 ## Objetivo
-No `Header` global, exibir sempre dois badges de status — **VOIP Call** e **ZAP Call** — visíveis, verdes quando disponíveis e cinzas (desabilitados) quando não. Ao clicar em um badge indisponível, abrir o mesmo `UpsellCallDialog` já usado no chat (mensagens de contratação do Comercial da Atende Julia).
+1. No `Header`, reordenar os badges: **VOIP Call antes de ZAP Call** (VOIP à esquerda).
+2. Ao clicar no badge ZAP Call quando disponível, abrir modal para escolher dispositivo + digitar número. Ao confirmar, dispara `startCall` (que abre o webphone Wavoip já discando com o dispositivo escolhido).
 
 ## Alterações
 
-### 1. `src/components/layout/HeaderDialer.tsx` (VOIP Call)
-- Remover o `if (!isAvailable) return null` — o badge passa a ser sempre renderizado.
-- Adicionar estado `showUpsell`.
-- Duas variantes visuais do badge (o mesmo trigger de popover):
-  - **Disponível** (`isAvailable` + `isRegistered`/`in-call`): estilo verde atual + label "VOIP Call" (substitui o `badgeLabel` dinâmico atual). Ícone `Phone` mantido. Ponto de status conforme `sip.status`.
-  - **Indisponível** (`!isAvailable` OU estados `idle`/`error`): estilo cinza (`bg-muted text-muted-foreground border-border`, `opacity-70`), label "VOIP Call".
-- Tooltip:
-  - Disponível: "Ligação através de telefonia normal (celular/fixo) — disponível".
-  - Indisponível: "VOIP Call indisponível — clique para saber como contratar".
-- Clique quando `!isAvailable`: `setShowUpsell(true)` e **não** abre o popover do discador (envolver o botão de forma que o `PopoverTrigger` só seja usado quando disponível; quando indisponível, renderizar um `<button>` puro).
-- Renderizar `<UpsellCallDialog product="voip" open={showUpsell} onOpenChange={setShowUpsell} />` no final.
+### 1. `src/components/layout/Header.tsx`
+- Trocar a ordem para `<HeaderDialer />` (VOIP) antes de `<HeaderZapCallBadge />` (ZAP).
 
-### 2. Novo `src/components/layout/HeaderZapCallBadge.tsx` (ZAP Call)
-- Consumir `useWavoip()` (`hasActivePlan`, `ready`, `canDial`, `devicesCount`).
-- Considerar disponível quando `hasActivePlan && ready && canDial` (mesmo critério do `WavoipCallButton` sem o `phone`, pois é um indicador global).
-- Badge com o mesmo formato visual do VOIP (pill: dot + `PhoneCall` + "ZAP Call"), verde quando disponível, cinza quando não.
-- Tooltip:
-  - Disponível: "Ligação pelo WhatsApp — disponível".
-  - Indisponível: "ZAP Call indisponível — clique para saber como contratar".
-- Clique:
-  - Disponível: **no-op** por ora (não abre popover de discagem; ZAP Call é iniciado dentro do chat). Cursor `default`.
-  - Indisponível: abre `<UpsellCallDialog product="zap" ... />`.
+### 2. Novo `src/components/layout/HeaderZapDialerDialog.tsx`
+- Dialog reutilizando o padrão visual do `WavoipCallDialog`.
+- Props: `open`, `onOpenChange`.
+- Consome `useWavoip()` → `devices`, `startCall`.
+- Lista `connected = devices.filter(d => d.connection_status === 'connected')`.
+- Campo `Input` para número (máscara via `maskPhone`, mantém somente dígitos internamente).
+- `Select` de dispositivo (mesmo `deviceLabel` do `WavoipCallDialog`). Auto-seleciona quando houver apenas 1 conectado.
+- Se `connected.length === 0`: mensagem "Nenhum dispositivo Wavoip conectado" com link para `/wavoip`.
+- Botões redondos: cancelar (vermelho) e ligar (verde). "Ligar" desabilitado até ter `deviceId` + número (mín. 8 dígitos).
+- `handleCall`: `await startCall(digitsOnly, { deviceId })`. Sucesso → fecha modal (o SDK abre o discador). Erro → `toast.error`.
 
-### 3. `src/components/layout/Header.tsx`
-- Importar e renderizar `<HeaderZapCallBadge />` ao lado do `<HeaderDialer />`, dentro do container `.flex.items-center.gap-4.ml-auto`, antes do `HeaderDialer` (ou depois — manter a ordem: VOIP à esquerda do avatar, ZAP à esquerda do VOIP, seguindo o padrão do chat).
+### 3. `src/components/layout/HeaderZapCallBadge.tsx`
+- Adicionar estado `showDialer`.
+- No `onClick`: se `!available` abre `UpsellCallDialog` (comportamento atual); se `available` abre `HeaderZapDialerDialog`.
+- Remover `cursor-default` do estilo disponível — passa a ser `cursor-pointer`.
+- Renderizar `<HeaderZapDialerDialog open={showDialer} onOpenChange={setShowDialer} />`.
 
 ## Fora de escopo
-- `WavoipContext`, `PhoneContext`, `UpsellCallDialog`, botões do `ChatHeader` — sem alterações.
-- Sem mudanças de rota, backend, permissões ou lógica de detecção.
+- `WavoipContext`, `WavoipCallDialog`, `HeaderDialer` (VOIP), `UpsellCallDialog` — sem alterações.
+- Sem histórico de números, sem fila/queue vinculada (é um discador global manual).

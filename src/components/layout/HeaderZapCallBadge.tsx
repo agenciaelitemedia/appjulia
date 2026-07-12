@@ -4,17 +4,19 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useWavoip } from '@/contexts/WavoipContext';
 import { cn } from '@/lib/utils';
 import { UpsellCallDialog } from '@/components/chat/UpsellCallDialog';
+import { HeaderZapDialerDialog } from './HeaderZapDialerDialog';
 
 export function HeaderZapCallBadge() {
   const { hasActivePlan, ready, canDial } = useWavoip();
   const [showUpsell, setShowUpsell] = useState(false);
+  const [showDialer, setShowDialer] = useState(false);
 
   const available = hasActivePlan && ready && canDial;
 
   const badgeClass = cn(
     'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-80',
     available
-      ? 'bg-green-500/15 text-green-700 border-green-500/30 cursor-default'
+      ? 'bg-green-500/15 text-green-700 border-green-500/30 cursor-pointer'
       : 'bg-muted text-muted-foreground border-border opacity-70 cursor-pointer',
   );
 
@@ -23,7 +25,8 @@ export function HeaderZapCallBadge() {
     : 'ZAP Call indisponível — clique para saber como contratar';
 
   const onClick = () => {
-    if (!available) setShowUpsell(true);
+    if (available) setShowDialer(true);
+    else setShowUpsell(true);
   };
 
   return (
@@ -39,6 +42,7 @@ export function HeaderZapCallBadge() {
         <TooltipContent side="bottom">{tooltipText}</TooltipContent>
       </Tooltip>
       <UpsellCallDialog open={showUpsell} onOpenChange={setShowUpsell} product="zap" />
+      <HeaderZapDialerDialog open={showDialer} onOpenChange={setShowDialer} />
     </>
   );
 }

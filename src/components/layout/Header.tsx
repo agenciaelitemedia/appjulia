@@ -152,8 +152,8 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
           </Tooltip>
 
           {/* Softphone / SIP discador */}
-          <HeaderZapCallBadge />
           <HeaderDialer />
+          <HeaderZapCallBadge />
 
           {/* User Menu */}
           <DropdownMenu>
