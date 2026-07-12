@@ -26,18 +26,8 @@ import {
 declare const __APP_VERSION__: string;
 
 const APP_VERSION_LABEL = (() => {
-  try {
-    const raw = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '';
-    const n = Number(raw);
-    if (Number.isFinite(n) && n > 1_000_000_000_000) {
-      const d = new Date(n);
-      const pad = (v: number) => String(v).padStart(2, '0');
-      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    }
-    return raw || 'dev';
-  } catch {
-    return 'dev';
-  }
+  const raw = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '';
+  return raw ? `v${raw}` : 'dev';
 })();
 
 interface HeaderProps {
