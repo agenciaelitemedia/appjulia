@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import juliaLogo from '@/assets/julia-logo.png';
@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { markJustLoggedIn } from '@/components/layout/DisconnectedAgentsAlert';
+import { checkVersionAndReloadIfNeeded } from '@/lib/appVersion';
+import { toast as sonnerToast } from 'sonner';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -19,6 +21,14 @@ export default function Login() {
   const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Ao abrir a tela de login, checa se há nova versão publicada. Se houver,
+  // força atualização do navegador antes do usuário se autenticar.
+  useEffect(() => {
+    void checkVersionAndReloadIfNeeded(() => {
+      sonnerToast.info('Nova versão detectada. Atualizando…');
+    });
+  }, []);
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
