@@ -848,6 +848,8 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         codAgent={queueLink?.codAgent ?? ''}
       />
 
+      <UpsellCallDialog open={showVoipUpsell} onOpenChange={setShowVoipUpsell} product="voip" />
+
       {/* Abrir ticket de suporte a partir da conversa */}
       <ChatTicketSidePanel
         open={showNewTicket}
