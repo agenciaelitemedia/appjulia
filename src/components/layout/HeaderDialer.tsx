@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { usePhone } from '@/contexts/PhoneContext';
 import { cn } from '@/lib/utils';
 import { maskPhone } from '@/lib/inputMasks';
+import { UpsellCallDialog } from '@/components/chat/UpsellCallDialog';
 
 const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
 
@@ -25,12 +26,13 @@ export function HeaderDialer() {
   const { sip, isAvailable, dialNumber, isDialing, showSoftphone, setShowSoftphone, setSoftphoneCentered } = usePhone();
   const [number, setNumber] = useState('');
   const [open, setOpen] = useState(false);
-
-  if (!isAvailable) return null;
+  const [showUpsell, setShowUpsell] = useState(false);
 
   const isActive = ['calling', 'ringing', 'in-call'].includes(sip.status);
   const isRegistered = sip.status === 'registered';
-  const dotColor = isRegistered || sip.status === 'in-call' ? 'bg-green-500' :
+  const available = isAvailable && (isRegistered || sip.status === 'in-call');
+  const dotColor = !isAvailable ? 'bg-muted-foreground' :
+    isRegistered || sip.status === 'in-call' ? 'bg-green-500' :
     sip.status === 'error' ? 'bg-destructive' :
     sip.status === 'idle' ? 'bg-muted-foreground' : 'bg-yellow-500 animate-pulse';
 
@@ -47,32 +49,59 @@ export function HeaderDialer() {
     setShowSoftphone(true);
   };
 
-  const badgeColor = isRegistered || sip.status === 'in-call'
-    ? 'bg-green-500/15 text-green-700 border-green-500/30'
-    : sip.status === 'error'
-    ? 'bg-destructive/15 text-destructive border-destructive/30'
-    : sip.status === 'idle'
-    ? 'bg-muted text-muted-foreground border-border'
-    : 'bg-yellow-500/15 text-yellow-700 border-yellow-500/30';
+  const badgeColor = !isAvailable
+    ? 'bg-muted text-muted-foreground border-border opacity-70'
+    : available
+      ? 'bg-green-500/15 text-green-700 border-green-500/30'
+      : sip.status === 'error'
+        ? 'bg-destructive/15 text-destructive border-destructive/30'
+        : sip.status === 'idle'
+          ? 'bg-muted text-muted-foreground border-border'
+          : 'bg-yellow-500/15 text-yellow-700 border-yellow-500/30';
 
-  const badgeLabel = isRegistered ? 'Disponível' : sip.status === 'in-call' ? 'Em chamada' :
-    sip.status === 'error' ? 'Indisponível' : sip.status === 'idle' ? 'Offline' : 'Conectando...';
+  const tooltipText = !isAvailable
+    ? 'VOIP Call indisponível — clique para saber como contratar'
+    : available
+      ? 'Ligação através de telefonia normal (celular/fixo) — disponível'
+      : `VOIP Call — ${sipStatusLabel[sip.status] || sip.status}`;
+
+  const badgeInner = (
+    <>
+      <span className={cn('h-1.5 w-1.5 rounded-full', dotColor)} />
+      <Phone className="h-3.5 w-3.5" />
+      <span className="hidden sm:inline">VOIP Call</span>
+    </>
+  );
+  const badgeClass = cn(
+    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors hover:opacity-80',
+    badgeColor,
+  );
+
+  if (!isAvailable) {
+    return (
+      <>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className={badgeClass} onClick={() => setShowUpsell(true)}>
+              {badgeInner}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{tooltipText}</TooltipContent>
+        </Tooltip>
+        <UpsellCallDialog open={showUpsell} onOpenChange={setShowUpsell} product="voip" />
+      </>
+    );
+  }
 
   return (
       <Popover open={open} onOpenChange={setOpen}>
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <button className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium cursor-pointer transition-colors hover:opacity-80', badgeColor)}>
-                <span className={cn('h-1.5 w-1.5 rounded-full', dotColor)} />
-                <Phone className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{badgeLabel}</span>
-              </button>
+              <button className={badgeClass}>{badgeInner}</button>
             </PopoverTrigger>
           </TooltipTrigger>
-          <TooltipContent side="bottom">
-            Softphone — {sipStatusLabel[sip.status] || sip.status}
-          </TooltipContent>
+          <TooltipContent side="bottom">{tooltipText}</TooltipContent>
         </Tooltip>
 
         <PopoverContent align="end" className="w-72 p-3">
