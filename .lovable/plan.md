@@ -1,29 +1,37 @@
 ## Objetivo
-1. No `Header`, reordenar os badges: **VOIP Call antes de ZAP Call** (VOIP à esquerda).
-2. Ao clicar no badge ZAP Call quando disponível, abrir modal para escolher dispositivo + digitar número. Ao confirmar, dispara `startCall` (que abre o webphone Wavoip já discando com o dispositivo escolhido).
+No login, checar se há nova versão publicada do sistema e, se houver, forçar a atualização no navegador (limpando cache/SW) antes do usuário entrar no app — de forma visível.
 
-## Alterações
+## Situação atual
+`src/contexts/AuthContext.tsx` já tem `checkVersionAndReloadIfNeeded()` chamado ao final do `login()`, mas:
+- Roda depois de carregar permissões/telemetria (demora e o usuário vê o dashboard "piscando" antes do reload).
+- Silencioso — sem feedback visual.
+- É pulado em `isPreviewHost()` (localhost/preview), o que é ok, mas precisa ficar claro.
+- Só compara com `__APP_VERSION__` embutido no bundle; sem query‑string anti‑cache no reload final.
 
-### 1. `src/components/layout/Header.tsx`
-- Trocar a ordem para `<HeaderDialer />` (VOIP) antes de `<HeaderZapCallBadge />` (ZAP).
+## Mudanças
 
-### 2. Novo `src/components/layout/HeaderZapDialerDialog.tsx`
-- Dialog reutilizando o padrão visual do `WavoipCallDialog`.
-- Props: `open`, `onOpenChange`.
-- Consome `useWavoip()` → `devices`, `startCall`.
-- Lista `connected = devices.filter(d => d.connection_status === 'connected')`.
-- Campo `Input` para número (máscara via `maskPhone`, mantém somente dígitos internamente).
-- `Select` de dispositivo (mesmo `deviceLabel` do `WavoipCallDialog`). Auto-seleciona quando houver apenas 1 conectado.
-- Se `connected.length === 0`: mensagem "Nenhum dispositivo Wavoip conectado" com link para `/wavoip`.
-- Botões redondos: cancelar (vermelho) e ligar (verde). "Ligar" desabilitado até ter `deviceId` + número (mín. 8 dígitos).
-- `handleCall`: `await startCall(digitsOnly, { deviceId })`. Sucesso → fecha modal (o SDK abre o discador). Erro → `toast.error`.
+### 1. `src/contexts/AuthContext.tsx`
+- Mover a chamada `await checkVersionAndReloadIfNeeded()` para **logo após a autenticação bem‑sucedida** (antes de `loadPermissions`, `logUserActivity`, telemetria). Assim, se houver nova versão, recarrega imediatamente sem montar o app na versão antiga.
+- Em `forceReloadForNewVersion()`:
+  - Limpar `localStorage` de chaves de cache do app (mantendo `STORAGE_KEYS.AUTH_USER` para não deslogar) e `sessionStorage`.
+  - Trocar `window.location.replace(pathname…)` por `window.location.replace(pathname + '?v=' + Date.now())` para bypass de cache HTTP/proxy, seguido de remover o param no próximo carregamento (ou apenas ir para `/dashboard`).
+- Manter o skip em `isPreviewHost()`.
 
-### 3. `src/components/layout/HeaderZapCallBadge.tsx`
-- Adicionar estado `showDialer`.
-- No `onClick`: se `!available` abre `UpsellCallDialog` (comportamento atual); se `available` abre `HeaderZapDialerDialog`.
-- Remover `cursor-default` do estilo disponível — passa a ser `cursor-pointer`.
-- Renderizar `<HeaderZapDialerDialog open={showDialer} onOpenChange={setShowDialer} />`.
+### 2. `src/pages/Login.tsx`
+- Ao montar a página, disparar `checkVersionAndReloadIfNeeded()` uma vez (não bloqueia UI; se detectar nova versão, faz reload imediato).
+- Enquanto o `login()` estiver em andamento e a checagem detectar update, exibir toast "Atualizando o sistema…" imediatamente antes do reload (via callback opcional passado para a função).
+
+### 3. Exportar a função
+- Exportar `checkVersionAndReloadIfNeeded` de `AuthContext.tsx` (ou movê‑la para `src/lib/appVersion.ts`) para reuso pelo `Login.tsx`.
 
 ## Fora de escopo
-- `WavoipContext`, `WavoipCallDialog`, `HeaderDialer` (VOIP), `UpsellCallDialog` — sem alterações.
-- Sem histórico de números, sem fila/queue vinculada (é um discador global manual).
+- Polling periódico enquanto logado (já existe fluxo separado / não solicitado).
+- Mudar `vite.config.ts`/geração de `version.json` (já funciona).
+- Preview/localhost continua sem forçar reload.
+
+## Detalhes técnicos
+- `version.json` é escrito no build (`vite.config.ts` → `versionFilePlugin`) com `APP_VERSION = Date.now()` e `__APP_VERSION__` é injetado via `define`. A comparação atual está correta; basta antecipar a chamada e dar feedback visual.
+- Ordem final no `login()` bem‑sucedido:
+  1. Autentica no backend.
+  2. `await checkVersionAndReloadIfNeeded()` → se true, retorna (página vai recarregar).
+  3. `setUser`, permissões, telemetria, etc.
