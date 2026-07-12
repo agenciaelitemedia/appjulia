@@ -31,7 +31,7 @@ export function DeleteMemberDialog({
     if (!member) return;
 
     try {
-      await deleteMember.mutateAsync(member.id);
+      await deleteMember.mutateAsync({ id: member.id, name: member.name });
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
@@ -48,6 +48,11 @@ export function DeleteMemberDialog({
             Tem certeza que deseja remover <strong>{member?.name}</strong> da
             equipe? Esta ação não pode ser desfeita e o membro perderá acesso
             aos agentes.
+          </AlertDialogDescription>
+          <AlertDialogDescription className="mt-2 text-xs">
+            Conversas em aberto/pendentes atribuídas a este membro voltarão
+            para a fila (sem responsável). Conversas resolvidas serão
+            encerradas automaticamente.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

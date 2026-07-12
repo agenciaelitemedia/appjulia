@@ -5,6 +5,7 @@ import { TeamMember, PrincipalUser, PrincipalUserAgent } from "../types";
 import { UserPermission } from "@/types/permissions";
 import { toast } from "sonner";
 import bcrypt from "bcryptjs";
+import { supabase } from "@/integrations/supabase/client";
 
 function generatePassword(): string {
   const digits = Math.floor(1000 + Math.random() * 9000);
@@ -144,9 +145,12 @@ export function useUpdateTeamMember() {
 
 export function useDeleteTeamMember() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (memberId: number) => {
+    mutationFn: async (member: number | { id: number; name?: string | null }) => {
+      const memberId = typeof member === 'number' ? member : member.id;
+      const memberName = typeof member === 'number' ? null : (member.name || null);
       const res: any = await externalDb.deleteTeamMember(memberId);
       // A edge function pode retornar { success: false, reason, message }
       const payload = Array.isArray(res) ? res[0] : res;
@@ -155,11 +159,37 @@ export function useDeleteTeamMember() {
         err.reason = payload.reason;
         throw err;
       }
-      return res;
+
+      // Limpeza de conversas no chat: desatribuir open/pending, encerrar resolved.
+      let cleanup: { unassigned: number; closed: number } | null = null;
+      const clientId = user?.client_id ? String(user.client_id) : '';
+      if (memberName && clientId) {
+        try {
+          const { data, error } = await supabase.functions.invoke(
+            'team-member-cleanup-conversations',
+            { body: { clientId, memberName, memberId, actorName: user?.name } },
+          );
+          if (error) throw error;
+          cleanup = data as { unassigned: number; closed: number };
+        } catch (e) {
+          console.warn('[useDeleteTeamMember] cleanup conversations failed', e);
+          toast.warning('Membro removido, mas houve falha ao ajustar conversas atribuídas.');
+        }
+      }
+      return { res, cleanup };
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
-      toast.success("Membro removido com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["chat-assigned-counts-by-member"] });
+      queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
+      const c = result?.cleanup;
+      if (c && (c.unassigned || c.closed)) {
+        toast.success(
+          `Membro removido. ${c.unassigned} conversa(s) devolvida(s) à fila, ${c.closed} encerrada(s).`,
+        );
+      } else {
+        toast.success("Membro removido com sucesso!");
+      }
     },
     onError: (error: any) => {
       console.error("Error deleting team member:", error);
