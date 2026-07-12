@@ -33,10 +33,10 @@ export function WavoipCallButton({ phone, contactName, queueId }: Props) {
           ? 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100'
           : 'text-muted-foreground')}
         onClick={onClick}
-        title="Iniciar chamada WhatsApp (Wavoip)"
+        title="Iniciar ZAP Call (Wavoip)"
       >
         <PhoneCall className="h-4 w-4" />
-        Chamada WA
+        ZAP Call
       </Button>
       {phone ? (
         <WavoipCallDialog
