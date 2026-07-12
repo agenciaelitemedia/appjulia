@@ -638,7 +638,9 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                       : 'text-muted-foreground border-border hover:bg-muted'
                   )}
                   onClick={() => setShowPhoneCall(true)}
-                  title={phoneReady ? 'VOIP Call (ramal disponível)' : 'VOIP Call (ramal indisponível)'}
+                  title={phoneReady
+                    ? 'VOIP Call (ramal disponível)'
+                    : 'Para habilitar o VOIP Call (módulo de ligação via telefonia normal — celular/telefone fixo), entre em contato com o Comercial da Atende Julia.'}
                 >
                   {phoneReady ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
                   VOIP Call

@@ -15,9 +15,12 @@ interface Props {
 export function WavoipCallButton({ phone, contactName, queueId }: Props) {
   const { hasActivePlan, ready, canDial } = useWavoip();
   const [open, setOpen] = useState(false);
-  if (!hasActivePlan) return null;
 
   const onClick = () => {
+    if (!hasActivePlan) {
+      toast.info('Para habilitar o ZAP Call (módulo de ligação pelo WhatsApp), entre em contato com o Comercial da Atende Julia.');
+      return;
+    }
     if (!phone) { toast.error('Contato sem telefone'); return; }
     if (!ready) { toast.error('Webphone Wavoip carregando...'); return; }
     if (!canDial) { toast.error('Conecte um dispositivo Wavoip para ligar'); return; }
@@ -29,16 +32,23 @@ export function WavoipCallButton({ phone, contactName, queueId }: Props) {
       <Button
         variant="outline"
         size="sm"
-        className={cn('gap-1.5', canDial
-          ? 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100'
-          : 'text-muted-foreground')}
+        className={cn(
+          'gap-1.5',
+          !hasActivePlan
+            ? 'opacity-60 text-muted-foreground border-border hover:bg-muted'
+            : canDial
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100'
+              : 'text-muted-foreground',
+        )}
         onClick={onClick}
-        title="Iniciar ZAP Call (Wavoip)"
+        title={hasActivePlan
+          ? 'Iniciar ZAP Call (Wavoip)'
+          : 'Para habilitar o ZAP Call (módulo de ligação pelo WhatsApp), entre em contato com o Comercial da Atende Julia.'}
       >
         <PhoneCall className="h-4 w-4" />
         ZAP Call
       </Button>
-      {phone ? (
+      {phone && hasActivePlan ? (
         <WavoipCallDialog
           open={open}
           onOpenChange={setOpen}
