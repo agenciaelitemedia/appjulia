@@ -23,6 +23,23 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+declare const __APP_VERSION__: string;
+
+const APP_VERSION_LABEL = (() => {
+  try {
+    const raw = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '';
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 1_000_000_000_000) {
+      const d = new Date(n);
+      const pad = (v: number) => String(v).padStart(2, '0');
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    return raw || 'dev';
+  } catch {
+    return 'dev';
+  }
+})();
+
 interface HeaderProps {
   onMenuToggle: () => void;
   isCollapsed?: boolean;
@@ -198,6 +215,10 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
                 <LogOut className="mr-2 h-4 w-4" />
                 Sair
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5 text-[10px] text-muted-foreground text-center select-none">
+                Versão {APP_VERSION_LABEL}
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
