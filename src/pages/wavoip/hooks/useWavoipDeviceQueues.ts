@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -26,6 +27,28 @@ export function useDeviceQueueIds(deviceId: string | null | undefined) {
 
 /** Todos os vínculos do client: mapa queueId -> deviceId[]. */
 export function useClientDeviceQueueLinks(clientId: number | string | null | undefined) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (clientId == null) return;
+    const channel = supabase
+      .channel(`wavoip-device-queues-${clientId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'wavoip_device_queues', filter: `client_id=eq.${clientId}` },
+        (payload) => {
+          qc.invalidateQueries({ queryKey: ['wavoip-device-queues-by-client', clientId] });
+          const row: any = (payload.new as any) ?? (payload.old as any);
+          if (row?.device_id) {
+            qc.invalidateQueries({ queryKey: ['wavoip-device-queues', String(row.device_id)] });
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [clientId, qc]);
+
   return useQuery<Record<string, string[]>>({
     queryKey: ['wavoip-device-queues-by-client', clientId],
     enabled: clientId != null,
