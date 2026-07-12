@@ -638,10 +638,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                       : 'text-muted-foreground border-border hover:bg-muted'
                   )}
                   onClick={() => setShowPhoneCall(true)}
-                  title={phoneReady ? 'Ligar (ramal disponível)' : 'Ligar (ramal indisponível)'}
+                  title={phoneReady ? 'VOIP Call (ramal disponível)' : 'VOIP Call (ramal indisponível)'}
                 >
                   {phoneReady ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
-                  Ligar
+                  VOIP Call
                 </Button>
 
                 <WavoipCallButton
