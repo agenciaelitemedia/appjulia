@@ -1,31 +1,51 @@
 ## Objetivo
-Trocar a versão do app de timestamp numérico para um número semver legível (ex: `v1.2.15`), usando o `package.json` como fonte da verdade.
+Automatizar o versionamento semver do app a cada publicação, incrementando **PATCH**, **MINOR** ou **MAJOR** conforme o tipo de mudança, e exibir a versão no menu de perfil.
 
-## Alterações propostas
+## Contexto atual
+- `package.json` = `1.2.15` (fonte da verdade).
+- `vite.config.ts` lê `pkg.version`, injeta em `__APP_VERSION__` e gera `dist/version.json`.
+- `Header.tsx` já mostra `v{__APP_VERSION__}` no menu de perfil.
 
-1. **`package.json`**
-   - Atualizar `"version"` de `"0.0.0"` para `"1.2.15"`.
+## Regra de incremento (semver automático)
 
-2. **`vite.config.ts`**
-   - Ler a versão do `package.json` em vez de gerar `Date.now()`.
-   - Manter o plugin que grava `dist/version.json` no build, agora com a versão do package.
+Baseado em **Conventional Commits** analisando as mensagens de commit desde a última versão publicada:
 
-3. **`public/version.json`**
-   - Atualizar `"version"` para `"1.2.15"` para evitar falso-positivo de atualização em dev/preview.
+| Detecção na msg do commit | Incremento | Exemplo |
+|---|---|---|
+| `BREAKING CHANGE` ou `feat!:` / `refactor!:` | **MAJOR** → `1.2.15` → `2.0.0` | novo módulo que quebra fluxo antigo |
+| `feat:` ou `feature:` (novo módulo/funcionalidade) | **MINOR** → `1.2.15` → `1.3.0` | novo módulo, nova tela, nova feature |
+| Qualquer outro (`fix:`, `chore:`, `style:`, `refactor:`, ajustes) | **PATCH** → `1.2.15` → `1.2.16` | correções e ajustes |
 
-4. **`src/components/layout/Header.tsx`**
-   - Remover a lógica que interpreta o timestamp como data/hora.
-   - Exibir diretamente `v{__APP_VERSION__}` (ex: `v1.2.15`).
-   - Manter o fallback `dev` quando a variável estiver vazia.
+**Como funciona na prática:** a Lovable já cria um commit por mensagem do usuário. Quando o usuário pedir algo como *"crie o módulo X"* ou *"adicione a funcionalidade Y"*, o commit vai conter `feat:` → MINOR sobe. Ajustes normais → PATCH sobe.
 
-5. **`src/lib/appVersion.ts`**
-   - Manter a comparação string contra `/version.json` (funciona corretamente com semver).
-   - Garantir que preview/localhost continuem ignorando o reload.
+## Implementação
 
-## Resultado esperado
-- Perfil do usuário mostrará **"Versão v1.2.15"**.
-- Sistema de checagem de atualização continuará funcionando, disparando reload quando `version.json` publicado for diferente do bundle.
-- Processo de build gera `version.json` com a mesma versão do `package.json`.
+### 1. Novo plugin `vite-plugin-auto-version.ts`
+Executa **apenas em `command === 'build'`**, antes do restante do pipeline:
 
-## Nota
-Se quiser que a versão inicial seja outra (ex: `1.0.0`, `2.0.0`), é só informar o número no feedback.
+1. Lê a versão atual do `package.json`.
+2. Lê a versão publicada anterior de `public/version.json` (referência do último deploy).
+3. Roda `git log <tag_ou_hash_anterior>..HEAD --pretty=%B` para pegar mensagens novas.
+   - Fallback: se `git` não estiver disponível no ambiente de build, usa a **última mensagem de commit** (`git log -1`).
+4. Determina o bump maior encontrado (MAJOR > MINOR > PATCH).
+5. Aplica o bump, escreve de volta em `package.json` **e** em `public/version.json`.
+6. Vite segue o fluxo normal usando o novo valor.
+
+### 2. Comando manual de override (opcional)
+Se o usuário pedir explicitamente ("sobe pra 2.0.0", "reset pra 1.0.0"), edito o `package.json` diretamente — o plugin respeita valores já bumpados no mesmo commit e não incrementa duas vezes (idempotência via marcador no commit ou checando se a versão já mudou desde o último `public/version.json`).
+
+### 3. Exibição no perfil
+Sem mudanças — `Header.tsx` já mostra `v{__APP_VERSION__}`.
+
+### 4. Reload automático no navegador
+Sem mudanças — `src/lib/appVersion.ts` já compara `/version.json` remoto vs embutido.
+
+## Arquivos afetados
+- **novo:** `vite-plugin-auto-version.ts`
+- **editado:** `vite.config.ts` (registrar plugin)
+- **auto-editado a cada build:** `package.json`, `public/version.json`
+
+## Observações
+- Convenção esperada nas mensagens: `feat:` para novos módulos/funcionalidades, `fix:`/`chore:` para ajustes, `!` ou `BREAKING CHANGE` para quebras.
+- Se um commit vier sem prefixo reconhecido, cai em **PATCH** por segurança.
+- Publicações em série sem novas features só sobem PATCH.
