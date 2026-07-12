@@ -6,6 +6,7 @@ import { STORAGE_KEYS } from '@/lib/constants';
 import { logUserActivity } from '@/lib/userActivityLog';
 import { collectClientEnvironment, logUserDevice } from '@/lib/clientEnvironment';
 import { supabase } from '@/integrations/supabase/client';
+import { checkVersionAndReloadIfNeeded } from '@/lib/appVersion';
 
 /** Remove a presença do usuário no painel da equipe imediatamente. */
 function clearPresence(userId: number | null | undefined) {
@@ -15,54 +16,12 @@ function clearPresence(userId: number | null | undefined) {
   } catch { /* ignore */ }
 }
 
-declare const __APP_VERSION__: string;
-
 // 30min de inatividade → logout automático
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 // Throttle para escrita de "última atividade" no localStorage
 const ACTIVITY_WRITE_THROTTLE_MS = 5_000;
 // Frequência da checagem de inatividade
 const INACTIVITY_CHECK_INTERVAL_MS = 30_000;
-
-const isPreviewHost = () => {
-  if (typeof window === 'undefined') return false;
-  const host = window.location.hostname;
-  return host === 'localhost' || host.includes('lovableproject.com') || host.includes('id-preview--');
-};
-
-// Força reload na nova versão limpando SW e caches
-const forceReloadForNewVersion = async () => {
-  try {
-    if ('serviceWorker' in navigator) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
-    }
-    if (typeof caches !== 'undefined') {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k)));
-    }
-  } catch { /* ignore */ }
-  window.location.replace(
-    window.location.pathname + window.location.search + window.location.hash,
-  );
-};
-
-// Compara versão local com /version.json. Retorna true se houve reload.
-const checkVersionAndReloadIfNeeded = async (): Promise<boolean> => {
-  if (isPreviewHost()) return false;
-  const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '';
-  if (!currentVersion) return false;
-  try {
-    const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) return false;
-    const data = await res.json();
-    if (data?.version && data.version !== currentVersion) {
-      await forceReloadForNewVersion();
-      return true;
-    }
-  } catch { /* ignore network errors */ }
-  return false;
-};
 
 interface User {
   id: number;
@@ -378,6 +337,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: 'Usuário inativo. Entre em contato com o administrador.' };
       }
 
+      // Checa nova versão ANTES de montar o app na versão antiga — se houver,
+      // força reload completo do navegador (SW + caches limpos).
+      const reloading = await checkVersionAndReloadIfNeeded(() => {
+        try {
+          // Feedback visual imediato antes do reload
+          // (import dinâmico para não acoplar sonner aqui)
+          import('sonner').then(({ toast }) =>
+            toast.info('Nova versão detectada. Atualizando…'),
+          );
+        } catch { /* ignore */ }
+      });
+      if (reloading) {
+        // Página vai recarregar; não continue montando estado.
+        return { success: true };
+      }
+
       const withPhoto = await hydrateClientPhoto(authenticatedUser);
       setUser(withPhoto);
       localStorage.setItem(STORAGE_KEYS.AUTH_USER, JSON.stringify(authenticatedUser));
@@ -403,9 +378,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           env,
         }))
         .catch(() => { /* telemetria nunca quebra o login */ });
-
-      // Checa nova versão a cada login — se houver, força reload
-      await checkVersionAndReloadIfNeeded();
 
       return { success: true };
     } catch (error: any) {
