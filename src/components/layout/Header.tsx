@@ -1,5 +1,6 @@
 import { Menu, Search, LogOut, User, Settings, PanelLeftClose, PanelLeft, Volume2, VolumeX } from 'lucide-react';
 import { HeaderDialer } from './HeaderDialer';
+import { HeaderZapCallBadge } from './HeaderZapCallBadge';
 import { PushNotificationOptIn } from '@/components/notifications/PushNotificationOptIn';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -151,6 +152,7 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
           </Tooltip>
 
           {/* Softphone / SIP discador */}
+          <HeaderZapCallBadge />
           <HeaderDialer />
 
           {/* User Menu */}
