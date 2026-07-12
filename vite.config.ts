@@ -3,9 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import fs from "fs";
-
-const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "package.json"), "utf-8"));
-const APP_VERSION = pkg.version || "dev";
+import { autoBumpVersion } from "./vite-plugin-auto-version";
 
 const versionFilePlugin = () => ({
   name: "write-version-json",
@@ -21,8 +19,18 @@ const versionFilePlugin = () => ({
   },
 });
 
+let APP_VERSION = "dev";
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "package.json"), "utf-8"));
+  APP_VERSION = pkg.version || "dev";
+} catch {}
+
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode, command }) => {
+  if (command === "build") {
+    APP_VERSION = autoBumpVersion(__dirname);
+  }
+  return {
   server: {
     host: "::",
     port: 8080,
@@ -39,4 +47,5 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-}));
+  };
+});
