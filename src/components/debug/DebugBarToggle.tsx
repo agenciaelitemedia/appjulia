@@ -19,8 +19,8 @@ export function DebugBarToggle({ isCollapsed = false }: DebugBarToggleProps) {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Show for: dev environment OR admin OR colaborador
-  if (!canUseDebugTools(user?.role)) {
+  // Restrito ao perfil admin
+  if (user?.role !== 'admin') {
     return null;
   }
 
