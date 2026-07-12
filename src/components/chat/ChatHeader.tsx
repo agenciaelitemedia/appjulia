@@ -21,6 +21,7 @@ import { WavoipCallButton } from '@/components/chat/WavoipCallButton';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
+import { UpsellCallDialog } from '@/components/chat/UpsellCallDialog';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -263,6 +264,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
+  const [showVoipUpsell, setShowVoipUpsell] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [showTicketDetail, setShowTicketDetail] = useState<string | null>(null);
 
