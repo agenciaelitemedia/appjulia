@@ -1,26 +1,31 @@
 ## Objetivo
-Tornar os botões de chamada sempre visíveis no header do chat, mesmo sem contratação, exibindo tooltip orientando o cliente a falar com o Comercial da Atende Julia.
+Quando VOIP Call ou ZAP Call estiverem indisponíveis (sem contratação, sem ramal ou sem dispositivo conectado), os botões aparecem visíveis porém em estado desabilitado (visual esmaecido). Ao clicar, abrem um Dialog (modal) padronizado explicando que é preciso falar com o Comercial da Atende Julia.
 
-## Mudanças
+## Novo componente
 
-### 1. `src/components/chat/WavoipCallButton.tsx` — ZAP Call
-- Remover o `if (!hasActivePlan) return null;` para o botão sempre aparecer.
-- Quando `!hasActivePlan`:
-  - Renderizar botão em estado desabilitado visual (`opacity-60`, cursor-not-allowed, cores neutras — sem verde).
-  - `onClick`: exibir `toast.info` com a mensagem:
-    > "Para habilitar o ZAP Call (módulo de ligação pelo WhatsApp), entre em contato com o Comercial da Atende Julia."
-  - `title` (tooltip nativo) com o mesmo texto.
-  - Não abrir o `WavoipCallDialog`.
-- Comportamento atual (ready/canDial) permanece inalterado quando `hasActivePlan === true`.
+`src/components/chat/UpsellCallDialog.tsx`
+- Dialog reutilizável (shadcn `Dialog`).
+- Props: `open`, `onOpenChange`, `product: 'voip' | 'zap'`.
+- Conteúdo dinâmico por `product`:
+  - **zap**: Título "ZAP Call indisponível". Corpo: "Para habilitar o ZAP Call — módulo de ligação pelo WhatsApp — entre em contato com o Comercial da Atende Julia para contratação."
+  - **voip**: Título "VOIP Call indisponível". Corpo: "Para habilitar o VOIP Call — módulo de ligação via telefonia normal (celular/telefone fixo) — entre em contato com o Comercial da Atende Julia para contratação."
+- Ícone `PhoneCall`/`Phone` no header, botão único "Entendi" fechando o modal.
 
-### 2. `src/components/chat/ChatHeader.tsx` — VOIP Call
-- Alterar o `title` do botão VOIP quando `!phoneReady` de:
-  > "VOIP Call (ramal indisponível)"
+## Alterações
 
-  para:
-  > "Para habilitar o VOIP Call (módulo de ligação via telefonia normal — celular/telefone fixo), entre em contato com o Comercial da Atende Julia."
-- Manter o botão visível/clicável (o diálogo atual já lida com ausência de ramal). Sem mudança em `onClick` nem no estilo além do já existente para estado indisponível.
+### `src/components/chat/WavoipCallButton.tsx`
+- Considerar indisponível quando: `!hasActivePlan` **ou** `!ready` **ou** `!canDial` **ou** `!phone`.
+- Estado visual desabilitado (opacity, cores neutras) quando indisponível.
+- Ao clicar em estado indisponível: abre `UpsellCallDialog` com `product="zap"` (remove os `toast.error` de "Webphone carregando", "Sem telefone" e "Conecte dispositivo" — todos passam a exibir o mesmo modal de upsell, conforme pedido do usuário: um único modal para o estado desabilitado).
+- Quando disponível: mantém fluxo atual (abre `WavoipCallDialog`).
+
+### `src/components/chat/ChatHeader.tsx`
+- Adicionar estado `showVoipUpsell`.
+- Botão VOIP Call: quando `!phoneReady`, `onClick` passa a abrir `UpsellCallDialog` com `product="voip"` em vez de `setShowPhoneCall(true)`. Estilo desabilitado atual é mantido.
+- Renderizar `<UpsellCallDialog product="voip" open={showVoipUpsell} .../>` no final do componente, junto ao `PhoneCallDialog` existente.
+- Remover o `title` longo adicionado na iteração anterior; usar tooltip curto ("VOIP Call indisponível"), pois a explicação agora está no modal.
 
 ## Fora de escopo
-- Não alterar lógica de `hasActivePlan`, `usePhone`, contexto Wavoip ou fluxos de contratação.
-- Não mexer em outros pontos de uso do `WavoipCallButton`.
+- Não alterar lógica de detecção de plano/ramal/dispositivo.
+- Não alterar `WavoipCallDialog` nem `PhoneCallDialog`.
+- Sem mudanças de rota, backend ou permissões.

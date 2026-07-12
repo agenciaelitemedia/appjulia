@@ -21,6 +21,7 @@ import { WavoipCallButton } from '@/components/chat/WavoipCallButton';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
+import { UpsellCallDialog } from '@/components/chat/UpsellCallDialog';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -263,6 +264,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
+  const [showVoipUpsell, setShowVoipUpsell] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [showTicketDetail, setShowTicketDetail] = useState<string | null>(null);
 
@@ -637,10 +639,8 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                       ? 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800'
                       : 'text-muted-foreground border-border hover:bg-muted'
                   )}
-                  onClick={() => setShowPhoneCall(true)}
-                  title={phoneReady
-                    ? 'VOIP Call (ramal disponível)'
-                    : 'Para habilitar o VOIP Call (módulo de ligação via telefonia normal — celular/telefone fixo), entre em contato com o Comercial da Atende Julia.'}
+                  onClick={() => (phoneReady ? setShowPhoneCall(true) : setShowVoipUpsell(true))}
+                  title={phoneReady ? 'VOIP Call (ramal disponível)' : 'VOIP Call indisponível'}
                 >
                   {phoneReady ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
                   VOIP Call
@@ -847,6 +847,8 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         contactName={contact.name}
         codAgent={queueLink?.codAgent ?? ''}
       />
+
+      <UpsellCallDialog open={showVoipUpsell} onOpenChange={setShowVoipUpsell} product="voip" />
 
       {/* Abrir ticket de suporte a partir da conversa */}
       <ChatTicketSidePanel
