@@ -4,7 +4,8 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import fs from "fs";
 
-const APP_VERSION = Date.now().toString();
+const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "package.json"), "utf-8"));
+const APP_VERSION = pkg.version || "dev";
 
 const versionFilePlugin = () => ({
   name: "write-version-json",
