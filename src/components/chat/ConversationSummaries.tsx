@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useConversationSummaries } from '@/hooks/useConversationSummaries';
-import { cn } from '@/lib/utils';
 
 interface ConversationSummariesProps {
   conversationId?: string | null;
