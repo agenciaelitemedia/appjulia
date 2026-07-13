@@ -1,51 +1,48 @@
 ## Objetivo
-Automatizar o versionamento semver do app a cada publicação, incrementando **PATCH**, **MINOR** ou **MAJOR** conforme o tipo de mudança, e exibir a versão no menu de perfil.
+
+Atualizar automaticamente a versão exibida no perfil (`Versão vX.Y.Z`) a cada publicação, sem precisar editar `package.json` manualmente.
 
 ## Contexto atual
-- `package.json` = `1.2.15` (fonte da verdade).
-- `vite.config.ts` lê `pkg.version`, injeta em `__APP_VERSION__` e gera `dist/version.json`.
-- `Header.tsx` já mostra `v{__APP_VERSION__}` no menu de perfil.
 
-## Regra de incremento (semver automático)
+Hoje o número da versão vem de `__APP_VERSION__`, injetado pelo Vite a partir de `package.json`. Existe um plugin `vite-plugin-auto-version.ts` que tenta bumpar via `git log` na hora do build — mas isso **não funciona em produção Lovable** porque:
 
-Baseado em **Conventional Commits** analisando as mensagens de commit desde a última versão publicada:
+1. O build de publicação roda em ambiente gerenciado, sem histórico git local acessível ao plugin.
+2. Mesmo se rodasse, o commit da publicação ainda não existe no momento em que o plugin lê o log.
+3. Depender de mensagens de commit convencionais é frágil (o usuário não escreve `feat:`/`fix:` manualmente).
 
-| Detecção na msg do commit | Incremento | Exemplo |
-|---|---|---|
-| `BREAKING CHANGE` ou `feat!:` / `refactor!:` | **MAJOR** → `1.2.15` → `2.0.0` | novo módulo que quebra fluxo antigo |
-| `feat:` ou `feature:` (novo módulo/funcionalidade) | **MINOR** → `1.2.15` → `1.3.0` | novo módulo, nova tela, nova feature |
-| Qualquer outro (`fix:`, `chore:`, `style:`, `refactor:`, ajustes) | **PATCH** → `1.2.15` → `1.2.16` | correções e ajustes |
+Ou seja: hoje a versão só muda se alguém editar `package.json` na mão.
 
-**Como funciona na prática:** a Lovable já cria um commit por mensagem do usuário. Quando o usuário pedir algo como *"crie o módulo X"* ou *"adicione a funcionalidade Y"*, o commit vai conter `feat:` → MINOR sobe. Ajustes normais → PATCH sobe.
+## Proposta: versão baseada em build
 
-## Implementação
+Em vez de tentar interpretar commits, tratar cada publicação como um novo build e derivar a versão automaticamente disso. Duas opções:
 
-### 1. Novo plugin `vite-plugin-auto-version.ts`
-Executa **apenas em `command === 'build'`**, antes do restante do pipeline:
+### Opção A — Auto-incremento de PATCH a cada build (recomendado)
 
-1. Lê a versão atual do `package.json`.
-2. Lê a versão publicada anterior de `public/version.json` (referência do último deploy).
-3. Roda `git log <tag_ou_hash_anterior>..HEAD --pretty=%B` para pegar mensagens novas.
-   - Fallback: se `git` não estiver disponível no ambiente de build, usa a **última mensagem de commit** (`git log -1`).
-4. Determina o bump maior encontrado (MAJOR > MINOR > PATCH).
-5. Aplica o bump, escreve de volta em `package.json` **e** em `public/version.json`.
-6. Vite segue o fluxo normal usando o novo valor.
+O plugin de build lê `public/version.json`, incrementa o PATCH e regrava antes do bundle ser gerado. Toda publicação vira uma versão nova sem esforço.
 
-### 2. Comando manual de override (opcional)
-Se o usuário pedir explicitamente ("sobe pra 2.0.0", "reset pra 1.0.0"), edito o `package.json` diretamente — o plugin respeita valores já bumpados no mesmo commit e não incrementa duas vezes (idempotência via marcador no commit ou checando se a versão já mudou desde o último `public/version.json`).
+- `1.2.15` → publica → `1.2.16` → publica → `1.2.17` …
+- MINOR e MAJOR continuam manuais (o usuário edita `public/version.json` quando quiser marcar um marco: nova funcionalidade grande = MINOR, quebra = MAJOR).
+- Simples, previsível, não depende de git nem de mensagens de commit.
 
-### 3. Exibição no perfil
-Sem mudanças — `Header.tsx` já mostra `v{__APP_VERSION__}`.
+### Opção B — Versão = data+hora do build
 
-### 4. Reload automático no navegador
-Sem mudanças — `src/lib/appVersion.ts` já compara `/version.json` remoto vs embutido.
+Ignora semver e usa timestamp: `v2026.07.13-1423`. Sempre único, zero configuração, mas perde a noção de "release importante".
 
-## Arquivos afetados
-- **novo:** `vite-plugin-auto-version.ts`
-- **editado:** `vite.config.ts` (registrar plugin)
-- **auto-editado a cada build:** `package.json`, `public/version.json`
+### Opção C — Manter semver por commits (o que está no plano antigo)
 
-## Observações
-- Convenção esperada nas mensagens: `feat:` para novos módulos/funcionalidades, `fix:`/`chore:` para ajustes, `!` ou `BREAKING CHANGE` para quebras.
-- Se um commit vier sem prefixo reconhecido, cai em **PATCH** por segurança.
-- Publicações em série sem novas features só sobem PATCH.
+Continuar com `feat:` / `fix:` / `BREAKING CHANGE` decidindo o bump. Já vimos que é frágil no ambiente Lovable e exige disciplina de mensagens que o usuário não tem hoje.
+
+## Implementação da Opção A (se aprovada)
+
+1. **`vite-plugin-auto-version.ts`** — Simplificar: no hook `buildStart` (apenas quando `command === 'build'`), ler `public/version.json`, incrementar `patch`, regravar o arquivo E atualizar `package.json` para manter sincronizados. Retornar a nova versão para injetar em `__APP_VERSION__`.
+2. **`vite.config.ts`** — Já chama `autoBumpVersion()`; ajustar para usar o valor retornado como fonte da verdade do `__APP_VERSION__` (em vez de reler `package.json`).
+3. **Regras de MINOR/MAJOR manuais** — Documentar (em `.lovable/plan.md`) que, para marcar um MINOR (novo módulo) ou MAJOR (quebra), basta pedir "sobe a versão MINOR" / "sobe MAJOR" no chat e a AI edita `public/version.json` zerando o PATCH.
+4. **Exibição** — `Header.tsx` e `ProfileSettingsPage.tsx` já mostram `v{__APP_VERSION__}`; nada a mudar.
+
+## Resultado esperado
+
+- Cada clique em **Publicar** → PATCH sobe sozinho.
+- Sem risco de esquecer de atualizar o número.
+- MINOR/MAJOR continuam sob controle intencional do usuário.
+
+Qual opção prefere seguir?
