@@ -18,19 +18,27 @@ export interface ConversationSummary {
   created_at: string;
 }
 
-export function useConversationSummaries(conversationId: string | null) {
+export function useConversationSummaries(
+  conversationId: string | null,
+  contactId?: string | null,
+) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: summaries = [], isLoading } = useQuery({
-    queryKey: ['conv-summaries', conversationId],
-    enabled: !!conversationId,
+    queryKey: ['conv-summaries', contactId ?? conversationId, contactId ? 'by-contact' : 'by-conv'],
+    enabled: !!(contactId || conversationId),
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('chat_conversation_summaries')
         .select('*')
-        .eq('conversation_id', conversationId!)
         .order('created_at', { ascending: false });
+      if (contactId) {
+        q = q.eq('contact_id', contactId);
+      } else {
+        q = q.eq('conversation_id', conversationId!);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as ConversationSummary[];
     },
@@ -38,26 +46,29 @@ export function useConversationSummaries(conversationId: string | null) {
 
   // Realtime: refresh when a summary is inserted server-side (auto-resumo)
   useEffect(() => {
-    if (!conversationId) return;
+    const filterKey = contactId ? 'contact_id' : 'conversation_id';
+    const filterVal = contactId || conversationId;
+    if (!filterVal) return;
+    const invalidateKey = ['conv-summaries', contactId ?? conversationId, contactId ? 'by-contact' : 'by-conv'];
     const channel = supabase
-      .channel(`conv-summaries-${conversationId}`)
+      .channel(`conv-summaries-${filterKey}-${filterVal}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'chat_conversation_summaries',
-          filter: `conversation_id=eq.${conversationId}`,
+          filter: `${filterKey}=eq.${filterVal}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ['conv-summaries', conversationId] });
+          queryClient.invalidateQueries({ queryKey: invalidateKey });
         },
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, queryClient]);
+  }, [conversationId, contactId, queryClient]);
 
   const generateSummary = useCallback(async (
     convId: string,
@@ -90,7 +101,7 @@ export function useConversationSummaries(conversationId: string | null) {
     });
     if (insertError) throw insertError;
 
-    queryClient.invalidateQueries({ queryKey: ['conv-summaries', convId] });
+    queryClient.invalidateQueries({ queryKey: ['conv-summaries'] });
     return data;
   }, [user?.client_id, queryClient]);
 
