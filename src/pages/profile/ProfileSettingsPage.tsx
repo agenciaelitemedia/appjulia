@@ -898,6 +898,29 @@ export default function ProfileSettingsPage() {
                 className="w-full" 
                 disabled={!isPasswordValid || !currentPassword || isChangingPassword}
               >
+                {isChangingPassword ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Alterando...
+                  </>
+                ) : (
+                  'Alterar Senha'
+                )}
+              </Button>
+
+              <Separator />
+
+              <div className="px-2 py-1.5 text-[10px] text-muted-foreground text-center select-none">
+                Versão {typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__}` : 'dev'}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+              >
                 {isChangingPassword ? 'Alterando...' : 'Alterar Senha'}
               </Button>
             </form>
