@@ -129,7 +129,11 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message.media_url]);
 
-  const isEncrypted = (u?: string) => !u || u.includes('.enc') || u.includes('mmg.whatsapp.net');
+  const isEncrypted = (u?: string) =>
+    !u ||
+    u.startsWith('waba_media:') ||
+    u.includes('.enc') ||
+    u.includes('mmg.whatsapp.net');
 
   const handleDownload = async () => {
     if (!onDownload) return;

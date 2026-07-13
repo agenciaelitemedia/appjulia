@@ -1,48 +1,55 @@
-## Objetivo
+## Problema
 
-Atualizar automaticamente a versão exibida no perfil (`Versão vX.Y.Z`) a cada publicação, sem precisar editar `package.json` manualmente.
+Mensagens vindas da fila da **API oficial (WABA)** não exibem imagem, vídeo, áudio nem sticker. A UaZapi continua funcionando.
 
-## Contexto atual
+### Causa raiz
 
-Hoje o número da versão vem de `__APP_VERSION__`, injetado pelo Vite a partir de `package.json`. Existe um plugin `vite-plugin-auto-version.ts` que tenta bumpar via `git log` na hora do build — mas isso **não funciona em produção Lovable** porque:
+Quando o `meta-webhook` recebe uma mensagem de mídia, ele grava um placeholder em `chat_messages.media_url` no formato:
 
-1. O build de publicação roda em ambiente gerenciado, sem histórico git local acessível ao plugin.
-2. Mesmo se rodasse, o commit da publicação ainda não existe no momento em que o plugin lê o log.
-3. Depender de mensagens de commit convencionais é frágil (o usuário não escreve `feat:`/`fix:` manualmente).
+```
+waba_media:<MEDIA_ID>
+```
 
-Ou seja: hoje a versão só muda se alguém editar `package.json` na mão.
+Esse placeholder precisa ser resolvido depois via `chat-media-download` → `waba-send action=download_media`, que baixa o binário da Graph API e sobe para o bucket `chat-media` (o backend já está pronto e funcionando).
 
-## Proposta: versão baseada em build
+O problema está no **frontend**. Em `src/components/chat/MessageBubble.tsx` a função que decide se a URL ainda é "não usável" é:
 
-Em vez de tentar interpretar commits, tratar cada publicação como um novo build e derivar a versão automaticamente disso. Duas opções:
+```ts
+const isEncrypted = (u?: string) => !u || u.includes('.enc') || u.includes('mmg.whatsapp.net');
+```
 
-### Opção A — Auto-incremento de PATCH a cada build (recomendado)
+Ela cobre os casos UaZapi (`.enc`, `mmg.whatsapp.net`) mas **não reconhece** o prefixo `waba_media:`. Consequência:
 
-O plugin de build lê `public/version.json`, incrementa o PATCH e regrava antes do bundle ser gerado. Toda publicação vira uma versão nova sem esforço.
+- `isEncrypted("waba_media:123")` → `false`
+- `usable` fica `true`
+- O componente renderiza `<img src="waba_media:123">` / `<video src="waba_media:...">` / `<audio src="waba_media:...">`, que quebram silenciosamente.
+- O efeito de auto-download (`useEffect` em `message.id`) também vê a URL como já usável e nunca chama `onDownload`, portanto a WABA nunca é resolvida.
 
-- `1.2.15` → publica → `1.2.16` → publica → `1.2.17` …
-- MINOR e MAJOR continuam manuais (o usuário edita `public/version.json` quando quiser marcar um marco: nova funcionalidade grande = MINOR, quebra = MAJOR).
-- Simples, previsível, não depende de git nem de mensagens de commit.
+## Correção
 
-### Opção B — Versão = data+hora do build
+Alteração cirúrgica em **`src/components/chat/MessageBubble.tsx`**, apenas na função `isEncrypted` dentro de `MediaContent`:
 
-Ignora semver e usa timestamp: `v2026.07.13-1423`. Sempre único, zero configuração, mas perde a noção de "release importante".
+```ts
+const isEncrypted = (u?: string) =>
+  !u ||
+  u.startsWith('waba_media:') ||
+  u.includes('.enc') ||
+  u.includes('mmg.whatsapp.net');
+```
 
-### Opção C — Manter semver por commits (o que está no plano antigo)
+Com isso:
 
-Continuar com `feat:` / `fix:` / `BREAKING CHANGE` decidindo o bump. Já vimos que é frágil no ambiente Lovable e exige disciplina de mensagens que o usuário não tem hoje.
+1. Mensagens WABA com `media_url = "waba_media:<id>"` passam a ser tratadas como "ainda não baixadas".
+2. O `useEffect` de auto-download dispara `onDownload()` → `chat-media-download` → resolve o id via `waba-send` → grava a URL pública do bucket em `chat_messages.media_url` → o bubble atualiza via prop e renderiza a mídia.
+3. Vale para todos os tipos que já entram no `autoTypes`: `image`, `video`, `audio`, `ptt`, `sticker`. Documentos continuam com botão manual "Baixar" (comportamento atual preservado).
+4. **UaZapi continua idêntica**: os checks `.enc` e `mmg.whatsapp.net` permanecem intactos; nada muda no fluxo já testado.
 
-## Implementação da Opção A (se aprovada)
+## Fora de escopo (não vamos mexer agora)
 
-1. **`vite-plugin-auto-version.ts`** — Simplificar: no hook `buildStart` (apenas quando `command === 'build'`), ler `public/version.json`, incrementar `patch`, regravar o arquivo E atualizar `package.json` para manter sincronizados. Retornar a nova versão para injetar em `__APP_VERSION__`.
-2. **`vite.config.ts`** — Já chama `autoBumpVersion()`; ajustar para usar o valor retornado como fonte da verdade do `__APP_VERSION__` (em vez de reler `package.json`).
-3. **Regras de MINOR/MAJOR manuais** — Documentar (em `.lovable/plan.md`) que, para marcar um MINOR (novo módulo) ou MAJOR (quebra), basta pedir "sobe a versão MINOR" / "sobe MAJOR" no chat e a AI edita `public/version.json` zerando o PATCH.
-4. **Exibição** — `Header.tsx` e `ProfileSettingsPage.tsx` já mostram `v{__APP_VERSION__}`; nada a mudar.
+- `chat-media-download` / `waba-send` / `meta-webhook`: já estão corretos.
+- `MediaLightbox` / `MediaPreviewDialog`: recebem a URL já resolvida via prop, herdam o fix automaticamente.
+- Backfill de mensagens WABA antigas: opcional, pode vir depois se o usuário pedir.
 
-## Resultado esperado
+## Arquivos alterados
 
-- Cada clique em **Publicar** → PATCH sobe sozinho.
-- Sem risco de esquecer de atualizar o número.
-- MINOR/MAJOR continuam sob controle intencional do usuário.
-
-Qual opção prefere seguir?
+- `src/components/chat/MessageBubble.tsx` — 1 linha (função `isEncrypted`).
