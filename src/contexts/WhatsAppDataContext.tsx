@@ -1229,12 +1229,22 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             payload: { conversation_id: conversationId, status, note },
           },
         }).catch((err) => console.warn('webhook dispatcher error:', err));
+
+        supabase.functions.invoke('chat-ai-assist', {
+          body: {
+            mode: 'incremental_summary',
+            conversation_id: conversationId,
+            triggered_by: status === 'closed' ? 'auto_close' : 'auto_resolve',
+            insert_internal_note: true,
+            client_id: user?.client_id ? String(user.client_id) : undefined,
+          },
+        }).catch((err) => console.warn('auto summary error:', err));
       }
     } catch (error) {
       console.error('Error updating conversation status:', error);
       toast.error('Erro ao atualizar status');
     }
-  }, [user?.name, clientId]);
+  }, [user?.name, user?.client_id, clientId]);
 
   const assignConversation = useCallback(async (conversationId: string, assignedTo: string, assignedUserId?: number | null) => {
     try {
