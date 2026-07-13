@@ -920,13 +920,3 @@ export default function ProfileSettingsPage() {
     </div>
   );
 }
-              >
-                {isChangingPassword ? 'Alterando...' : 'Alterar Senha'}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
