@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+declare const __APP_VERSION__: string;
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
