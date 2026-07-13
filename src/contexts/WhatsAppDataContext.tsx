@@ -2275,7 +2275,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [contacts, getEffectiveQueue]);
 
   // ============================================
-  // Select Contact (no auto-assign — user must click "Assumir")
+  // Select Contact — auto-assumes the conversation for whoever opens it
+  // (equivalent to clicking "Assumir"), if it has no assignee yet.
   // ============================================
   const selectContact = useCallback((contactId: string | null) => {
     setSelectedContactId(contactId);
@@ -2316,21 +2317,42 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           }
         }
 
+        // Helper: auto-assign the conversation to the current user if it
+        // still has no assignee. Mirrors the "Assumir" button behavior.
+        const autoAssumeIfUnassigned = (conv: ChatConversation | null | undefined) => {
+          if (!conv) return;
+          if (!user?.name) return;
+          const hasAssignee =
+            !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+          if (hasAssignee) return;
+          const userIdNum = user?.id ? Number(user.id) : null;
+          assignConversation(
+            conv.id,
+            user.name,
+            Number.isFinite(userIdNum as number) ? userIdNum : null,
+          ).catch((err) =>
+            console.warn('[selectContact] auto-assign failed', err),
+          );
+        };
+
         // Resolve existing conversation in memory first.
         const existingConv = conversations.find(c => c.contact_id === contactId);
         if (existingConv && ['resolved', 'closed'].includes(existingConv.status)) {
-          // Read-only view — do not reopen / create.
+          // Read-only view — do not reopen / create / assign.
           return;
         }
         if (existingConv && ['pending', 'open'].includes(existingConv.status)) {
           // Already have an active conversation — skip the DB round-trip.
           // The realtime subscription keeps it fresh.
+          autoAssumeIfUnassigned(existingConv);
         } else {
-          // No active conversation yet — create one in the background.
-          // Don't block UI on this; messages already load in parallel.
-          getOrCreateConversation(contactId).catch((err) =>
-            console.warn('[selectContact] getOrCreateConversation', err)
-          );
+          // No active conversation yet — create one in the background,
+          // then auto-assume once we have the row.
+          getOrCreateConversation(contactId)
+            .then((conv) => autoAssumeIfUnassigned(conv))
+            .catch((err) =>
+              console.warn('[selectContact] getOrCreateConversation', err),
+            );
         }
 
         if (!contact || contact.unread_count === 0) return;
@@ -2346,7 +2368,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         setIsHydratingContact(false);
       }
     })();
-  }, [getOrCreateConversation, contacts, conversations, markAsRead, user?.name, user?.id]);
+  }, [getOrCreateConversation, contacts, conversations, markAsRead, user?.name, user?.id, assignConversation]);
 
   const retryHydrateSelectedContact = useCallback(() => {
     if (selectedContactId) selectContact(selectedContactId);
