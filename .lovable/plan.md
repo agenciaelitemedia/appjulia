@@ -1,55 +1,38 @@
-## Problema
+## Diagnóstico
 
-Mensagens vindas da fila da **API oficial (WABA)** não exibem imagem, vídeo, áudio nem sticker. A UaZapi continua funcionando.
+Confirmei no banco: para o contato de teste existem 5 resumos `auto_close` gerados hoje, mas **cada um está atrelado a um `conversation_id` diferente** (uma nova conversa é criada a cada reabertura). O hook `useConversationSummaries` filtra apenas por `conversation_id` da conversa atual, então ao reabrir a conversa a aba "Resumo" fica vazia mesmo com resumos persistidos.
 
-### Causa raiz
+A persistência no edge function `chat-ai-assist` está OK — o problema é 100% de leitura/UI.
 
-Quando o `meta-webhook` recebe uma mensagem de mídia, ele grava um placeholder em `chat_messages.media_url` no formato:
+## Correções
 
-```
-waba_media:<MEDIA_ID>
-```
+### 1. Buscar resumos por contato (não só pela conversa atual)
+Arquivo: `src/hooks/useConversationSummaries.ts`
 
-Esse placeholder precisa ser resolvido depois via `chat-media-download` → `waba-send action=download_media`, que baixa o binário da Graph API e sobe para o bucket `chat-media` (o backend já está pronto e funcionando).
+- Adicionar parâmetro `contactId` ao hook.
+- Trocar `SELECT ... WHERE conversation_id = X` por `SELECT ... WHERE contact_id = Y ORDER BY created_at DESC` (todos os resumos históricos do contato aparecem, independente da conversa em que foram gerados).
+- Manter `generateSummary`, `checkAutoSummary` e `getAfterTsForNext` escopados à `conversationId` atual (não muda a geração).
+- Realtime channel: filtrar por `contact_id=eq.<id>` em vez de `conversation_id`.
+- Ajustar `queryKey` para `['conv-summaries', contactId]`.
 
-O problema está no **frontend**. Em `src/components/chat/MessageBubble.tsx` a função que decide se a URL ainda é "não usável" é:
+### 2. Passar contactId no consumidor
+Arquivo: `src/components/chat/ConversationSummaries.tsx`
 
-```ts
-const isEncrypted = (u?: string) => !u || u.includes('.enc') || u.includes('mmg.whatsapp.net');
-```
+- Repassar `contactId` para o hook.
+- Card colapsado por padrão:
+  - Header sempre visível (data, contagem, badge auto/manual).
+  - Preview: primeiras ~2 linhas / ~180 chars do `summary` com "…" quando truncado.
+  - Botão/chevron "Ver mais" ↔ "Ver menos" alterna estado local por card.
+  - Ao expandir: mostra período completo, sentimento, resumo integral e atendimento (o layout atual).
+- Sem mudanças no comportamento de "Gerar Resumo" / "Novo Resumo".
 
-Ela cobre os casos UaZapi (`.enc`, `mmg.whatsapp.net`) mas **não reconhece** o prefixo `waba_media:`. Consequência:
+### 3. Não quebrar callers
+- `ContactDetailPanel.tsx` já passa `contactId={contact.id}` — nenhum ajuste necessário além da assinatura interna.
+- `useChurnSignals` faz query direta, não usa o hook — intocado.
+- O edge function e a tabela permanecem inalterados; nenhuma migração necessária.
 
-- `isEncrypted("waba_media:123")` → `false`
-- `usable` fica `true`
-- O componente renderiza `<img src="waba_media:123">` / `<video src="waba_media:...">` / `<audio src="waba_media:...">`, que quebram silenciosamente.
-- O efeito de auto-download (`useEffect` em `message.id`) também vê a URL como já usável e nunca chama `onDownload`, portanto a WABA nunca é resolvida.
+## Resultado esperado
 
-## Correção
-
-Alteração cirúrgica em **`src/components/chat/MessageBubble.tsx`**, apenas na função `isEncrypted` dentro de `MediaContent`:
-
-```ts
-const isEncrypted = (u?: string) =>
-  !u ||
-  u.startsWith('waba_media:') ||
-  u.includes('.enc') ||
-  u.includes('mmg.whatsapp.net');
-```
-
-Com isso:
-
-1. Mensagens WABA com `media_url = "waba_media:<id>"` passam a ser tratadas como "ainda não baixadas".
-2. O `useEffect` de auto-download dispara `onDownload()` → `chat-media-download` → resolve o id via `waba-send` → grava a URL pública do bucket em `chat_messages.media_url` → o bubble atualiza via prop e renderiza a mídia.
-3. Vale para todos os tipos que já entram no `autoTypes`: `image`, `video`, `audio`, `ptt`, `sticker`. Documentos continuam com botão manual "Baixar" (comportamento atual preservado).
-4. **UaZapi continua idêntica**: os checks `.enc` e `mmg.whatsapp.net` permanecem intactos; nada muda no fluxo já testado.
-
-## Fora de escopo (não vamos mexer agora)
-
-- `chat-media-download` / `waba-send` / `meta-webhook`: já estão corretos.
-- `MediaLightbox` / `MediaPreviewDialog`: recebem a URL já resolvida via prop, herdam o fix automaticamente.
-- Backfill de mensagens WABA antigas: opcional, pode vir depois se o usuário pedir.
-
-## Arquivos alterados
-
-- `src/components/chat/MessageBubble.tsx` — 1 linha (função `isEncrypted`).
+- Reabrir a conversa do 34 98886-0163 mostra os 5 resumos históricos na aba **Resumo** do painel de detalhes.
+- Cada resumo aparece colapsado com prévia curta; clicar expande o conteúdo completo.
+- Resumos gerados por `auto_resolve`/`auto_close` continuam persistindo (já funcionavam) e agora ficam visíveis mesmo após reabertura.
