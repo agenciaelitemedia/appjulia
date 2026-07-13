@@ -35,7 +35,7 @@ interface Props {
   /** Client id of the current user (required to enable conflict pre-check). */
   clientId?: string;
   /** Current user (required to enable conflict pre-check + assignment). */
-  currentUser?: { codAgent: string; name: string; id?: number | string };
+  currentUser?: { codAgent?: string; name: string; id?: number | string };
 }
 
 interface ActiveConv {
@@ -66,6 +66,10 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
   const location = useLocation();
 
   const selectedQueue = queues.find(q => q.id === selectedQueueId) ?? null;
+  const currentAssigneeName = (currentUser?.name || (currentUser?.id ? String(currentUser.id) : '')).trim();
+  const currentAssigneeUserId = currentUser?.id != null && Number.isFinite(Number(currentUser.id))
+    ? Number(currentUser.id)
+    : null;
 
   useEffect(() => {
     if (open) {
@@ -110,7 +114,7 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
     targetQueueId: string,
     fallbackContactName?: string,
   ): Promise<{ contactId: string; queueId: string } | null> => {
-    if (!clientId || !currentUser?.codAgent) return null;
+    if (!clientId || !currentAssigneeName) return null;
     const channelType = 'whatsapp_uazapi';
 
     let contactId: string | null = null;
@@ -149,8 +153,8 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
         queue_id: targetQueueId,
         channel: channelType,
         status: 'open',
-        assigned_to: currentUser.name || (currentUser.id ? String(currentUser.id) : null),
-        assigned_user_id: currentUser.id ? Number(currentUser.id) : null,
+        assigned_to: currentAssigneeName,
+        assigned_user_id: currentAssigneeUserId,
         opened_at: new Date().toISOString(),
         protocol: '',
       });
@@ -202,7 +206,7 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
       // Cria a conversa já atribuída ao usuário atual ANTES de enviar a mensagem,
       // para que apareça instantaneamente em "Meu atendimento".
       let created: { contactId: string; queueId: string } | null = null;
-      if (clientId && currentUser?.codAgent) {
+      if (clientId && currentAssigneeName) {
         created = await ensureContactAndAssignedConversation(selectedQueue.id);
       }
 
@@ -236,11 +240,11 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
   };
 
   const handleCloseAndStartNew = async () => {
-    if (!selectedQueue || !conflict || !clientId || !currentUser?.codAgent) return;
+    if (!selectedQueue || !conflict || !clientId || !currentAssigneeName) return;
     setSending(true);
     try {
       const targetQueueId = selectedQueue.id;
-      const noteSuffix = ` [manual] Encerrada para novo atendimento na fila "${selectedQueue.name}" por ${currentUser.name}`;
+      const noteSuffix = ` [manual] Encerrada para novo atendimento na fila "${selectedQueue.name}" por ${currentAssigneeName}`;
 
       // 1) Encerra conversas em conflito (de qualquer fila, inclusive a mesma — a nova será criada limpa)
       const idsToClose = conflict.convs.map(c => c.id);
@@ -263,8 +267,8 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
           await supabase.from('chat_conversation_history').insert({
             conversation_id: row.id,
             action: 'manual_closed_for_new_conversation',
-            actor_name: currentUser.name,
-            user_id: currentUser?.id ? Number(currentUser.id) : null,
+              actor_name: currentAssigneeName,
+              user_id: currentAssigneeUserId,
             notes: `Encerrada manualmente para novo atendimento na fila ${selectedQueue.name}`,
           });
         }

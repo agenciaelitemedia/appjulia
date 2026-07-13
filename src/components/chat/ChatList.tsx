@@ -1884,7 +1884,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
         queues={activeQueues.filter(q => q.channel_type === 'uazapi')}
         initialPhone={footerCountry + footerPhone.replace(/\D/g,'')}
         clientId={clientId || undefined}
-        currentUser={user?.cod_agent ? { codAgent: String(user.cod_agent), name: user?.name || '', id: user?.id } : undefined}
+        currentUser={user ? { codAgent: user.cod_agent ? String(user.cod_agent) : undefined, name: user?.name || '', id: user?.id } : undefined}
       />
     </div>
   );
