@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Loader2, Sparkles, Clock, MessageSquare, Zap } from 'lucide-react';
+import { Loader2, Sparkles, Clock, MessageSquare, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useConversationSummaries } from '@/hooks/useConversationSummaries';
+import { cn } from '@/lib/utils';
 
 interface ConversationSummariesProps {
   conversationId: string;
@@ -13,8 +14,19 @@ interface ConversationSummariesProps {
 }
 
 export function ConversationSummaries({ conversationId, contactId }: ConversationSummariesProps) {
-  const { summaries, isLoading, generateSummary, getAfterTsForNext } = useConversationSummaries(conversationId);
+  const { summaries, isLoading, generateSummary, getAfterTsForNext } = useConversationSummaries(conversationId, contactId);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const toggle = (id: string) =>
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const buildPreview = (text: string) => {
+    if (!text) return '';
+    const firstLines = text.split('\n').slice(0, 2).join(' ').trim();
+    const clipped = firstLines.length > 180 ? firstLines.slice(0, 180).trimEnd() + '…' : firstLines;
+    return clipped;
+  };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -71,10 +83,16 @@ export function ConversationSummaries({ conversationId, contactId }: Conversatio
       )}
 
       <div className="space-y-3">
-        {summaries.map((s) => (
+        {summaries.map((s) => {
+          const isOpen = !!expanded[s.id];
+          return (
           <div key={s.id} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 px-4 py-2 bg-muted/50 border-b text-xs text-muted-foreground">
+            <button
+              type="button"
+              onClick={() => toggle(s.id)}
+              className="w-full flex items-center gap-3 px-4 py-2 bg-muted/50 border-b text-xs text-muted-foreground hover:bg-muted transition-colors text-left"
+            >
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 {format(new Date(s.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
@@ -93,8 +111,18 @@ export function ConversationSummaries({ conversationId, contactId }: Conversatio
                     : 'automático'}
                 </Badge>
               )}
-            </div>
+              <span className="ml-auto flex items-center gap-1 text-muted-foreground">
+                {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </span>
+            </button>
 
+            {!isOpen ? (
+              <div className="px-4 py-3">
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {buildPreview(s.summary)}
+                </p>
+              </div>
+            ) : (
             <div className="p-4 space-y-3">
               {/* Período */}
               <div className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -129,8 +157,10 @@ export function ConversationSummaries({ conversationId, contactId }: Conversatio
                 </div>
               )}
             </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
