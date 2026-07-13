@@ -241,7 +241,7 @@ export default function WavoipPage() {
       if ((prepared as any)?.qr_url) setQrUrl(`${(prepared as any).qr_url}?ts=${Date.now()}`);
 
       const wp: any = await ensureWebphone();
-      if (!wp?.device) throw new Error('Webphone Wavoip não inicializado');
+      if (!wp?.device) throw new Error('Webphone ZAP Call não inicializado');
 
       try { wp.device.add(device.device_token, true); } catch {}
       try { wp.device.enable(device.device_token); } catch {}
@@ -264,7 +264,7 @@ export default function WavoipPage() {
         } catch (e: any) {
           completedRef.current = false;
           setConnectStatus('error');
-          setConnectError(e?.message || 'Conectou na Wavoip, mas falhou ao salvar os dados');
+          setConnectError(e?.message || 'Conectou na ZAP Call, mas falhou ao salvar os dados');
         }
       };
 
@@ -284,7 +284,7 @@ export default function WavoipPage() {
           if (intervalRef.current) window.clearInterval(intervalRef.current);
           intervalRef.current = null;
           setConnectStatus('error');
-          setConnectError(`Wavoip retornou status ${entry.status}`);
+          setConnectError(`ZAP Call retornou status ${entry.status}`);
           await markDeviceStatus(device.id, 'error', { metadata: { ...(device.metadata ?? {}), last_error: entry.status, last_connect: entry } });
           return;
         }
@@ -313,7 +313,7 @@ export default function WavoipPage() {
     } catch (e: any) {
       completedRef.current = true;
       setConnectStatus('error');
-      setConnectError(e?.message || 'Erro ao iniciar conexão com a Wavoip');
+      setConnectError(e?.message || 'Erro ao iniciar conexão com a ZAP Call');
       await markDeviceStatus(device.id, 'error', { metadata: { ...(device.metadata ?? {}), last_error: e?.message || 'sdk_init_error' } });
       await load();
     }
@@ -404,9 +404,9 @@ export default function WavoipPage() {
         body: { device_id: device.id },
       });
       if (error) {
-        toast.error(`Falha ao desconectar na Wavoip: ${error.message}`);
+        toast.error(`Falha ao desconectar na ZAP Call: ${error.message}`);
       } else if (data && (data as any).ok === false) {
-        toast.error('Wavoip não confirmou o logout do WhatsApp; registro marcado como desconectado local.');
+        toast.error('ZAP Call não confirmou o logout do WhatsApp; registro marcado como desconectado local.');
       } else {
         toast.success('Dispositivo desconectado');
       }
@@ -469,8 +469,8 @@ export default function WavoipPage() {
         <div className="flex items-center gap-3">
           <PhoneCall className="h-7 w-7 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Wavoip</h1>
-            <p className="text-sm text-muted-foreground">Chamadas de voz WhatsApp via Wavoip</p>
+            <h1 className="text-2xl font-bold">ZAP Call</h1>
+            <p className="text-sm text-muted-foreground">Chamadas de voz WhatsApp via ZAP Call</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -487,7 +487,7 @@ export default function WavoipPage() {
       {!hasActivePlan && (
         <Card>
           <CardContent className="py-6 text-sm text-muted-foreground">
-            Você ainda não possui um plano Wavoip ativo. Solicite a ativação ao administrador.
+            Você ainda não possui um plano ZAP Call ativo. Solicite a ativação ao administrador.
           </CardContent>
         </Card>
       )}
@@ -583,7 +583,7 @@ export default function WavoipPage() {
                                   <div className="break-all"><b>URL esperada:</b><br />{d.webhook_url || '—'}</div>
                                   {d.webhook_checked_at && <div><b>Verificado:</b> {format(new Date(d.webhook_checked_at), 'dd/MM HH:mm')}</div>}
                                   {d.webhook_last_error && <div className="text-destructive break-all"><b>Aviso:</b> {d.webhook_last_error}</div>}
-                                  <div className="text-muted-foreground pt-1 mt-1 border-t">Configure no painel da Wavoip → Dispositivo → Integrações → Webhook. Eventos: CALL, RECORD, DEVICE.</div>
+                                  <div className="text-muted-foreground pt-1 mt-1 border-t">Configure no painel da ZAP Call → Dispositivo → Integrações → Webhook. Eventos: CALL, RECORD, DEVICE.</div>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -592,7 +592,7 @@ export default function WavoipPage() {
                             <Button variant="outline" size="sm" onClick={async () => {
                               const url = d.webhook_url || '';
                               if (!url) { toast.error('URL ainda não disponível — clique em Verificar webhooks'); return; }
-                              try { await navigator.clipboard.writeText(url); toast.success('URL copiada — cole em Integrações → Webhook na Wavoip'); }
+                              try { await navigator.clipboard.writeText(url); toast.success('URL copiada — cole em Integrações → Webhook na ZAP Call'); }
                               catch { toast.error('Não foi possível copiar'); }
                             }}>
                               <Copy className="h-4 w-4 mr-1" /> Copiar URL
@@ -660,7 +660,7 @@ export default function WavoipPage() {
 
       <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setNewDeviceQueueIds([]); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Adicionar dispositivo Wavoip</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Adicionar dispositivo ZAP Call</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Nome do dispositivo *</Label>
@@ -670,7 +670,7 @@ export default function WavoipPage() {
             <div>
               <Label>Vincular às filas (opcional)</Label>
               <p className="text-xs text-muted-foreground mt-1 mb-2">
-                Ao ligar por Wavoip a partir do chat, este dispositivo será pré-selecionado quando a conversa pertencer a uma dessas filas.
+                Ao ligar por ZAP Call a partir do chat, este dispositivo será pré-selecionado quando a conversa pertencer a uma dessas filas.
               </p>
               {allQueuesForClient.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">Nenhuma fila ativa disponível.</p>
@@ -709,7 +709,7 @@ export default function WavoipPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5" /> Conectar dispositivo Wavoip
+              <QrCode className="h-5 w-5" /> Conectar dispositivo ZAP Call
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -739,7 +739,7 @@ export default function WavoipPage() {
                     {activeQrUrl ? (
                       <img
                         src={activeQrUrl}
-                        alt="QR Code para conectar WhatsApp na Wavoip"
+                        alt="QR Code para conectar WhatsApp na ZAP Call"
                         className="h-[260px] w-[260px] object-contain"
                         onError={() => {
                           if (connectingDevice) setQrUrl(qrImageUrl(connectingDevice.device_token));
@@ -824,13 +824,13 @@ export default function WavoipPage() {
                 placeholder="ex: Atendimento 01"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                O nome também é sincronizado no painel da Wavoip para aparecer no discador.
+                O nome também é sincronizado no painel da ZAP Call para aparecer no discador.
               </p>
             </div>
             <div>
               <Label>Vincular às filas (opcional)</Label>
               <p className="text-xs text-muted-foreground mt-1 mb-2">
-                Ao ligar por Wavoip a partir do chat, este dispositivo será pré-selecionado quando a conversa pertencer a uma dessas filas.
+                Ao ligar por ZAP Call a partir do chat, este dispositivo será pré-selecionado quando a conversa pertencer a uma dessas filas.
               </p>
               {allQueuesForClient.length === 0 ? (
                 <p className="text-xs text-muted-foreground italic">Nenhuma fila ativa disponível.</p>
