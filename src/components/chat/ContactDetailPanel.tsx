@@ -17,7 +17,6 @@ import { toast } from 'sonner';
 import { ConversationParticipants } from './ConversationParticipants';
 import { PriorityBadge } from './PriorityBadge';
 import { ConversationSummaries } from './ConversationSummaries';
-import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { useAssigneeNameResolver } from '@/hooks/useAssigneeNameResolver';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
@@ -178,11 +177,8 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(contact.name);
 
-  // Show "Resumos" tab only if AUTO_SUMMARY_ON_RESOLVE or AUTO_SUMMARY_ON_CLOSE
-  // is enabled for ANY agent of the logged-in user's client_id.
-  const { flags: automationFlags } = useClientAutomationFlags();
   const { resolve: resolveAssignee } = useAssigneeNameResolver();
-  const showResumosTab = automationFlags.autoSummaryOnResolve || automationFlags.autoSummaryOnClose;
+  const showResumosTab = true;
 
   // Campanhas: só habilita a aba quando o contato tem origem de campanha
   const { data: contactCampaigns = [], isLoading: isLoadingCampaigns } = useContactCampaigns(contact.phone);
@@ -596,16 +592,10 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
         <TabsContent value="resumos" className="flex-1 mt-0 min-h-0">
           <ScrollArea className="h-full">
             <div className="p-4">
-              {selectedConversation ? (
-                <ConversationSummaries
-                  conversationId={selectedConversation.id}
-                  contactId={contact.id}
-                />
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-8">
-                  Selecione uma conversa para ver os resumos
-                </p>
-              )}
+              <ConversationSummaries
+                conversationId={selectedConversation?.id ?? null}
+                contactId={contact.id}
+              />
             </div>
           </ScrollArea>
         </TabsContent>

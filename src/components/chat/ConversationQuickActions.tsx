@@ -12,7 +12,6 @@ import { TransferDialog } from './TransferDialog';
 import { CSATDialog } from './CSATDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
-import { useAutoSummaryOnStatusChange } from '@/hooks/useAutoSummaryOnStatusChange';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ChatConversation } from '@/types/conversation';
@@ -27,7 +26,6 @@ interface Props {
 export function ConversationQuickActions({ conversation, ticketLink, onOpenTicket }: Props) {
   const { user, hasPermission } = useAuth();
   const { assignConversation, updateConversationStatus, sendInternalNote } = useWhatsAppData();
-  const { triggerAutoSummary } = useAutoSummaryOnStatusChange();
   const [open, setOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
@@ -78,7 +76,6 @@ export function ConversationQuickActions({ conversation, ticketLink, onOpenTicke
     }
     try {
       await updateConversationStatus(conversation.id, 'closed', closeNote || undefined);
-      triggerAutoSummary(conversation.id, 'auto_close');
       toast.success('Conversa encerrada');
     } catch (err: any) {
       toast.error(`Não foi possível encerrar: ${err?.message || err}`);

@@ -93,11 +93,19 @@ Deno.serve(async (req) => {
       const resumePrompt = resumeAI.prompt ?? DEFAULT_RESUME_PROMPT;
       if (!resumeAI.apiKey) return json({ error: "IA não configurada (sem chave)." }, 500);
 
-      // Find the most recent summary for this conversation
+      const { data: conv } = await supabase
+        .from("chat_conversations")
+        .select("contact_id, client_id")
+        .eq("id", conversation_id)
+        .maybeSingle();
+      if (!conv?.contact_id) return json({ error: "Conversa sem contato vinculado" }, 200);
+
+      // Find the most recent summary for this contact, regardless of how many
+      // conversation_id values were created by reopen/close cycles.
       const { data: lastSummary } = await supabase
         .from("chat_conversation_summaries")
         .select("summary, first_message_ts, last_message_ts, created_at")
-        .eq("conversation_id", conversation_id)
+        .eq("contact_id", conv.contact_id)
         .order("last_message_ts", { ascending: false, nullsFirst: false })
         .limit(1)
         .maybeSingle();
@@ -106,7 +114,7 @@ Deno.serve(async (req) => {
       const { data: previousSummaries } = await supabase
         .from("chat_conversation_summaries")
         .select("summary, first_message_ts, last_message_ts, created_at")
-        .eq("conversation_id", conversation_id)
+        .eq("contact_id", conv.contact_id)
         .order("created_at", { ascending: true })
         .limit(10);
 
@@ -215,13 +223,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Look up contact_id + client_id for persistence
-        const { data: conv } = await supabase
-          .from("chat_conversations")
-          .select("contact_id, client_id")
-          .eq("id", conversation_id)
-          .maybeSingle();
-
         if (conv && summary) {
           const { data: inserted } = await supabase
             .from("chat_conversation_summaries")
@@ -292,6 +293,11 @@ Deno.serve(async (req) => {
       const resumeModel = resumeAI.model;
       const resumePrompt = resumeAI.prompt ?? DEFAULT_RESUME_PROMPT;
       if (!resumeAI.apiKey) return json({ error: "IA não configurada (sem chave)." }, 500);
+      const { data: conv } = await supabase
+        .from("chat_conversations")
+        .select("contact_id")
+        .eq("id", conversation_id)
+        .maybeSingle();
       const all: any[] = [];
       const PAGE = 1000;
       for (let from = 0; ; from += PAGE) {
@@ -324,7 +330,7 @@ Deno.serve(async (req) => {
       const { data: previousSummaries } = await supabase
         .from("chat_conversation_summaries")
         .select("summary, first_message_ts, last_message_ts, created_at")
-        .eq("conversation_id", conversation_id)
+        .eq(conv?.contact_id ? "contact_id" : "conversation_id", conv?.contact_id ?? conversation_id)
         .order("created_at", { ascending: true })
         .limit(10);
 
