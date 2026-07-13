@@ -2319,20 +2319,33 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
         // Helper: auto-assign the conversation to the current user if it
         // still has no assignee. Mirrors the "Assumir" button behavior.
-        const autoAssumeIfUnassigned = (conv: ChatConversation | null | undefined) => {
+        // Reads the live `assigned_to` from the DB to avoid state-race with
+        // realtime updates / stale local cache.
+        const autoAssumeIfUnassigned = async (
+          conv: ChatConversation | null | undefined,
+        ) => {
           if (!conv) return;
           if (!user?.name) return;
-          const hasAssignee =
-            !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
-          if (hasAssignee) return;
-          const userIdNum = user?.id ? Number(user.id) : null;
-          assignConversation(
-            conv.id,
-            user.name,
-            Number.isFinite(userIdNum as number) ? userIdNum : null,
-          ).catch((err) =>
-            console.warn('[selectContact] auto-assign failed', err),
-          );
+          if (['resolved', 'closed'].includes(conv.status)) return;
+          try {
+            const { data: fresh } = await supabase
+              .from('chat_conversations')
+              .select('assigned_to, status')
+              .eq('id', conv.id)
+              .maybeSingle();
+            const currentAssignee = fresh?.assigned_to;
+            const currentStatus = fresh?.status ?? conv.status;
+            if (['resolved', 'closed'].includes(String(currentStatus))) return;
+            if (currentAssignee && String(currentAssignee).trim() !== '') return;
+            const userIdNum = user?.id ? Number(user.id) : null;
+            await assignConversation(
+              conv.id,
+              user.name,
+              Number.isFinite(userIdNum as number) ? userIdNum : null,
+            );
+          } catch (err) {
+            console.warn('[selectContact] auto-assign failed', err);
+          }
         };
 
         // Resolve existing conversation in memory first.
@@ -2342,12 +2355,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           return;
         }
         if (existingConv && ['pending', 'open'].includes(existingConv.status)) {
-          // Already have an active conversation — skip the DB round-trip.
-          // The realtime subscription keeps it fresh.
-          autoAssumeIfUnassigned(existingConv);
+          // Already have an active conversation — skip the getOrCreate round-trip.
+          void autoAssumeIfUnassigned(existingConv);
         } else {
-          // No active conversation yet — create one in the background,
-          // then auto-assume once we have the row.
+          // No active conversation loaded in local state — resolve via DB.
           getOrCreateConversation(contactId)
             .then((conv) => autoAssumeIfUnassigned(conv))
             .catch((err) =>
