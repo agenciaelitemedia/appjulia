@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { MessageBubble } from './MessageBubble';
 import { ConversationEvent } from './ConversationEvent';
 import { ForwardDialog } from './ForwardDialog';
+import { InlineSummaryCard } from './InlineSummaryCard';
+import { useConversationSummaries, type ConversationSummary } from '@/hooks/useConversationSummaries';
 import { useMessageReactions, sendReaction } from '@/hooks/useMessageReactions';
 import { format, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -25,12 +27,14 @@ interface ChatMessagesProps {
 
 type TimelineItem =
   | { kind: 'message'; data: ChatMessage; ts: number }
-  | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
+  | { kind: 'event'; data: ConversationHistoryEntry; ts: number }
+  | { kind: 'summary'; data: ConversationSummary; ts: number };
 
 export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) {
   const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
   const { settings: chatClientSettings } = useChatClientSettings();
   const { user } = useAuth();
+  const { summaries } = useConversationSummaries(selectedConversation?.id ?? null, contactId);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -300,6 +304,11 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
       data: evt,
       ts: new Date(evt.created_at).getTime(),
     }));
+    const sumItems: TimelineItem[] = summaries.map(s => ({
+      kind: 'summary' as const,
+      data: s,
+      ts: new Date(s.created_at).getTime(),
+    }));
 
     // Two-pointer merge (both arrays already sorted ASC)
     const merged: TimelineItem[] = [];
@@ -311,6 +320,23 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
     while (i < msgItems.length) merged.push(msgItems[i++]);
     while (j < evtItems.length) merged.push(evtItems[j++]);
 
+    // Merge summaries in (few items — simple insertion by ts, stable order preserved)
+    if (sumItems.length > 0) {
+      // summaries hook returns desc; sort asc for merge
+      sumItems.sort((a, b) => a.ts - b.ts);
+      let k = 0;
+      const withSums: TimelineItem[] = [];
+      for (const item of merged) {
+        while (k < sumItems.length && sumItems[k].ts <= item.ts) {
+          withSums.push(sumItems[k++]);
+        }
+        withSums.push(item);
+      }
+      while (k < sumItems.length) withSums.push(sumItems[k++]);
+      merged.length = 0;
+      merged.push(...withSums);
+    }
+
     const groups: Record<string, TimelineItem[]> = {};
     for (const item of merged) {
       const dateKey = format(new Date(item.ts), 'yyyy-MM-dd');
@@ -318,7 +344,7 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
       groups[dateKey].push(item);
     }
     return groups;
-  }, [contactMessages, conversationHistory]);
+  }, [contactMessages, conversationHistory, summaries]);
 
   // Reactions
   const visibleMessageIds = useMemo(
@@ -438,6 +464,9 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
                     if (!chatClientSettings.events_enabled) return null;
                     if (chatClientSettings.event_visibility?.[item.data.action] === false) return null;
                     return <ConversationEvent key={`evt-${item.data.id}`} entry={item.data} />;
+                  }
+                  if (item.kind === 'summary') {
+                    return <InlineSummaryCard key={`sum-${item.data.id}`} summary={item.data} />;
                   }
                   return (
                     <MessageBubble
