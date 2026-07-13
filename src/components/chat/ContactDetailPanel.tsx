@@ -17,7 +17,6 @@ import { toast } from 'sonner';
 import { ConversationParticipants } from './ConversationParticipants';
 import { PriorityBadge } from './PriorityBadge';
 import { ConversationSummaries } from './ConversationSummaries';
-import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { useAssigneeNameResolver } from '@/hooks/useAssigneeNameResolver';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
@@ -178,9 +177,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(contact.name);
 
-  const { flags: automationFlags } = useClientAutomationFlags();
   const { resolve: resolveAssignee } = useAssigneeNameResolver();
-  void automationFlags;
   const showResumosTab = true;
 
   // Campanhas: só habilita a aba quando o contato tem origem de campanha
