@@ -469,8 +469,8 @@ export default function WavoipPage() {
         <div className="flex items-center gap-3">
           <PhoneCall className="h-7 w-7 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">Wavoip</h1>
-            <p className="text-sm text-muted-foreground">Chamadas de voz WhatsApp via Wavoip</p>
+            <h1 className="text-2xl font-bold">ZAP Call</h1>
+            <p className="text-sm text-muted-foreground">Chamadas de voz WhatsApp via ZAP Call</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
