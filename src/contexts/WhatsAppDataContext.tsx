@@ -2348,15 +2348,27 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           }
         };
 
-        // Resolve existing conversation in memory first.
-        const existingConv = conversations.find(c => c.contact_id === contactId);
-        if (existingConv && ['resolved', 'closed'].includes(existingConv.status)) {
-          // Read-only view — do not reopen / create / assign.
-          return;
-        }
-        if (existingConv && ['pending', 'open'].includes(existingConv.status)) {
+        // Resolve an existing active conversation first. A contact may have old
+        // closed/resolved conversations loaded before the newest active one; a
+        // plain `.find()` could stop on the old record and skip auto-assignment.
+        const contactConvs = conversations.filter(c => c.contact_id === contactId);
+        const newestFirst = (a: ChatConversation, b: ChatConversation) => {
+          const ta = Date.parse(a.updated_at || a.created_at || '') || 0;
+          const tb = Date.parse(b.updated_at || b.created_at || '') || 0;
+          return tb - ta;
+        };
+        const activeConv = contactConvs
+          .filter(c => ['pending', 'open'].includes(c.status))
+          .sort(newestFirst)[0];
+        if (activeConv) {
           // Already have an active conversation — skip the getOrCreate round-trip.
-          void autoAssumeIfUnassigned(existingConv);
+          void autoAssumeIfUnassigned(activeConv);
+        } else if (['resolved', 'closed', 'resolved_closed'].includes(conversationStatusFilter)) {
+          const closedOrResolvedConv = contactConvs.some(c => ['resolved', 'closed'].includes(c.status));
+          if (closedOrResolvedConv) {
+            // Read-only status tabs — do not reopen / create / assign.
+            return;
+          }
         } else {
           // No active conversation loaded in local state — resolve via DB.
           getOrCreateConversation(contactId)
@@ -2379,7 +2391,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         setIsHydratingContact(false);
       }
     })();
-  }, [getOrCreateConversation, contacts, conversations, markAsRead, user?.name, user?.id, assignConversation]);
+  }, [getOrCreateConversation, contacts, conversations, markAsRead, user?.name, user?.id, assignConversation, conversationStatusFilter]);
 
   const retryHydrateSelectedContact = useCallback(() => {
     if (selectedContactId) selectContact(selectedContactId);
