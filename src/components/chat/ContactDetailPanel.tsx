@@ -592,16 +592,10 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
         <TabsContent value="resumos" className="flex-1 mt-0 min-h-0">
           <ScrollArea className="h-full">
             <div className="p-4">
-              {selectedConversation ? (
-                <ConversationSummaries
-                  conversationId={selectedConversation.id}
-                  contactId={contact.id}
-                />
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-8">
-                  Selecione uma conversa para ver os resumos
-                </p>
-              )}
+              <ConversationSummaries
+                conversationId={selectedConversation?.id ?? null}
+                contactId={contact.id}
+              />
             </div>
           </ScrollArea>
         </TabsContent>

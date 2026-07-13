@@ -9,7 +9,7 @@ import { useConversationSummaries } from '@/hooks/useConversationSummaries';
 import { cn } from '@/lib/utils';
 
 interface ConversationSummariesProps {
-  conversationId: string;
+  conversationId?: string | null;
   contactId: string;
 }
 
@@ -29,6 +29,10 @@ export function ConversationSummaries({ conversationId, contactId }: Conversatio
   };
 
   const handleGenerate = async () => {
+    if (!conversationId) {
+      toast.error('Selecione uma conversa para gerar um novo resumo');
+      return;
+    }
     setIsGenerating(true);
     try {
       await generateSummary(conversationId, contactId, getAfterTsForNext(), 'manual');
@@ -57,7 +61,7 @@ export function ConversationSummaries({ conversationId, contactId }: Conversatio
           size="sm"
           variant="outline"
           onClick={handleGenerate}
-          disabled={isGenerating}
+          disabled={isGenerating || !conversationId}
           className="gap-2"
         >
           {isGenerating ? (
@@ -78,7 +82,11 @@ export function ConversationSummaries({ conversationId, contactId }: Conversatio
       {!isLoading && summaries.length === 0 && (
         <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
           <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">Clique em "Gerar Resumo" para criar um resumo desta conversa com IA</p>
+          <p className="text-sm">
+            {conversationId
+              ? 'Clique em "Gerar Resumo" para criar um resumo desta conversa com IA'
+              : 'Nenhum resumo encontrado para este contato'}
+          </p>
         </div>
       )}
 
