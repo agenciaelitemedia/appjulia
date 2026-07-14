@@ -2285,8 +2285,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, [contacts, getEffectiveQueue]);
 
   // ============================================
-  // Select Contact — auto-assumes the conversation for whoever opens it
-  // (equivalent to clicking "Assumir"), if it has no assignee yet.
+  // Select Contact — apenas seleciona/hidrata a conversa e marca como lida.
+  // A atribuição de responsável passa a ser explícita via botão "Assumir".
   // ============================================
   const selectContact = useCallback((contactId: string | null) => {
     setSelectedContactId(contactId);
@@ -2327,37 +2327,6 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           }
         }
 
-        // Helper: auto-assign the conversation to the current user if it
-        // still has no assignee. Mirrors the "Assumir" button behavior.
-        // Reads the live `assigned_to` from the DB to avoid state-race with
-        // realtime updates / stale local cache.
-        const autoAssumeIfUnassigned = async (
-          conv: ChatConversation | null | undefined,
-        ) => {
-          if (!conv) return;
-          if (!user?.name) return;
-          if (['resolved', 'closed'].includes(conv.status)) return;
-          try {
-            const { data: fresh } = await supabase
-              .from('chat_conversations')
-              .select('assigned_to, status')
-              .eq('id', conv.id)
-              .maybeSingle();
-            const currentAssignee = fresh?.assigned_to;
-            const currentStatus = fresh?.status ?? conv.status;
-            if (['resolved', 'closed'].includes(String(currentStatus))) return;
-            if (currentAssignee && String(currentAssignee).trim() !== '') return;
-            const userIdNum = user?.id ? Number(user.id) : null;
-            await assignConversation(
-              conv.id,
-              user.name,
-              Number.isFinite(userIdNum as number) ? userIdNum : null,
-            );
-          } catch (err) {
-            console.warn('[selectContact] auto-assign failed', err);
-          }
-        };
-
         // Resolve an existing active conversation first. A contact may have old
         // closed/resolved conversations loaded before the newest active one; a
         // plain `.find()` could stop on the old record and skip auto-assignment.
@@ -2371,8 +2340,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
           .filter(c => ['pending', 'open'].includes(c.status))
           .sort(newestFirst)[0];
         if (activeConv) {
-          // Already have an active conversation — skip the getOrCreate round-trip.
-          void autoAssumeIfUnassigned(activeConv);
+          // Já existe conversa ativa carregada — nada a fazer aqui.
+          // A atribuição só ocorre ao clicar em "Assumir".
         } else if (['resolved', 'closed', 'resolved_closed'].includes(conversationStatusFilter)) {
           const closedOrResolvedConv = contactConvs.some(c => ['resolved', 'closed'].includes(c.status));
           if (closedOrResolvedConv) {
@@ -2380,12 +2349,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
             return;
           }
         } else {
-          // No active conversation loaded in local state — resolve via DB.
-          getOrCreateConversation(contactId)
-            .then((conv) => autoAssumeIfUnassigned(conv))
-            .catch((err) =>
-              console.warn('[selectContact] getOrCreateConversation', err),
-            );
+          // Nenhuma conversa ativa em cache local — resolve/hidrata via DB
+          // sem atribuir responsável.
+          getOrCreateConversation(contactId).catch((err) =>
+            console.warn('[selectContact] getOrCreateConversation', err),
+          );
         }
 
         if (!contact || contact.unread_count === 0) return;
