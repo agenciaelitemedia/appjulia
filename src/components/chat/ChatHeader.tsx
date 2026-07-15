@@ -598,17 +598,18 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               ))}
             </div>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 lg:hidden"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 lg:hidden"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
 
-        {selectedConversation && (
+      {selectedConversation && (
           <div className="px-3 pb-3 flex flex-col gap-2">
             {/* Linha 1: ações principais */}
             <div className="flex flex-wrap items-center gap-2">
