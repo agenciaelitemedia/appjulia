@@ -1,26 +1,22 @@
-# Remover auto-atribuição ao abrir conversa
+Reorganizar os botões do cabeçalho do chat (`ChatHeader.tsx`) em três linhas distintas, conforme solicitado:
 
-## Causa
+1. **Primeira linha**: botões de ação principais — `Assumir`, `CRM`, `VOIP Call`, `ZAP Call`.
+2. **Segunda linha**: bloco com botões de descrição/ações secundárias — Detalhes, Adiar, Transferir, Devolver, Resolver, Encerrar, Reabrir e menu "Mais".
+3. **Terceira linha**: bloco da Julia (`CrmActionBar`) — status, contrato, CRM, status do agente e switch.
 
-Em `src/contexts/WhatsAppDataContext.tsx`, dentro de `selectContact` (linhas ~2287–2389), existe um helper `autoAssumeIfUnassigned` que é chamado sempre que o usuário clica numa conversa. Se `assigned_to` estiver vazio e o status for `pending`/`open`, ele executa `assignConversation(conv.id, user.name, userId)` — ou seja, "assume" automaticamente em nome de quem clicou. O comentário no código inclusive diz: *"auto-assumes the conversation for whoever opens it (equivalent to clicking Assumir)"*.
+### Alterações propostas
 
-É por isso que a conversa em "Aguardando" já sai atribuída assim que é aberta, sem passar pelo botão **Assumir**.
+No arquivo `src/components/chat/ChatHeader.tsx`:
 
-## Mudança proposta
+- Manter a linha superior com avatar, nome, badges de status/fila/SLA/prioridade e tags.
+- Mover todos os botões de ação para uma nova área logo abaixo dos dados do contato, organizada em três linhas flexíveis.
+- Agrupar os quatro botões principais (`Assumir`, `ChatCrmButton`, `VOIP Call`, `WavoipCallButton`) em uma linha com `flex flex-wrap gap-2`.
+- Colocar o bloco de botões secundários (atual `inline-flex items-center gap-0.5 border rounded px-1 py-0.5`) na segunda linha, mantendo seus comportamentos e ícones.
+- Mover o `<CrmActionBar />` da posição atual (`px-3 pb-2 flex justify-end`) para a terceira linha, alinhado à esquerda ou conforme o layout atual, preservando suas props.
+- Garantir espaçamento consistente entre as linhas (ex.: `gap-2` no container vertical) e manter a responsividade em telas menores (wrap automático).
+- Preservar todos os estados, handlers, permissões, tooltips, diálogos e condições existentes (`canTakeOver`, `isActive`, `phoneReady`, etc.).
 
-Arquivo: `src/contexts/WhatsAppDataContext.tsx`
-
-1. Remover a definição do helper `autoAssumeIfUnassigned` (linhas ~2334–2359).
-2. Remover a chamada `void autoAssumeIfUnassigned(activeConv);` no ramo em que já existe conversa ativa (linha ~2375) — manter apenas a resolução da conversa ativa, sem side-effect de assign.
-3. No ramo `getOrCreateConversation(contactId)` (linhas ~2384–2388), remover o `.then((conv) => autoAssumeIfUnassigned(conv))` e deixar apenas o `.catch` de log. A criação/hidratação da conversa continua igual; só não atribui mais.
-4. Atualizar o comentário do bloco (linha 2287–2289) para refletir o novo comportamento: apenas seleciona/hidrata a conversa e marca como lida — a atribuição passa a ser explícita via botão **Assumir**.
-
-Nada mais muda:
-- `assignConversation` continua igual (usado pelo botão Assumir, transferências, etc.).
-- `markAsRead` continua sendo chamado ao clicar.
-- Regras de auto-assign por automação (`chat-automation-engine` → `auto_assign`) e roteamento continuam funcionando normalmente — elas não passam por `selectContact`.
-- Nenhuma migração de banco é necessária.
-
-## Resultado esperado
-
-Ao clicar numa conversa em "Aguardando atendimento" sem responsável, ela permanece sem responsável (`assigned_to = null`, status `pending`). Só é atribuída quando o usuário clica explicitamente em **Assumir** no header do chat.
+### Escopo
+- Apenas alteração de layout/presentação no componente `ChatHeader`.
+- Nenhuma mudança em lógica de negócio, hooks, permissões ou chamadas de API.
+- Nenhuma alteração nos subcomponentes (`ChatCrmButton`, `WavoipCallButton`, `CrmActionBar`) ou diálogos.
