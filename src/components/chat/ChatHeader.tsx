@@ -482,7 +482,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   return (
     <>
       <div className="border-b bg-background">
-      <div className="flex items-center gap-3 p-3">
+      <div className="flex items-start gap-3 p-3">
         <button
           type="button"
           onClick={() => contact.avatar && setAvatarOpen(true)}
@@ -599,20 +599,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             </div>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 lg:hidden"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {selectedConversation && (
-          <div className="px-3 pb-3 flex flex-col gap-2">
+        {selectedConversation && (
+          <div className="hidden md:flex flex-col items-end gap-2 shrink-0">
             {/* Linha 1: ações principais */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {canTakeOver && (
                 <Button
                   variant="default"
@@ -784,6 +774,63 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             </div>
           </div>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 lg:hidden"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {selectedConversation && (
+        <div className="px-3 pb-3 flex flex-col gap-2 md:hidden">
+          <div className="flex flex-wrap items-center gap-2">
+            {canTakeOver && (
+              <Button
+                variant="default"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleTakeOver}
+              >
+                <UserCheck className="h-4 w-4" />
+                Assumir
+              </Button>
+            )}
+            <ChatCrmButton
+              conversationId={selectedConversation.id}
+              contact={contact}
+              codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
+              queueId={selectedConversation?.queue_id || null}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                'gap-1.5',
+                phoneReady
+                  ? 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800'
+                  : 'text-muted-foreground border-border hover:bg-muted'
+              )}
+              onClick={() => (phoneReady ? setShowPhoneCall(true) : setShowVoipUpsell(true))}
+            >
+              {phoneReady ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
+              VOIP Call
+            </Button>
+            <WavoipCallButton
+              phone={contact.phone}
+              contactName={contact.name}
+              queueId={selectedConversation?.queue_id || null}
+            />
+          </div>
+          <CrmActionBar
+            phone={contact.phone}
+            queueId={selectedConversation?.queue_id}
+            contactName={contact.name}
+          />
+        </div>
+      )}
       </div>
 
       {/* Close conversation dialog with CSAT survey */}
