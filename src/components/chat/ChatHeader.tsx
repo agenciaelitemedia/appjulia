@@ -482,7 +482,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   return (
     <>
       <div className="border-b bg-background">
-      <div className="flex items-center gap-3 p-3">
+      <div className="flex items-start gap-3 p-3">
         <button
           type="button"
           onClick={() => contact.avatar && setAvatarOpen(true)}
