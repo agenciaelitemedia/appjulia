@@ -599,20 +599,10 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             </div>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 lg:hidden"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {selectedConversation && (
-          <div className="px-3 pb-3 flex flex-col gap-2">
+        {selectedConversation && (
+          <div className="hidden md:flex flex-col items-end gap-2 shrink-0">
             {/* Linha 1: ações principais */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {canTakeOver && (
                 <Button
                   variant="default"
