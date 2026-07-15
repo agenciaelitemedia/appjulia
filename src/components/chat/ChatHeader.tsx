@@ -646,7 +646,16 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
               />
             </div>
 
-            {/* Linha 2: ações secundárias */}
+            {/* Linha 2: Julia */}
+            <div className="flex flex-wrap items-center justify-end">
+              <CrmActionBar
+                phone={contact.phone}
+                queueId={selectedConversation?.queue_id}
+                contactName={contact.name}
+              />
+            </div>
+
+            {/* Linha 3: ações secundárias */}
             {(() => {
               const isActive = ['pending', 'open'].includes(currentStatus);
               return (
@@ -763,15 +772,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                 </div>
               );
             })()}
-
-            {/* Linha 3: Julia */}
-            <div className="flex flex-wrap items-center">
-              <CrmActionBar
-                phone={contact.phone}
-                queueId={selectedConversation?.queue_id}
-                contactName={contact.name}
-              />
-            </div>
           </div>
         )}
         <Button
