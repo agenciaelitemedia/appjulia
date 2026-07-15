@@ -599,187 +599,191 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             </div>
           )}
         </div>
-        
-        <div className="flex items-center gap-1 flex-wrap justify-end">
-          {/* Assumir conversa */}
-          {canTakeOver && (
-            <Button
-              variant="default"
-              size="sm"
-              className="gap-1.5"
-              onClick={handleTakeOver}
-              title={assignedDisplay ? `Assumir de ${assignedDisplay}` : 'Assumir conversa'}
-            >
-              <UserCheck className="h-4 w-4" />
-              Assumir
-            </Button>
-          )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 lg:hidden"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
 
-          {selectedConversation && (() => {
-            const isActive = ['pending', 'open'].includes(currentStatus);
-            return (
-              <>
-                <ChatCrmButton
-                  conversationId={selectedConversation.id}
-                  contact={contact}
-                  codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
-                  queueId={selectedConversation?.queue_id || null}
-                />
-
+      {selectedConversation && (
+          <div className="px-3 pb-3 flex flex-col gap-2">
+            {/* Linha 1: ações principais */}
+            <div className="flex flex-wrap items-center gap-2">
+              {canTakeOver && (
                 <Button
-                  variant="outline"
+                  variant="default"
                   size="sm"
-                  className={cn(
-                    'gap-1.5',
-                    phoneReady
-                      ? 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800'
-                      : 'text-muted-foreground border-border hover:bg-muted'
-                  )}
-                  onClick={() => (phoneReady ? setShowPhoneCall(true) : setShowVoipUpsell(true))}
-                  title={phoneReady ? 'VOIP Call (ramal disponível)' : 'VOIP Call indisponível'}
+                  className="gap-1.5"
+                  onClick={handleTakeOver}
+                  title={assignedDisplay ? `Assumir de ${assignedDisplay}` : 'Assumir conversa'}
                 >
-                  {phoneReady ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
-                  VOIP Call
+                  <UserCheck className="h-4 w-4" />
+                  Assumir
                 </Button>
+              )}
 
-                <WavoipCallButton
-                  phone={contact.phone}
-                  contactName={contact.name}
-                  queueId={selectedConversation?.queue_id || null}
-                />
+              <ChatCrmButton
+                conversationId={selectedConversation.id}
+                contact={contact}
+                codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
+                queueId={selectedConversation?.queue_id || null}
+              />
 
-                <div className="inline-flex items-center gap-0.5 border rounded px-1 py-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={onShowDetails}
-                    title="Ver detalhes"
-                  >
-                    <Info className="h-4 w-4" />
-                  </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  'gap-1.5',
+                  phoneReady
+                    ? 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800'
+                    : 'text-muted-foreground border-border hover:bg-muted'
+                )}
+                onClick={() => (phoneReady ? setShowPhoneCall(true) : setShowVoipUpsell(true))}
+                title={phoneReady ? 'VOIP Call (ramal disponível)' : 'VOIP Call indisponível'}
+              >
+                {phoneReady ? <Phone className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
+                VOIP Call
+              </Button>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
-                    onClick={() => setShowSnooze(true)}
-                    disabled={!isActive}
-                    title="Adiar conversa (z)"
-                  >
-                    <AlarmClock className="h-4 w-4" />
-                  </Button>
+              <WavoipCallButton
+                phone={contact.phone}
+                contactName={contact.name}
+                queueId={selectedConversation?.queue_id || null}
+              />
+            </div>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-40"
-                    onClick={() => setShowTransferDialog(true)}
-                    disabled={!isActive}
-                    title="Transferir conversa (#)"
-                  >
-                    <ArrowRightLeft className="h-4 w-4" />
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
-                    onClick={() => setShowReturnDialog(true)}
-                    disabled={!isActive || !selectedConversation?.assigned_to}
-                    title="Devolver para fila de atendimento"
-                  >
-                    <Undo2 className="h-4 w-4" />
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
-                    onClick={handleResolve}
-                    disabled={!isActive}
-                    title="Marcar como resolvida (e)"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 disabled:opacity-40"
-                    onClick={() => setShowCloseDialog(true)}
-                    disabled={!isActive}
-                    title="Encerrar conversa"
-                  >
-                    <XCircle className="h-4 w-4" />
-                  </Button>
-
-                  {!isActive && (
+            {/* Linha 2: ações secundárias */}
+            {(() => {
+              const isActive = ['pending', 'open'].includes(currentStatus);
+              return (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center gap-0.5 border rounded px-1 py-0.5">
                     <Button
                       variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={handleReopen}
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={onShowDetails}
+                      title="Ver detalhes"
                     >
-                      <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
-                      Reabrir
+                      <Info className="h-4 w-4" />
                     </Button>
-                  )}
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <MoreVertical className="h-4 w-4" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                      onClick={() => setShowSnooze(true)}
+                      disabled={!isActive}
+                      title="Adiar conversa (z)"
+                    >
+                      <AlarmClock className="h-4 w-4" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-40"
+                      onClick={() => setShowTransferDialog(true)}
+                      disabled={!isActive}
+                      title="Transferir conversa (#)"
+                    >
+                      <ArrowRightLeft className="h-4 w-4" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                      onClick={() => setShowReturnDialog(true)}
+                      disabled={!isActive || !selectedConversation?.assigned_to}
+                      title="Devolver para fila de atendimento"
+                    >
+                      <Undo2 className="h-4 w-4" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+                      onClick={handleResolve}
+                      disabled={!isActive}
+                      title="Marcar como resolvida (e)"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                      onClick={() => setShowCloseDialog(true)}
+                      disabled={!isActive}
+                      title="Encerrar conversa"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+
+                    {!isActive && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={handleReopen}
+                      >
+                        <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+                        Reabrir
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setShowSearch(true)}>
-                        <Search className="h-4 w-4 mr-2" />
-                        Buscar nesta conversa
-                      </DropdownMenuItem>
-                      {(canViewTickets || canCreateTickets) && (
-                        ticketLink && canViewTickets ? (
-                          <DropdownMenuItem onClick={() => setShowTicketDetail(ticketLink.ticketId)}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            Ver ticket de suporte #{ticketLink.number ?? '—'}
-                          </DropdownMenuItem>
-                        ) : canCreateTickets ? (
-                          <DropdownMenuItem onClick={() => setShowNewTicket(true)}>
-                            <LifeBuoy className="h-4 w-4 mr-2" />
-                            Abrir ticket de suporte
-                          </DropdownMenuItem>
-                        ) : null
-                      )}
-                      <DropdownMenuItem onClick={() => setShowHelp(true)}>
-                        <Keyboard className="h-4 w-4 mr-2" />
-                        Atalhos de teclado
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    )}
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setShowSearch(true)}>
+                          <Search className="h-4 w-4 mr-2" />
+                          Buscar nesta conversa
+                        </DropdownMenuItem>
+                        {(canViewTickets || canCreateTickets) && (
+                          ticketLink && canViewTickets ? (
+                            <DropdownMenuItem onClick={() => setShowTicketDetail(ticketLink.ticketId)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Ver ticket de suporte #{ticketLink.number ?? '—'}
+                            </DropdownMenuItem>
+                          ) : canCreateTickets ? (
+                            <DropdownMenuItem onClick={() => setShowNewTicket(true)}>
+                              <LifeBuoy className="h-4 w-4 mr-2" />
+                              Abrir ticket de suporte
+                            </DropdownMenuItem>
+                          ) : null
+                        )}
+                        <DropdownMenuItem onClick={() => setShowHelp(true)}>
+                          <Keyboard className="h-4 w-4 mr-2" />
+                          Atalhos de teclado
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
+              );
+            })()}
 
-              </>
-            );
-          })()}
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 lg:hidden"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="px-3 pb-2 flex justify-end">
-        <CrmActionBar
-          phone={contact.phone}
-          queueId={selectedConversation?.queue_id}
-          contactName={contact.name}
-        />
-      </div>
+            {/* Linha 3: Julia */}
+            <div className="flex flex-wrap items-center">
+              <CrmActionBar
+                phone={contact.phone}
+                queueId={selectedConversation?.queue_id}
+                contactName={contact.name}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Close conversation dialog with CSAT survey */}
