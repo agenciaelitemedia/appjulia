@@ -164,9 +164,10 @@ export function DealCard({
   );
   const showAmberWhatsapp = !chatLink && !!deal.contact_phone && !contactStatus.data?.hasConversation;
 
-  // Filas WhatsApp para o NewConversationDialog — carregadas apenas quando o
-  // usuário abre o dialog (evita N chamadas paralelas por card na montagem).
-  const { data: allQueues = [] } = useQueues({ enabled: newConvOpen });
+  // Filas WhatsApp para o NewConversationDialog (query global cacheada pelo
+  // React Query — todas as instâncias de DealCard compartilham a mesma cache
+  // key, então a rede é feita uma única vez).
+  const { data: allQueues = [] } = useQueues();
   const waQueues = allQueues
     .filter((q: any) => q.is_active && !q.is_deleted && q.channel_type === 'uazapi')
     .map((q: any) => ({
