@@ -31,7 +31,7 @@ import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMes
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 import { normalizeBrPhone } from '@/lib/phoneNormalize';
-import { getBrPhoneVariants } from '@/lib/phoneVariants';
+import { getBrPhoneVariants, phoneMatchesQuery } from '@/lib/phoneVariants';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
