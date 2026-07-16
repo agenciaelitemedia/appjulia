@@ -974,8 +974,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       // Search
       if (q) {
         const name = (contact?.name || '').toLowerCase();
-        const phone = (contact?.phone || '').toLowerCase();
-        if (!name.includes(q) && !phone.includes(q)) continue;
+        if (!name.includes(q) && !phoneMatchesQuery(contact?.phone, q)) continue;
       }
 
       seen.add(conv.contact_id);
