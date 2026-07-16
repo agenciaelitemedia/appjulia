@@ -11,7 +11,7 @@ import {
 } from '@/lib/chat/pendingSelection';
 
 function ChatPageContent() {
-  const { selectContact, isReady, contacts, selectedQueue, setSelectedQueue } = useWhatsAppData();
+  const { selectContact, isReady, contacts, selectedQueue, setSelectedQueue, setConversationStatusFilter } = useWhatsAppData();
   const { data: queueAccess } = useUserQueueAccess();
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -62,9 +62,10 @@ function ChatPageContent() {
 
     // Etapa 2: contato — exige contacts carregados
     if (contacts.length === 0) return;
+    if (pending.tab) setConversationStatusFilter(pending.tab);
     selectContact(pending.contactId);
     clearPendingSelection();
-  }, [isReady, contacts.length, selectedQueue?.id, setSelectedQueue, selectContact, queueAccess]);
+  }, [isReady, contacts.length, selectedQueue?.id, setSelectedQueue, selectContact, setConversationStatusFilter, queueAccess]);
 
   // Limpa pending órfão ao sair da aba/janela
   useEffect(() => {
