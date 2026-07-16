@@ -27,7 +27,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConversationPresence } from '@/hooks/useConversationPresence';
-import { useChatKeyboardShortcuts } from '@/hooks/useChatKeyboardShortcuts';
 import { useAssigneeNameResolver } from '@/hooks/useAssigneeNameResolver';
 import { cn } from '@/lib/utils';
 import type { ChatContact } from '@/types/chat';
@@ -38,7 +37,6 @@ import { PresenceIndicator } from './PresenceIndicator';
 import { ChatSearchDialog } from './ChatSearchDialog';
 import { ScheduledMessagesList } from './ScheduledMessagesList';
 import { SnoozeDialog } from './SnoozeDialog';
-import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { MediaLightbox } from './MediaLightbox';
 import { ChatCrmButton } from './ChatCrmButton';
 import { ChatTicketSidePanel } from './ChatTicketSidePanel';
@@ -260,7 +258,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showSnooze, setShowSnooze] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
   const [showPhoneCall, setShowPhoneCall] = useState(false);
   const [showVoipUpsell, setShowVoipUpsell] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
@@ -325,30 +322,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
     if (e.key === 'Enter') handleNameSave();
     if (e.key === 'Escape') setIsEditingName(false);
   }, [handleNameSave]);
-
-  // Navigation between conversations (j/k)
-  const navigateBy = (delta: number) => {
-    if (!filteredContacts.length || !selectedContactId) return;
-    const idx = filteredContacts.findIndex((c) => c.id === selectedContactId);
-    if (idx === -1) return;
-    const next = filteredContacts[(idx + delta + filteredContacts.length) % filteredContacts.length];
-    if (next) selectContact(next.id);
-  };
-
-  useChatKeyboardShortcuts({
-    onNext: () => navigateBy(1),
-    onPrev: () => navigateBy(-1),
-    onResolve: () => {
-      if (selectedConversation && ['pending', 'open'].includes(selectedConversation.status)) {
-        updateConversationStatus(selectedConversation.id, 'resolved');
-      }
-    },
-    onTransfer: () => selectedConversation && setShowTransferDialog(true),
-    onSearch: () => setShowSearch(true),
-    onSnooze: () => selectedConversation && setShowSnooze(true),
-    onClose: () => onClose(),
-    onHelp: () => setShowHelp(true),
-  });
 
   const presenceUsers = useConversationPresence(
     selectedConversation?.id || null,
@@ -877,9 +850,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         onOpenChange={setShowSnooze}
         conversationId={selectedConversation?.id || null}
       />
-
-      {/* Keyboard shortcuts help */}
-      <KeyboardShortcutsHelp open={showHelp} onOpenChange={setShowHelp} />
 
       {/* Phone call */}
       <PhoneCallDialog
