@@ -115,6 +115,7 @@ export function ChatSidePanel({
               onClick={async () => {
                 if (target?.contactId) {
                   let tab: PendingTab = 'open';
+                  let phone: string | null = null;
                   if (target.conversationId) {
                     try {
                       const { data } = await supabase
@@ -130,11 +131,22 @@ export function ChatSidePanel({
                       /* fallback keeps 'open' */
                     }
                   }
+                  try {
+                    const { data: contactRow } = await supabase
+                      .from('chat_contacts')
+                      .select('phone')
+                      .eq('id', target.contactId)
+                      .maybeSingle();
+                    phone = ((contactRow as any)?.phone as string | undefined) ?? null;
+                  } catch {
+                    /* ignore — search filter is best-effort */
+                  }
                   setPendingSelection({
                     contactId: target.contactId,
                     queueId: target.queueId,
                     conversationId: target.conversationId,
                     tab,
+                    search: phone,
                   });
                 }
                 navigate('/chat');
