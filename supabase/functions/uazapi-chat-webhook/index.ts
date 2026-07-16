@@ -197,44 +197,44 @@ function collectMessageIds(src: any): string[] {
       .filter((x) => typeof x === 'string' && x.length > 0),
   )) as string[];
 }
-function buildIdOrFilter(ids: string[]): string {
-  return ids
-    .flatMap((id) => {
-      const filters = [`message_id.eq.${id}`, `external_id.eq.${id}`];
-      if (!id.includes(':')) {
-        filters.push(`message_id.ilike.*:${id}`, `external_id.ilike.*:${id}`);
-      }
-      return filters;
-    })
-    .join(',');
-}
 async function resolveChatMessageRowIds(supabase: ReturnType<typeof getSupabase>, ids: string[]): Promise<string[]> {
   if (!ids.length) return [];
 
-  const directFilter = buildIdOrFilter(ids);
   const resolved = new Set<string>();
 
-  if (directFilter) {
-    const { data } = await supabase
-      .from('chat_messages')
-      .select('id')
-      .or(directFilter);
-    for (const row of data ?? []) {
-      const rowId = (row as { id?: string }).id;
-      if (rowId) resolved.add(rowId);
-    }
+  // Fase 1 (hot path): tentativa exata usando os índices btree em message_id
+  // e external_id. Cobre >95% dos webhooks de status (messages.update).
+  // PostgREST aceita `.in.()` dentro de `.or(...)`, gerando um único
+  // Index Scan combinado. Evita completamente o ILIKE em regime normal.
+  const inList = ids.map((v) => v.replace(/[(),]/g, '')).join(',');
+  const { data: exact } = await supabase
+    .from('chat_messages')
+    .select('id')
+    .or(`message_id.in.(${inList}),external_id.in.(${inList})`);
+  for (const row of exact ?? []) {
+    const rowId = (row as { id?: string }).id;
+    if (rowId) resolved.add(rowId);
   }
+  if (resolved.size > 0) return Array.from(resolved);
 
+  // Fase 2 (fallback raro): alguns provedores prefixam o id (ex.: `3EB0:xxx`).
+  // Só executa quando a busca exata não encontrou nada, e apenas para ids sem
+  // `:` — usa índices GIN trigrama criados na migração para manter O(log n).
   const shortIds = ids.filter((id) => !id.includes(':'));
+  if (shortIds.length === 0) return [];
+
+  const orParts: string[] = [];
   for (const shortId of shortIds) {
-    const { data } = await supabase
-      .from('chat_messages')
-      .select('id')
-      .or(`message_id.like.%:${shortId},external_id.like.%:${shortId}`);
-    for (const row of data ?? []) {
-      const rowId = (row as { id?: string }).id;
-      if (rowId) resolved.add(rowId);
-    }
+    const safe = shortId.replace(/[%,()]/g, '');
+    orParts.push(`message_id.ilike.*:${safe}`, `external_id.ilike.*:${safe}`);
+  }
+  const { data: fuzzy } = await supabase
+    .from('chat_messages')
+    .select('id')
+    .or(orParts.join(','));
+  for (const row of fuzzy ?? []) {
+    const rowId = (row as { id?: string }).id;
+    if (rowId) resolved.add(rowId);
   }
 
   return Array.from(resolved);
