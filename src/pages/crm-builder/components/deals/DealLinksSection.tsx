@@ -14,7 +14,6 @@ import type { CRMDeal } from '../../types';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import type { CRMCard } from '@/pages/crm/types';
-import { conversationStatusToPendingTab, setPendingSelection } from '@/lib/chat/pendingSelection';
 
 interface Props { deal: CRMDeal }
 
@@ -32,19 +31,9 @@ export function DealLinksSection({ deal }: Props) {
   if (!chat && !julia) return null;
 
   const handleOpenChat = () => {
-    const conv = chatPreview.data as
-      | { id: string; contact_id: string | null; queue_id: string | null; status: string | null; assigned_to?: string | null }
-      | null
-      | undefined;
-    const contactId = conv?.contact_id ?? chat?.contact_id ?? null;
-    if (!contactId) return;
-    setPendingSelection({
-      contactId,
-      queueId: conv?.queue_id ?? null,
-      conversationId: conv?.id ?? chat?.conversation_id ?? null,
-      tab: conversationStatusToPendingTab(conv?.status, conv?.assigned_to),
-      search: deal.contact_phone ?? chat?.contact_phone ?? null,
-    });
+    const target = chatPreview.data?.id || chat?.conversation_id;
+    if (!target) return;
+    sessionStorage.setItem('chat_pending_contact_id', target);
     navigate('/chat');
   };
 

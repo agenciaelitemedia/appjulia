@@ -39,22 +39,6 @@ export interface PendingSelection {
 export type PendingTab = 'pending' | 'open' | 'resolved_closed';
 const VALID_TABS: PendingTab[] = ['pending', 'open', 'resolved_closed'];
 
-export function conversationStatusToPendingTab(
-  status: string | null | undefined,
-  assignedTo?: string | number | null,
-): PendingTab | null {
-  if (status === 'resolved' || status === 'closed') return 'resolved_closed';
-  if (status !== 'pending' && status !== 'open') return null;
-
-  const hasAssignee = assignedTo !== null
-    && assignedTo !== undefined
-    && String(assignedTo).trim() !== '';
-
-  if (status === 'pending' && hasAssignee) return 'open';
-  if (status === 'open' && !hasAssignee) return 'pending';
-  return status;
-}
-
 export function clearPendingSelection(): void {
   const ss = safeStorage();
   if (!ss) return;

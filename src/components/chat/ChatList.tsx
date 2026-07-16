@@ -31,7 +31,6 @@ import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMes
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 import { normalizeBrPhone } from '@/lib/phoneNormalize';
-import { getBrPhoneVariants } from '@/lib/phoneVariants';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
@@ -204,13 +203,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
       const digits = term.replace(/\D/g, '');
       const orParts: string[] = [`name.ilike.%${term}%`];
-      if (digits.length >= 3) {
-        const phoneTerms = Array.from(new Set([digits, ...getBrPhoneVariants(digits)]));
-        phoneTerms.forEach((phoneTerm) => {
-          orParts.push(`phone.ilike.%${phoneTerm}%`);
-          orParts.push(`remote_jid.ilike.%${phoneTerm}%`);
-        });
-      }
+      if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
       const upper = searchPage * SEARCH_PAGE_SIZE - 1;
       const { data: matched, error, count } = await supabase
         .from('chat_contacts')
