@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Json } from '@/integrations/supabase/types';
@@ -44,34 +45,28 @@ interface UseCRMCustomFieldsOptions {
   canManage?: boolean;
 }
 
+const fieldsKey = (boardId: string | null, clientId: string) =>
+  ['crm-custom-fields', clientId, boardId] as const;
+
 export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = true }: UseCRMCustomFieldsOptions) {
   const { toast } = useToast();
-  const [fields, setFields] = useState<CRMCustomField[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  // Fetch all custom fields for the board
-  const fetchFields = useCallback(async () => {
-    if (!boardId || !clientId) {
-      setFields([]);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  const query = useQuery<CRMCustomField[]>({
+    queryKey: fieldsKey(boardId, clientId),
+    enabled: !!boardId && !!clientId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      if (!boardId || !clientId) return [];
       const { data, error: queryError } = await supabase
         .from('crm_custom_fields')
         .select('*')
         .eq('board_id', boardId)
         .eq('client_id', clientId)
         .order('position', { ascending: true });
-
       if (queryError) throw queryError;
-
-      // Transform options from JSON
-      const transformed: CRMCustomField[] = (data || []).map((item) => ({
+      return (data || []).map((item) => ({
         id: item.id,
         board_id: item.board_id,
         cod_agent: item.cod_agent,
@@ -85,21 +80,38 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
         position: item.position,
         created_at: item.created_at,
         updated_at: item.updated_at,
-      }));
+      })) as CRMCustomField[];
+    },
+  });
 
-      setFields(transformed);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar campos';
-      setError(message);
+  const fields = query.data ?? [];
+  const isLoading = query.isLoading;
+  const error = query.error ? (query.error as Error).message : null;
+
+  useEffect(() => {
+    if (query.error) {
       toast({
         title: 'Erro',
-        description: message,
+        description: (query.error as Error).message || 'Erro ao carregar campos',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
     }
-  }, [boardId, clientId, toast]);
+  }, [query.error, toast]);
+
+  const fetchFields = useCallback(async () => {
+    await query.refetch();
+  }, [query]);
+
+  const setCache = useCallback(
+    (updater: (prev: CRMCustomField[]) => CRMCustomField[]) => {
+      queryClient.setQueryData<CRMCustomField[]>(fieldsKey(boardId, clientId), (prev) => updater(prev ?? []));
+    },
+    [queryClient, boardId, clientId],
+  );
+  const getCache = useCallback(
+    () => queryClient.getQueryData<CRMCustomField[]>(fieldsKey(boardId, clientId)) ?? [],
+    [queryClient, boardId, clientId],
+  );
 
   // Create a new custom field
   const createField = useCallback(async (data: CRMCustomFieldFormData): Promise<CRMCustomField | null> => {
@@ -107,8 +119,9 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
 
     try {
       // Get the max position
-      const maxPosition = fields.length > 0 
-        ? Math.max(...fields.map(f => f.position)) + 1 
+      const current = getCache();
+      const maxPosition = current.length > 0
+        ? Math.max(...current.map(f => f.position)) + 1
         : 0;
 
       const insertData = {
@@ -148,7 +161,7 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
         updated_at: newField.updated_at,
       };
 
-      setFields(prev => [...prev, field]);
+      setCache(prev => [...prev, field]);
 
       logCRMAudit({
         clientId,
@@ -175,7 +188,7 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
       });
       return null;
     }
-  }, [boardId, clientId, codAgent, canManage, fields, toast]);
+  }, [boardId, clientId, codAgent, canManage, getCache, setCache, toast]);
 
   // Update a custom field
   const updateField = useCallback(async (fieldId: string, data: Partial<CRMCustomFieldFormData>): Promise<boolean> => {
@@ -194,18 +207,14 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
 
       if (updateError) throw updateError;
 
-      setFields(prev => prev.map(f => 
-        f.id === fieldId 
-          ? { ...f, ...data } as CRMCustomField
-          : f
-      ));
+      setCache(prev => prev.map(f => (f.id === fieldId ? ({ ...f, ...data } as CRMCustomField) : f)));
 
       logCRMAudit({
         clientId,
         codAgent,
         entityType: 'custom_field',
         entityId: fieldId,
-        entityName: data.field_label ?? fields.find(f => f.id === fieldId)?.field_label ?? null,
+        entityName: data.field_label ?? getCache().find(f => f.id === fieldId)?.field_label ?? null,
         action: 'updated',
         changes: { ...(data as Record<string, unknown>), board_id: boardId },
       });
@@ -225,13 +234,13 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
       });
       return false;
     }
-  }, [canManage, clientId, codAgent, boardId, fields, toast]);
+  }, [canManage, clientId, codAgent, boardId, getCache, setCache, toast]);
 
   // Delete a custom field
   const deleteField = useCallback(async (fieldId: string): Promise<boolean> => {
     if (!canManage) return false;
     try {
-      const target = fields.find(f => f.id === fieldId);
+      const target = getCache().find(f => f.id === fieldId);
       const { error: deleteError } = await supabase
         .from('crm_custom_fields')
         .delete()
@@ -239,7 +248,7 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
 
       if (deleteError) throw deleteError;
 
-      setFields(prev => prev.filter(f => f.id !== fieldId));
+      setCache(prev => prev.filter(f => f.id !== fieldId));
 
       logCRMAudit({
         clientId,
@@ -266,13 +275,13 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
       });
       return false;
     }
-  }, [canManage, clientId, codAgent, boardId, fields, toast]);
+  }, [canManage, clientId, codAgent, boardId, getCache, setCache, toast]);
 
   // Reorder fields
   const reorderFields = useCallback(async (reorderedFields: CRMCustomField[]) => {
     if (!canManage) return;
     // Optimistic update
-    setFields(reorderedFields);
+    setCache(() => reorderedFields);
 
     try {
       // Update positions in database
@@ -307,12 +316,10 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
         variant: 'destructive',
       });
     }
-  }, [canManage, clientId, codAgent, boardId, fetchFields, toast]);
+  }, [canManage, clientId, codAgent, boardId, setCache, fetchFields, toast]);
 
-  // Subscribe to realtime updates
   useEffect(() => {
     if (!boardId || !clientId) return;
-
     const channel = supabase
       .channel(`crm-custom-fields-${clientId}-${boardId}`)
       .on(
@@ -324,20 +331,14 @@ export function useCRMCustomFields({ boardId, clientId, codAgent, canManage = tr
           filter: `board_id=eq.${boardId}`,
         },
         () => {
-          fetchFields();
-        }
+          queryClient.invalidateQueries({ queryKey: fieldsKey(boardId, clientId) });
+        },
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, clientId, fetchFields]);
-
-  // Fetch on board change
-  useEffect(() => {
-    fetchFields();
-  }, [fetchFields]);
+  }, [boardId, clientId, queryClient]);
 
   return {
     fields,
