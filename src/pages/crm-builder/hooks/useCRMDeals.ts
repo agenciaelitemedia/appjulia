@@ -49,7 +49,7 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
     try {
       const { data, error: queryError } = await supabase
         .from('crm_deals')
-        .select(DEAL_SELECT_COLUMNS)
+        .select(DEAL_SELECT_COLUMNS as unknown as '*')
         .eq('board_id', boardId)
         .eq('client_id', clientId)
         .neq('status', 'archived')
