@@ -763,7 +763,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       if (q) {
         const matches =
           (c.name || '').toLowerCase().includes(q) ||
-          (c.phone || '').toLowerCase().includes(q);
+          phoneMatchesQuery(c.phone, q);
         if (!matches) return false;
       }
       return true;
