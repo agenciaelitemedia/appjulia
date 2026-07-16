@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import {
   readPendingSelection,
   clearPendingSelection,
+  conversationStatusToPendingTab,
 } from '@/lib/chat/pendingSelection';
 
 function ChatPageContent() {
@@ -64,10 +65,30 @@ function ChatPageContent() {
     // temos o UUID do contato e o `selectContact` faz hidratação por ID,
     // então a seleção funciona mesmo se a lista visível ainda não trouxe
     // este contato (ex.: aba diferente, filtro estreito, paginação).
-    if (pending.tab) setConversationStatusFilter(pending.tab);
-    if (pending.search) setSearchQuery(pending.search);
-    selectContact(pending.contactId);
     clearPendingSelection();
+    (async () => {
+      let nextTab = pending.tab;
+      if (pending.conversationId) {
+        try {
+          const { data } = await supabase
+            .from('chat_conversations')
+            .select('status, assigned_to')
+            .eq('id', pending.conversationId)
+            .maybeSingle();
+          nextTab = conversationStatusToPendingTab(
+            (data as any)?.status,
+            (data as any)?.assigned_to,
+          ) ?? nextTab;
+        } catch {
+          /* mantém a aba gravada no pending */
+        }
+      }
+      if (cancelled) return;
+      if (nextTab) setConversationStatusFilter(nextTab);
+      setSearchQuery(pending.search ?? '');
+      selectContact(pending.contactId);
+    })();
+    return () => { cancelled = true; };
   }, [isReady, contacts.length, selectedQueue?.id, setSelectedQueue, selectContact, setConversationStatusFilter, setSearchQuery, queueAccess]);
 
   // Limpa pending órfão ao sair da aba/janela
