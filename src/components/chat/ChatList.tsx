@@ -854,8 +854,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       if (q) {
         const contact = contactById.get(conv.contact_id);
         const name = (contact?.name || '').toLowerCase();
-        const phone = (contact?.phone || '').toLowerCase();
-        if (!name.includes(q) && !phone.includes(q)) continue;
+        if (!name.includes(q) && !phoneMatchesQuery(contact?.phone, q)) continue;
       }
 
       // Classificação efetiva: conversa com responsável conta como "Em Atendimento"
