@@ -4,6 +4,15 @@ import { useToast } from '@/hooks/use-toast';
 import type { CRMDeal, CRMDealFormData, DropResult } from '../types';
 import type { Json } from '@/integrations/supabase/types';
 
+// Explicit column list — evita trafegar colunas grandes/desnecessárias em
+// boards com centenas/milhares de deals. Mantém `custom_fields` porque o card
+// lê `links.chat` / `links.julia` de dentro dele.
+const DEAL_SELECT_COLUMNS =
+  'id, board_id, pipeline_id, position, title, description, value, currency, ' +
+  'priority, status, contact_name, contact_phone, contact_email, assigned_to, ' +
+  'assigned_user_id, tags, due_date, expected_close_date, stage_entered_at, ' +
+  'created_at, updated_at, created_by, updated_by, cod_agent, client_id, custom_fields';
+
 interface UseCRMDealsOptions {
   boardId: string | null;
   clientId: string;
@@ -40,7 +49,7 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
     try {
       const { data, error: queryError } = await supabase
         .from('crm_deals')
-        .select('*')
+        .select(DEAL_SELECT_COLUMNS)
         .eq('board_id', boardId)
         .eq('client_id', clientId)
         .neq('status', 'archived')
