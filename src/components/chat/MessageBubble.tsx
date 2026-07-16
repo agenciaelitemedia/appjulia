@@ -527,7 +527,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
 }
 
 
-export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
+const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
   function MessageBubble({ message, reactions, onDownloadMedia, onReact, onForward, onReply, onEdit, isGroup }, ref) {
     const isMedia = ['image', 'video', 'audio', 'ptt', 'document', 'sticker', 'location', 'contact'].includes(message.type);
     const hasQuote = message.metadata?.quoted_message;
@@ -787,3 +787,9 @@ export const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps
     );
   }
 );
+
+// Memoized export: prevents re-render when neither `message`, `reactions` nor
+// the passed callbacks change identity. Big win in busy conversations where
+// status ticks (delivery/read) update a single message but currently re-render
+// the entire timeline.
+export const MessageBubble = React.memo(MessageBubbleInner);
