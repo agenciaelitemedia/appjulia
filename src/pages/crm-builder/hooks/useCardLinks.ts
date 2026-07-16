@@ -45,7 +45,7 @@ export function useChatConversationPreview(
       const fetchById = async (id: string) => {
         const { data, error } = await supabase
           .from('chat_conversations')
-          .select('id, status, protocol, channel, updated_at, contact_id, queue_id, queues:queue_id(is_deleted)')
+          .select('id, status, assigned_to, protocol, channel, updated_at, contact_id, queue_id, queues:queue_id(is_deleted)')
           .eq('id', id)
           .maybeSingle();
         if (error) throw error;
@@ -61,7 +61,7 @@ export function useChatConversationPreview(
       if (contactIdFallback) {
         const { data, error } = await supabase
           .from('chat_conversations')
-          .select('id, status, protocol, channel, updated_at, contact_id, queue_id, queues:queue_id(is_deleted)')
+          .select('id, status, assigned_to, protocol, channel, updated_at, contact_id, queue_id, queues:queue_id(is_deleted)')
           .eq('contact_id', contactIdFallback)
           .order('updated_at', { ascending: false })
           .limit(5);
