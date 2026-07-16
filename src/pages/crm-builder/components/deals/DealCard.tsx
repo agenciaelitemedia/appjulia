@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -85,6 +85,11 @@ export function DealCard({
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
   const [newConvOpen, setNewConvOpen] = useState(false);
+  // Lazy-enable per-card enrichment queries (conversation, Julia, chat contact
+  // status, queues) only when the card enters the viewport. On boards with
+  // 1000+ cards this avoids thousands of parallel requests on mount / scroll.
+  const [isVisible, setIsVisible] = useState(false);
+  const cardElRef = useRef<HTMLDivElement | null>(null);
   const { isAvailable: isPhoneAvailable } = usePhone();
   const { user } = useAuth();
   const {
@@ -102,6 +107,36 @@ export function DealCard({
     },
   });
 
+  // Merge the DnD ref with our own ref so we can observe visibility.
+  const mergedRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node);
+      cardElRef.current = node;
+    },
+    [setNodeRef],
+  );
+
+  useEffect(() => {
+    if (isVisible) return;
+    const el = cardElRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setIsVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isVisible]);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -111,23 +146,27 @@ export function DealCard({
   const chatLink = getChatLink(deal);
   const juliaLink = getJuliaLink(deal);
   // Live data from Julia CRM — não move o card no kanban, só atualiza badges/info.
-  const juliaLive = useJuliaCardPreview(juliaLink);
+  const juliaLive = useJuliaCardPreview(isVisible ? juliaLink : null);
   const liveJulia = juliaLive.data;
   const isLinked = !!chatLink || !!juliaLink;
 
   // Resolve fila e dados da conversa quando o card está vinculado ao chat
-  const dealConv = useDealConversation(chatLink ? deal : null);
+  const dealConv = useDealConversation(isVisible && chatLink ? deal : null);
   const queueName = dealConv.data?.queueName ?? null;
 
   // Júlia context: detecta se a fila vinculada é de um agente Júlia
-  const juliaCtx = useDealJuliaContext(deal);
+  const juliaCtx = useDealJuliaContext(isVisible ? deal : null);
   const isJuliaCard = juliaCtx.isJulia;
 
   // Status do contato no chat (somente quando NÃO há chatLink ainda e há telefone)
-  const contactStatus = useChatContactConversationStatus(!chatLink ? deal.contact_phone : null);
+  const contactStatus = useChatContactConversationStatus(
+    isVisible && !chatLink ? deal.contact_phone : null,
+  );
   const showAmberWhatsapp = !chatLink && !!deal.contact_phone && !contactStatus.data?.hasConversation;
 
-  // Filas WhatsApp para o NewConversationDialog (carregadas só sob demanda)
+  // Filas WhatsApp para o NewConversationDialog (query global cacheada pelo
+  // React Query — todas as instâncias de DealCard compartilham a mesma cache
+  // key, então a rede é feita uma única vez).
   const { data: allQueues = [] } = useQueues();
   const waQueues = allQueues
     .filter((q: any) => q.is_active && !q.is_deleted && q.channel_type === 'uazapi')
@@ -175,7 +214,7 @@ export function DealCard({
 
   return (
     <Card
-      ref={setNodeRef}
+      ref={mergedRef}
       style={{
         ...style,
         borderLeftColor: pipelineColor || 'transparent',
