@@ -60,8 +60,10 @@ function ChatPageContent() {
       return () => { cancelled = true; };
     }
 
-    // Etapa 2: contato — exige contacts carregados
-    if (contacts.length === 0) return;
+    // Etapa 2: contato. Não bloqueamos por `contacts.length === 0`:
+    // temos o UUID do contato e o `selectContact` faz hidratação por ID,
+    // então a seleção funciona mesmo se a lista visível ainda não trouxe
+    // este contato (ex.: aba diferente, filtro estreito, paginação).
     if (pending.tab) setConversationStatusFilter(pending.tab);
     if (pending.search) setSearchQuery(pending.search);
     selectContact(pending.contactId);
