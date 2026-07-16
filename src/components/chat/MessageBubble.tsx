@@ -787,3 +787,9 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
     );
   }
 );
+
+// Memoized export: prevents re-render when neither `message`, `reactions` nor
+// the passed callbacks change identity. Big win in busy conversations where
+// status ticks (delivery/read) update a single message but currently re-render
+// the entire timeline.
+export const MessageBubble = React.memo(MessageBubbleInner);
