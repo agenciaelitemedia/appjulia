@@ -2912,9 +2912,19 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // The very first effect run (prev === null) is the initial mount —
     // keep any pending selection (e.g. from sessionStorage deep-link).
     if (prev !== null && prev !== key) {
-      setSelectedContactId(null);
-      setMessages({});
-      knownMessageIds.current.clear();
+      // Additionally: the transition from "no queue yet" (queueId=null) to
+      // the first real queue is also part of the initial mount from the
+      // user's perspective — e.g. when the CRM side-panel deep-links into
+      // /chat and calls setSelectedQueue(target) before any queue has been
+      // chosen. Clearing selectedContactId here would race the pending
+      // consumer in ChatPage and wipe the just-applied selection.
+      let prevQueueId: string | null = null;
+      try { prevQueueId = (JSON.parse(prev) as { queueId: string | null }).queueId ?? null; } catch { /* ignore */ }
+      if (prevQueueId !== null) {
+        setSelectedContactId(null);
+        setMessages({});
+        knownMessageIds.current.clear();
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQueueId, clientId, activeQueueIds, periodFilter, sortOrder, queuesLoading]);
