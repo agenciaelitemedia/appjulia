@@ -13,6 +13,7 @@ import { useUserQueueAccess } from '@/hooks/useUserQueueAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { conversationStatusToPendingTab, setPendingSelection, type PendingTab } from '@/lib/chat/pendingSelection';
+import { normalizeBrPhone } from '@/lib/phoneNormalize';
 import type { ChatMessage, ChatContact } from '@/types/chat';
 import type { ChatConversation } from '@/types/conversation';
 
@@ -115,6 +116,7 @@ export function ChatSidePanel({
               onClick={async () => {
                 if (target?.contactId) {
                   let tab: PendingTab = 'open';
+                  let phone: string | null = null;
                   if (target.conversationId) {
                     try {
                       const { data } = await supabase
@@ -128,15 +130,26 @@ export function ChatSidePanel({
                       /* fallback keeps 'open' */
                     }
                   }
+                  try {
+                    const { data: contactRow } = await supabase
+                      .from('chat_contacts')
+                      .select('phone')
+                      .eq('id', target.contactId)
+                      .maybeSingle();
+                    phone = (contactRow as any)?.phone ?? null;
+                  } catch {
+                    /* best-effort */
+                  }
                   setPendingSelection({
                     contactId: target.contactId,
                     queueId: target.queueId,
                     conversationId: target.conversationId,
                     tab,
-                    // NÃO passar search: filtro por telefone pode variar entre
-                    // formatos BR (com/sem 9º dígito, com/sem 55) e zerar a
-                    // lista, impedindo a seleção do contato-alvo.
-                    search: null,
+                    // Envia telefone canônico (13 díg BR). O ChatList compara
+                    // com tolerância a variantes com/sem o 9º dígito via
+                    // `phoneMatchesQuery`, então preencher a busca não zera
+                    // a lista mesmo se o contato estiver salvo em outro formato.
+                    search: phone ? (normalizeBrPhone(phone) || phone) : null,
                   });
                 }
                 navigate('/chat');

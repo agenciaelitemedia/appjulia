@@ -31,7 +31,7 @@ import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMes
 import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 import { normalizeBrPhone } from '@/lib/phoneNormalize';
-import { getBrPhoneVariants } from '@/lib/phoneVariants';
+import { getBrPhoneVariants, phoneMatchesQuery } from '@/lib/phoneVariants';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
@@ -763,7 +763,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       if (q) {
         const matches =
           (c.name || '').toLowerCase().includes(q) ||
-          (c.phone || '').toLowerCase().includes(q);
+          phoneMatchesQuery(c.phone, q);
         if (!matches) return false;
       }
       return true;
@@ -854,8 +854,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       if (q) {
         const contact = contactById.get(conv.contact_id);
         const name = (contact?.name || '').toLowerCase();
-        const phone = (contact?.phone || '').toLowerCase();
-        if (!name.includes(q) && !phone.includes(q)) continue;
+        if (!name.includes(q) && !phoneMatchesQuery(contact?.phone, q)) continue;
       }
 
       // Classificação efetiva: conversa com responsável conta como "Em Atendimento"
@@ -975,8 +974,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       // Search
       if (q) {
         const name = (contact?.name || '').toLowerCase();
-        const phone = (contact?.phone || '').toLowerCase();
-        if (!name.includes(q) && !phone.includes(q)) continue;
+        if (!name.includes(q) && !phoneMatchesQuery(contact?.phone, q)) continue;
       }
 
       seen.add(conv.contact_id);
