@@ -33,32 +33,3 @@ export function getBrPhoneVariants(raw: string | null | undefined): string[] {
   }
   return [...out].filter(Boolean);
 }
-
-/**
- * Search-friendly phone matcher. Returns true when `query` matches `phone`,
- * being tolerant to Brazilian mobile variants with/without the extra "9" and
- * to any masking (spaces, parens, dashes) present on either side.
- *
- * Rules:
- *  - If `query` is empty → true (no filter).
- *  - If `query` has less than 4 digits → falls back to case-insensitive
- *    substring match on the raw phone string (preserves searching by area
- *    code or DDD fragment while typing).
- *  - Otherwise compares digits-only of `phone` against every BR variant of
- *    `query` using substring — 12 or 13 digit forms both match.
- */
-export function phoneMatchesQuery(
-  phone: string | null | undefined,
-  query: string | null | undefined,
-): boolean {
-  const q = (query || '').trim();
-  if (!q) return true;
-  const phoneDigits = (phone || '').replace(/\D/g, '');
-  const qDigits = q.replace(/\D/g, '');
-  if (qDigits.length < 4) {
-    return (phone || '').toLowerCase().includes(q.toLowerCase());
-  }
-  if (!phoneDigits) return false;
-  const variants = getBrPhoneVariants(qDigits);
-  return variants.some(v => phoneDigits.includes(v));
-}

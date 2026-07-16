@@ -25,7 +25,6 @@ import type {
 import { useAccessibleQueues, type Queue } from '@/pages/agente/filas/hooks/useQueues';
 import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import { useContactLatestConversation, leaderGroup } from '@/hooks/useContactLatestConversation';
-import { phoneMatchesQuery } from '@/lib/phoneVariants';
 
 // Period filter (mirrors options shown in ChatList)
 export type ChatPeriodFilter =
@@ -2514,7 +2513,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(c =>
         c.name.toLowerCase().includes(query) ||
-        phoneMatchesQuery(c.phone, searchQuery)
+        c.phone.includes(query)
       );
     }
 

@@ -15,7 +15,6 @@ import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialo
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import type { CRMCard } from '@/pages/crm/types';
 import { conversationStatusToPendingTab, setPendingSelection } from '@/lib/chat/pendingSelection';
-import { normalizeBrPhone } from '@/lib/phoneNormalize';
 
 interface Props { deal: CRMDeal }
 
@@ -39,14 +38,12 @@ export function DealLinksSection({ deal }: Props) {
       | undefined;
     const contactId = conv?.contact_id ?? chat?.contact_id ?? null;
     if (!contactId) return;
-    const rawPhone = deal.contact_phone ?? chat?.contact_phone ?? null;
-    const normalizedPhone = normalizeBrPhone(rawPhone);
     setPendingSelection({
       contactId,
       queueId: conv?.queue_id ?? null,
       conversationId: conv?.id ?? chat?.conversation_id ?? null,
       tab: conversationStatusToPendingTab(conv?.status, conv?.assigned_to),
-      search: normalizedPhone || rawPhone,
+      search: deal.contact_phone ?? chat?.contact_phone ?? null,
     });
     navigate('/chat');
   };
