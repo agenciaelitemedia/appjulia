@@ -1,68 +1,43 @@
-## Diagnóstico
+## Objetivo
+Ao clicar no botão "Abrir no Chat" (ícone ExternalLink) do `ChatSidePanel`, navegar para `/chat` já com o lead selecionado, a aba de status correta ativa e a conversa/mensagens carregadas.
 
-O board `45639dc4-…` ("Salário maternidade- follow up") tem **1295 deals ativos** carregados de uma só vez. A lentidão é causada por 3 amplificadores que se multiplicam por esse total:
+## Mapeamento status → aba
+- `pending` → aba **Aguardando Atendimento**
+- `open` (atribuído) → aba **Em Atendimento** (`open`)
+- `resolved` ou `closed` → aba **Resolvido e Concluído** (`resolved_closed`)
+- Sem `conversationId` (só contato) → mantém padrão `open`
 
-### 1. Fetch pesado de deals — `useCRMDeals.fetchDeals`
-`select('*')` traz **todas** as colunas de `crm_deals` (incluindo o `custom_fields` jsonb, que carrega `links`, contexto Julia etc.) para as 1295 linhas em uma resposta única. Muito payload, muito parse.
+## Mudanças
 
-### 2. N+1 de queries por card — `DealCard.tsx`
-Cada `<DealCard/>` dispara individualmente:
-- `useDealConversation(deal)` — 1 request/card (é este que aparece spam no console: `AbortError: signal is aborted without reason` — o React Query cancela quando o card é reordenado / desmontado / o filtro muda, e refaz tudo em seguida).
-- `useDealJuliaContext(deal)`
-- `useJuliaCardPreview(juliaLink)`
-- `useChatContactConversationStatus(deal.contact_phone)` (quando não há link de chat)
+### 1. `src/lib/chat/pendingSelection.ts`
+Adicionar campo opcional `tab` (`'pending' | 'open' | 'resolved_closed'`) na `PendingSelection`:
+- Nova chave `chat_pending_tab` no sessionStorage.
+- `setPendingSelection` aceita `tab?`; `readPendingSelection` devolve `tab: PendingTab | null`; `clearPendingSelection` limpa a nova chave.
 
-Com 1295 cards isso vira ~4–5 mil requests por render/scroll — o navegador enfileira, aborta e refaz.
+### 2. `src/components/chat/ChatSidePanel.tsx` (botão linha 111)
+Transformar o `onClick` em handler assíncrono:
+1. Se houver `target.conversationId`, buscar `status` em `chat_conversations` (`select('status').eq('id', conversationId).maybeSingle()`).
+2. Derivar `tab`:
+   - `status === 'pending'` → `'pending'`
+   - `status === 'open'` → `'open'`
+   - `status === 'resolved' || status === 'closed'` → `'resolved_closed'`
+   - fallback → `'open'`
+3. `setPendingSelection({ contactId, queueId, conversationId, tab })`.
+4. `navigate('/chat')`.
 
-### 3. Realtime + task counts globais — `useCRMBoardTaskCounts`
-- Canal realtime **sem filtro** (`crm-board-task-counts` em `crm_checklist_items` para `event: '*'`) — qualquer checklist item de qualquer board dispara refetch com `IN (…1295 ids…)`.
-- A dependência do effect é `dealIds.join(',')` — qualquer reorder ou update pontual reconstrói a string e re-fetcha os 1295.
+Para evitar atraso visível, desabilitar o botão brevemente (state `isOpening`) e mostrar spinner opcional; a query é apenas 1 campo/1 linha, ~50–150 ms.
 
-Somando: cada movimentação de card faz N updates paralelos (`Promise.all` em `moveDeal`), cada update gera evento realtime, o listener é debounced mas ainda re-fetcha os 1295 com `select('*')`, e no re-render 1295 `DealCard` disparam suas queries.
+### 3. `src/pages/chat/ChatPage.tsx`
+- Importar `setConversationStatusFilter` do `useWhatsAppData`.
+- Antes de `selectContact(pending.contactId)` (etapa 2 do efeito), se `pending.tab`, chamar `setConversationStatusFilter(pending.tab)`.
+- A limpeza do pending já ocorre depois via `clearPendingSelection()`.
 
-Não é problema de índice no Postgres — os índices existentes cobrem o `WHERE board_id + client_id + status`. O gargalo é **volume de payload + N+1 no front + realtime largo**.
-
-## Correção proposta
-
-Foco no board pesado sem mudar UX. Trabalho só em `src/pages/crm-builder/`.
-
-### A. Enxugar o fetch de deals
-Em `useCRMDeals.fetchDeals`, trocar `select('*')` por uma **lista explícita** de colunas usadas no card:
-```
-id, board_id, pipeline_id, position, title, description, value, priority, status,
-contact_name, contact_phone, contact_email, assigned_to, assigned_user_id,
-tags, due_date, expected_close_date, stage_entered_at, created_at, updated_at,
-custom_fields
-```
-(mantém `custom_fields` porque `DealCard` lê `links.chat` e `links.julia`; o ganho vem de eliminar o resto.)
-
-Bônus: pré-derivar `hasChatLink` / `hasJuliaLink` no reducer para evitar recomputar em cada render.
-
-### B. Virtualização + gating dos hooks por card
-No `DealCard`, transformar as queries por card em opt-in:
-- `useDealConversation` / `useDealJuliaContext` / `useChatContactConversationStatus` só disparam quando o card estiver **visível no viewport** (`IntersectionObserver`) ou quando o usuário hover/abrir. Enquanto invisíveis, mostrar apenas o link estático de `custom_fields`.
-- Aumentar `staleTime` desses hooks para `5 min` e `gcTime` para `10 min` para evitar refetch em reorder.
-- Isso mata o spam de AbortError e os 4×1295 requests iniciais.
-
-### C. Consertar `useCRMBoardTaskCounts`
-- Filtrar o canal realtime por `board_id` (filtro server-side em `crm_checklist_items` com um índice se já não existe; caso `crm_checklist_items` não tenha `board_id`, joinar via `deal_id` = `ANY(dealIds)` e trocar o listener para escutar `crm_deals` do board — na prática, basta remover o listener global e refetcher apenas ao abrir o `DealDetailsSheet`, já que o badge muda pouco).
-- Estabilizar o cache: usar React Query com chave `['task-counts', boardId]` em vez de state local dependente de `dealIds.join(',')`.
-
-### D. Realtime de deals
-Manter o canal já filtrado por `board_id`, mas:
-- Após `moveDeal`, evitar o refetch completo: o próprio estado otimista já é a verdade; o `isMovingRef` cobre isso, mas ampliar a janela para 1500 ms e ignorar eventos cujo `id` já esteja no `dealsRef` com o mesmo `position`+`pipeline_id`.
+### 4. Comportamento resultante
+- A aba correta é ativada antes da seleção do contato, então a `ChatList` renderiza no filtro certo.
+- `selectContact` aciona o carregamento de mensagens da conversa (fluxo já existente).
+- Se o usuário não tiver acesso à fila, o fluxo atual de aviso segue funcionando.
 
 ## Detalhes técnicos
-
-Arquivos a alterar:
-- `src/pages/crm-builder/hooks/useCRMDeals.ts` — select explícito + supressão de refetch redundante.
-- `src/pages/crm-builder/hooks/useCRMBoardTaskCounts.ts` — remover canal global, usar React Query com invalidate manual no dialog.
-- `src/pages/crm-builder/components/deals/DealCard.tsx` — `IntersectionObserver` para habilitar as 4 queries de enriquecimento; `enabled: isVisible && …`.
-- (Opcional, se ainda ficar pesado) `BoardPage.tsx` — virtualização vertical das colunas com `@tanstack/react-virtual` (colunas ≥100 cards).
-
-Sem migrações de banco. Sem mudanças de schema. Sem alterações de UI/UX além do carregamento progressivo dos badges de conversa/Julia por card (que hoje já pisca por causa do abort).
-
-## Verificação
-- Abrir o board no preview e medir tempo até primeiro render + número de requests no Network para `/rest/v1/chat_conversations` e `/rest/v1/chat_contacts` (deve cair de milhares para dezenas).
-- Confirmar que o console não spammeia mais `[useDealConversation] lookup by id error … AbortError`.
-- Drag & drop de um card continua funcionando e não dispara refetch completo dos 1295.
+- Nenhuma alteração de schema/RLS.
+- TTL de 60s do pending continua válido para `tab`.
+- Sem alteração no `NewConversationDialog` (usa `setPendingSelection` sem tab; permanecerá `'open'` por padrão).

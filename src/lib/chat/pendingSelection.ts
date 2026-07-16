@@ -8,9 +8,10 @@
 const KEY_CONTACT = 'chat_pending_contact_id';
 const KEY_QUEUE = 'chat_pending_queue_id';
 const KEY_CONVERSATION = 'chat_pending_conversation_id';
+const KEY_TAB = 'chat_pending_tab';
 const KEY_TS = 'chat_pending_ts';
 
-const PENDING_KEYS = [KEY_CONTACT, KEY_QUEUE, KEY_CONVERSATION, KEY_TS] as const;
+const PENDING_KEYS = [KEY_CONTACT, KEY_QUEUE, KEY_CONVERSATION, KEY_TAB, KEY_TS] as const;
 
 const TTL_MS = 60_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,7 +31,11 @@ export interface PendingSelection {
   contactId: string;
   queueId: string | null;
   conversationId: string | null;
+  tab: PendingTab | null;
 }
+
+export type PendingTab = 'pending' | 'open' | 'resolved_closed';
+const VALID_TABS: PendingTab[] = ['pending', 'open', 'resolved_closed'];
 
 export function clearPendingSelection(): void {
   const ss = safeStorage();
@@ -44,6 +49,7 @@ export function setPendingSelection(input: {
   contactId: string;
   queueId?: string | null;
   conversationId?: string | null;
+  tab?: PendingTab | null;
 }): void {
   const ss = safeStorage();
   if (!ss) return;
@@ -54,6 +60,7 @@ export function setPendingSelection(input: {
     ss.setItem(KEY_CONTACT, input.contactId);
     if (isUuid(input.queueId)) ss.setItem(KEY_QUEUE, input.queueId as string);
     if (isUuid(input.conversationId)) ss.setItem(KEY_CONVERSATION, input.conversationId as string);
+    if (input.tab && VALID_TABS.includes(input.tab)) ss.setItem(KEY_TAB, input.tab);
     ss.setItem(KEY_TS, String(Date.now()));
   } catch {
     /* noop */
@@ -77,10 +84,13 @@ export function readPendingSelection(): PendingSelection | null {
   }
   const queueId = ss.getItem(KEY_QUEUE);
   const conversationId = ss.getItem(KEY_CONVERSATION);
+  const tabRaw = ss.getItem(KEY_TAB);
+  const tab = tabRaw && (VALID_TABS as string[]).includes(tabRaw) ? (tabRaw as PendingTab) : null;
   return {
     contactId,
     queueId: isUuid(queueId) ? queueId : null,
     conversationId: isUuid(conversationId) ? conversationId : null,
+    tab,
   };
 }
 
