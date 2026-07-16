@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMBoard, CRMBoardFormData } from '../types';
@@ -10,42 +11,56 @@ interface UseCRMBoardsOptions {
   canManage?: boolean;
 }
 
+const boardsKey = (clientId: string) => ['crm-boards', clientId] as const;
+
 export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoardsOptions) {
   const { toast } = useToast();
-  const [boards, setBoards] = useState<CRMBoard[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  // Fetch all boards for the agent
-  const fetchBoards = useCallback(async () => {
-    if (!clientId) return;
-    
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  // React Query-backed cache: instant return on revisits, background refresh,
+  // shared between all hook instances mounted with the same clientId.
+  const query = useQuery<CRMBoard[]>({
+    queryKey: boardsKey(clientId),
+    enabled: !!clientId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
       const { data, error: queryError } = await supabase
         .from('crm_boards')
         .select('*')
         .eq('client_id', clientId)
         .eq('is_archived', false)
         .order('position', { ascending: true });
-
       if (queryError) throw queryError;
+      return (data as CRMBoard[]) || [];
+    },
+  });
 
-      setBoards((data as CRMBoard[]) || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar boards';
-      setError(message);
+  const boards = query.data ?? [];
+  const isLoading = query.isLoading;
+  const error = query.error ? (query.error as Error).message : null;
+
+  // Surface fetch errors via toast (mirrors previous behavior).
+  useEffect(() => {
+    if (query.error) {
       toast({
         title: 'Erro',
-        description: message,
+        description: (query.error as Error).message || 'Erro ao carregar boards',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
     }
-  }, [clientId, toast]);
+  }, [query.error, toast]);
+
+  const fetchBoards = useCallback(async () => {
+    await query.refetch();
+  }, [query]);
+
+  const setCache = useCallback(
+    (updater: (prev: CRMBoard[]) => CRMBoard[]) => {
+      queryClient.setQueryData<CRMBoard[]>(boardsKey(clientId), (prev) => updater(prev ?? []));
+    },
+    [queryClient, clientId],
+  );
 
   // Create a new board
   const createBoard = useCallback(async (data: CRMBoardFormData): Promise<CRMBoard | null> => {
@@ -53,8 +68,9 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
 
     try {
       // Get the max position
-      const maxPosition = boards.length > 0 
-        ? Math.max(...boards.map(b => b.position)) + 1 
+      const current = queryClient.getQueryData<CRMBoard[]>(boardsKey(clientId)) ?? [];
+      const maxPosition = current.length > 0
+        ? Math.max(...current.map(b => b.position)) + 1
         : 0;
 
       const { data: newBoard, error: insertError } = await supabase
@@ -74,7 +90,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       if (insertError) throw insertError;
 
       const board = newBoard as CRMBoard;
-      setBoards(prev => [...prev, board]);
+      setCache(prev => [...prev, board]);
 
       logCRMAudit({
         clientId,
@@ -101,7 +117,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       });
       return null;
     }
-  }, [clientId, codAgent, canManage, boards, toast]);
+  }, [clientId, codAgent, canManage, queryClient, setCache, toast]);
 
   // Update a board
   const updateBoard = useCallback(async (boardId: string, data: Partial<CRMBoardFormData>): Promise<boolean> => {
@@ -119,18 +135,14 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
 
       if (updateError) throw updateError;
 
-      setBoards(prev => prev.map(b => 
-        b.id === boardId 
-          ? { ...b, ...data } 
-          : b
-      ));
+      setCache(prev => prev.map(b => (b.id === boardId ? { ...b, ...data } : b)));
 
       logCRMAudit({
         clientId,
         codAgent,
         entityType: 'board',
         entityId: boardId,
-        entityName: data.name ?? boards.find(b => b.id === boardId)?.name ?? null,
+        entityName: data.name ?? (queryClient.getQueryData<CRMBoard[]>(boardsKey(clientId)) ?? []).find(b => b.id === boardId)?.name ?? null,
         action: 'updated',
         changes: data as Record<string, unknown>,
       });
@@ -150,13 +162,13 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       });
       return false;
     }
-  }, [canManage, clientId, codAgent, boards, toast]);
+  }, [canManage, clientId, codAgent, queryClient, setCache, toast]);
 
   // Archive a board
   const archiveBoard = useCallback(async (boardId: string): Promise<boolean> => {
     if (!canManage) return false;
     try {
-      const target = boards.find(b => b.id === boardId);
+      const target = (queryClient.getQueryData<CRMBoard[]>(boardsKey(clientId)) ?? []).find(b => b.id === boardId);
       const { error: updateError } = await supabase
         .from('crm_boards')
         .update({ is_archived: true })
@@ -164,7 +176,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
 
       if (updateError) throw updateError;
 
-      setBoards(prev => prev.filter(b => b.id !== boardId));
+      setCache(prev => prev.filter(b => b.id !== boardId));
 
       logCRMAudit({
         clientId,
@@ -190,14 +202,14 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       });
       return false;
     }
-  }, [canManage, clientId, codAgent, boards, toast]);
+  }, [canManage, clientId, codAgent, queryClient, setCache, toast]);
 
   // Reorder boards
   const reorderBoards = useCallback(async (reorderedBoards: CRMBoard[]): Promise<boolean> => {
     if (!canManage) return false;
     try {
       // Update positions locally first (optimistic)
-      setBoards(reorderedBoards);
+      setCache(() => reorderedBoards);
 
       // Update each board's position in the database
       const updates = reorderedBoards.map((board, index) => 
@@ -231,12 +243,11 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
       });
       return false;
     }
-  }, [canManage, clientId, codAgent, fetchBoards, toast]);
+  }, [canManage, clientId, codAgent, setCache, fetchBoards, toast]);
 
-  // Set up realtime subscription
+  // Realtime: invalidate cache; useQuery refetches automatically.
   useEffect(() => {
     if (!clientId) return;
-
     const channel = supabase
       .channel(`crm-boards-${clientId}`)
       .on(
@@ -248,21 +259,14 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
           filter: `client_id=eq.${clientId}`,
         },
         () => {
-          // Refetch on any change
-          fetchBoards();
-        }
+          queryClient.invalidateQueries({ queryKey: boardsKey(clientId) });
+        },
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [clientId, fetchBoards]);
-
-  // Initial fetch
-  useEffect(() => {
-    fetchBoards();
-  }, [fetchBoards]);
+  }, [clientId, queryClient]);
 
   return {
     boards,
