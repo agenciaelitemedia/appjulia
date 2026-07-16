@@ -108,6 +108,11 @@ export default function BoardPage() {
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Paginação client-side por coluna
+  const INITIAL_CARDS_PER_COLUMN = 30;
+  const LOAD_MORE_STEP = 30;
+  const [visibleLimits, setVisibleLimits] = useState<Record<string, number>>({});
+
   // Sort state — persistido por usuário + quadro
   const sortStorageKey = user?.id && boardId ? `crm-builder:sort:${user.id}:${boardId}` : null;
   const [sortState, setSortState] = useState<BoardSortState>(DEFAULT_BOARD_SORT);
@@ -699,6 +704,9 @@ export default function BoardPage() {
                   <>
                     {pipelines.map((pipeline) => {
                       const pipelineDeals = getFilteredDealsByPipeline(pipeline.id);
+                      const limit = visibleLimits[pipeline.id] ?? INITIAL_CARDS_PER_COLUMN;
+                      const visibleDeals = pipelineDeals.slice(0, limit);
+                      const remaining = pipelineDeals.length - visibleDeals.length;
                       return (
                         <PipelineColumn
                           key={pipeline.id}
@@ -709,10 +717,18 @@ export default function BoardPage() {
                           onAddDeal={() => handleAddDeal(pipeline)}
                         >
                           <SortableContext
-                            items={pipelineDeals.map(d => `deal-${d.id}`)}
+                            items={visibleDeals.map(d => `deal-${d.id}`)}
                             strategy={verticalListSortingStrategy}
                           >
-                            {pipelineDeals.map((deal) => (
+                            {isLoadingDeals && pipelineDeals.length === 0 ? (
+                              <div className="space-y-2">
+                                {[...Array(5)].map((_, i) => (
+                                  <Skeleton key={i} className="h-24 w-full rounded-lg" />
+                                ))}
+                              </div>
+                            ) : (
+                              <>
+                            {visibleDeals.map((deal) => (
                               <DealCard
                                 key={deal.id}
                                 deal={deal}
@@ -728,6 +744,23 @@ export default function BoardPage() {
                                 taskDone={taskCounts[deal.id]?.done}
                               />
                             ))}
+                            {remaining > 0 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full mt-2"
+                                onClick={() =>
+                                  setVisibleLimits((prev) => ({
+                                    ...prev,
+                                    [pipeline.id]: (prev[pipeline.id] ?? INITIAL_CARDS_PER_COLUMN) + LOAD_MORE_STEP,
+                                  }))
+                                }
+                              >
+                                Carregar mais ({remaining} restantes)
+                              </Button>
+                            )}
+                              </>
+                            )}
                           </SortableContext>
                         </PipelineColumn>
                       );
