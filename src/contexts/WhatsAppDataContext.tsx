@@ -2513,7 +2513,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(c =>
         c.name.toLowerCase().includes(query) ||
-        c.phone.includes(query)
+        phoneMatchesQuery(c.phone, searchQuery)
       );
     }
 
