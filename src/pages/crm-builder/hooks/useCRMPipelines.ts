@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMPipeline, CRMPipelineFormData } from '../types';
@@ -11,23 +12,20 @@ interface UseCRMPipelinesOptions {
   canManage?: boolean;
 }
 
+const pipelinesKey = (boardId: string | null, clientId: string) =>
+  ['crm-pipelines', clientId, boardId] as const;
+
 export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true }: UseCRMPipelinesOptions) {
   const { toast } = useToast();
-  const [pipelines, setPipelines] = useState<CRMPipeline[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  // Fetch all pipelines for the board
-  const fetchPipelines = useCallback(async () => {
-    if (!boardId || !clientId) {
-      setPipelines([]);
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-
-    try {
+  const query = useQuery<CRMPipeline[]>({
+    queryKey: pipelinesKey(boardId, clientId),
+    enabled: !!boardId && !!clientId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      if (!boardId || !clientId) return [];
       const { data, error: queryError } = await supabase
         .from('crm_pipelines')
         .select('*')
@@ -35,22 +33,39 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
         .eq('client_id', clientId)
         .eq('is_active', true)
         .order('position', { ascending: true });
-
       if (queryError) throw queryError;
+      return (data as CRMPipeline[]) || [];
+    },
+  });
 
-      setPipelines((data as CRMPipeline[]) || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar pipelines';
-      setError(message);
+  const pipelines = query.data ?? [];
+  const isLoading = query.isLoading;
+  const error = query.error ? (query.error as Error).message : null;
+
+  useEffect(() => {
+    if (query.error) {
       toast({
         title: 'Erro',
-        description: message,
+        description: (query.error as Error).message || 'Erro ao carregar pipelines',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
     }
-  }, [boardId, clientId, toast]);
+  }, [query.error, toast]);
+
+  const fetchPipelines = useCallback(async () => {
+    await query.refetch();
+  }, [query]);
+
+  const setCache = useCallback(
+    (updater: (prev: CRMPipeline[]) => CRMPipeline[]) => {
+      queryClient.setQueryData<CRMPipeline[]>(pipelinesKey(boardId, clientId), (prev) => updater(prev ?? []));
+    },
+    [queryClient, boardId, clientId],
+  );
+  const getCache = useCallback(
+    () => queryClient.getQueryData<CRMPipeline[]>(pipelinesKey(boardId, clientId)) ?? [],
+    [queryClient, boardId, clientId],
+  );
 
   // Create a new pipeline
   const createPipeline = useCallback(async (data: CRMPipelineFormData): Promise<CRMPipeline | null> => {
@@ -58,8 +73,9 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
 
     try {
       // Get the max position
-      const maxPosition = pipelines.length > 0 
-        ? Math.max(...pipelines.map(p => p.position)) + 1 
+      const current = getCache();
+      const maxPosition = current.length > 0
+        ? Math.max(...current.map(p => p.position)) + 1
         : 0;
 
       const { data: newPipeline, error: insertError } = await supabase
@@ -79,7 +95,7 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       if (insertError) throw insertError;
 
       const pipeline = newPipeline as CRMPipeline;
-      setPipelines(prev => [...prev, pipeline]);
+      setCache(prev => [...prev, pipeline]);
 
       logCRMAudit({
         clientId,
@@ -106,7 +122,7 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       });
       return null;
     }
-  }, [boardId, clientId, codAgent, canManage, pipelines, toast]);
+  }, [boardId, clientId, codAgent, canManage, getCache, setCache, toast]);
 
   // Update a pipeline
   const updatePipeline = useCallback(async (pipelineId: string, data: Partial<CRMPipelineFormData>): Promise<boolean> => {
@@ -123,18 +139,14 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
 
       if (updateError) throw updateError;
 
-      setPipelines(prev => prev.map(p => 
-        p.id === pipelineId 
-          ? { ...p, ...data } 
-          : p
-      ));
+      setCache(prev => prev.map(p => (p.id === pipelineId ? { ...p, ...data } : p)));
 
       logCRMAudit({
         clientId,
         codAgent,
         entityType: 'pipeline',
         entityId: pipelineId,
-        entityName: data.name ?? pipelines.find(p => p.id === pipelineId)?.name ?? null,
+        entityName: data.name ?? getCache().find(p => p.id === pipelineId)?.name ?? null,
         action: 'updated',
         changes: { ...(data as Record<string, unknown>), board_id: boardId },
       });
@@ -154,13 +166,13 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       });
       return false;
     }
-  }, [canManage, clientId, codAgent, boardId, pipelines, toast]);
+  }, [canManage, clientId, codAgent, boardId, getCache, setCache, toast]);
 
   // Delete (deactivate) a pipeline
   const deletePipeline = useCallback(async (pipelineId: string): Promise<boolean> => {
     if (!canManage) return false;
     try {
-      const target = pipelines.find(p => p.id === pipelineId);
+      const target = getCache().find(p => p.id === pipelineId);
       const { error: updateError } = await supabase
         .from('crm_pipelines')
         .update({ is_active: false })
@@ -168,7 +180,7 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
 
       if (updateError) throw updateError;
 
-      setPipelines(prev => prev.filter(p => p.id !== pipelineId));
+      setCache(prev => prev.filter(p => p.id !== pipelineId));
 
       logCRMAudit({
         clientId,
@@ -195,14 +207,14 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       });
       return false;
     }
-  }, [canManage, clientId, codAgent, boardId, pipelines, toast]);
+  }, [canManage, clientId, codAgent, boardId, getCache, setCache, toast]);
 
   // Reorder pipelines
   const reorderPipelines = useCallback(async (reorderedPipelines: CRMPipeline[]): Promise<boolean> => {
     if (!canManage) return false;
     try {
       // Update positions locally first (optimistic)
-      setPipelines(reorderedPipelines);
+      setCache(() => reorderedPipelines);
 
       // Update each pipeline's position in the database
       const updates = reorderedPipelines.map((pipeline, index) => 
@@ -239,12 +251,10 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
       });
       return false;
     }
-  }, [canManage, clientId, codAgent, boardId, fetchPipelines, toast]);
+  }, [canManage, clientId, codAgent, boardId, setCache, fetchPipelines, toast]);
 
-  // Set up realtime subscription
   useEffect(() => {
     if (!boardId || !clientId) return;
-
     const channel = supabase
       .channel(`crm-pipelines-${clientId}-${boardId}`)
       .on(
@@ -256,20 +266,14 @@ export function useCRMPipelines({ boardId, clientId, codAgent, canManage = true 
           filter: `board_id=eq.${boardId}`,
         },
         () => {
-          fetchPipelines();
-        }
+          queryClient.invalidateQueries({ queryKey: pipelinesKey(boardId, clientId) });
+        },
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [boardId, clientId, fetchPipelines]);
-
-  // Fetch on board change
-  useEffect(() => {
-    fetchPipelines();
-  }, [fetchPipelines]);
+  }, [boardId, clientId, queryClient]);
 
   return {
     pipelines,
