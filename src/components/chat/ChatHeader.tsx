@@ -730,10 +730,6 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
                             </DropdownMenuItem>
                           ) : null
                         )}
-                        <DropdownMenuItem onClick={() => setShowHelp(true)}>
-                          <Keyboard className="h-4 w-4 mr-2" />
-                          Atalhos de teclado
-                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
