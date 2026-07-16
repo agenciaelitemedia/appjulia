@@ -12,7 +12,7 @@ import { ChatInput } from '@/components/chat/ChatInput';
 import { useUserQueueAccess } from '@/hooks/useUserQueueAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { setPendingSelection } from '@/lib/chat/pendingSelection';
+import { setPendingSelection, type PendingTab } from '@/lib/chat/pendingSelection';
 import type { ChatMessage, ChatContact } from '@/types/chat';
 import type { ChatConversation } from '@/types/conversation';
 
@@ -112,12 +112,29 @@ export function ChatSidePanel({
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => {
+              onClick={async () => {
                 if (target?.contactId) {
+                  let tab: PendingTab = 'open';
+                  if (target.conversationId) {
+                    try {
+                      const { data } = await supabase
+                        .from('chat_conversations')
+                        .select('status')
+                        .eq('id', target.conversationId)
+                        .maybeSingle();
+                      const status = (data as any)?.status as string | undefined;
+                      if (status === 'pending') tab = 'pending';
+                      else if (status === 'resolved' || status === 'closed') tab = 'resolved_closed';
+                      else tab = 'open';
+                    } catch {
+                      /* fallback keeps 'open' */
+                    }
+                  }
                   setPendingSelection({
                     contactId: target.contactId,
                     queueId: target.queueId,
                     conversationId: target.conversationId,
+                    tab,
                   });
                 }
                 navigate('/chat');
