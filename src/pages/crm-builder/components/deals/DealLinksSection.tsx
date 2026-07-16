@@ -14,6 +14,7 @@ import type { CRMDeal } from '../../types';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import type { CRMCard } from '@/pages/crm/types';
+import { setPendingSelection, type PendingTab } from '@/lib/chat/pendingSelection';
 
 interface Props { deal: CRMDeal }
 
@@ -31,9 +32,24 @@ export function DealLinksSection({ deal }: Props) {
   if (!chat && !julia) return null;
 
   const handleOpenChat = () => {
-    const target = chatPreview.data?.id || chat?.conversation_id;
-    if (!target) return;
-    sessionStorage.setItem('chat_pending_contact_id', target);
+    const conv = chatPreview.data as
+      | { id: string; contact_id: string | null; queue_id: string | null; status: string | null }
+      | null
+      | undefined;
+    const contactId = conv?.contact_id ?? chat?.contact_id ?? null;
+    if (!contactId) return;
+    const statusToTab = (s: string | null | undefined): PendingTab | null => {
+      if (s === 'pending') return 'pending';
+      if (s === 'open' || s === 'in_progress') return 'open';
+      if (s === 'resolved' || s === 'closed') return 'resolved_closed';
+      return null;
+    };
+    setPendingSelection({
+      contactId,
+      queueId: conv?.queue_id ?? null,
+      conversationId: conv?.id ?? chat?.conversation_id ?? null,
+      tab: statusToTab(conv?.status ?? null),
+    });
     navigate('/chat');
   };
 
