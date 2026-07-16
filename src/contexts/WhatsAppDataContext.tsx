@@ -89,9 +89,10 @@ const CONVERSATIONS_NEXT_PAGE_SIZE = 200;
 // Auto-bootstrap loads exactly the initial page; everything beyond is on
 // demand via `loadMoreConversations`. Kept as a guard against runaway loops.
 const CONV_AUTOLOAD_MAX_PAGES = 1;
-// Active group cap: 1000 (initial) + 20 × 200 = 5000 conversations max on bootstrap.
-// Prevents loading the entire history into memory on first open.
-const CONV_AUTOLOAD_ACTIVE_MAX_PAGES = 21;
+// Active group cap: 200 (initial) + 1 × 200 = 400 conversations max on bootstrap.
+// Anything beyond is loaded on demand via `loadMoreConversations` (scroll / click),
+// keeping first paint fast even on huge clients (>10k active conversations).
+const CONV_AUTOLOAD_ACTIVE_MAX_PAGES = 2;
 
 type ConvLoadGroup = 'active' | 'resolved' | 'closed';
 interface ConvGroupMeta {
@@ -1524,7 +1525,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     try {
       const { data: cachedMessages, error } = await supabase
         .from('chat_messages')
-        .select('*')
+        .select(
+          'id,contact_id,client_id,message_id,text,type,from_me,status,media_url,file_name,caption,reply_to,metadata,timestamp,created_at,channel_type,external_id,is_forwarded,forwarded_score,conversation_id,internal_note,sender_name,note_type,edited_at'
+        )
         .eq('contact_id', contactId)
         .order('timestamp', { ascending: false })
         .range(offset, offset + limit - 1);

@@ -40,7 +40,7 @@ export function useChatAssignedCountsByMember() {
       .channel(`chat-assigned-counts:${clientId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'chat_conversations' },
+        { event: '*', schema: 'public', table: 'chat_conversations', filter: `client_id=eq.${clientId}` },
         () => qc.invalidateQueries({ queryKey: ['chat-assigned-counts-by-member', clientId] }),
       )
       .subscribe();
