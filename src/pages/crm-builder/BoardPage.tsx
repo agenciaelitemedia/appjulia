@@ -108,6 +108,11 @@ export default function BoardPage() {
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Paginação client-side por coluna
+  const INITIAL_CARDS_PER_COLUMN = 30;
+  const LOAD_MORE_STEP = 30;
+  const [visibleLimits, setVisibleLimits] = useState<Record<string, number>>({});
+
   // Sort state — persistido por usuário + quadro
   const sortStorageKey = user?.id && boardId ? `crm-builder:sort:${user.id}:${boardId}` : null;
   const [sortState, setSortState] = useState<BoardSortState>(DEFAULT_BOARD_SORT);
