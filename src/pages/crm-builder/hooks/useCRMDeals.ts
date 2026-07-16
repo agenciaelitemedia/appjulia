@@ -438,11 +438,57 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
           table: 'crm_deals',
           filter: `board_id=eq.${boardId}`,
         },
-        () => {
+        (payload) => {
           // Ignora eventos enquanto há uma movimentação em andamento
           // (o estado otimista já reflete a verdade que acabou de ser escrita).
           if (isMovingRef.current) return;
-          // Debounce para coalescer rajadas de eventos de múltiplos updates.
+
+          // Patch incremental — evita refetch completo do board.
+          // Se o payload não trouxer as colunas mínimas, cai no refetch como fallback.
+          const evt = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
+          const newRow = payload.new as Partial<CRMDeal> | null;
+          const oldRow = payload.old as Partial<CRMDeal> | null;
+
+          const hasMinimalShape =
+            newRow &&
+            typeof newRow.id === 'string' &&
+            typeof newRow.board_id === 'string' &&
+            typeof newRow.pipeline_id === 'string';
+
+          if (evt === 'DELETE' && oldRow?.id) {
+            setDeals((prev) => prev.filter((d) => d.id !== oldRow.id));
+            return;
+          }
+
+          if (evt === 'INSERT' && hasMinimalShape && newRow!.status !== 'archived') {
+            setDeals((prev) => {
+              if (prev.some((d) => d.id === newRow!.id)) return prev;
+              return [...prev, newRow as CRMDeal];
+            });
+            return;
+          }
+
+          if (evt === 'UPDATE' && hasMinimalShape) {
+            // Se o deal saiu do board ou foi arquivado, remove localmente.
+            if (newRow!.status === 'archived') {
+              setDeals((prev) => prev.filter((d) => d.id !== newRow!.id));
+              return;
+            }
+            setDeals((prev) => {
+              const idx = prev.findIndex((d) => d.id === newRow!.id);
+              if (idx === -1) {
+                // Deal novo no board (mudou de board_id) — só adiciona se tiver shape completo.
+                return [...prev, newRow as CRMDeal];
+              }
+              const merged = { ...prev[idx], ...(newRow as CRMDeal) };
+              const next = prev.slice();
+              next[idx] = merged;
+              return next;
+            });
+            return;
+          }
+
+          // Fallback: payload incompleto — debounce + refetch.
           if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
           realtimeDebounceRef.current = setTimeout(() => {
             if (!isMovingRef.current) fetchDeals();
