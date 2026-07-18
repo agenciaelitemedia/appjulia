@@ -149,6 +149,23 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
+  const [snoozedPanelOpen, setSnoozedPanelOpen] = useState(false);
+
+  // Contagem de conversas adiadas ativas (usa `conversations` do contexto).
+  const snoozedCount = React.useMemo(() => {
+    const now = Date.now();
+    const seen = new Set<string>();
+    let n = 0;
+    for (const c of conversations) {
+      const su = (c as { snoozed_until?: string | null }).snoozed_until;
+      if (!su) continue;
+      if (new Date(su).getTime() <= now) continue;
+      if (seen.has(c.contact_id)) continue;
+      seen.add(c.contact_id);
+      n += 1;
+    }
+    return n;
+  }, [conversations]);
 
   // Pagination for server-side search — kept per (activeTab, conversationStatusFilter)
   // so switching tabs preserves how much each one has loaded and the counter
