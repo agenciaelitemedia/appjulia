@@ -1918,6 +1918,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
         clientId={clientId || undefined}
         currentUser={user ? { codAgent: user.cod_agent ? String(user.cod_agent) : undefined, name: user?.name || '', id: user?.id } : undefined}
       />
+      <SnoozedConversationsPanel open={snoozedPanelOpen} onOpenChange={setSnoozedPanelOpen} />
     </div>
   );
 }
