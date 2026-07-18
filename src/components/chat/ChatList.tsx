@@ -10,12 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Search, MessageCircle, Users, Layers, Bot, User, UserCheck, UserX, ListFilter, CheckCheck, UserCircle, ChevronsUpDown, CalendarDays, Settings, BarChart3, ArrowDownUp, ArrowDown, ArrowUp, X, Check } from 'lucide-react';
+import { Search, MessageCircle, Users, Layers, Bot, User, UserCheck, UserX, ListFilter, CheckCheck, UserCircle, ChevronsUpDown, CalendarDays, CalendarClock, Settings, BarChart3, ArrowDownUp, ArrowDown, ArrowUp, X, Check } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
 import { TagsManagerDialog } from './TagsManagerDialog';
 import { NewConversationDialog } from './NewConversationDialog';
+import { SnoozedConversationsPanel } from './SnoozedConversationsPanel';
 import { MessageSquarePlus } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { Loader2 } from 'lucide-react';
@@ -148,6 +149,23 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   const [newConvOpen, setNewConvOpen] = useState(false);
   const [footerCountry, setFooterCountry] = useState('55');
   const [footerPhone, setFooterPhone] = useState('');
+  const [snoozedPanelOpen, setSnoozedPanelOpen] = useState(false);
+
+  // Contagem de conversas adiadas ativas (usa `conversations` do contexto).
+  const snoozedCount = React.useMemo(() => {
+    const now = Date.now();
+    const seen = new Set<string>();
+    let n = 0;
+    for (const c of conversations) {
+      const su = (c as { snoozed_until?: string | null }).snoozed_until;
+      if (!su) continue;
+      if (new Date(su).getTime() <= now) continue;
+      if (seen.has(c.contact_id)) continue;
+      seen.add(c.contact_id);
+      n += 1;
+    }
+    return n;
+  }, [conversations]);
 
   // Pagination for server-side search — kept per (activeTab, conversationStatusFilter)
   // so switching tabs preserves how much each one has loaded and the counter
@@ -1305,6 +1323,20 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                 </button>
               </PopoverContent>
             </Popover>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 flex-shrink-0 relative"
+              onClick={() => setSnoozedPanelOpen(true)}
+              title="Agenda de retornos (conversas adiadas)"
+            >
+              <CalendarClock className="h-4 w-4" />
+              {snoozedCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 text-[9px] bg-amber-500 text-white rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-1">
+                  {snoozedCount}
+                </span>
+              )}
+            </Button>
             {showGroupsTab && (
               <Button
                 variant={activeTab === 'groups' ? 'default' : 'ghost'}
@@ -1886,6 +1918,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
         clientId={clientId || undefined}
         currentUser={user ? { codAgent: user.cod_agent ? String(user.cod_agent) : undefined, name: user?.name || '', id: user?.id } : undefined}
       />
+      <SnoozedConversationsPanel open={snoozedPanelOpen} onOpenChange={setSnoozedPanelOpen} />
     </div>
   );
 }
