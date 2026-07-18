@@ -86,27 +86,27 @@ export function SnoozedConversationsPanel({ open, onOpenChange }: Props) {
     return result;
   }, [conversations, contacts]);
 
-  // Resolve nomes de quem adiou (snoozed_by contém user.id como string).
+  // Resolve nomes de quem adiou usando o histórico da conversa (actor_name).
   useEffect(() => {
     if (!open) return;
-    const ids = Array.from(
-      new Set(
-        items
-          .map((i) => i.snoozedBy)
-          .filter((v): v is string => !!v && /^\d+$/.test(v) && !snoozedByMap[v]),
-      ),
-    );
-    if (ids.length === 0) return;
+    const convIds = items
+      .map((i) => i.conversationId)
+      .filter((id) => !(id in snoozedByMap));
+    if (convIds.length === 0) return;
     let cancelled = false;
     (async () => {
       const { data } = await supabase
-        .from('agents')
-        .select('id, whatsapp_profile_name')
-        .in('id', ids.map((v) => Number(v)));
+        .from('chat_conversation_history')
+        .select('conversation_id, actor_name, created_at')
+        .in('conversation_id', convIds)
+        .eq('action', 'snoozed')
+        .order('created_at', { ascending: false });
       if (cancelled || !data) return;
       const patch: Record<string, string> = {};
-      for (const row of data as Array<{ id: number; whatsapp_profile_name?: string | null }>) {
-        if (row.whatsapp_profile_name) patch[String(row.id)] = row.whatsapp_profile_name;
+      for (const row of data as Array<{ conversation_id: string; actor_name: string | null }>) {
+        if (!patch[row.conversation_id] && row.actor_name) {
+          patch[row.conversation_id] = row.actor_name;
+        }
       }
       if (Object.keys(patch).length > 0) setSnoozedByMap((prev) => ({ ...prev, ...patch }));
     })();
@@ -194,10 +194,7 @@ export function SnoozedConversationsPanel({ open, onOpenChange }: Props) {
 
           <TooltipProvider delayDuration={200}>
             {items.map((item) => {
-              const byName =
-                item.snoozedBy && snoozedByMap[item.snoozedBy]
-                  ? snoozedByMap[item.snoozedBy]
-                  : null;
+              const byName = snoozedByMap[item.conversationId] || null;
               return (
                 <div
                   key={item.conversationId}
