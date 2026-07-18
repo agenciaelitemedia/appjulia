@@ -1323,6 +1323,20 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                 </button>
               </PopoverContent>
             </Popover>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 flex-shrink-0 relative"
+              onClick={() => setSnoozedPanelOpen(true)}
+              title="Agenda de retornos (conversas adiadas)"
+            >
+              <CalendarClock className="h-4 w-4" />
+              {snoozedCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 text-[9px] bg-amber-500 text-white rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-1">
+                  {snoozedCount}
+                </span>
+              )}
+            </Button>
             {showGroupsTab && (
               <Button
                 variant={activeTab === 'groups' ? 'default' : 'ghost'}
