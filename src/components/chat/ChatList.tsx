@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Search, MessageCircle, Users, Layers, Bot, User, UserCheck, UserX, ListFilter, CheckCheck, UserCircle, ChevronsUpDown, CalendarDays, Settings, BarChart3, ArrowDownUp, ArrowDown, ArrowUp, X, Check } from 'lucide-react';
+import { Search, MessageCircle, Users, Layers, Bot, User, UserCheck, UserX, ListFilter, CheckCheck, UserCircle, ChevronsUpDown, CalendarDays, CalendarClock, Settings, BarChart3, ArrowDownUp, ArrowDown, ArrowUp, X, Check } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { TeamMemberSelect } from '@/components/TeamMemberSelect';
