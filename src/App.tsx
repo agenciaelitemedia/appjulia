@@ -118,6 +118,7 @@ const HelpPostEditorPage = lazy(() => import("./pages/ajuda/studio/HelpPostEdito
 const BlitzLayout = lazy(() => import("./blitzleads/components/BlitzLayout"));
 const BlitzAuthPage = lazy(() => import("./blitzleads/pages/BlitzAuthPage"));
 const BlitzCallCenterPage = lazy(() => import("./blitzleads/pages/CallCenterPage"));
+const BlitzCaseDetailPage = lazy(() => import("./blitzleads/pages/CaseDetailPage"));
 import { BlitzSubdomainGate } from "./blitzleads/components/BlitzSubdomainGate";
 
 const queryClient = new QueryClient({
@@ -246,7 +247,9 @@ const App = () => (
                 <Route path="/BlitzLead" element={<BlitzLayout />}>
                   <Route index element={<BlitzCallCenterPage />} />
                   <Route path="blitz_auth" element={<BlitzAuthPage />} />
+                  <Route path="dashboard" element={<BlitzCallCenterPage />} />
                   <Route path="call-center" element={<BlitzCallCenterPage />} />
+                  <Route path="case/:id" element={<BlitzCaseDetailPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
