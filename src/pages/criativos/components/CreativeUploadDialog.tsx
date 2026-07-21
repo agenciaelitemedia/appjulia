@@ -35,7 +35,8 @@ interface CreativeUploadDialogProps {
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
-const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
+const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/webm'];
+const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_AUDIO_TYPES];
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export function CreativeUploadDialog({ open, onOpenChange, categories }: CreativeUploadDialogProps) {
@@ -57,7 +58,7 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
 
   const validateFile = (file: File): string | null => {
     if (!ALLOWED_TYPES.includes(file.type)) {
-      return 'Tipo de arquivo não permitido. Use imagens (JPG, PNG, GIF, WebP) ou vídeos (MP4, WebM, MOV).';
+      return 'Tipo de arquivo não permitido. Use imagens (JPG, PNG, GIF, WebP), vídeos (MP4, WebM, MOV) ou áudios (MP3, OGG, WAV).';
     }
     if (file.size > MAX_FILE_SIZE) {
       return 'Arquivo muito grande. Tamanho máximo: 50MB.';
@@ -145,7 +146,11 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
       setUploadProgress(70);
 
       // Determine file type
-      const typeFile = formData.file.type.startsWith('video/') ? 'video' : 'image';
+      const typeFile: 'image' | 'video' | 'audio' = formData.file.type.startsWith('video/')
+        ? 'video'
+        : formData.file.type.startsWith('audio/')
+          ? 'audio'
+          : 'image';
 
       // Save metadata to database
       await createMutation.mutateAsync({
@@ -226,6 +231,8 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
               <div className="relative">
                 {formData.file?.type.startsWith('video/') ? (
                   <video src={preview} className="max-h-48 mx-auto rounded" controls />
+                ) : formData.file?.type.startsWith('audio/') ? (
+                  <audio src={preview} className="mx-auto w-full" controls />
                 ) : (
                   <img src={preview} className="max-h-48 mx-auto rounded" alt="Preview" />
                 )}
@@ -261,7 +268,7 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
                       {isDragging ? 'Solte o arquivo aqui' : 'Clique ou arraste um arquivo'}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Imagens (JPG, PNG, GIF, WebP) ou Vídeos (MP4, WebM, MOV) até 50MB
+                      Imagens (JPG, PNG, GIF, WebP), Vídeos (MP4, WebM, MOV) ou Áudios (MP3, OGG, WAV) até 50MB
                     </p>
                   </>
                 )}
