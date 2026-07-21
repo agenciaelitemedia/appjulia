@@ -9,7 +9,7 @@ export interface CreativeFile {
   id: number;
   creative_category_id: number | null;
   user_id: number;
-  type_file: 'image' | 'video';
+  type_file: 'image' | 'video' | 'audio';
   name: string;
   title: string;
   description: string | null;
@@ -25,7 +25,7 @@ export interface CreativeFile {
 export interface CriativosFiltersState {
   search: string;
   categoryId: number | null;
-  typeFile: 'all' | 'image' | 'video';
+  typeFile: 'all' | 'image' | 'video' | 'audio';
 }
 
 export interface UploadFormData {

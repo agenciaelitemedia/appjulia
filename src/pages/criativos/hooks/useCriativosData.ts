@@ -117,7 +117,7 @@ export function useSharedCreatives(filters: CriativosFiltersState, userId: numbe
 
 interface CreateCreativeData {
   user_id: number;
-  type_file: 'image' | 'video';
+  type_file: 'image' | 'video' | 'audio';
   name: string;
   title: string;
   description: string;

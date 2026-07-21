@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, Pencil, Trash2, Video, Share2, Copy, Download } from 'lucide-react';
+import { Eye, Pencil, Trash2, Video, Share2, Copy, Download, Music } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +47,13 @@ export function CreativeCard({ file, onPreview, showOwner, canEdit }: CreativeCa
             </div>
             <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
               VIDEO
+            </div>
+          </div>
+        ) : file.type_file === 'audio' ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-primary/10 to-primary/30">
+            <Music className="h-16 w-16 text-primary/70" />
+            <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+              ÁUDIO
             </div>
           </div>
         ) : (
