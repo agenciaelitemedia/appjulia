@@ -82,7 +82,6 @@ export function BlitzSidebar() {
                       : { color: "#cbd5e1" }
                   }
                 >
-                  {({ isActive }: { isActive: boolean }) => null}
                   <Icon
                     className="w-[18px] h-[18px]"
                     style={{ color: item.color }}
