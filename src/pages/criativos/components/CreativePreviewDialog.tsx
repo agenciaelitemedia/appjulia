@@ -77,6 +77,13 @@ export function CreativePreviewDialog({ file, open, onOpenChange }: CreativePrev
                   }
                 }}
               />
+            ) : file.type_file === 'audio' ? (
+              <div className="w-full p-8 flex flex-col items-center gap-4">
+                <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center">
+                  <svg className="h-12 w-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-2v13M9 19a3 3 0 11-6 0 3 3 0 016 0zm12-3a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                </div>
+                <audio src={mediaUrl} controls className="w-full max-w-md" />
+              </div>
             ) : (
               <img 
                 src={mediaUrl} 
@@ -128,6 +135,8 @@ export function CreativePreviewDialog({ file, open, onOpenChange }: CreativePrev
               <Badge variant="outline" className="uppercase">
                 {file.type_file === 'video' ? (
                   <><Video className="h-3 w-3 mr-1" /> Vídeo</>
+                ) : file.type_file === 'audio' ? (
+                  'Áudio'
                 ) : (
                   'Imagem'
                 )}
