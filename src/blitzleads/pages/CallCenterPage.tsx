@@ -151,7 +151,7 @@ export default function CallCenterPage() {
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: "#eef2f6" }}>
-      <div className="max-w-[1120px] mx-auto px-[22px] pt-[18px] pb-10">
+      <div className="w-full px-[22px] pt-[18px] pb-10">
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           {[
