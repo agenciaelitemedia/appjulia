@@ -13,7 +13,7 @@ export type BlitzRouteMap = Record<string, string>;
 export const DEFAULT_BLITZ_ROUTE_MAP: BlitzRouteMap = {
   "/": "/BlitzLead/",
   "/blitz_auth": "/BlitzLead/blitz_auth",
-  "/call-center": "/BlitzLead/call-center",
+  "/atendimentos": "/BlitzLead/atendimentos",
 };
 
 export function isBlitzHost(hostname: string = window.location.hostname): boolean {
