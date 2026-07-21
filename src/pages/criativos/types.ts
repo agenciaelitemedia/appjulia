@@ -25,7 +25,7 @@ export interface CreativeFile {
 export interface CriativosFiltersState {
   search: string;
   categoryId: number | null;
-  typeFile: 'all' | 'image' | 'video';
+  typeFile: 'all' | 'image' | 'video' | 'audio';
 }
 
 export interface UploadFormData {
