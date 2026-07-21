@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { LayoutGrid, Flame, FileText, BarChart3, Settings, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import blitzLogo from "@/blitzleads/assets/blitzleads-logo.png";
+import blitzLogo from "@/blitzleads/assets/blitzleads-sidebar-dark.png.asset.json";
 
 const NAV = [
   { to: "/BlitzLead/call-center", label: "Call Center", icon: Flame, badge: "6" },
@@ -18,14 +18,12 @@ export function BlitzSidebar() {
 
   return (
     <aside className="w-60 shrink-0 bg-slate-950 text-slate-200 flex flex-col min-h-screen sticky top-0">
-      <div className="px-4 py-5 border-b border-slate-800/60">
-        <div className="bg-white rounded-xl px-3 py-3 flex items-center justify-center">
-          <img
-            src={blitzLogo}
-            alt="BlitzLeads"
-            className="h-12 w-auto max-w-full object-contain"
-          />
-        </div>
+      <div className="px-4 py-6 border-b border-slate-800/60 flex items-center justify-center">
+        <img
+          src={blitzLogo.url}
+          alt="BlitzLeads"
+          className="h-16 w-auto max-w-full object-contain"
+        />
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5">
