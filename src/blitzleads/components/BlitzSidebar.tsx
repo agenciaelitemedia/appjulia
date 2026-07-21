@@ -8,7 +8,7 @@ const SECTIONS: { title: string; items: { to: string; label: string; icon: any; 
   {
     title: "Principal",
     items: [
-      { to: "/BlitzLead/dashboard", label: "Dashboard", icon: LayoutGrid,    color: "#60a5fa", disabled: true },
+      { to: "/BlitzLead/dashboard", label: "Dashboard", icon: LayoutGrid,    color: "#60a5fa" },
       { to: "/BlitzLead/chat",      label: "Chat",      icon: MessageSquare, color: "#22c55e", disabled: true },
       { to: "/BlitzLead/crm",       label: "CRM",       icon: FolderKanban,  color: "#f59e0b", disabled: true },
     ],
