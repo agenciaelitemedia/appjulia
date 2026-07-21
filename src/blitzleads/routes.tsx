@@ -11,6 +11,7 @@ export const blitzRoutes = (
   <>
     <Route index element={<CallCenterPage />} />
     <Route path="blitz_auth" element={<BlitzAuthPage />} />
+    <Route path="dashboard" element={<CallCenterPage />} />
     <Route path="call-center" element={<CallCenterPage />} />
     <Route path="case/:id" element={<CaseDetailPage />} />
   </>
