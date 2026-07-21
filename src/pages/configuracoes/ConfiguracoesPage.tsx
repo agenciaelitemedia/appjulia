@@ -1,11 +1,12 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bot, History, Activity, Wrench, BarChart3, MailX } from 'lucide-react';
+import { Bot, History, Activity, Wrench, BarChart3, MailX, Zap } from 'lucide-react';
 import { AIModelsConfig } from './components/AIModelsConfig';
 import { UazapiHistoryTab } from './components/UazapiHistoryTab';
 import { UazapiMonitorTab } from './components/UazapiMonitorTab';
 import { QueueMaintenanceTab } from './components/QueueMaintenanceTab';
 import { AIUsageDashboard } from './components/AIUsageDashboard';
 import { DroppedMessagesTab } from './components/DroppedMessagesTab';
+import { BlitzLeadsConfigTab } from './components/BlitzLeadsConfigTab';
 
 export default function ConfiguracoesPage() {
   return (
@@ -40,6 +41,10 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="dropped" className="gap-2">
             <MailX className="w-4 h-4" />
             Dropped MSG's
+          </TabsTrigger>
+          <TabsTrigger value="blitzleads" className="gap-2">
+            <Zap className="w-4 h-4" />
+            BlitzLeads
           </TabsTrigger>
         </TabsList>
 
@@ -77,6 +82,16 @@ export default function ConfiguracoesPage() {
 
         <TabsContent value="dropped" className="mt-6">
           <DroppedMessagesTab />
+        </TabsContent>
+
+        <TabsContent value="blitzleads" className="mt-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">BlitzLeads</h2>
+            <p className="text-sm text-muted-foreground">
+              Configure o subdomínio e o de-para de rotas do módulo BlitzLeads.
+            </p>
+          </div>
+          <BlitzLeadsConfigTab />
         </TabsContent>
       </Tabs>
     </div>
