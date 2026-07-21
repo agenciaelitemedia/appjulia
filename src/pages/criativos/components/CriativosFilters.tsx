@@ -55,7 +55,7 @@ export function CriativosFilters({ filters, onFiltersChange, categories }: Criat
         value={filters.typeFile}
         onValueChange={(v) => onFiltersChange({ 
           ...filters, 
-          typeFile: v as 'all' | 'image' | 'video' 
+          typeFile: v as 'all' | 'image' | 'video' | 'audio'
         })}
       >
         <SelectTrigger className="w-[140px]">
@@ -65,6 +65,7 @@ export function CriativosFilters({ filters, onFiltersChange, categories }: Criat
           <SelectItem value="all">Todos Tipos</SelectItem>
           <SelectItem value="image">Imagens</SelectItem>
           <SelectItem value="video">Vídeos</SelectItem>
+          <SelectItem value="audio">Áudios</SelectItem>
         </SelectContent>
       </Select>
     </div>
