@@ -114,6 +114,12 @@ const HelpPostPage = lazy(() => import("./pages/ajuda/HelpPostPage"));
 const HelpStudioPage = lazy(() => import("./pages/ajuda/studio/HelpStudioPage"));
 const HelpPostEditorPage = lazy(() => import("./pages/ajuda/studio/HelpPostEditorPage"));
 
+// ── BlitzLeads (isolated module) ────────────────────────────────
+const BlitzLayout = lazy(() => import("./blitzleads/components/BlitzLayout"));
+const BlitzAuthPage = lazy(() => import("./blitzleads/pages/BlitzAuthPage"));
+const BlitzCallCenterPage = lazy(() => import("./blitzleads/pages/CallCenterPage"));
+import { BlitzSubdomainGate } from "./blitzleads/components/BlitzSubdomainGate";
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -134,6 +140,7 @@ const App = () => (
             <UaZapiProvider>
               <WavoipProvider>
               <ErrorBoundary>
+              <BlitzSubdomainGate />
               <Suspense fallback={null}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -234,6 +241,12 @@ const App = () => (
                   <Route path="/filas/contratar" element={<ProtectedRoute><ContratarFilasPage /></ProtectedRoute>} />
                   <Route path="/video/contratar" element={<ProtectedRoute><ContratarVideoPage /></ProtectedRoute>} />
                   <Route path="/admin/video" element={<ProtectedRoute module="admin_agents"><VideoAdminPage /></ProtectedRoute>} />
+                </Route>
+                {/* BlitzLeads — isolated module (/BlitzLead/*) */}
+                <Route path="/BlitzLead" element={<BlitzLayout />}>
+                  <Route index element={<BlitzCallCenterPage />} />
+                  <Route path="blitz_auth" element={<BlitzAuthPage />} />
+                  <Route path="call-center" element={<BlitzCallCenterPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

@@ -158,6 +158,140 @@ export type Database = {
         }
         Relationships: []
       }
+      blitzleads_case_events: {
+        Row: {
+          actor_id: string | null
+          case_id: string
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+        }
+        Insert: {
+          actor_id?: string | null
+          case_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+        }
+        Update: {
+          actor_id?: string | null
+          case_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blitzleads_case_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "blitzleads_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blitzleads_cases: {
+        Row: {
+          assigned_to: string | null
+          contact_name: string
+          created_at: string
+          id: string
+          metadata: Json
+          next_action: string | null
+          phone: string | null
+          priority: number
+          product: string | null
+          score: number
+          sla_deadline: string | null
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          contact_name: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          next_action?: string | null
+          phone?: string | null
+          priority?: number
+          product?: string | null
+          score?: number
+          sla_deadline?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          contact_name?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          next_action?: string | null
+          phone?: string | null
+          priority?: number
+          product?: string | null
+          score?: number
+          sla_deadline?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      blitzleads_route_config: {
+        Row: {
+          created_at: string
+          domain: string
+          id: string
+          mappings: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          domain?: string
+          id?: string
+          mappings?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          id?: string
+          mappings?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      blitzleads_settings: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
       chat_agent_capacity: {
         Row: {
           agent_identifier: string
