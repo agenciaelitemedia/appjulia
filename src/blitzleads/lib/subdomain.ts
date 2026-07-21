@@ -27,3 +27,17 @@ export function resolveBlitzTarget(pathname: string, map: BlitzRouteMap = DEFAUL
   const normalized = pathname === "/" ? "/" : pathname;
   return `${BLITZ_ROUTE_PREFIX}${normalized === "/" ? "/" : normalized}`;
 }
+
+/**
+ * Synchronous, DB-independent resolution used at the very first render on the
+ * BlitzLeads subdomain. Ensures we never fall through to Julia routes like
+ * `/login` before the DB-backed mapping is available.
+ */
+export function resolveInitialBlitzTarget(pathname: string): string | null {
+  if (pathname.startsWith(BLITZ_ROUTE_PREFIX)) return null;
+  if (pathname === "/" || pathname === "") return `${BLITZ_ROUTE_PREFIX}/`;
+  if (pathname === "/login" || pathname === "/blitz_auth") {
+    return `${BLITZ_ROUTE_PREFIX}/blitz_auth`;
+  }
+  return `${BLITZ_ROUTE_PREFIX}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+}
