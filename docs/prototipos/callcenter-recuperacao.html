@@ -1,0 +1,660 @@
+<title>Call Center — Recuperação de Oportunidades (Protótipo)</title>
+<style>
+  :root{
+    --ground:#eef2f6; --surface:#ffffff; --surface-2:#f8fafc; --surface-3:#f1f5f9;
+    --text:#0f172a; --text-soft:#64748b; --text-faint:#94a3b8;
+    --line:#e2e8f0; --line-strong:#cbd5e1;
+    --brand-a:#2563eb; --brand-b:#4338ca;
+    --sidebar:#0f172a; --sidebar-2:#1e293b; --sidebar-tx:#cbd5e1; --sidebar-faint:#64748b;
+    --call:#16a34a; --call-dark:#15803d;
+    --shadow:0 1px 2px rgba(15,23,42,.06),0 4px 12px rgba(15,23,42,.05);
+    --shadow-lg:0 10px 30px rgba(15,23,42,.14);
+    --silent:#ef4444;--silent-bg:#fef2f2;--silent-bd:#fecaca;
+    --objection:#f59e0b;--objection-bg:#fffbeb;--objection-bd:#fde68a;
+    --qualified:#8b5cf6;--qualified-bg:#f5f3ff;--qualified-bd:#ddd6fe;
+    --unsigned:#3b82f6;--unsigned-bg:#eff6ff;--unsigned-bd:#bfdbfe;
+    --signed:#10b981;--signed-bg:#ecfdf5;--signed-bd:#a7f3d0;
+    --good:#059669;--warn:#d97706;--bad:#dc2626;
+    --wa-bg-a:#e6ddd2;--wa-bg-b:#d9cfc2;--wa-lead:#ffffff;--wa-lead-tx:#0f172a;--wa-out:#dcf8c6;--wa-out-tx:#0f3312;--wa-att:#e9d5ff;--wa-att-tx:#3b0764;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#020617;--surface:#0b1220;--surface-2:#0f172a;--surface-3:#131f34;
+      --text:#e8edf5;--text-soft:#94a3b8;--text-faint:#64748b;--line:#1e293b;--line-strong:#334155;
+      --sidebar:#060b16;--sidebar-2:#0f1a2e;--sidebar-tx:#94a3b8;--sidebar-faint:#475569;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.35);--shadow-lg:0 12px 34px rgba(0,0,0,.55);
+      --silent-bg:#2a1416;--silent-bd:#7f1d1d;--objection-bg:#2a2010;--objection-bd:#78550f;
+      --qualified-bg:#1e1633;--qualified-bd:#5b21b6;--unsigned-bg:#111f38;--unsigned-bd:#1e40af;--signed-bg:#0d2620;--signed-bd:#065f46;
+      --wa-bg-a:#0c1a17;--wa-bg-b:#0a1512;--wa-lead:#1f2c34;--wa-lead-tx:#e8edf5;--wa-out:#065f46;--wa-out-tx:#d1fae5;--wa-att:#3b0764;--wa-att-tx:#e9d5ff;
+    }
+  }
+  :root[data-theme="light"]{--ground:#eef2f6;--surface:#fff;--surface-2:#f8fafc;--surface-3:#f1f5f9;--text:#0f172a;--text-soft:#64748b;--text-faint:#94a3b8;--line:#e2e8f0;--line-strong:#cbd5e1;--sidebar:#0f172a;--sidebar-2:#1e293b;--sidebar-tx:#cbd5e1;--sidebar-faint:#64748b;--shadow:0 1px 2px rgba(15,23,42,.06),0 4px 12px rgba(15,23,42,.05);--shadow-lg:0 10px 30px rgba(15,23,42,.14);--silent-bg:#fef2f2;--silent-bd:#fecaca;--objection-bg:#fffbeb;--objection-bd:#fde68a;--qualified-bg:#f5f3ff;--qualified-bd:#ddd6fe;--unsigned-bg:#eff6ff;--unsigned-bd:#bfdbfe;--signed-bg:#ecfdf5;--signed-bd:#a7f3d0;--wa-bg-a:#e6ddd2;--wa-bg-b:#d9cfc2;--wa-lead:#fff;--wa-lead-tx:#0f172a;--wa-out:#dcf8c6;--wa-out-tx:#0f3312;--wa-att:#e9d5ff;--wa-att-tx:#3b0764;}
+  :root[data-theme="dark"]{--ground:#020617;--surface:#0b1220;--surface-2:#0f172a;--surface-3:#131f34;--text:#e8edf5;--text-soft:#94a3b8;--text-faint:#64748b;--line:#1e293b;--line-strong:#334155;--sidebar:#060b16;--sidebar-2:#0f1a2e;--sidebar-tx:#94a3b8;--sidebar-faint:#475569;--shadow:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.35);--shadow-lg:0 12px 34px rgba(0,0,0,.55);--silent-bg:#2a1416;--silent-bd:#7f1d1d;--objection-bg:#2a2010;--objection-bd:#78550f;--qualified-bg:#1e1633;--qualified-bd:#5b21b6;--unsigned-bg:#111f38;--unsigned-bd:#1e40af;--signed-bg:#0d2620;--signed-bd:#065f46;--wa-bg-a:#0c1a17;--wa-bg-b:#0a1512;--wa-lead:#1f2c34;--wa-lead-tx:#e8edf5;--wa-out:#065f46;--wa-out-tx:#d1fae5;--wa-att:#3b0764;--wa-att-tx:#e9d5ff;}
+
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--text);font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .tnum{font-variant-numeric:tabular-nums}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  button:focus-visible,[tabindex]:focus-visible,textarea:focus-visible{outline:2px solid var(--brand-a);outline-offset:1px;border-radius:8px}
+
+  /* ---------- APP SHELL (layout da Julia) ---------- */
+  .shell{display:flex;height:100vh;overflow:hidden}
+  .sidebar{width:216px;flex-shrink:0;background:var(--sidebar);color:var(--sidebar-tx);display:flex;flex-direction:column;padding:14px 12px;gap:3px}
+  .sb-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px}
+  .sb-brand .mk{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--brand-a),var(--brand-b));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px}
+  .sb-brand b{color:#fff;font-size:15px;letter-spacing:-.01em}
+  .sb-brand span{display:block;font-size:10px;color:var(--sidebar-faint)}
+  .sb-sec{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--sidebar-faint);padding:12px 10px 4px;font-weight:700}
+  .nav{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;font-size:13.5px;font-weight:600;color:var(--sidebar-tx)}
+  .nav .ic{width:18px;text-align:center;opacity:.85}
+  .nav:hover{background:var(--sidebar-2);color:#fff}
+  .nav.active{background:linear-gradient(135deg,var(--brand-a),var(--brand-b));color:#fff}
+  .nav .pill{margin-left:auto;background:var(--silent);color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px}
+  .sb-foot{margin-top:auto;display:flex;align-items:center;gap:9px;padding:9px 10px;border-top:1px solid var(--sidebar-2)}
+  .sb-foot .av{width:28px;height:28px;border-radius:50%;background:var(--sidebar-2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff}
+  .sb-foot .nm{font-size:12px;color:#fff;font-weight:600} .sb-foot .rl{font-size:10px;color:var(--sidebar-faint)}
+
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--ground)}
+  .apphead{height:56px;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 20px}
+  .apphead .crumb{font-size:12px;color:var(--text-faint)} .apphead h1{font-size:16px;font-weight:800;margin:0;letter-spacing:-.01em}
+  .apphead .sp{flex:1}
+  .urgent-pill{display:inline-flex;align-items:center;gap:6px;background:color-mix(in srgb,var(--silent) 14%,transparent);color:var(--silent);padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800}
+  .urgent-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--silent);animation:pulse 1.6s infinite}
+  .icon-btn{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--text-soft);border:1px solid var(--line);background:var(--surface-2)}
+  .icon-btn:hover{color:var(--text);border-color:var(--line-strong)}
+  .content{flex:1;min-height:0;overflow:hidden;position:relative}
+
+  /* ---------- TRIAGE ---------- */
+  .triage-scroll{height:100%;overflow-y:auto;padding:18px 22px 40px}
+  .triage-inner{max-width:1120px;margin:0 auto}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow)}
+  .kpi .v{font-size:27px;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .kpi .l{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;margin-top:6px;font-weight:700}
+  .kpi.crit .v{color:var(--bad)} .kpi.good .v{color:var(--good)}
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;flex:1}
+  .chip{white-space:nowrap;padding:8px 13px;border-radius:10px;font-size:13px;font-weight:700;background:var(--surface);border:1px solid var(--line);color:var(--text-soft);display:inline-flex;align-items:center;gap:7px}
+  .chip:hover{color:var(--text);border-color:var(--line-strong)}
+  .chip[aria-pressed="true"]{background:var(--text);color:var(--surface);border-color:var(--text)}
+  .chip .cdot{width:8px;height:8px;border-radius:50%} .chip .cnt{font-size:11px;opacity:.72;font-weight:800}
+  .pull{padding:10px 16px;border-radius:11px;background:linear-gradient(135deg,var(--brand-a),var(--brand-b));color:#fff;font-weight:800;font-size:13px;display:inline-flex;align-items:center;gap:8px;box-shadow:var(--shadow-lg);white-space:nowrap}
+  .pull:hover{filter:brightness(1.06)} .pull:disabled{opacity:.5;filter:none;cursor:default}
+  .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+
+  .card{position:relative;text-align:left;width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:15px;padding:14px 15px 13px 18px;box-shadow:var(--shadow);transition:transform .08s,box-shadow .15s;overflow:hidden}
+  .card:hover{box-shadow:var(--shadow-lg);transform:translateY(-1px)}
+  .card .stripe{position:absolute;left:0;top:0;bottom:0;width:5px}
+  .card.t-silent{border-color:var(--silent-bd)} .card.t-silent .stripe{background:var(--silent)}
+  .card.t-objection{border-color:var(--objection-bd)} .card.t-objection .stripe{background:var(--objection)}
+  .card.t-qualified{border-color:var(--qualified-bd)} .card.t-qualified .stripe{background:var(--qualified)}
+  .card.t-unsigned{border-color:var(--unsigned-bd)} .card.t-unsigned .stripe{background:var(--unsigned)}
+  .card.t-signed{border-color:var(--signed-bd)} .card.t-signed .stripe{background:var(--signed)}
+  .card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .who{display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap}
+  .who .emoji{font-size:16px} .who .name{font-weight:800;letter-spacing:-.01em}
+  .tagrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.02em}
+  .badge .bdot{width:6px;height:6px;border-radius:50%} .badge.pulse{animation:pulse 1.6s infinite}
+  .badge-trigger{color:#fff}
+  .t-silent .badge-trigger{background:var(--silent)} .t-objection .badge-trigger{background:var(--objection)}
+  .t-qualified .badge-trigger{background:var(--qualified)} .t-unsigned .badge-trigger{background:var(--unsigned)} .t-signed .badge-trigger{background:var(--signed)}
+  .badge-urgent{background:var(--bad);color:#fff;padding:2px 7px;font-size:9.5px}
+  .contract{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:9.5px;font-weight:800}
+  .contract .bdot{width:6px;height:6px;border-radius:50%}
+  .c-emitir{background:var(--objection-bg);color:var(--warn)} .c-emitir .bdot{background:var(--objection)}
+  .c-emitido{background:var(--unsigned-bg);color:var(--unsigned)} .c-emitido .bdot{background:var(--unsigned)}
+  .c-assinado{background:var(--signed-bg);color:var(--good)} .c-assinado .bdot{background:var(--signed)}
+  .sub{font-size:12px;color:var(--text-faint)}
+  .nextact{margin-top:10px;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-soft);background:var(--surface-3);border:1px solid var(--line);border-radius:9px;padding:7px 10px;font-weight:600}
+  .nextact b{color:var(--text)}
+  .card-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0}
+  .sla{text-align:right} .sla .t{font-size:16px;font-weight:800;letter-spacing:-.01em}
+  .sla .t.over{color:var(--bad)} .sla .t.ok{color:var(--good)} .sla .t.warn{color:var(--warn)}
+  .sla .l{font-size:9px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+  .prio{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:800;color:var(--text-soft)}
+  .empty{grid-column:1/-1;text-align:center;padding:70px 20px;color:var(--text-faint)}
+
+  /* ---------- WORKSPACE (2 painéis, chat sempre visível) ---------- */
+  #workspace{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--ground)}
+  .ws-bar{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--line);padding:11px 20px;display:flex;align-items:center;gap:14px}
+  .ws-bar.t-silent{box-shadow:inset 4px 0 0 var(--silent)} .ws-bar.t-objection{box-shadow:inset 4px 0 0 var(--objection)}
+  .ws-bar.t-qualified{box-shadow:inset 4px 0 0 var(--qualified)} .ws-bar.t-unsigned{box-shadow:inset 4px 0 0 var(--unsigned)} .ws-bar.t-signed{box-shadow:inset 4px 0 0 var(--signed)}
+  .back{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-soft);font-weight:600;flex-shrink:0}
+  .back:hover{color:var(--text)}
+  .ws-id{min-width:0;flex:1;display:flex;align-items:center;gap:12px}
+  .ws-id .nm{font-size:15px;font-weight:800;letter-spacing:-.01em;white-space:nowrap}
+  .ws-id .tags{display:flex;gap:6px;flex-wrap:wrap}
+  .ws-bar .sla{margin-left:auto}
+  .ws-grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(360px,44%) 1fr}
+  .ws-left{overflow-y:auto;padding:16px 18px 40px;border-right:1px solid var(--line)}
+  .ws-chat{display:flex;flex-direction:column;min-height:0;background:var(--surface)}
+
+  .motivo{font-size:12.5px;color:var(--text-soft);background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 12px;display:flex;gap:8px;box-shadow:var(--shadow)}
+  .motivo b{color:var(--text)}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-top:11px;overflow:hidden;box-shadow:var(--shadow)}
+  .panel-h{width:100%;display:flex;align-items:center;justify-content:space-between;padding:11px 13px;font-size:13px;font-weight:700}
+  .panel-h .lft{display:flex;align-items:center;gap:9px}
+  .panel-b{border-top:1px solid var(--line);padding:10px 13px 12px}
+  .muted{color:var(--text-faint);font-size:12.5px;padding:6px 0}
+  .kv{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .kv:last-child{border-bottom:none}
+  .kv .k{min-width:92px;color:var(--text-faint);font-size:10px;text-transform:uppercase;letter-spacing:.03em;font-weight:700;flex-shrink:0}
+  .logrow{display:flex;gap:10px;font-size:12px;background:var(--surface-2);border-radius:9px;padding:8px 10px;margin-top:6px}
+  .logrow .meta{color:var(--text-faint)} .logrow .res{color:var(--text);font-weight:600;margin-top:2px}
+  .filerow{display:flex;align-items:center;gap:10px;background:var(--surface-2);border-radius:9px;padding:8px 10px;margin-top:6px}
+  .filerow .fi{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .fi.img{background:var(--unsigned-bg);color:var(--unsigned)} .fi.pdf{background:var(--silent-bg);color:var(--silent)}
+  .filerow .fn{font-size:12px;font-weight:600} .filerow .fs{font-size:10px;color:var(--text-faint)}
+
+  /* stepper */
+  .flow{margin-top:16px}
+  .flow-h{display:flex;align-items:center;justify-content:space-between;padding:0 2px 2px}
+  .flow-h .ttl{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft)}
+  .flow-h .prog{font-size:12px;color:var(--text-faint);font-weight:700}
+  .step{background:var(--surface);border:1.5px solid var(--line);border-radius:13px;margin-top:9px;overflow:hidden;box-shadow:var(--shadow)}
+  .step.active{border-color:var(--brand-a);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-a) 18%,transparent),var(--shadow)}
+  .step.locked{opacity:.5} .step.done{opacity:.95}
+  .step-h{display:flex;align-items:center;gap:11px;padding:11px 12px}
+  .step-n{width:28px;height:28px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;background:var(--surface-3);color:var(--text-soft)}
+  .step.active .step-n{background:linear-gradient(135deg,var(--brand-a),var(--brand-b));color:#fff}
+  .step.done .step-n{background:var(--signed-bg);color:var(--good)}
+  .step-info{flex:1;min-width:0} .step-info .sl{font-weight:700;font-size:13.5px} .step-info .sc{font-size:11px;color:var(--text-faint);margin-top:1px}
+  .step-res{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .res-ok{background:var(--signed-bg);color:var(--good)} .res-fail{background:var(--silent-bg);color:var(--bad)} .res-sent{background:var(--unsigned-bg);color:var(--unsigned)}
+  .step-body{border-top:1px dashed var(--line);padding:11px 12px;display:flex;flex-direction:column;gap:9px}
+  .act-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:11px;font-weight:800;font-size:13.5px;width:100%;box-shadow:var(--shadow)}
+  .act-call{background:var(--call);color:#fff} .act-call:hover{background:var(--call-dark)}
+  .act-zap{background:#25d366;color:#053b1e} .act-zap:hover{filter:brightness(.96)}
+  .act-audio{background:var(--qualified);color:#fff} .act-audio:hover{filter:brightness(1.05)}
+  .act-text{background:var(--brand-a);color:#fff} .act-text:hover{filter:brightness(1.05)}
+  .hint{font-size:11px;color:var(--text-faint);text-align:center}
+  .flow-done{background:var(--surface);border:1.5px dashed var(--line-strong);border-radius:13px;margin-top:11px;padding:15px;text-align:center}
+  .flow-done p{margin:0 0 11px;font-size:13px;color:var(--text-soft);font-weight:600}
+  .outcome{display:flex;gap:9px;margin:14px 0 6px}
+  .oc{flex:1;padding:12px;border-radius:12px;font-weight:800;font-size:13.5px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:2px solid}
+  .oc-win{border-color:var(--signed-bd);background:var(--signed-bg);color:var(--good)} .oc-win:hover{background:color-mix(in srgb,var(--signed) 16%,transparent)}
+  .oc-lose{border-color:var(--silent-bd);background:var(--silent-bg);color:var(--bad)} .oc-lose:hover{background:color-mix(in srgb,var(--silent) 12%,transparent)}
+  .tl{margin-top:6px;padding-left:4px}
+  .tl-item{display:flex;gap:10px;padding:7px 0}
+  .tl-dot{width:25px;height:25px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;background:var(--surface-3);color:var(--text-soft);border:1px solid var(--line)}
+  .tl-item .tt{font-size:12.5px;font-weight:700} .tl-item .td{font-size:10.5px;color:var(--text-faint)} .tl-item .tn{font-size:12px;color:var(--text-soft);margin-top:2px}
+
+  /* ---------- CHAT PANE (sempre visível) ---------- */
+  .chat-h{flex-shrink:0;padding:11px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:11px;background:var(--surface)}
+  .chat-h .av{width:38px;height:38px;border-radius:50%;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .chat-h .nm{font-weight:800;font-size:14px} .chat-h .st{font-size:11px;color:var(--text-faint);display:flex;align-items:center;gap:5px}
+  .chat-h .st .g{width:7px;height:7px;border-radius:50%;background:var(--text-faint)} .chat-h .st.on .g{background:var(--good)}
+  .chat-actions{margin-left:auto;display:flex;gap:7px}
+  .cact{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--shadow)}
+  .cact.voip{background:var(--call)} .cact.voip:hover{background:var(--call-dark)}
+  .cact.zap{background:#25d366;color:#053b1e} .cact.zap:hover{filter:brightness(.96)}
+  .chat-msgs{flex:1;min-height:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:7px;background:linear-gradient(160deg,var(--wa-bg-a),var(--wa-bg-b))}
+  .bub{max-width:74%;border-radius:12px;padding:7px 11px;font-size:13px;box-shadow:0 1px 1px rgba(0,0,0,.14);position:relative}
+  .bub .nm{font-size:9.5px;font-weight:800;opacity:.6;margin-bottom:2px} .bub .tm{font-size:9.5px;opacity:.5;text-align:right;margin-top:2px}
+  .bub.lead{align-self:flex-start;background:var(--wa-lead);color:var(--wa-lead-tx)}
+  .bub.julia{align-self:flex-end;background:var(--wa-out);color:var(--wa-out-tx)}
+  .bub.att{align-self:flex-end;background:var(--wa-att);color:var(--wa-att-tx)}
+  .bub.audio{display:flex;align-items:center;gap:9px;min-width:180px}
+  .bub .wf{display:flex;align-items:center;gap:2px;flex:1;height:20px}
+  .bub .wf i{width:2.5px;background:currentColor;opacity:.55;border-radius:2px;display:block}
+  .sysline{align-self:center;font-size:11px;color:var(--text-soft);background:color-mix(in srgb,var(--text) 8%,transparent);padding:3px 11px;border-radius:999px;font-weight:600}
+  .typing{align-self:flex-start;background:var(--wa-lead);color:var(--wa-lead-tx);border-radius:12px;padding:9px 13px;display:flex;gap:4px}
+  .typing i{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.5;animation:blink 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.2s} .typing i:nth-child(3){animation-delay:.4s}
+  .composer{flex-shrink:0;border-top:1px solid var(--line);padding:10px 12px;display:flex;align-items:flex-end;gap:8px;background:var(--surface)}
+  .composer textarea{flex:1;border:1px solid var(--line);border-radius:12px;padding:9px 12px;font:inherit;font-size:13px;resize:none;min-height:40px;max-height:120px;background:var(--surface-2);color:var(--text)}
+  .composer textarea:focus{outline:none;border-color:var(--brand-a)}
+  .comp-btn{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--surface-3);color:var(--text-soft)}
+  .comp-btn:hover{color:var(--text)} .comp-btn.send{background:var(--call);color:#fff} .comp-btn.send:hover{background:var(--call-dark)}
+  .comp-btn.rec{background:var(--silent);color:#fff}
+
+  /* ---------- overlays / toast (compartilhados) ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(2,6,23,.55);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}
+  .sheet{background:var(--surface);width:100%;max-width:460px;border-radius:18px;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+  .sheet-h{padding:15px 18px 11px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface)}
+  .sheet-h h3{margin:0;font-size:15px;font-weight:800} .sheet-h p{margin:3px 0 0;font-size:12px;color:var(--text-faint)}
+  .sheet-b{padding:15px 18px}
+  .sheet-f{padding:12px 18px 16px;display:flex;gap:9px;position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--line)}
+  .calling{text-align:center;padding:16px 0 6px}
+  .call-ring{width:70px;height:70px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--call) 16%,transparent);color:var(--call);position:relative}
+  .call-ring::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:2px solid var(--call);opacity:.5;animation:ring 1.4s infinite}
+  .call-status{font-size:13px;font-weight:700;color:var(--text-soft)} .call-timer{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-top:4px}
+  .end-call{margin:14px auto 0;display:flex;align-items:center;gap:8px;background:var(--bad);color:#fff;padding:10px 18px;border-radius:11px;font-weight:800}
+  .disp{display:flex;flex-direction:column;gap:9px} .disp .lbl{font-size:12px;font-weight:800;color:var(--text-soft)}
+  .disp-opts{display:flex;flex-wrap:wrap;gap:7px}
+  .dopt{padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:700;border:1.5px solid var(--line);background:var(--surface-2);color:var(--text-soft)}
+  .dopt:hover{border-color:var(--line-strong);color:var(--text)}
+  .dopt[aria-pressed="true"]{border-color:var(--brand-a);color:var(--text);background:color-mix(in srgb,var(--brand-a) 10%,transparent)}
+  textarea.note{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;font-size:13px;resize:none;min-height:54px;background:var(--surface-2);color:var(--text)}
+  textarea.note:focus{outline:none;border-color:var(--brand-a)}
+  .row-btns{display:flex;gap:8px}
+  .btn{padding:10px 14px;border-radius:10px;font-weight:800;font-size:13px;flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px}
+  .btn-primary{background:var(--text);color:var(--surface)} .btn-primary:hover{filter:brightness(1.1)} .btn-primary:disabled{opacity:.45;cursor:default;filter:none}
+  .btn-ghost{background:var(--surface-3);color:var(--text-soft)} .btn-ghost:hover{color:var(--text)}
+  .rec{display:flex;flex-direction:column;align-items:center;gap:11px;padding:6px 0}
+  .rec-wave{display:flex;align-items:center;gap:3px;height:40px} .rec-wave span{width:3px;background:var(--qualified);border-radius:2px;animation:wave 1s infinite ease-in-out}
+  .rec-timer{font-size:24px;font-weight:800} .script{background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:11px;font-size:12.5px;line-height:1.55;white-space:pre-line;color:var(--text)}
+  .script-lbl{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);margin-bottom:6px}
+  .toast{position:fixed;left:50%;top:70px;transform:translateX(-50%);z-index:90;background:var(--text);color:var(--surface);padding:11px 18px;border-radius:11px;font-size:13px;font-weight:700;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:8px}
+
+  .hidden{display:none!important}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  @keyframes ring{0%{transform:scale(.9);opacity:.6}100%{transform:scale(1.35);opacity:0}}
+  @keyframes wave{0%,100%{height:9px}50%{height:34px}}
+  @keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:.9}}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+  @media(max-width:1080px){ .sidebar{width:64px} .sb-brand b,.sb-brand span,.nav span.lbl,.sb-sec,.sb-foot .nm,.sb-foot .rl{display:none} .nav{justify-content:center} .nav .pill{display:none} }
+  @media(max-width:860px){ .ws-grid{grid-template-columns:1fr;grid-template-rows:auto 1fr} .ws-left{border-right:none;border-bottom:1px solid var(--line);max-height:42%} .kpis{grid-template-columns:repeat(2,1fr)} }
+</style>
+
+<div class="shell">
+  <!-- ===== Sidebar (layout da Julia) ===== -->
+  <aside class="sidebar">
+    <div class="sb-brand"><div class="mk">J</div><div><b>Julia</b><span>Atende Julia</span></div></div>
+    <div class="sb-sec">Principal</div>
+    <div class="nav"><span class="ic">▦</span><span class="lbl">Dashboard</span></div>
+    <div class="nav"><span class="ic">💬</span><span class="lbl">Chat</span></div>
+    <div class="nav"><span class="ic">🗂️</span><span class="lbl">CRM</span></div>
+    <div class="sb-sec">Operação</div>
+    <div class="nav active"><span class="ic">📞</span><span class="lbl">Call Center</span><span class="pill" id="navPill">0</span></div>
+    <div class="nav"><span class="ic">🎫</span><span class="lbl">Tickets</span></div>
+    <div class="nav"><span class="ic">☎️</span><span class="lbl">Telefonia</span></div>
+    <div class="nav"><span class="ic">🤖</span><span class="lbl">Agentes</span></div>
+    <div class="sb-foot"><div class="av">AC</div><div><div class="nm">Ana Costa</div><div class="rl">Atendente</div></div></div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <div class="main">
+    <header class="apphead">
+      <div><div class="crumb">Operação</div><h1>Call Center · Recuperação</h1></div>
+      <div class="sp"></div>
+      <div id="urgentPill" class="urgent-pill hidden"><span class="dot"></span><span id="urgentCount"></span></div>
+      <button class="icon-btn" id="themeBtn" title="Alternar tema" aria-label="Alternar tema">◐</button>
+    </header>
+
+    <div class="content">
+      <!-- TRIAGE -->
+      <div id="triage" class="triage-scroll">
+        <div class="triage-inner">
+          <div class="kpis" id="kpis"></div>
+          <div class="toolbar">
+            <div class="filters" id="filters"></div>
+            <button class="pull" id="pullNext">⚡ Pegar próximo urgente</button>
+          </div>
+          <div class="list" id="list"></div>
+        </div>
+      </div>
+      <!-- WORKSPACE -->
+      <div id="workspace" class="hidden"></div>
+    </div>
+  </div>
+</div>
+
+<div id="overlayRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+"use strict";
+const I={
+  phone:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>',
+  back:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  chevD:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+  chevU:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>',
+  bolt:'<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>',
+  msg:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.7 8.7 0 0 1-4-.9L3 21l1.9-4.9A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg>',
+  folder:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+  mic:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg>',
+  send:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>',
+  clip:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9.6 9.6a4 4 0 0 1-5.7-5.7l9.2-9.2a2.5 2.5 0 0 1 3.5 3.5l-9.2 9.2a1 1 0 0 1-1.4-1.4l8.5-8.5"/></svg>',
+  check:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
+  x:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  img:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="1.6"/><path d="M21 15l-5-5L5 21"/></svg>',
+  pdf:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+  phoneOut:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.1 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>',
+  phoneMiss:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.1 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/><path d="M23 1l-6 6M17 1l6 6"/></svg>',
+};
+const TRIG={
+  silent:{cls:'t-silent',color:'#ef4444',label:'PAROU DE RESPONDER',emoji:'🔴',pulse:true},
+  objection:{cls:'t-objection',color:'#f59e0b',label:'OBJEÇÃO',emoji:'🟠',pulse:true},
+  qualified:{cls:'t-qualified',color:'#8b5cf6',label:'QUALIFICADO S/ CONTRATO',emoji:'🟣',pulse:false},
+  unsigned:{cls:'t-unsigned',color:'#3b82f6',label:'CONTRATO NÃO ASSINADO',emoji:'🔵',pulse:false},
+  signed:{cls:'t-signed',color:'#10b981',label:'ASSINADO SEM CONTATO',emoji:'🟢',pulse:false},
+};
+const FILTERS=[{k:'todos',label:'Todos'},{k:'silent',label:'Parou',color:'#ef4444'},{k:'objection',label:'Objeção',color:'#f59e0b'},{k:'qualified',label:'Qualificado',color:'#8b5cf6'},{k:'unsigned',label:'Não assinado',color:'#3b82f6'},{k:'signed',label:'Assinado',color:'#10b981'}];
+const CH={
+  voip:{label:'Ligação (VoIP)',sub:'Ramal SIP do escritório',btn:'act-call',txt:'Ligar',icon:I.phone},
+  zap:{label:'Ligação por WhatsApp',sub:'Zap call · Wavoip',btn:'act-zap',txt:'Ligar no WhatsApp',icon:I.phone},
+  audio:{label:'Áudio no WhatsApp',sub:'Mensagem de voz com script',btn:'act-audio',txt:'Gravar áudio',icon:I.mic},
+  text:{label:'Texto no WhatsApp',sub:'Mensagem pronta editável',btn:'act-text',txt:'Enviar texto',icon:I.send},
+};
+function playbook(trigger,lead){
+  const n=lead.firstName, zap='app.zapsign.com.br/verificar/'+(lead.docToken||'xxxx');
+  const s={
+    silent:{audio:`Oi ${n}, tudo bem? Aqui é do escritório. Vi que a gente parou de conversar quando você ia me enviar uns detalhes. Fica tranquilo(a) que seu caso continua aqui — me chama que resolvemos rapidinho.`,text:`Oi ${n}! 👋 Notei que nossa conversa parou. Seu caso continua ativo aqui comigo. Consegue me responder pra darmos andamento?`},
+    objection:{audio:`Oi ${n}, aqui é do escritório. Entendi que ficou uma dúvida antes de seguir — super comum. Queria te explicar pessoalmente como funciona, sem compromisso. Me dá 2 minutinhos?`,text:`Oi ${n}! Vi que surgiu uma dúvida antes de seguir. Posso te explicar exatamente como funciona e tirar qualquer receio, sem compromisso. Qual o melhor horário pra te ligar?`},
+    qualified:{audio:`Oi ${n}! Boa notícia: analisamos seu caso e você tem direito. Já consigo preparar tudo. Me confirma que seguimos que eu te envio o contrato pra assinar digitalmente, é rápido.`,text:`Oi ${n}! ✅ Seu caso foi qualificado e você tem direito. Posso preparar o contrato pra assinatura digital? É rápido. Podemos seguir?`},
+    unsigned:{audio:`Oi ${n}! Seu contrato já está pronto e te enviei o link pra assinar. É digital, 1 minutinho no celular. Assim que assinar, começamos a trabalhar. Precisa de ajuda pra assinar?`,text:`Oi ${n}! 📄 Seu contrato está pronto pra assinatura digital:\n${zap}\nÉ rápido, direto no celular. Qualquer dúvida me chama!`},
+    signed:{audio:`Oi ${n}! Recebemos sua assinatura, obrigado pela confiança! 🎉 Sou do escritório e vou acompanhar seu caso. Quero te explicar os próximos passos.`,text:`Oi ${n}! 🎉 Recebemos seu contrato assinado, seja bem-vindo(a)! Sou responsável pelo seu caso e já vou te passar os próximos passos.`},
+  }[trigger];
+  const ch=(channel,script)=>({channel,script:script||null,status:'pending',result:null,disposition:null,note:null});
+  return {
+    silent:[ch('voip'),ch('zap'),ch('audio',s.audio),ch('text',s.text)],
+    objection:[ch('voip'),ch('zap'),ch('audio',s.audio),ch('text',s.text)],
+    qualified:[ch('voip'),ch('zap'),ch('text',s.text),ch('audio',s.audio)],
+    unsigned:[ch('voip'),ch('zap'),ch('audio',s.audio),ch('text',s.text)],
+    signed:[ch('voip'),ch('audio',s.audio),ch('text',s.text)],
+  }[trigger];
+}
+let CASES=[
+  {id:1,trigger:'unsigned',name:'Maria Aparecida Silva',firstName:'Maria',phone:'(84) 99912-3456',caseLabel:'Plano de Saúde · Terapia ABA',emoji:'🏥',urgent:true,priority:94,slaMin:-18,contract:'emitido',docToken:'2024-78432',
+   julia:{'Nome':'Maria Aparecida Silva','Operadora':'Unimed Natal','Objeto':'Terapia ABA — filho autista (8a)','Negativa':'Cobertura negada','Laudo':'Sim (Dr. Carlos Mendes)','Local':'Natal/RN'},motivo:'Contrato enviado há 1h12 e ainda não foi assinado.',
+   calls:[{data:'Hoje 09:40',quem:'Julia (auto)',dur:'—',res:'Contrato enviado por link. Sem assinatura.',miss:false}],
+   chat:[{de:'julia',hora:'09:38',msg:'Analisamos seu caso e você tem direito! Vou te enviar o contrato pra assinar 🙏'},{de:'lead',hora:'09:39',msg:'Tá bom!'},{de:'julia',hora:'09:40',msg:'Pronto, enviei o link de assinatura digital. É rapidinho 😊'}],
+   files:[{n:'foto_protocolo.jpg',t:'img',s:'1.2 MB',d:'Hoje'}]},
+  {id:2,trigger:'signed',name:'Roberto Carlos dos Santos',firstName:'Roberto',phone:'(84) 99432-1098',caseLabel:'Auxílio-doença · Lombalgia',emoji:'📄',urgent:true,priority:88,slaMin:-42,contract:'assinado',docToken:'2024-90188',
+   julia:{'Nome':'Roberto Carlos dos Santos','Doença':'Lombalgia crônica','Situação':'Negativa INSS','Local':'Natal/RN'},motivo:'Assinou o contrato há 1h40 e nenhum humano falou com ele ainda.',
+   calls:[],chat:[{de:'julia',hora:'Ontem 18:20',msg:'Enviei seu contrato para assinatura.'},{de:'lead',hora:'Ontem 18:41',msg:'Assinei aqui ✅'}],
+   files:[{n:'contrato_assinado.pdf',t:'pdf',s:'420 KB',d:'Ontem'},{n:'carta_negativa_inss.pdf',t:'pdf',s:'1.8 MB',d:'Ontem'}]},
+  {id:3,trigger:'silent',name:'Maria Silva',firstName:'Maria',phone:'(84) 99555-7788',caseLabel:'Plano de Saúde · Bariátrica',emoji:'🏥',urgent:true,priority:71,slaMin:-6,contract:'',docToken:null,
+   julia:{'Nome':'Maria Silva','Operadora':'Hapvida','Objeto':'Cirurgia bariátrica','Negativa':'Alega ser estético','Laudo':'Sim','Local':'Natal/RN'},motivo:'Parou de responder logo após a Julia pedir a documentação.',
+   calls:[],chat:[{de:'julia',hora:'10:06',msg:'Tem algum laudo ou pedido médico dos últimos 3 meses?'},{de:'lead',hora:'10:07',msg:'Deixa eu ver aqui...'},{de:'julia',hora:'10:34',msg:'Consegue localizar o laudo? Assim já damos andamento 😊'}],files:[]},
+  {id:4,trigger:'objection',name:'João Pedro Alves',firstName:'João',phone:'(84) 99321-4455',caseLabel:'Plano de Saúde · Home care',emoji:'🏥',urgent:false,priority:64,slaMin:34,contract:'',docToken:null,
+   julia:{'Nome':'João Pedro Alves','Operadora':'Bradesco Saúde','Objeto':'Home care negado','Objeção':'"Medo de ficar caro"','Local':'Natal/RN'},motivo:'Transferido para humano: objeção sobre custos que a Julia não trata.',
+   calls:[{data:'Hoje 11:02',quem:'Julia (auto)',dur:'—',res:'Transferido para atendimento humano.',miss:false}],
+   chat:[{de:'lead',hora:'10:58',msg:'E quanto que fica pra mim? Tenho medo de ficar caro'},{de:'julia',hora:'10:59',msg:'Ótima pergunta! Vou te transferir pra alguém do time explicar certinho 🙂'}],files:[]},
+  {id:5,trigger:'qualified',name:'Carlos Eduardo Lima',firstName:'Carlos',phone:'(84) 99654-3210',caseLabel:'Plano de Saúde · Cirurgia joelho',emoji:'🏥',urgent:false,priority:58,slaMin:120,contract:'para_emitir',docToken:null,
+   julia:{'Nome':'Carlos Eduardo Lima','Operadora':'Bradesco Saúde','Objeto':'Cirurgia de joelho','Negativa':'Sem vaga na rede','Laudo':'Sim','Local':'Natal/RN'},motivo:'Qualificado há 2h, engajado, mas o contrato não foi gerado.',
+   calls:[{data:'Hoje 10:20',quem:'Ana (atendente)',dur:'6 min',res:'Atendeu. Muito engajado. Falta emitir contrato.',miss:false}],
+   chat:[{de:'julia',hora:'09:50',msg:'Vi que você quer resolver um problema com o plano...'},{de:'lead',hora:'09:52',msg:'Sim, preciso de ajuda!'},{de:'att',hora:'10:20',msg:'Oi Carlos, sou a Ana. Seu caso tem tudo pra dar certo!'}],
+   files:[{n:'laudo_ortopedista.pdf',t:'pdf',s:'3.2 MB',d:'Ontem'}]},
+  {id:6,trigger:'silent',name:'Francisca Oliveira',firstName:'Francisca',phone:'(84) 99543-2109',caseLabel:'BPC/LOAS · Renda',emoji:'🤝',urgent:false,priority:47,slaMin:75,contract:'',docToken:null,
+   julia:{'Nome':'Francisca M. de Oliveira','Benefício':'BPC/LOAS','Situação':'Negativa INSS','Local':'Mossoró/RN'},motivo:'Sem resposta há 1h15 durante a coleta de dados.',
+   calls:[{data:'Hoje 08:15',quem:'Julia (auto)',dur:'—',res:'Followup automático (etapa 1/4).',miss:false}],
+   chat:[{de:'julia',hora:'08:00',msg:'Você já fez perícia no INSS? Como foi?'},{de:'lead',hora:'08:02',msg:'Fiz sim, faz uns meses'},{de:'julia',hora:'08:15',msg:'E qual foi o resultado da perícia?'}],files:[]},
+];
+CASES.forEach(c=>{c.status='pending';c.currentStep=0;c.steps=playbook(c.trigger,c);c.timeline=[{icon:'🎯',title:'Caso detectado',date:fmtDetect(c.slaMin),note:c.motivo}];c.outcome=null;});
+let recoveredToday=3,wonToday=2,lostToday=1;
+let state={filter:'todos',caseId:null};
+
+function fmtSla(min){const a=Math.abs(min),h=Math.floor(a/60),m=a%60;const s=h>0?`${h}h${m>0?(' '+m+'m'):''}`:`${m}m`;return min<0?('+'+s):s;}
+function slaClass(min){return min<0?'over':(min<30?'warn':'ok');}
+function slaLabel(min){return min<0?'SLA estourado':'no prazo';}
+function fmtDetect(min){return min<0?('há '+fmtSla(min).slice(1)):('em '+fmtSla(min));}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function byId(id){return CASES.find(c=>c.id===id);}
+function openCases(){return CASES.filter(c=>c.status==='pending'||c.status==='in_progress'||c.status==='resolved_auto');}
+
+function renderKpis(){
+  const open=openCases();
+  const urgent=open.filter(c=>c.urgent&&c.status!=='resolved_auto').length;
+  const overdue=open.filter(c=>c.slaMin<0&&c.status!=='resolved_auto').length;
+  const total=wonToday+lostToday,winRate=total?Math.round(wonToday/total*100):0;
+  document.getElementById('kpis').innerHTML=`
+    <div class="kpi crit"><div class="v tnum">${urgent}</div><div class="l">Casos urgentes</div></div>
+    <div class="kpi ${overdue>0?'crit':''}"><div class="v tnum">${overdue}</div><div class="l">SLA estourado</div></div>
+    <div class="kpi good"><div class="v tnum">${recoveredToday}</div><div class="l">Recuperados hoje</div></div>
+    <div class="kpi"><div class="v tnum">${winRate}%</div><div class="l">Taxa de ganho</div></div>`;
+  const np=document.getElementById('navPill'); np.textContent=urgent; np.style.display=urgent>0?'':'none';
+}
+function renderFilters(){
+  const open=openCases();
+  document.getElementById('filters').innerHTML=FILTERS.map(f=>{
+    const cnt=f.k==='todos'?open.length:open.filter(c=>c.trigger===f.k).length;
+    const dot=f.color?`<span class="cdot" style="background:${f.color}"></span>`:'';
+    return `<button class="chip" aria-pressed="${state.filter===f.k}" onclick="setFilter('${f.k}')">${dot}${f.label} <span class="cnt tnum">${cnt}</span></button>`;
+  }).join('');
+}
+function contractBadge(c){
+  if(c==='para_emitir')return '<span class="contract c-emitir"><span class="bdot"></span>CONTRATO P/ EMITIR</span>';
+  if(c==='emitido')return '<span class="contract c-emitido"><span class="bdot"></span>CONTRATO EMITIDO</span>';
+  if(c==='assinado')return '<span class="contract c-assinado"><span class="bdot"></span>CONTRATO ASSINADO</span>';
+  return '';
+}
+function renderList(){
+  const open=openCases().slice().sort((a,b)=>(b.priority-a.priority)||(a.slaMin-b.slaMin));
+  const items=state.filter==='todos'?open:open.filter(c=>c.trigger===state.filter);
+  const el=document.getElementById('list');
+  if(!items.length){el.innerHTML=`<div class="empty">${I.check}<p style="font-weight:700;margin-top:8px">Fila zerada 🎉</p><p style="font-size:13px">Nenhum caso ${state.filter!=='todos'?'nesse gatilho':'aguardando'}.</p></div>`;return;}
+  el.innerHTML=items.map(c=>{
+    const t=TRIG[c.trigger],ns=c.steps[c.currentStep];
+    const next=c.status==='resolved_auto'?'Resolveu sozinho — selar ganho/perda':(ns?CH[ns.channel].txt:'Selar desfecho');
+    const auto=c.status==='resolved_auto'?`<span class="badge" style="background:var(--signed-bg);color:var(--good)"><span class="bdot" style="background:var(--signed)"></span>RESOLVEU SOZINHO</span>`:'';
+    return `<button class="card ${t.cls}" onclick="openCase(${c.id})"><span class="stripe"></span>
+      <div class="card-top"><div style="min-width:0;flex:1">
+        <div class="who"><span class="emoji">${t.emoji}</span><span class="name">${esc(c.name)}</span>${c.urgent?'<span class="badge badge-urgent">URGENTE</span>':''}</div>
+        <div class="tagrow"><span class="badge badge-trigger ${t.pulse&&c.urgent?'pulse':''}">${t.label}</span>${contractBadge(c.contract)}${auto}</div>
+        <div class="sub">${esc(c.caseLabel)} · ${c.phone}</div>
+      </div><div class="card-right">
+        <div class="sla"><div class="t tnum ${slaClass(c.slaMin)}">${fmtSla(c.slaMin)}</div><div class="l">${slaLabel(c.slaMin)}</div></div>
+        <span class="prio">${I.bolt}<span class="tnum">${c.priority}</span></span>
+      </div></div>
+      <div class="nextact">${I.phone}<span>Próxima ação: <b>${esc(next)}</b></span></div></button>`;
+  }).join('');
+}
+function renderTriage(){renderKpis();renderFilters();renderList();updateUrgent();}
+function updateUrgent(){
+  const u=openCases().filter(c=>c.urgent&&c.slaMin<0&&c.status!=='resolved_auto').length;
+  const pill=document.getElementById('urgentPill');
+  if(u>0){pill.classList.remove('hidden');document.getElementById('urgentCount').textContent=`${u} casos vencidos`;}else pill.classList.add('hidden');
+}
+function setFilter(k){state.filter=k;renderFilters();renderList();}
+function openCase(id){
+  state.caseId=id;const c=byId(id);if(c.status==='pending')c.status='in_progress';
+  document.getElementById('triage').classList.add('hidden');
+  document.getElementById('workspace').classList.remove('hidden');
+  renderWorkspace();
+}
+function backToTriage(){
+  state.caseId=null;
+  document.getElementById('workspace').classList.add('hidden');
+  document.getElementById('triage').classList.remove('hidden');
+  renderTriage();
+}
+function pullNext(){const o=openCases().filter(c=>c.status!=='resolved_auto').sort((a,b)=>(b.priority-a.priority)||(a.slaMin-b.slaMin));if(o.length)openCase(o[0].id);}
+
+/* ---------- WORKSPACE ---------- */
+let panelOpen={ctx:true,calls:false,files:false};
+function renderWorkspace(){
+  const c=byId(state.caseId),t=TRIG[c.trigger];
+  document.getElementById('workspace').innerHTML=`
+    <div class="ws-bar ${t.cls}">
+      <button class="back" onclick="backToTriage()">${I.back} Fila</button>
+      <div class="ws-id"><span style="font-size:17px">${t.emoji}</span><span class="nm">${esc(c.name)}</span>
+        <div class="tags"><span class="badge badge-trigger">${t.label}</span>${contractBadge(c.contract)}</div></div>
+      <div class="sla"><div class="t tnum ${slaClass(c.slaMin)}">${fmtSla(c.slaMin)}</div><div class="l">${slaLabel(c.slaMin)}</div></div>
+      <span class="prio" style="margin-left:4px">${I.bolt}<span class="tnum">${c.priority}</span></span>
+    </div>
+    <div class="ws-grid">
+      <div class="ws-left" id="wsLeft">${renderLeft(c)}</div>
+      <div class="ws-chat" id="wsChat">${renderChat(c)}</div>
+    </div>`;
+  scrollChat();
+}
+function renderLeft(c){
+  const t=TRIG[c.trigger];
+  return `<div class="motivo">${I.msg}<span><b>Por que caiu aqui:</b> ${esc(c.motivo)}</span></div>
+    <div class="panel"><button class="panel-h" onclick="tp('ctx')"><span class="lft">${I.msg}<span>Dados coletados pela Julia</span></span><span id="pc-ctx">${panelOpen.ctx?I.chevU:I.chevD}</span></button>
+      <div class="panel-b ${panelOpen.ctx?'':'hidden'}" id="pb-ctx">
+        ${Object.entries(c.julia).map(([k,v])=>`<div class="kv"><span class="k">${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}
+        <div style="margin-top:8px"><span class="badge" style="background:var(--signed-bg);color:var(--good)">${I.check} QUALIFICADO</span></div>
+      </div></div>
+    <div class="panel"><button class="panel-h" onclick="tp('calls')"><span class="lft">${I.phone}<span>Ligações <span style="color:var(--text-faint);font-weight:600">(${c.calls.length})</span></span></span><span id="pc-calls">${panelOpen.calls?I.chevU:I.chevD}</span></button>
+      <div class="panel-b ${panelOpen.calls?'':'hidden'}" id="pb-calls">${c.calls.length?c.calls.map(callRow).join(''):'<p class="muted">Nenhuma ligação registrada.</p>'}</div></div>
+    <div class="panel"><button class="panel-h" onclick="tp('files')"><span class="lft">${I.folder}<span>Arquivos <span style="color:var(--text-faint);font-weight:600">(${c.files.length})</span></span></span><span id="pc-files">${panelOpen.files?I.chevU:I.chevD}</span></button>
+      <div class="panel-b ${panelOpen.files?'':'hidden'}" id="pb-files">${c.files.length?c.files.map(fileRow).join(''):'<p class="muted">Nenhum arquivo recebido.</p>'}</div></div>
+    ${renderFlow(c)}${renderOutcome(c)}
+    <div class="flow" style="margin-top:16px"><div class="flow-h"><span class="ttl">Rastreabilidade</span><span class="prog tnum">${c.timeline.length} eventos</span></div>
+      <div class="tl">${c.timeline.slice().reverse().map(ev=>`<div class="tl-item"><div class="tl-dot">${ev.icon}</div><div><div class="tt">${esc(ev.title)}</div><div class="td">${esc(ev.date)}</div>${ev.note?`<div class="tn">${esc(ev.note)}</div>`:''}</div></div>`).join('')}</div></div>`;
+}
+function tp(k){panelOpen[k]=!panelOpen[k];const b=document.getElementById('pb-'+k),i=document.getElementById('pc-'+k);if(panelOpen[k]){b.classList.remove('hidden');i.innerHTML=I.chevU;}else{b.classList.add('hidden');i.innerHTML=I.chevD;}}
+function callRow(l){const ic=l.miss?`<span style="color:var(--bad)">${I.phoneMiss}</span>`:`<span style="color:var(--good)">${I.phoneOut}</span>`;return `<div class="logrow"><div>${ic}</div><div><div class="meta">${esc(l.data)} · ${esc(l.quem)} · ${esc(l.dur)}</div><div class="res">${esc(l.res)}</div></div></div>`;}
+function fileRow(f){return `<div class="filerow"><div class="fi ${f.t}">${f.t==='img'?I.img:I.pdf}</div><div style="flex:1;min-width:0"><div class="fn">${esc(f.n)}</div><div class="fs">${f.s} · ${f.d}</div></div></div>`;}
+
+/* ---------- CHAT PANE (sempre visível) ---------- */
+function renderChat(c){
+  return `<div class="chat-h">
+      <div class="av">${TRIG[c.trigger].emoji}</div>
+      <div style="min-width:0"><div class="nm">${esc(c.name)}</div><div class="st on"><span class="g"></span>WhatsApp · Julia inativa (você assumiu)</div></div>
+      <div class="chat-actions">
+        <button class="cact voip" title="Ligar (VoIP)" onclick="quickCall('voip')">${I.phone}</button>
+        <button class="cact zap" title="Ligar no WhatsApp" onclick="quickCall('zap')">${I.phone}</button>
+      </div>
+    </div>
+    <div class="chat-msgs" id="chatMsgs">${c.chat.map(bubble).join('')}</div>
+    <div class="composer">
+      <button class="comp-btn" title="Anexar">${I.clip}</button>
+      <textarea id="chatInput" rows="1" placeholder="Escreva uma mensagem…" oninput="growInput(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+      <button class="comp-btn rec" title="Gravar áudio" onclick="quickAudio()">${I.mic}</button>
+      <button class="comp-btn send" title="Enviar" onclick="sendChat()">${I.send}</button>
+    </div>`;
+}
+function bubble(m){
+  const cls=m.de==='lead'?'lead':(m.de==='att'?'att':'julia');
+  const nm=m.de==='lead'?'':(m.de==='att'?'<div class="nm">Você (Ana)</div>':'<div class="nm">Julia IA</div>');
+  if(m.audio){const bars=Array.from({length:22}).map((_,k)=>`<i style="height:${5+Math.round(Math.abs(Math.sin(k*0.9))*15)}px"></i>`).join('');
+    return `<div class="bub ${cls} audio">${I.mic}<div class="wf">${bars}</div><span class="tnum" style="font-size:11px;opacity:.7">0:${String(m.audio).padStart(2,'0')}</span></div>`;}
+  return `<div class="bub ${cls}">${nm}<div>${esc(m.msg)}</div><div class="tm">${esc(m.hora||nowHm())}</div></div>`;
+}
+function nowHm(){return 'agora';}
+function growInput(el){el.style.height='40px';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+function scrollChat(){const m=document.getElementById('chatMsgs');if(m)m.scrollTop=m.scrollHeight;}
+function addMsg(c,msg,{repaintLeft=false}={}){c.chat.push(msg);const m=document.getElementById('chatMsgs');if(m){m.insertAdjacentHTML('beforeend',msg.__sys?`<div class="sysline">${esc(msg.__sys)}</div>`:bubble(msg));scrollChat();}if(repaintLeft)refreshLeft(c);}
+function sysline(c,text){const m=document.getElementById('chatMsgs');if(m){m.insertAdjacentHTML('beforeend',`<div class="sysline">${esc(text)}</div>`);scrollChat();}}
+function refreshLeft(c){const l=document.getElementById('wsLeft');if(l)l.innerHTML=renderLeft(c);}
+function sendChat(){
+  const c=byId(state.caseId),ta=document.getElementById('chatInput'),v=ta.value.trim();if(!v)return;
+  addMsg(c,{de:'att',msg:v,hora:'agora'});ta.value='';growInput(ta);
+  c.timeline.push({icon:'💬',title:'Mensagem enviada (manual)',date:'agora',note:v.slice(0,80)});refreshLeft(c);
+  maybeReply(c);
+}
+function quickAudio(){ openAudioSheet(-1); }
+function quickCall(kind){ openCallSheet(-1,kind); }
+/* simula uma resposta do lead às vezes, pra mostrar o chat "vivo" */
+function maybeReply(c){
+  if(c._replied)return; c._replied=true;
+  setTimeout(()=>{const m=document.getElementById('chatMsgs');if(!m||state.caseId!==c.id)return;
+    m.insertAdjacentHTML('beforeend','<div class="typing" id="typing"><i></i><i></i><i></i></div>');scrollChat();
+    setTimeout(()=>{const tp=document.getElementById('typing');if(tp)tp.remove();
+      const reply=REPLIES[c.trigger]||'Oi! Pode me explicar melhor?';
+      addMsg(c,{de:'lead',msg:reply,hora:'agora'});
+      c.timeline.push({icon:'📩',title:'Lead respondeu',date:'agora',note:reply.slice(0,80)});refreshLeft(c);
+      toast('📩 '+c.firstName+' respondeu');
+    },1700);
+  },1200);
+}
+const REPLIES={silent:'Ah oi! Desculpa, tinha me perdido aqui. Achei o laudo sim 🙏',objection:'Entendi... e não tem risco de eu ter que pagar nada no fim?',qualified:'Pode mandar o contrato sim, quero seguir!',unsigned:'Acabei de assinar aqui! ✍️',signed:'Oi! Que bom, obrigado. Quais os próximos passos?'};
+
+/* ---------- STEPPER ---------- */
+function renderFlow(c){
+  const done=c.steps.filter(s=>s.status==='done').length;
+  let h=`<div class="flow"><div class="flow-h"><span class="ttl">Fluxo de recuperação</span><span class="prog tnum">${done}/${c.steps.length} ações</span></div>`;
+  c.steps.forEach((s,i)=>{
+    const ch=CH[s.channel],isActive=i===c.currentStep&&c.status!=='won'&&c.status!=='lost',isDone=s.status==='done';
+    const cls=isDone?'done':(isActive?'active':'locked');let rb='';
+    if(isDone){const map={ok:['res-ok','✓ '+(s.disposition||'Feito')],sent:['res-sent','✓ Enviado'],fail:['res-fail','✕ '+(s.disposition||'Sem contato')]};const r=map[s.result]||map.ok;rb=`<span class="step-res ${r[0]}">${r[1]}</span>`;}
+    h+=`<div class="step ${cls}"><div class="step-h"><div class="step-n">${isDone?I.check:(i+1)}</div><div class="step-info"><div class="sl">${ch.label}</div><div class="sc">${ch.sub}</div></div>${rb}</div>
+      ${isActive?`<div class="step-body"><button class="act-btn ${ch.btn}" onclick="doAction(${i})">${ch.icon} ${ch.txt}</button><div class="hint">Execute e registre o resultado para liberar o próximo passo.</div></div>`:''}</div>`;
+  });
+  if(c.currentStep>=c.steps.length&&c.status!=='won'&&c.status!=='lost')h+=`<div class="flow-done"><p>Todas as ações do fluxo foram executadas.<br>Registre o desfecho comercial.</p></div>`;
+  return h+'</div>';
+}
+let actTimer=null,pickedDisp=null;
+function doAction(i){const s=byId(state.caseId).steps[i];if(s.channel==='voip'||s.channel==='zap')openCallSheet(i,s.channel);else if(s.channel==='audio')openAudioSheet(i);else openTextSheet(i);}
+function openCallSheet(i,kind){
+  const c=byId(state.caseId);let secs=0;const ch=CH[kind];
+  overlay(`<div class="sheet-h"><h3>${ch.txt}</h3><p>${esc(c.name)} · ${c.phone}</p></div>
+    <div class="sheet-b"><div class="calling" id="callingBox"><div class="call-ring">${I.phone}</div><div class="call-status" id="callStatus">Chamando…</div><div class="call-timer tnum" id="callTimer">00:00</div><button class="end-call" onclick="endCall(${i})">${I.x} Encerrar</button></div><div id="dispBox" class="hidden"></div></div>`);
+  actTimer=setInterval(()=>{secs++;const el=document.getElementById('callTimer');if(!el){clearInterval(actTimer);return;}el.textContent=String(Math.floor(secs/60)).padStart(2,'0')+':'+String(secs%60).padStart(2,'0');if(secs===2)document.getElementById('callStatus').textContent='Tocando…';if(secs===5)document.getElementById('callStatus').textContent='Em ligação';},1000);
+  window._cs=()=>secs;
+}
+function endCall(i){
+  clearInterval(actTimer);const secs=window._cs?window._cs():0;
+  document.getElementById('callingBox').classList.add('hidden');
+  const d=document.getElementById('dispBox');d.classList.remove('hidden');
+  const opts=['Atendeu','Não atendeu','Ocupado','Caixa postal','Número errado'];
+  d.innerHTML=`<div class="disp"><div class="lbl">Resultado da ligação <span style="color:var(--text-faint);font-weight:600">(${String(Math.floor(secs/60)).padStart(2,'0')}:${String(secs%60).padStart(2,'0')})</span></div>
+    <div class="disp-opts" id="dopts">${opts.map(o=>`<button class="dopt" aria-pressed="false" onclick="pickDisp(this,'${o}')">${o}</button>`).join('')}</div>
+    <textarea class="note" id="actNote" placeholder="O que o lead disse, próximos passos…"></textarea>
+    <div class="row-btns"><button class="btn btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="btn btn-primary" id="cAct" disabled onclick="confirmCall(${i},${secs})">Registrar</button></div></div>`;
+}
+function pickDisp(b,v){pickedDisp=v;document.querySelectorAll('#dopts .dopt').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');document.getElementById('cAct').disabled=false;}
+function confirmCall(i,secs){
+  const c=byId(state.caseId);const note=document.getElementById('actNote').value.trim();const ok=pickedDisp==='Atendeu';
+  const dur=String(Math.floor(secs/60)).padStart(2,'0')+':'+String(secs%60).padStart(2,'0');
+  if(i>=0){const s=c.steps[i];s.status='done';s.disposition=pickedDisp;s.result=ok?'ok':'fail';s.note=note;if(i===c.currentStep)c.currentStep=i+1;}
+  else c.calls.unshift({data:'agora',quem:'Você (Ana)',dur,res:pickedDisp+(note?(' — '+note):''),miss:!ok});
+  c.timeline.push({icon:'📞',title:`Ligação — ${pickedDisp}`,date:'agora · '+dur,note:note||null});
+  pickedDisp=null;closeOverlay();
+  sysline(c,`📞 Ligação: ${pickedDisp} (${dur})`);
+  renderWorkspace();
+  toast(ok?'Ligação registrada · lead atendeu':'Registrado · siga para o próximo canal');
+}
+function openAudioSheet(i){
+  const c=byId(state.caseId);const s=i>=0?c.steps[i]:{script:(playbook(c.trigger,c).find(x=>x.channel==='audio')||{}).script||'Mensagem de voz do atendente.'};let secs=0;
+  overlay(`<div class="sheet-h"><h3>Áudio no WhatsApp</h3><p>${esc(c.name)} · ${c.phone}</p></div>
+    <div class="sheet-b"><div class="script-lbl">Script sugerido</div><div class="script">${esc(s.script)}</div>
+    <div class="rec" style="margin-top:14px" id="recBox"><div class="rec-wave">${Array.from({length:13}).map((_,k)=>`<span style="animation-delay:${k*0.07}s"></span>`).join('')}</div><div class="rec-timer tnum" id="recTimer">00:00</div><button class="btn btn-primary" style="max-width:190px" onclick="stopRec(${i})">${I.check} Parar e revisar</button></div>
+    <div id="audioSend" class="hidden"></div></div>`);
+  actTimer=setInterval(()=>{secs++;const el=document.getElementById('recTimer');if(!el){clearInterval(actTimer);return;}el.textContent='00:'+String(secs).padStart(2,'0');},1000);
+  window._rs=()=>secs;
+}
+function stopRec(i){
+  clearInterval(actTimer);const secs=window._rs?window._rs():5;
+  document.getElementById('recBox').classList.add('hidden');
+  const b=document.getElementById('audioSend');b.classList.remove('hidden');
+  b.innerHTML=`<div style="display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:10px 12px"><span style="color:var(--qualified)">${I.mic}</span><div style="flex:1"><div style="font-weight:700;font-size:12.5px">Áudio gravado</div><div style="font-size:11px;color:var(--text-faint)">0:${String(secs).padStart(2,'0')} · pronto para enviar</div></div></div>
+    <div class="row-btns" style="margin-top:11px"><button class="btn btn-ghost" onclick="closeOverlay()">Descartar</button><button class="btn btn-primary" onclick="sendAudio(${i},${secs})">${I.send} Enviar áudio</button></div>`;
+}
+function sendAudio(i,secs){
+  const c=byId(state.caseId);
+  if(i>=0){const s=c.steps[i];s.status='done';s.result='sent';s.disposition='Enviado';if(i===c.currentStep)c.currentStep=i+1;}
+  c.timeline.push({icon:'🎙️',title:'Áudio enviado no WhatsApp',date:'agora',note:'0:'+String(secs).padStart(2,'0')});
+  closeOverlay();addMsg(c,{de:'att',audio:secs,hora:'agora'});renderWorkspace();
+  toast('Áudio enviado ao lead');maybeReply(c);
+}
+function openTextSheet(i){
+  const c=byId(state.caseId),s=c.steps[i];
+  overlay(`<div class="sheet-h"><h3>Texto no WhatsApp</h3><p>${esc(c.name)} · ${c.phone}</p></div>
+    <div class="sheet-b"><div class="script-lbl">Mensagem pronta (edite se quiser)</div><textarea class="note" id="textMsg" style="min-height:140px;font-size:13px">${esc(s.script)}</textarea></div>
+    <div class="sheet-f"><button class="btn btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="btn btn-primary" onclick="sendText(${i})">${I.send} Enviar</button></div>`);
+}
+function sendText(i){
+  const c=byId(state.caseId),v=document.getElementById('textMsg').value.trim();
+  const s=c.steps[i];s.status='done';s.result='sent';s.disposition='Enviado';if(i===c.currentStep)c.currentStep=i+1;
+  c.timeline.push({icon:'💬',title:'Texto enviado no WhatsApp',date:'agora',note:v.slice(0,80)});
+  closeOverlay();addMsg(c,{de:'att',msg:v,hora:'agora'});renderWorkspace();
+  toast('Mensagem enviada ao lead');maybeReply(c);
+}
+/* ---------- OUTCOME ---------- */
+function renderOutcome(c){
+  if(c.status==='won'||c.status==='lost'){const win=c.status==='won';
+    return `<div class="flow-done" style="border-style:solid;border-color:${win?'var(--signed-bd)':'var(--silent-bd)'};background:${win?'var(--signed-bg)':'var(--silent-bg)'}"><p style="color:${win?'var(--good)':'var(--bad)'};font-weight:800;font-size:14px;margin-bottom:4px">${win?'✅ Caso ganho':'❌ Caso perdido'}</p><p style="margin:0">${esc(c.outcome||'')}</p></div>`;}
+  return `<div class="outcome"><button class="oc oc-win" onclick="openOutcome('won')">${I.check} Marcar ganho</button><button class="oc oc-lose" onclick="openOutcome('lost')">${I.x} Marcar perda</button></div>`;
+}
+let outcomeKind=null,outcomeReason=null;
+function openOutcome(kind){
+  outcomeKind=kind;outcomeReason=null;const win=kind==='won';
+  const reasons=win?['Assinou o contrato','Objeção contornada','Reengajou e avançou','Contrato emitido']:['Recusou o serviço','Inalcançável após tentativas','Sem interesse','Fechou com concorrente','Contato inválido'];
+  overlay(`<div class="sheet-h"><h3>${win?'Selar como ganho':'Selar como perda'}</h3><p>Registra o desfecho e fecha o caso na fila.</p></div>
+    <div class="sheet-b"><div class="disp"><div class="lbl">Motivo</div><div class="disp-opts" id="ocOpts">${reasons.map(r=>`<button class="dopt" aria-pressed="false" onclick="pickOut(this,'${esc(r)}')">${r}</button>`).join('')}</div><textarea class="note" id="ocNote" placeholder="Observação final (opcional)…"></textarea></div></div>
+    <div class="sheet-f"><button class="btn btn-ghost" onclick="closeOverlay()">Cancelar</button><button class="btn btn-primary" id="ocC" disabled onclick="confirmOut()">${win?'Confirmar ganho':'Confirmar perda'}</button></div>`);
+}
+function pickOut(b,v){outcomeReason=v;document.querySelectorAll('#ocOpts .dopt').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');document.getElementById('ocC').disabled=false;}
+function confirmOut(){
+  const c=byId(state.caseId),note=document.getElementById('ocNote').value.trim();
+  c.status=outcomeKind;c.outcome=outcomeReason+(note?(' — '+note):'');
+  c.timeline.push({icon:outcomeKind==='won'?'✅':'❌',title:outcomeKind==='won'?'Caso ganho':'Caso perdido',date:'agora',note:c.outcome});
+  if(outcomeKind==='won'){wonToday++;recoveredToday++;}else lostToday++;
+  closeOverlay();toast(outcomeKind==='won'?'🎉 Caso ganho':'Caso perdido');setTimeout(backToTriage,700);
+}
+/* ---------- overlay/toast/theme ---------- */
+function overlay(html){document.getElementById('overlayRoot').innerHTML=`<div class="overlay" onclick="if(event.target===this)closeOverlay()"><div class="sheet">${html}</div></div>`;}
+function closeOverlay(){clearInterval(actTimer);document.getElementById('overlayRoot').innerHTML='';}
+function toast(msg){const r=document.getElementById('toastRoot');r.innerHTML=`<div class="toast">${I.check} ${esc(msg)}</div>`;setTimeout(()=>{r.innerHTML='';},2400);}
+document.getElementById('themeBtn').onclick=()=>{const cur=document.documentElement.getAttribute('data-theme');const dark=cur?cur==='dark':window.matchMedia('(prefers-color-scheme:dark)').matches;document.documentElement.setAttribute('data-theme',dark?'light':'dark');};
+document.getElementById('pullNext').onclick=pullNext;
+renderTriage();
+</script>
