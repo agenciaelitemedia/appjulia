@@ -1,89 +1,129 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, Flame, FileText, BarChart3, Settings, LogOut } from "lucide-react";
+import { LayoutGrid, Phone, Ticket, PhoneCall, Bot, MessageSquare, FolderKanban, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import blitzLogo from "@/blitzleads/assets/blitzleads-sidebar-dark.png.asset.json";
 
-const NAV = [
-  { to: "/BlitzLead/call-center", label: "Call Center", icon: Flame, badge: "6" },
-  { to: "/BlitzLead/painel", label: "Painel", icon: LayoutGrid, disabled: true },
-  { to: "/BlitzLead/contratos", label: "Contratos", icon: FileText, disabled: true },
-  { to: "/BlitzLead/relatorios", label: "Relatórios", icon: BarChart3, disabled: true },
-  { to: "/BlitzLead/configuracoes", label: "Configurações", icon: Settings, disabled: true },
+const SECTIONS: { title: string; items: { to: string; label: string; icon: any; badge?: string; disabled?: boolean }[] }[] = [
+  {
+    title: "Principal",
+    items: [
+      { to: "/BlitzLead/dashboard", label: "Dashboard", icon: LayoutGrid, disabled: true },
+      { to: "/BlitzLead/chat", label: "Chat", icon: MessageSquare, disabled: true },
+      { to: "/BlitzLead/crm", label: "CRM", icon: FolderKanban, disabled: true },
+    ],
+  },
+  {
+    title: "Operação",
+    items: [
+      { to: "/BlitzLead/call-center", label: "Call Center", icon: Phone, badge: "6" },
+      { to: "/BlitzLead/tickets", label: "Tickets", icon: Ticket, disabled: true },
+      { to: "/BlitzLead/telefonia", label: "Telefonia", icon: PhoneCall, disabled: true },
+      { to: "/BlitzLead/agentes", label: "Agentes", icon: Bot, disabled: true },
+    ],
+  },
 ];
 
 export function BlitzSidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const initials = (user?.name ?? "US").split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
 
   return (
-    <aside className="w-60 shrink-0 bg-slate-950 text-slate-200 flex flex-col min-h-screen sticky top-0">
-      <div className="px-4 py-6 border-b border-slate-800/60 flex items-center justify-center">
+    <aside
+      className="w-[216px] shrink-0 flex flex-col min-h-screen sticky top-0 gap-[3px] px-3 py-3.5"
+      style={{ background: "#0f172a", color: "#cbd5e1" }}
+    >
+      {/* Brand */}
+      <div className="flex items-center gap-2.5 px-2 pt-1.5 pb-3.5">
         <img
           src={blitzLogo.url}
           alt="BlitzLeads"
-          className="h-16 w-auto max-w-full object-contain"
+          className="h-11 w-auto max-w-full object-contain"
+          style={{ mixBlendMode: "screen" }}
         />
       </div>
 
-      <nav className="flex-1 p-3 space-y-0.5">
-        {NAV.map((item) => {
-          const Icon = item.icon;
-          if (item.disabled) {
-            return (
-              <div
-                key={item.to}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-500 cursor-not-allowed"
-              >
-                <Icon className="w-4 h-4" />
-                <span className="flex-1">{item.label}</span>
-              </div>
-            );
-          }
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-violet-600/20 text-white ring-1 ring-violet-500/40"
-                    : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
-                }`
-              }
+      <nav className="flex-1 flex flex-col gap-[3px]">
+        {SECTIONS.map((sec) => (
+          <div key={sec.title} className="flex flex-col gap-[3px]">
+            <div
+              className="px-2.5 pt-3 pb-1 text-[10px] font-bold uppercase tracking-[0.08em]"
+              style={{ color: "#64748b" }}
             >
-              <Icon className="w-4 h-4" />
-              <span className="flex-1">{item.label}</span>
-              {item.badge && (
-                <span className="text-[10px] font-bold bg-rose-500 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
-                  {item.badge}
-                </span>
-              )}
-            </NavLink>
-          );
-        })}
+              {sec.title}
+            </div>
+            {sec.items.map((item) => {
+              const Icon = item.icon;
+              if (item.disabled) {
+                return (
+                  <div
+                    key={item.to}
+                    className="flex items-center gap-[11px] px-[11px] py-[9px] rounded-[10px] text-[13.5px] font-semibold cursor-not-allowed"
+                    style={{ color: "#64748b" }}
+                  >
+                    <Icon className="w-[18px] h-[18px] opacity-85" />
+                    <span className="flex-1">{item.label}</span>
+                  </div>
+                );
+              }
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) =>
+                    `flex items-center gap-[11px] px-[11px] py-[9px] rounded-[10px] text-[13.5px] font-semibold transition-colors ${
+                      isActive ? "text-white" : "hover:bg-[#1e293b] hover:text-white"
+                    }`
+                  }
+                  style={({ isActive }) =>
+                    isActive
+                      ? { background: "linear-gradient(135deg,#2563eb,#4338ca)", color: "#fff" }
+                      : { color: "#cbd5e1" }
+                  }
+                >
+                  <Icon className="w-[18px] h-[18px] opacity-85" />
+                  <span className="flex-1">{item.label}</span>
+                  {item.badge && (
+                    <span
+                      className="text-[10px] font-extrabold px-[7px] py-px rounded-full"
+                      style={{ background: "#ef4444", color: "#fff" }}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </NavLink>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
-      <div className="p-3 border-t border-slate-800/60">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
-          <div className="w-8 h-8 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold">
-            {user?.name?.[0]?.toUpperCase() ?? "U"}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-slate-100 truncate">{user?.name ?? "Usuário"}</div>
-            <div className="text-[11px] text-slate-500 truncate">Operador</div>
-          </div>
-          <button
-            onClick={() => {
-              logout();
-              navigate("/BlitzLead/blitz_auth");
-            }}
-            className="text-slate-400 hover:text-white p-1.5 rounded-md hover:bg-slate-800"
-            title="Sair"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+      <div
+        className="mt-auto flex items-center gap-[9px] px-2.5 py-2.5 border-t"
+        style={{ borderColor: "#1e293b" }}
+      >
+        <div
+          className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-extrabold text-white"
+          style={{ background: "#1e293b" }}
+        >
+          {initials}
         </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[12px] font-semibold text-white truncate">{user?.name ?? "Usuário"}</div>
+          <div className="text-[10px] truncate" style={{ color: "#64748b" }}>Atendente</div>
+        </div>
+        <button
+          onClick={() => {
+            logout();
+            navigate("/BlitzLead/blitz_auth");
+          }}
+          className="p-1.5 rounded-md hover:bg-[#1e293b]"
+          style={{ color: "#94a3b8" }}
+          title="Sair"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
     </aside>
   );

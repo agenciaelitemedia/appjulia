@@ -77,54 +77,45 @@ export function BlitzTopbar() {
   const critical = ALERTS.filter((a) => a.tone === "rose" || a.tone === "amber").length;
 
   return (
-    <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200">
-      <div className="flex items-center gap-4 px-6 h-16">
-        {/* Search */}
-        <div className="flex-1 max-w-md relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            placeholder="Buscar lead, telefone ou CPF..."
-            className="w-full h-9 pl-9 pr-3 rounded-full bg-slate-100 text-sm placeholder:text-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-violet-200"
-          />
-        </div>
+    <header
+      className="sticky top-0 z-30 h-14 flex items-center gap-3 px-5 border-b bg-white"
+      style={{ borderColor: "#e2e8f0" }}
+    >
+      {/* Search — mantido do layout atual */}
+      <div className="flex-1 max-w-md relative">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#94a3b8" }} />
+        <input
+          placeholder="Buscar lead, telefone ou CPF..."
+          className="w-full h-9 pl-9 pr-3 rounded-full text-sm focus:outline-none focus:ring-2"
+          style={{ background: "#f1f5f9", color: "#0f172a" }}
+        />
+      </div>
 
-        {/* Alert chips */}
-        <div className="hidden lg:flex items-center gap-2">
-          {ALERTS.slice(0, 3).map((a) => {
-            const t = TONE[a.tone];
-            const Icon = a.icon;
-            return (
-              <div
-                key={a.id}
-                className={`inline-flex items-center gap-2 px-3 h-9 rounded-full bg-white border ${t.ring} text-xs`}
-              >
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center ${t.icon}`}>
-                  <Icon className="w-3.5 h-3.5" />
-                </span>
-                <span className="font-semibold text-slate-800">{a.title}</span>
-                <span className="text-slate-400">· {a.time}</span>
-              </div>
-            );
-          })}
-        </div>
+      <div className="flex-1" />
 
-        {/* Bell */}
+      {/* Bell — alertas mantidos do layout atual */}
         <button
           onClick={() => setOpen((o) => !o)}
-          className="relative w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600"
+          className="relative w-[34px] h-[34px] rounded-[9px] flex items-center justify-center border"
+          style={{ background: "#f8fafc", color: "#64748b", borderColor: "#e2e8f0" }}
         >
           <Bell className="w-4 h-4" />
           {critical > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+            <span
+              className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+              style={{ background: "#ef4444" }}
+            >
               {critical}
             </span>
           )}
         </button>
-      </div>
 
       {/* Dropdown de alertas completos */}
       {open && (
-        <div className="absolute right-6 top-16 mt-2 w-96 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+        <div
+          className="absolute right-5 top-14 mt-2 w-96 rounded-2xl shadow-xl overflow-hidden border bg-white"
+          style={{ borderColor: "#e2e8f0" }}
+        >
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <div className="text-sm font-bold text-slate-900">Alertas</div>
             <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700">
