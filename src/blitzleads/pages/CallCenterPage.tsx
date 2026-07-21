@@ -211,7 +211,7 @@ export default function CallCenterPage() {
         </div>
 
         {/* Lista */}
-        <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {items.length === 0 ? (
             <div className="text-center py-16" style={{ color: "#94a3b8" }}>
               Nenhum caso nesse gatilho.
