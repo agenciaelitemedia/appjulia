@@ -18,8 +18,8 @@ export function BlitzSidebar() {
 
   return (
     <aside className="w-60 shrink-0 bg-slate-950 text-slate-200 flex flex-col min-h-screen sticky top-0">
-      <div className="p-5 border-b border-slate-800/60">
-        <img src={headerLogo} alt="BlitzLeads" className="h-8 w-auto" />
+      <div className="px-5 py-6 border-b border-slate-800/60 flex items-center justify-center">
+        <img src={headerLogo} alt="BlitzLeads" className="h-14 w-auto" />
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5">
