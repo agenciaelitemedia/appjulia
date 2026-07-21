@@ -1,6 +1,6 @@
 import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { BlitzHeader } from "./BlitzHeader";
+import { BlitzSidebar } from "./BlitzSidebar";
 
 export default function BlitzLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -23,9 +23,9 @@ export default function BlitzLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <BlitzHeader />
-      <main className="flex-1">
+    <div className="min-h-screen bg-slate-100 flex">
+      <BlitzSidebar />
+      <main className="flex-1 min-w-0">
         <Outlet />
       </main>
     </div>
