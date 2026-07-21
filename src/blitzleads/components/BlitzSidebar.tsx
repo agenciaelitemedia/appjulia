@@ -18,8 +18,13 @@ export function BlitzSidebar() {
 
   return (
     <aside className="w-60 shrink-0 bg-slate-950 text-slate-200 flex flex-col min-h-screen sticky top-0">
-      <div className="px-4 py-5 border-b border-slate-800/60 flex items-center justify-center bg-white/95">
-        <img src={headerLogoAsset.url} alt="BlitzLeads" className="h-16 w-auto object-contain" />
+      <div className="px-4 py-5 border-b border-slate-800/60 flex items-center justify-center">
+        <img
+          src={headerLogoAsset.url}
+          alt="BlitzLeads"
+          className="h-16 w-auto object-contain"
+          style={{ mixBlendMode: "screen" }}
+        />
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5">
