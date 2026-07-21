@@ -16,7 +16,7 @@ const SECTIONS: { title: string; items: { to: string; label: string; icon: any; 
   {
     title: "Operação",
     items: [
-      { to: "/BlitzLead/call-center", label: "Call Center", icon: Phone,     color: "#ef4444", badge: "6" },
+      { to: "/BlitzLead/atendimentos", label: "Atendimentos", icon: Phone,     color: "#ef4444", badge: "6" },
       { to: "/BlitzLead/tickets",     label: "Tickets",     icon: Ticket,    color: "#8b5cf6", disabled: true },
       { to: "/BlitzLead/telefonia",   label: "Telefonia",   icon: PhoneCall, color: "#3b82f6", disabled: true },
       { to: "/BlitzLead/agentes",     label: "Agentes",     icon: Bot,       color: "#06b6d4", disabled: true },

@@ -248,7 +248,7 @@ const App = () => (
                   <Route index element={<BlitzCallCenterPage />} />
                   <Route path="blitz_auth" element={<BlitzAuthPage />} />
                   <Route path="dashboard" element={<BlitzCallCenterPage />} />
-                  <Route path="call-center" element={<BlitzCallCenterPage />} />
+                  <Route path="atendimentos" element={<BlitzCallCenterPage />} />
                   <Route path="case/:id" element={<BlitzCaseDetailPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />

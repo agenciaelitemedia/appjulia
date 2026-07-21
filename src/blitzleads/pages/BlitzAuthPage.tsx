@@ -18,10 +18,10 @@ export default function BlitzAuthPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (isAuthenticated) navigate("/BlitzLead/call-center", { replace: true });
+    if (isAuthenticated) navigate("/BlitzLead/atendimentos", { replace: true });
   }, [isAuthenticated, navigate]);
 
-  if (isAuthenticated) return <Navigate to="/BlitzLead/call-center" replace />;
+  if (isAuthenticated) return <Navigate to="/BlitzLead/atendimentos" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +33,7 @@ export default function BlitzAuthPage() {
     const result = await login(email, password);
     if (result.success) {
       toast({ title: "Bem-vindo à BlitzLeads!" });
-      navigate("/BlitzLead/call-center");
+      navigate("/BlitzLead/atendimentos");
     } else {
       toast({ variant: "destructive", title: "Falha no login", description: result.error });
     }
