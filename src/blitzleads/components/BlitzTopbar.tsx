@@ -95,17 +95,18 @@ export function BlitzTopbar() {
         </h1>
       </div>
 
-      {/* Search — mantido do layout atual */}
-      <div className="flex-1 max-w-md relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#94a3b8" }} />
+      {/* Spacer empurra busca + sino para a direita */}
+      <div className="flex-1" />
+
+      {/* Search alinhado à direita */}
+      <div className="w-80 max-w-[40vw] relative">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#3b82f6" }} />
         <input
           placeholder="Buscar lead, telefone ou CPF..."
           className="w-full h-9 pl-9 pr-3 rounded-full text-sm focus:outline-none focus:ring-2"
           style={{ background: "#f1f5f9", color: "#0f172a" }}
         />
       </div>
-
-      <div className="flex-1" />
 
       {/* Bell — alertas mantidos do layout atual */}
         <button
