@@ -151,29 +151,6 @@ export default function CallCenterPage() {
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: "#eef2f6" }}>
-      {/* Apphead — crumb + título (do protótipo) */}
-      <header
-        className="h-14 flex items-center gap-3 px-5 border-b bg-white sticky top-0 z-10"
-        style={{ borderColor: "#e2e8f0" }}
-      >
-        <div>
-          <div className="text-[12px]" style={{ color: "#94a3b8" }}>Operação</div>
-          <h1 className="text-[16px] font-extrabold tracking-[-0.01em] leading-none mt-0.5" style={{ color: "#0f172a" }}>
-            Call Center · Recuperação
-          </h1>
-        </div>
-        <div className="flex-1" />
-        {kpis.overdue > 0 && (
-          <span
-            className="inline-flex items-center gap-1.5 px-[11px] py-1.5 rounded-full text-[12px] font-extrabold"
-            style={{ background: "rgba(239,68,68,0.14)", color: "#ef4444" }}
-          >
-            <span className="w-[7px] h-[7px] rounded-full animate-pulse" style={{ background: "#ef4444" }} />
-            {kpis.overdue} casos vencidos
-          </span>
-        )}
-      </header>
-
       <div className="max-w-[1120px] mx-auto px-[22px] pt-[18px] pb-10">
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
