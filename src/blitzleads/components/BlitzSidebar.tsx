@@ -4,22 +4,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import blitzLogo from "@/blitzleads/assets/blitzleads-sidebar-dark.png.asset.json";
 
-const SECTIONS: { title: string; items: { to: string; label: string; icon: any; badge?: string; disabled?: boolean }[] }[] = [
+const SECTIONS: { title: string; items: { to: string; label: string; icon: any; color: string; badge?: string; disabled?: boolean }[] }[] = [
   {
     title: "Principal",
     items: [
-      { to: "/BlitzLead/dashboard", label: "Dashboard", icon: LayoutGrid, disabled: true },
-      { to: "/BlitzLead/chat", label: "Chat", icon: MessageSquare, disabled: true },
-      { to: "/BlitzLead/crm", label: "CRM", icon: FolderKanban, disabled: true },
+      { to: "/BlitzLead/dashboard", label: "Dashboard", icon: LayoutGrid,    color: "#60a5fa", disabled: true },
+      { to: "/BlitzLead/chat",      label: "Chat",      icon: MessageSquare, color: "#22c55e", disabled: true },
+      { to: "/BlitzLead/crm",       label: "CRM",       icon: FolderKanban,  color: "#f59e0b", disabled: true },
     ],
   },
   {
     title: "Operação",
     items: [
-      { to: "/BlitzLead/call-center", label: "Call Center", icon: Phone, badge: "6" },
-      { to: "/BlitzLead/tickets", label: "Tickets", icon: Ticket, disabled: true },
-      { to: "/BlitzLead/telefonia", label: "Telefonia", icon: PhoneCall, disabled: true },
-      { to: "/BlitzLead/agentes", label: "Agentes", icon: Bot, disabled: true },
+      { to: "/BlitzLead/call-center", label: "Call Center", icon: Phone,     color: "#ef4444", badge: "6" },
+      { to: "/BlitzLead/tickets",     label: "Tickets",     icon: Ticket,    color: "#8b5cf6", disabled: true },
+      { to: "/BlitzLead/telefonia",   label: "Telefonia",   icon: PhoneCall, color: "#3b82f6", disabled: true },
+      { to: "/BlitzLead/agentes",     label: "Agentes",     icon: Bot,       color: "#06b6d4", disabled: true },
     ],
   },
 ];
@@ -62,7 +62,7 @@ export function BlitzSidebar() {
                     className="flex items-center gap-[11px] px-[11px] py-[9px] rounded-[10px] text-[13.5px] font-semibold cursor-not-allowed"
                     style={{ color: "#64748b" }}
                   >
-                    <Icon className="w-[18px] h-[18px] opacity-85" />
+                    <Icon className="w-[18px] h-[18px] opacity-70" style={{ color: item.color }} />
                     <span className="flex-1">{item.label}</span>
                   </div>
                 );
@@ -82,7 +82,11 @@ export function BlitzSidebar() {
                       : { color: "#cbd5e1" }
                   }
                 >
-                  <Icon className="w-[18px] h-[18px] opacity-85" />
+                  {({ isActive }: { isActive: boolean }) => null}
+                  <Icon
+                    className="w-[18px] h-[18px]"
+                    style={{ color: item.color }}
+                  />
                   <span className="flex-1">{item.label}</span>
                   {item.badge && (
                     <span
