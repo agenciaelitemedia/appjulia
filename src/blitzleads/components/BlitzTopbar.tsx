@@ -1,5 +1,6 @@
 import { AlertTriangle, Clock, Zap, Bell, Search, X } from "lucide-react";
 import { useState } from "react";
+import { useBlitzClient } from "../hooks/useBlitzClient";
 
 type Alert = {
   id: string;
@@ -75,12 +76,25 @@ const TONE = {
 export function BlitzTopbar() {
   const [open, setOpen] = useState(false);
   const critical = ALERTS.filter((a) => a.tone === "rose" || a.tone === "amber").length;
+  const { displayName } = useBlitzClient();
 
   return (
     <header
       className="sticky top-0 z-30 h-14 flex items-center gap-3 px-5 border-b bg-white"
       style={{ borderColor: "#e2e8f0" }}
     >
+      {/* Título — nome do escritório (client) */}
+      <div className="shrink-0 mr-2">
+        <div className="text-[12px] leading-none" style={{ color: "#94a3b8" }}>Operação</div>
+        <h1
+          className="text-[16px] font-extrabold tracking-[-0.01em] leading-none mt-0.5 truncate max-w-[260px]"
+          style={{ color: "#0f172a" }}
+          title={displayName}
+        >
+          {displayName}
+        </h1>
+      </div>
+
       {/* Search — mantido do layout atual */}
       <div className="flex-1 max-w-md relative">
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#94a3b8" }} />
