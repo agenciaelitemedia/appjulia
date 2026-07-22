@@ -1,62 +1,117 @@
-## Diagnóstico
+# Plano: `n8n_execute-agent_and_followup-reactive`
 
-`BlitzSubdomainGate` faz o redirect dentro de um `useEffect`. No primeiro render em `blitzleads.atendejulia.com.br/`:
+Reativa a Julia (sessão do agent) e agenda um pré-followup para o lead, garantindo que não sobre nenhum followup ativo/pré antigo.
 
-1. `<Routes>` casa `path="/"` com `<Dashboard />` dentro de `MainLayout`.
-2. Como o usuário está deslogado, `ProtectedRoute`/`AuthProvider` renderiza um `<Navigate to="/login">` **de forma síncrona durante o render**.
-3. Só depois o `useEffect` do `BlitzSubdomainGate` roda e tenta ir para `/BlitzLead/` — mas a navegação para `/login` já aconteceu.
+## 1. Nova action no `db-query` — `agent_and_followup_reactive`
 
-Resultado: o subdomínio cai em `/login` (Julia) em vez de `/BlitzLead/blitz_auth`.
+Arquivo: `supabase/functions/db-query/index.ts` (novo `case` junto do `followup_stop`).
 
-Fatores agravantes:
-- O gate depende do `useBlitzRouteMap` (query async). Mesmo que a query resolva, o efeito só dispara após o primeiro paint.
-- Não há mapeamento explícito de `/login` → `/BlitzLead/blitz_auth`, então mesmo se o gate rodasse depois, o usuário já teria caído no login do Julia.
+**Input (`data`):**
 
-## Correção
+- `codAgent: string` (obrigatório)
+- `phones: string[]` — variantes 13/12 dígitos geradas pela edge function
+- `whatsappNumberInsert: string` — número canônico único a inserir no temp (13 díg p/ DDD<30, 12 díg p/ DDD>=30), resolvido na edge function
+- `hubFila: 'uazapi' | 'waba'` (obrigatório)
 
-Fazer o redirect ser **síncrono no render** e rodar antes das `<Routes>` do Julia, com fallback puramente client-side (sem depender da query do banco no primeiro paint).
+**Passos (única transação `sql.begin`):**
 
-### Passo 1 — `src/blitzleads/lib/subdomain.ts`
-- Adicionar `resolveInitialBlitzTarget(pathname)` puro (sem depender da tabela) que trata:
-  - `/` → `/BlitzLead/`
-  - `/login` → `/BlitzLead/blitz_auth`
-  - `/blitz_auth` → `/BlitzLead/blitz_auth`
-  - qualquer path que não começa com `/BlitzLead` → `/BlitzLead${pathname}`
-- Manter `resolveBlitzTarget` como está (usado pela aba de configuração para overrides customizados).
+1. **Buscar session mais recente** (também valida existência):
+  ```sql
+   SELECT 'SessionID_' || a.cod_agent || '-' || s.whatsapp_number || '_' || s.id AS chat_memory,
+          a.id AS agent_id, s.id AS session_id
+   FROM public.sessions s
+   INNER JOIN public.agents a ON a.id = s.agent_id
+   WHERE a.cod_agent = $1::bigint
+     AND s.whatsapp_number = ANY($2::bigint[])
+   ORDER BY s.id DESC LIMIT 1
+  ```
+   Se vazio → erro `sessão não encontrada`.
+2. **Limpar followups pendentes** (mesma lógica do `followup_stop`, mas sem mexer em `agent_processing_status`):
+  ```sql
+   UPDATE public.followup_queue
+      SET "state" = 'STOP', send_date = now()
+    WHERE name_client = $1 AND session_id = ANY($2::text[]) AND "state" = 'SEND';
 
-### Passo 2 — Substituir `BlitzSubdomainGate` por um componente síncrono
+   DELETE FROM public.followup_queue_temp
+    WHERE cod_agent = $1::bigint AND session_id = ANY($2::bigint[]);
+  ```
+3. **Inserir novo pré-followup** (uma única linha):
+  ```sql
+   INSERT INTO public.followup_queue_temp (session_id, cod_agent, created_at, hub, chat_memory)
+   VALUES ($1::bigint, $2::bigint, now(), $3, $4);
+  ```
+4. **Reativar sessão**:
+  ```sql
+   UPDATE public.sessions SET active = TRUE WHERE id = $1;
+  ```
 
-Trocar o efeito por render puro:
+**Retorno:**
 
-```tsx
-export function BlitzSubdomainGate() {
-  const location = useLocation();
-  if (!isBlitzHost()) return null;
-  const target = resolveInitialBlitzTarget(location.pathname);
-  if (target && target !== location.pathname) {
-    return <Navigate to={target} replace />;
-  }
-  return null;
+```json
+{
+  "session_id": 123,
+  "agent_id": 45,
+  "chat_memory": "SessionID_202605012-5511970558345_371706",
+  "inserted_temp": 1,
+  "updated_queue": N,
+  "deleted_temp": N,
+  "session_activated": true
 }
 ```
 
-Assim o `<Navigate>` do gate e o do `ProtectedRoute` competem no **mesmo** ciclo de render — como o gate está montado antes de `<Routes>` no JSX de `App.tsx`, ele resolve primeiro e a URL vira `/BlitzLead/...` antes de qualquer `ProtectedRoute` reagir.
+## 2. Nova Edge Function `n8n_execute-agent_and_followup-reactive`
 
-### Passo 3 — Aplicar overrides do banco depois do primeiro render
+Arquivo: `supabase/functions/n8n_execute-agent_and_followup-reactive/index.ts`
 
-Manter uma segunda passada (efeito) que consulta `useBlitzRouteMap` e, se o mapeamento salvo apontar para outra rota interna dentro de `/BlitzLead/*`, faz `navigate(target, { replace: true })`. Isso preserva o de-para configurável sem bloquear o boot.
+Espelha o padrão de `n8n_execute-followup-stop`:
 
-### Passo 4 — Ajuste em `BlitzLayout`
+- Body: `{ codAgent, whatsappNumber, hubFila }`
+- Validação:
+  - `codAgent`, `whatsappNumber`, `hubFila` obrigatórios
+  - `hubFila ∈ ['uazapi','waba']`
+- Normalização:
+  - `phones = brPhoneVariants(whatsappNumber)` (13 + 12 díg)
+  - `whatsappNumberInsert`: aplica regra do DDD
+    - Extrair DDD de `normalizeBrPhone` → posição 2-4
+    - Se DDD < 30 → 13 díg (com o 9º dígito)
+    - Se DDD ≥ 30 → 12 díg (sem o 9º)
+    - Números não-BR: usa como veio
+- Chama `db-query` com action `agent_and_followup_reactive`
+- Envelope de resposta `{ data, error }` idêntico ao followup-stop
 
-`BlitzLayout` hoje redireciona não-autenticados para `/BlitzLead/blitz_auth` — ok. Confirmar que o `AuthProvider` **não** chama `Navigate to="/login"` global quando a rota já é `/BlitzLead/*` (verificar rapidamente durante a implementação; se chamar, adicionar exceção para paths iniciados por `/BlitzLead`).
+### Helper novo em `_shared/phone-normalize.ts`
 
-## Fora de escopo
-- DNS/registros do subdomínio (já apontados pelo usuário).
-- Login próprio do BlitzLeads (segue como está).
-- Configuração de-para editável na `/configuracoes` (permanece, apenas passa a ser overlay do fallback síncrono).
+Adicionar `toBrCanonicalByDDD(raw)` que retorna o formato "real" pelo DDD (13 se <30, 12 se ≥30). Reutiliza a normalização base.
 
-## Verificação após build
-1. `blitzleads.atendejulia.com.br/` → `/BlitzLead/` (dashboard call-center).
-2. `blitzleads.atendejulia.com.br/login` → `/BlitzLead/blitz_auth`.
-3. `blitzleads.atendejulia.com.br/call-center` → `/BlitzLead/call-center`.
-4. Domínio principal `appjulia.lovable.app` sem mudanças de comportamento.
+## 3. Config (se necessário)
+
+Se `supabase/config.toml` tiver bloco para `n8n_execute-followup-stop`, replicar para a nova função (mesmo `verify_jwt`). Verificar antes; provavelmente já é o default.
+
+## 4. Documentação
+
+### `supabase/functions/n8n_execute/README.md`
+
+Adicionar seção **"2) Agent & Followup Reactive"** com parâmetros, tabelas afetadas, exemplo de invocação e retorno.
+
+### `supabase/functions/db-query/ACTIONS.md`
+
+Regenerar via `node scripts/generate-db-query-actions-doc.mjs > ...`.
+
+## 5. Memórias
+
+Criar em `mem/features/n8n-execute/`:
+
+- `**index.md**` — visão geral do grupo, convenções (nome de function, envelope, uso obrigatório de `db-query`, normalização BR compartilhada) e lista de funções.
+- `**followup-stop.md**` — documenta a função já existente (parâmetros, tabelas, comportamento) — retroativo, pois não havia memória.
+- `**agent-and-followup-reactive.md**` — documenta a nova função: propósito, parâmetros, regra do DDD para `whatsappNumberInsert`, SQL executado, ordem transacional, retorno.
+
+Atualizar `mem/index.md`:
+
+- Já existe entrada `[n8n Execute](mem://features/n8n-execute/index)` — adicionar linha citando `agent-and-followup-reactive` na descrição, ou apenas manter o index apontando (o próprio `index.md` do grupo lista as funções).
+
+## Notas técnicas
+
+- Reutilizar `brPhoneVariants` para geração de variantes (mesmo padrão do followup-stop).
+- `codAgent`/`session_id` como `bigint` conforme regra `mem://technical/database/bigint-casting`.
+- Não executar sem transação: se o INSERT falhar, o UPDATE de session não deve ocorrer → envolver em `sql.begin(async tx => { ... })`.
+- Não chama `agent_processing_status` (essa tabela é limpa só no `followup_stop`, aqui a intenção é o oposto: reativar).

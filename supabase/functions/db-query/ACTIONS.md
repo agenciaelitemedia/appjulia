@@ -2,10 +2,9 @@
 
 > Documentação gerada automaticamente a partir de `supabase/functions/db-query/index.ts`.
 > Cada action é invocada via `supabase.functions.invoke("db-query", { body: { action, data } })`.
-> Não edite manualmente — re-execute:
-> `node scripts/generate-db-query-actions-doc.mjs > supabase/functions/db-query/ACTIONS.md`
+> Não edite manualmente — re-execute `node /tmp/doc_actions.mjs > supabase/functions/db-query/ACTIONS.md`.
 
-Total de actions: **105**
+Total de actions: **117**
 
 ## Índice
 
@@ -19,6 +18,7 @@ Total de actions: **105**
 - [`get_client`](#get-client)
 - [`update_client`](#update-client)
 - [`ping`](#ping)
+- [`get_external_infra_stats`](#get-external-infra-stats)
 - [`get_user_agents`](#get-user-agents)
 - [`get_effective_client_id`](#get-effective-client-id)
 - [`create_vw_equipe`](#create-vw-equipe)
@@ -77,6 +77,8 @@ Total de actions: **105**
 - [`update_user_profile`](#update-user-profile)
 - [`get_session_status`](#get-session-status)
 - [`update_session_status`](#update-session-status)
+- [`get_session_statuses_batch`](#get-session-statuses-batch)
+- [`chat_bootstrap`](#chat-bootstrap)
 - [`advbox_get_integration`](#advbox-get-integration)
 - [`advbox_save_integration`](#advbox-save-integration)
 - [`advbox_update_connection_status`](#advbox-update-connection-status)
@@ -109,17 +111,26 @@ Total de actions: **105**
 - [`get_inactive_sessions`](#get-inactive-sessions)
 - [`create_manual_session`](#create-manual-session)
 - [`get_agent_queue_settings`](#get-agent-queue-settings)
+- [`init_queue_access_system`](#init-queue-access-system)
+- [`get_user_queue_access`](#get-user-queue-access)
+- [`list_queue_members`](#list-queue-members)
+- [`set_queue_members`](#set-queue-members)
+- [`set_user_queues`](#set-user-queues)
+- [`list_assignable_users`](#list-assignable-users)
+- [`list_users_for_queue`](#list-users-for-queue)
 - [`init_embed_system`](#init-embed-system)
 - [`list_module_embeds`](#list-module-embeds)
 - [`upsert_module_embed`](#upsert-module-embed)
 - [`delete_module_embed`](#delete-module-embed)
+- [`followup_stop`](#followup-stop)
+- [`agent_and_followup_reactive`](#agent-and-followup-reactive)
 - [`resolve_module_embed`](#resolve-module-embed)
 
 ---
 
 ## select
 
-Linhas: `240-270`
+Linhas: `272-302`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -129,7 +140,7 @@ Linhas: `240-270`
 
 ## insert
 
-Linhas: `271-302`
+Linhas: `303-334`
 
 **Payload (`data`):**
 - `settings`
@@ -140,7 +151,7 @@ Linhas: `271-302`
 
 ## update
 
-Linhas: `303-348`
+Linhas: `335-380`
 
 **Payload (`data`):**
 - `settings`
@@ -151,7 +162,7 @@ Linhas: `303-348`
 
 ## delete
 
-Linhas: `349-358`
+Linhas: `381-390`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -161,7 +172,7 @@ Linhas: `349-358`
 
 ## raw
 
-Linhas: `359-365`
+Linhas: `391-397`
 
 **Payload (`data`):**
 - `params`
@@ -172,7 +183,7 @@ Linhas: `359-365`
 
 ## login
 
-Linhas: `366-411`
+Linhas: `398-443`
 
 **Payload (`data`):**
 - `email`
@@ -185,7 +196,7 @@ Linhas: `366-411`
 
 ## change_password
 
-Linhas: `412-451`
+Linhas: `444-483`
 
 **Payload (`data`):**
 - `currentPassword`
@@ -197,7 +208,7 @@ Linhas: `412-451`
 
 ## get_client
 
-Linhas: `452-467`
+Linhas: `484-499`
 
 **Payload (`data`):**
 - `clientId`
@@ -207,7 +218,7 @@ Linhas: `452-467`
 
 ## update_client
 
-Linhas: `468-500`
+Linhas: `500-532`
 
 **Payload (`data`):**
 - `clientData`
@@ -218,7 +229,7 @@ Linhas: `468-500`
 
 ## ping
 
-Linhas: `501-507`
+Linhas: `533-539`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -226,9 +237,19 @@ Linhas: `501-507`
 **Retorno (`result`):**
 - `await sql`SELECT 1 as ok, now() as server_time``
 
+## get_external_infra_stats
+
+Linhas: `540-559`
+
+**Payload (`data`):**
+- _nenhum campo lido de `data`_
+
+**Retorno (`result`):**
+- `rows as unknown as Record<string, unknown>[]`
+
 ## get_user_agents
 
-Linhas: `508-550`
+Linhas: `560-602`
 
 **Payload (`data`):**
 - `userId`
@@ -238,17 +259,17 @@ Linhas: `508-550`
 
 ## get_effective_client_id
 
-Linhas: `551-563`
+Linhas: `603-619`
 
 **Payload (`data`):**
 - `userId`
 
 **Retorno (`result`):**
-- `await sql.unsafe( `SELECT COALESCE(u.client_id, parent.client_id)::text AS client_id FROM users u LEFT JOIN users parent ON parent.id = u.user_id WHERE …`
+- `await sql.unsafe( `SELECT COALESCE( u.client_id, parent.client_id, (SELECT a.client_id FROM user_agents ua JOIN agents a ON a.id = ua.agent_id WHERE…`
 
 ## create_vw_equipe
 
-Linhas: `564-584`
+Linhas: `620-640`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -258,7 +279,7 @@ Linhas: `564-584`
 
 ## get_team_by_client
 
-Linhas: `585-631`
+Linhas: `641-687`
 
 **Payload (`data`):**
 - `role`
@@ -271,7 +292,7 @@ Linhas: `585-631`
 
 ## get_agents_list
 
-Linhas: `632-672`
+Linhas: `688-728`
 
 **Payload (`data`):**
 - `showAll`
@@ -282,7 +303,7 @@ Linhas: `632-672`
 
 ## search_clients
 
-Linhas: `673-688`
+Linhas: `729-744`
 
 **Payload (`data`):**
 - `term`
@@ -292,7 +313,7 @@ Linhas: `673-688`
 
 ## search_users
 
-Linhas: `689-702`
+Linhas: `745-758`
 
 **Payload (`data`):**
 - `term`
@@ -302,7 +323,7 @@ Linhas: `689-702`
 
 ## search_agents
 
-Linhas: `703-726`
+Linhas: `759-782`
 
 **Payload (`data`):**
 - `term`
@@ -312,7 +333,7 @@ Linhas: `703-726`
 
 ## get_next_agent_code
 
-Linhas: `727-747`
+Linhas: `783-803`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -322,7 +343,7 @@ Linhas: `727-747`
 
 ## get_plans
 
-Linhas: `748-757`
+Linhas: `804-813`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -332,7 +353,7 @@ Linhas: `748-757`
 
 ## insert_client
 
-Linhas: `758-772`
+Linhas: `814-828`
 
 **Payload (`data`):**
 - `clientData`
@@ -342,7 +363,7 @@ Linhas: `758-772`
 
 ## check_federal_id_exists
 
-Linhas: `773-782`
+Linhas: `829-838`
 
 **Payload (`data`):**
 - `federalId`
@@ -352,7 +373,7 @@ Linhas: `773-782`
 
 ## check_user_email_exists
 
-Linhas: `783-792`
+Linhas: `839-848`
 
 **Payload (`data`):**
 - `email`
@@ -362,7 +383,7 @@ Linhas: `783-792`
 
 ## check_agent_code_exists
 
-Linhas: `793-807`
+Linhas: `849-863`
 
 **Payload (`data`):**
 - `codAgent`
@@ -373,7 +394,7 @@ Linhas: `793-807`
 
 ## insert_user
 
-Linhas: `808-819`
+Linhas: `864-875`
 
 **Payload (`data`):**
 - `clientId`
@@ -387,7 +408,7 @@ Linhas: `808-819`
 
 ## insert_agent
 
-Linhas: `820-840`
+Linhas: `876-896`
 
 **Payload (`data`):**
 - `agent_plan_id`
@@ -404,7 +425,7 @@ Linhas: `820-840`
 
 ## insert_user_agent
 
-Linhas: `841-881`
+Linhas: `897-947`
 
 **Payload (`data`):**
 - `agentId`
@@ -416,7 +437,7 @@ Linhas: `841-881`
 
 ## delete_agent
 
-Linhas: `882-888`
+Linhas: `948-954`
 
 **Payload (`data`):**
 - `agentId`
@@ -426,7 +447,7 @@ Linhas: `882-888`
 
 ## delete_user
 
-Linhas: `889-895`
+Linhas: `955-961`
 
 **Payload (`data`):**
 - `userId`
@@ -436,7 +457,7 @@ Linhas: `889-895`
 
 ## delete_client
 
-Linhas: `896-902`
+Linhas: `962-968`
 
 **Payload (`data`):**
 - `clientId`
@@ -446,7 +467,7 @@ Linhas: `896-902`
 
 ## check_user_has_agents
 
-Linhas: `903-912`
+Linhas: `969-978`
 
 **Payload (`data`):**
 - `userId`
@@ -456,7 +477,7 @@ Linhas: `903-912`
 
 ## check_client_has_agents
 
-Linhas: `913-922`
+Linhas: `979-988`
 
 **Payload (`data`):**
 - `clientId`
@@ -466,7 +487,7 @@ Linhas: `913-922`
 
 ## get_team_for_agent
 
-Linhas: `923-946`
+Linhas: `989-1012`
 
 **Payload (`data`):**
 - `codAgent`
@@ -477,7 +498,7 @@ Linhas: `923-946`
 
 ## get_agent_details
 
-Linhas: `947-1007`
+Linhas: `1013-1073`
 
 **Payload (`data`):**
 - `agentId`
@@ -487,7 +508,7 @@ Linhas: `947-1007`
 
 ## update_agent
 
-Linhas: `1008-1043`
+Linhas: `1074-1109`
 
 **Payload (`data`):**
 - `agentData`
@@ -498,7 +519,7 @@ Linhas: `1008-1043`
 
 ## reset_user_password
 
-Linhas: `1044-1057`
+Linhas: `1110-1123`
 
 **Payload (`data`):**
 - `hashedPassword`
@@ -510,7 +531,7 @@ Linhas: `1044-1057`
 
 ## normalize_agents_settings
 
-Linhas: `1058-1104`
+Linhas: `1124-1170`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -520,7 +541,7 @@ Linhas: `1058-1104`
 
 ## diagnose_agents_settings
 
-Linhas: `1105-1116`
+Linhas: `1171-1182`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -530,7 +551,7 @@ Linhas: `1105-1116`
 
 ## diagnose_latest_agents_settings
 
-Linhas: `1117-1134`
+Linhas: `1183-1200`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -540,7 +561,7 @@ Linhas: `1117-1134`
 
 ## diagnose_db_identity
 
-Linhas: `1135-1149`
+Linhas: `1201-1215`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -550,7 +571,7 @@ Linhas: `1135-1149`
 
 ## update_agent_connection
 
-Linhas: `1150-1163`
+Linhas: `1216-1229`
 
 **Payload (`data`):**
 - `agentId`
@@ -561,7 +582,7 @@ Linhas: `1150-1163`
 
 ## get_crm_agents_for_user
 
-Linhas: `1164-1183`
+Linhas: `1230-1249`
 
 **Payload (`data`):**
 - `userId`
@@ -571,7 +592,7 @@ Linhas: `1164-1183`
 
 ## get_team_members
 
-Linhas: `1184-1218`
+Linhas: `1250-1284`
 
 **Payload (`data`):**
 - `isAdmin`
@@ -583,7 +604,7 @@ Linhas: `1184-1218`
 
 ## get_principal_users
 
-Linhas: `1219-1241`
+Linhas: `1285-1307`
 
 **Payload (`data`):**
 - `isAdmin`
@@ -595,7 +616,7 @@ Linhas: `1219-1241`
 
 ## get_user_agents_for_principal
 
-Linhas: `1242-1263`
+Linhas: `1308-1329`
 
 **Payload (`data`):**
 - `principalUserId`
@@ -605,7 +626,7 @@ Linhas: `1242-1263`
 
 ## get_team_member_agents
 
-Linhas: `1264-1274`
+Linhas: `1330-1340`
 
 **Payload (`data`):**
 - `memberId`
@@ -615,7 +636,7 @@ Linhas: `1264-1274`
 
 ## insert_team_member
 
-Linhas: `1275-1318`
+Linhas: `1341-1384`
 
 **Payload (`data`):**
 - `agentIds`
@@ -633,7 +654,7 @@ Linhas: `1275-1318`
 
 ## update_team_member
 
-Linhas: `1319-1367`
+Linhas: `1385-1433`
 
 **Payload (`data`):**
 - `agentIds`
@@ -648,17 +669,19 @@ Linhas: `1319-1367`
 
 ## delete_team_member
 
-Linhas: `1368-1386`
+Linhas: `1434-1478`
 
 **Payload (`data`):**
 - `memberId`
 
 **Retorno (`result`):**
+- `[{ success: false, reason: 'not_found_or_role_not_allowed', message: 'Usuário não encontrado ou com cargo que não permite remoção por este fluxo.', …`
 - `[{ success: true }]`
+- `[{ success: false, reason: 'fk_violation', message: 'Não foi possível remover: o usuário possui registros vinculados.', detail: msg, …`
 
 ## reset_team_member_password
 
-Linhas: `1387-1403`
+Linhas: `1479-1495`
 
 **Payload (`data`):**
 - `hashedPassword`
@@ -670,7 +693,7 @@ Linhas: `1387-1403`
 
 ## init_permission_system
 
-Linhas: `1404-1595`
+Linhas: `1496-1687`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -680,7 +703,7 @@ Linhas: `1404-1595`
 
 ## get_user_permissions
 
-Linhas: `1596-1722`
+Linhas: `1688-1814`
 
 **Payload (`data`):**
 - `userId`
@@ -694,7 +717,7 @@ Linhas: `1596-1722`
 
 ## get_modules
 
-Linhas: `1723-1749`
+Linhas: `1815-1841`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -705,7 +728,7 @@ Linhas: `1723-1749`
 
 ## get_menu_modules
 
-Linhas: `1750-1781`
+Linhas: `1842-1873`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -716,7 +739,7 @@ Linhas: `1750-1781`
 
 ## create_module
 
-Linhas: `1782-1811`
+Linhas: `1874-1903`
 
 **Payload (`data`):**
 - `moduleData`
@@ -726,7 +749,7 @@ Linhas: `1782-1811`
 
 ## ensure_adv_module
 
-Linhas: `1812-1850`
+Linhas: `1904-1942`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -736,7 +759,7 @@ Linhas: `1812-1850`
 
 ## update_module
 
-Linhas: `1851-1883`
+Linhas: `1943-1975`
 
 **Payload (`data`):**
 - `moduleData`
@@ -748,7 +771,7 @@ Linhas: `1851-1883`
 
 ## delete_module
 
-Linhas: `1884-1894`
+Linhas: `1976-1986`
 
 **Payload (`data`):**
 - `moduleId`
@@ -758,7 +781,7 @@ Linhas: `1884-1894`
 
 ## migrate_modules_schema
 
-Linhas: `1895-1961`
+Linhas: `1987-2053`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -768,7 +791,7 @@ Linhas: `1895-1961`
 
 ## get_role_default_permissions
 
-Linhas: `1962-1979`
+Linhas: `2054-2071`
 
 **Payload (`data`):**
 - `role`
@@ -778,7 +801,7 @@ Linhas: `1962-1979`
 
 ## update_user_permissions
 
-Linhas: `1980-2016`
+Linhas: `2072-2108`
 
 **Payload (`data`):**
 - `permissions`
@@ -790,7 +813,7 @@ Linhas: `1980-2016`
 
 ## update_role_default_permissions
 
-Linhas: `2017-2045`
+Linhas: `2109-2137`
 
 **Payload (`data`):**
 - `permissions`
@@ -801,7 +824,7 @@ Linhas: `2017-2045`
 
 ## sync_role_permissions
 
-Linhas: `2046-2065`
+Linhas: `2138-2157`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -811,7 +834,7 @@ Linhas: `2046-2065`
 
 ## get_users_with_permissions
 
-Linhas: `2066-2088`
+Linhas: `2158-2180`
 
 **Payload (`data`):**
 - `roleFilter`
@@ -821,7 +844,7 @@ Linhas: `2066-2088`
 
 ## check_permission
 
-Linhas: `2089-2101`
+Linhas: `2181-2193`
 
 **Payload (`data`):**
 - `moduleCode`
@@ -833,7 +856,7 @@ Linhas: `2089-2101`
 
 ## update_user_profile
 
-Linhas: `2102-2119`
+Linhas: `2194-2211`
 
 **Payload (`data`):**
 - `email`
@@ -847,7 +870,7 @@ Linhas: `2102-2119`
 
 ## get_session_status
 
-Linhas: `2120-2146`
+Linhas: `2212-2248`
 
 **Payload (`data`):**
 - `codAgent`
@@ -858,7 +881,7 @@ Linhas: `2120-2146`
 
 ## update_session_status
 
-Linhas: `2147-2162`
+Linhas: `2249-2262`
 
 **Payload (`data`):**
 - `active`
@@ -867,9 +890,32 @@ Linhas: `2147-2162`
 **Retorno (`result`):**
 - `[{ success: true }]`
 
+## get_session_statuses_batch
+
+Linhas: `2263-2304`
+
+**Payload (`data`):**
+- `pairs`
+
+**Retorno (`result`):**
+- `[]`
+- `rows`
+
+## chat_bootstrap
+
+Linhas: `2305-2415`
+
+**Payload (`data`):**
+- `campaignPhoneVariants`
+- `crmPhoneVariants`
+- `sessionPairs`
+
+**Retorno (`result`):**
+- `{ campaigns, crmStages, sessions }`
+
 ## advbox_get_integration
 
-Linhas: `2163-2181`
+Linhas: `2416-2434`
 
 **Payload (`data`):**
 - `agentId`
@@ -879,7 +925,7 @@ Linhas: `2163-2181`
 
 ## advbox_save_integration
 
-Linhas: `2182-2203`
+Linhas: `2435-2456`
 
 **Payload (`data`):**
 - `agentId`
@@ -895,7 +941,7 @@ Linhas: `2182-2203`
 
 ## advbox_update_connection_status
 
-Linhas: `2204-2223`
+Linhas: `2457-2476`
 
 **Payload (`data`):**
 - `agentId`
@@ -908,7 +954,7 @@ Linhas: `2204-2223`
 
 ## advbox_delete_integration
 
-Linhas: `2224-2235`
+Linhas: `2477-2488`
 
 **Payload (`data`):**
 - `integrationId`
@@ -918,7 +964,7 @@ Linhas: `2224-2235`
 
 ## advbox_get_rules
 
-Linhas: `2236-2264`
+Linhas: `2489-2517`
 
 **Payload (`data`):**
 - `agentId`
@@ -929,7 +975,7 @@ Linhas: `2236-2264`
 
 ## advbox_save_rule
 
-Linhas: `2265-2299`
+Linhas: `2518-2552`
 
 **Payload (`data`):**
 - `agentId`
@@ -950,7 +996,7 @@ Linhas: `2265-2299`
 
 ## advbox_toggle_rule
 
-Linhas: `2300-2311`
+Linhas: `2553-2564`
 
 **Payload (`data`):**
 - `isActive`
@@ -961,7 +1007,7 @@ Linhas: `2300-2311`
 
 ## advbox_delete_rule
 
-Linhas: `2312-2323`
+Linhas: `2565-2576`
 
 **Payload (`data`):**
 - `ruleId`
@@ -971,7 +1017,7 @@ Linhas: `2312-2323`
 
 ## advbox_get_processes
 
-Linhas: `2324-2358`
+Linhas: `2577-2611`
 
 **Payload (`data`):**
 - `agentId`
@@ -985,7 +1031,7 @@ Linhas: `2324-2358`
 
 ## advbox_upsert_process
 
-Linhas: `2359-2386`
+Linhas: `2612-2639`
 
 **Payload (`data`):**
 - `agentId`
@@ -1008,7 +1054,7 @@ Linhas: `2359-2386`
 
 ## advbox_get_notification_logs
 
-Linhas: `2387-2426`
+Linhas: `2640-2679`
 
 **Payload (`data`):**
 - `agentId`
@@ -1022,7 +1068,7 @@ Linhas: `2387-2426`
 
 ## advbox_save_notification_log
 
-Linhas: `2427-2440`
+Linhas: `2680-2693`
 
 **Payload (`data`):**
 - `agentId`
@@ -1042,7 +1088,7 @@ Linhas: `2427-2440`
 
 ## advbox_update_notification_status
 
-Linhas: `2441-2459`
+Linhas: `2694-2712`
 
 **Payload (`data`):**
 - `errorMessage`
@@ -1057,7 +1103,7 @@ Linhas: `2441-2459`
 
 ## advbox_get_client_queries
 
-Linhas: `2460-2484`
+Linhas: `2713-2737`
 
 **Payload (`data`):**
 - `agentId`
@@ -1069,7 +1115,7 @@ Linhas: `2460-2484`
 
 ## advbox_save_client_query
 
-Linhas: `2485-2498`
+Linhas: `2738-2751`
 
 **Payload (`data`):**
 - `agentId`
@@ -1088,7 +1134,7 @@ Linhas: `2485-2498`
 
 ## advbox_get_lead_syncs
 
-Linhas: `2499-2529`
+Linhas: `2752-2782`
 
 **Payload (`data`):**
 - `agentId`
@@ -1101,7 +1147,7 @@ Linhas: `2499-2529`
 
 ## advbox_save_lead_sync
 
-Linhas: `2530-2543`
+Linhas: `2783-2796`
 
 **Payload (`data`):**
 - `advboxClientId`
@@ -1124,7 +1170,7 @@ Linhas: `2530-2543`
 
 ## advbox_update_lead_sync
 
-Linhas: `2544-2564`
+Linhas: `2797-2817`
 
 **Payload (`data`):**
 - `advboxClientId`
@@ -1140,7 +1186,7 @@ Linhas: `2544-2564`
 
 ## advbox_search_processes_by_phone
 
-Linhas: `2565-2583`
+Linhas: `2818-2836`
 
 **Payload (`data`):**
 - `agentId`
@@ -1151,7 +1197,7 @@ Linhas: `2565-2583`
 
 ## get_available_agents_for_user
 
-Linhas: `2584-2600`
+Linhas: `2837-2853`
 
 **Payload (`data`):**
 - `userId`
@@ -1161,7 +1207,7 @@ Linhas: `2584-2600`
 
 ## delete_user_agent
 
-Linhas: `2601-2610`
+Linhas: `2854-2863`
 
 **Payload (`data`):**
 - `codAgent`
@@ -1172,7 +1218,7 @@ Linhas: `2601-2610`
 
 ## update_user_agent_ownership
 
-Linhas: `2611-2620`
+Linhas: `2864-2889`
 
 **Payload (`data`):**
 - `agentId`
@@ -1184,7 +1230,7 @@ Linhas: `2611-2620`
 
 ## update_user_agent_permissions
 
-Linhas: `2621-2630`
+Linhas: `2890-2899`
 
 **Payload (`data`):**
 - `canEditConfig`
@@ -1197,7 +1243,7 @@ Linhas: `2621-2630`
 
 ## update_agent_by_owner
 
-Linhas: `2631-2671`
+Linhas: `2900-2940`
 
 **Payload (`data`):**
 - `codAgent`
@@ -1210,7 +1256,7 @@ Linhas: `2631-2671`
 
 ## migrate_user_agents_permissions
 
-Linhas: `2672-2681`
+Linhas: `2941-2950`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -1220,7 +1266,7 @@ Linhas: `2672-2681`
 
 ## update_agent_waba_connection
 
-Linhas: `2682-2699`
+Linhas: `2951-2968`
 
 **Payload (`data`):**
 - `agentId`
@@ -1233,7 +1279,7 @@ Linhas: `2682-2699`
 
 ## clear_agent_waba_connection
 
-Linhas: `2700-2715`
+Linhas: `2969-2984`
 
 **Payload (`data`):**
 - `agentId`
@@ -1243,7 +1289,7 @@ Linhas: `2700-2715`
 
 ## get_agent_waba_status
 
-Linhas: `2716-2727`
+Linhas: `2985-2996`
 
 **Payload (`data`):**
 - `agentId`
@@ -1253,17 +1299,17 @@ Linhas: `2716-2727`
 
 ## get_agent_by_cod
 
-Linhas: `2728-2738`
+Linhas: `2997-3007`
 
 **Payload (`data`):**
 - `codAgent`
 
 **Retorno (`result`):**
-- `await sql.unsafe( `SELECT id, cod_agent, hub, evo_url, evo_apikey, evo_instance, waba_id, waba_token, waba_number_id FROM agents WHERE cod_agent = $1 LIMIT 1`, [codAgent…`
+- `await sql.unsafe( `SELECT id, cod_agent, hub, evo_url, evo_apikey, evo_instance, waba_id, waba_token, waba_number_id FROM agents WHERE cod_agent::text = $1::text LIMIT 1`, …`
 
 ## get_inactive_sessions
 
-Linhas: `2739-2772`
+Linhas: `3008-3041`
 
 **Payload (`data`):**
 - `agentCodes`
@@ -1273,7 +1319,7 @@ Linhas: `2739-2772`
 
 ## create_manual_session
 
-Linhas: `2773-2799`
+Linhas: `3042-3068`
 
 **Payload (`data`):**
 - `codAgent`
@@ -1284,7 +1330,7 @@ Linhas: `2773-2799`
 
 ## get_agent_queue_settings
 
-Linhas: `2800-2828`
+Linhas: `3069-3097`
 
 **Payload (`data`):**
 - `client_id`
@@ -1293,9 +1339,85 @@ Linhas: `2800-2828`
 **Retorno (`result`):**
 - `[{ queue_limit: queueLimit, allow_groups: allowGroups }]`
 
+## init_queue_access_system
+
+Linhas: `3098-3141`
+
+**Payload (`data`):**
+- _nenhum campo lido de `data`_
+
+**Retorno (`result`):**
+- `[{ initialized: true }]`
+
+## get_user_queue_access
+
+Linhas: `3142-3155`
+
+**Payload (`data`):**
+- `user_id`
+
+**Retorno (`result`):**
+- `[{ queue_access: 'all', queue_ids: [] }]`
+- `[{ queue_access: 'specific', queue_ids: rows.map((r: any) => r.queue_id) }]`
+
+## list_queue_members
+
+Linhas: `3156-3168`
+
+**Payload (`data`):**
+- `queue_id`
+
+**Retorno (`result`):**
+- `await sql.unsafe(` SELECT qm.user_id, qm.role, u.name, u.email, u.role as user_role FROM queue_members qm INNER JOIN users u ON u.id = qm.user_id WHERE qm.queue…`
+
+## set_queue_members
+
+Linhas: `3169-3184`
+
+**Payload (`data`):**
+- `members`
+- `queue_id`
+
+**Retorno (`result`):**
+- `[{ ok: true, count: members.length }]`
+
+## set_user_queues
+
+Linhas: `3185-3206`
+
+**Payload (`data`):**
+- `queue_access`
+- `queue_ids`
+- `role`
+- `user_id`
+
+**Retorno (`result`):**
+- `[{ ok: true }]`
+
+## list_assignable_users
+
+Linhas: `3207-3220`
+
+**Payload (`data`):**
+- `client_id`
+
+**Retorno (`result`):**
+- `await sql.unsafe(` SELECT id, name, email, role, COALESCE(queue_access, 'all') as queue_access FROM users WHERE client_id = $1 AND COALESCE(is_active, TRUE) = TRUE …`
+
+## list_users_for_queue
+
+Linhas: `3221-3237`
+
+**Payload (`data`):**
+- `client_id`
+- `queue_id`
+
+**Retorno (`result`):**
+- `await sql.unsafe(` SELECT id FROM users WHERE client_id = $1 AND COALESCE(is_active, TRUE) = TRUE AND ( COALESCE(queue_access, 'all') = 'all' OR id IN (SELECT user_id…`
+
 ## init_embed_system
 
-Linhas: `2829-2881`
+Linhas: `3238-3290`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -1305,7 +1427,7 @@ Linhas: `2829-2881`
 
 ## list_module_embeds
 
-Linhas: `2882-2915`
+Linhas: `3291-3324`
 
 **Payload (`data`):**
 - _nenhum campo lido de `data`_
@@ -1316,7 +1438,7 @@ Linhas: `2882-2915`
 
 ## upsert_module_embed
 
-Linhas: `2916-2987`
+Linhas: `3325-3396`
 
 **Payload (`data`):**
 - `embed`
@@ -1326,7 +1448,7 @@ Linhas: `2916-2987`
 
 ## delete_module_embed
 
-Linhas: `2988-2996`
+Linhas: `3397-3405`
 
 **Payload (`data`):**
 - `module_id`
@@ -1334,9 +1456,33 @@ Linhas: `2988-2996`
 **Retorno (`result`):**
 - `[{ ok: true }]`
 
+## followup_stop
+
+Linhas: `3406-3447`
+
+**Payload (`data`):**
+- `codAgent`
+- `phones`
+
+**Retorno (`result`):**
+- `[{ deleted_temp: (deletedTemp as any)?.count ?? 0, updated_queue: (updatedQueue as any)?.count ?? 0, deleted_status: (deletedStatus as any)?.count ?? 0, phones,…`
+
+## agent_and_followup_reactive
+
+Linhas: `3448-3526`
+
+**Payload (`data`):**
+- `codAgent`
+- `hubFila`
+- `phones`
+- `whatsappNumberInsert`
+
+**Retorno (`result`):**
+- `[txResult]`
+
 ## resolve_module_embed
 
-Linhas: `2997-3096`
+Linhas: `3527-3626`
 
 **Payload (`data`):**
 - `module_code`
