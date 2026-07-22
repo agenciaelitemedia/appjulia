@@ -3445,6 +3445,85 @@ serve(async (req) => {
         break;
       }
 
+      case 'agent_and_followup_reactive': {
+        // n8n_execute → Agent & Followup Reactive
+        // Reativa a sessão (Julia) e reagenda um pré-followup para o lead,
+        // garantindo que nenhum followup/pré-followup antigo continue ativo.
+        const codAgent = String(data?.codAgent ?? '').trim();
+        const phones = Array.isArray(data?.phones)
+          ? data.phones.map((p: unknown) => String(p)).filter((p: string) => p.length > 0)
+          : [];
+        const whatsappNumberInsert = String(data?.whatsappNumberInsert ?? '').trim();
+        const hubFila = String(data?.hubFila ?? '').trim();
+        if (!codAgent) throw new Error('codAgent obrigatório');
+        if (phones.length === 0) throw new Error('phones obrigatório (array não vazio)');
+        if (!whatsappNumberInsert) throw new Error('whatsappNumberInsert obrigatório');
+        if (!hubFila) throw new Error('hubFila obrigatório');
+        if (!['uazapi', 'waba'].includes(hubFila)) {
+          throw new Error('hubFila inválido (uazapi | waba)');
+        }
+
+        const txResult = await sql.begin(async (tx: any) => {
+          // 1) Buscar session mais recente
+          const sessionRows = await tx.unsafe(
+            `SELECT 'SessionID_' || a.cod_agent || '-' || s.whatsapp_number || '_' || s.id AS chat_memory,
+                    a.id AS agent_id, s.id AS session_id
+               FROM public.sessions s
+               INNER JOIN public.agents a ON a.id = s.agent_id
+              WHERE a.cod_agent = $1::bigint
+                AND s.whatsapp_number = ANY($2::bigint[])
+              ORDER BY s.id DESC LIMIT 1`,
+            [codAgent, phones],
+          );
+          if (!sessionRows || sessionRows.length === 0) {
+            throw new Error('sessão não encontrada para codAgent + whatsappNumber');
+          }
+          const { chat_memory, agent_id, session_id } = sessionRows[0];
+
+          // 2) Parar followups pendentes
+          const updatedQueue = await tx.unsafe(
+            `UPDATE public.followup_queue
+                SET "state" = 'STOP', send_date = now()
+              WHERE name_client = $1
+                AND session_id = ANY($2::text[])
+                AND "state" = 'SEND'`,
+            [codAgent, phones],
+          );
+          const deletedTemp = await tx.unsafe(
+            `DELETE FROM public.followup_queue_temp
+               WHERE cod_agent = $1::bigint
+                 AND session_id = ANY($2::bigint[])`,
+            [codAgent, phones],
+          );
+
+          // 3) Inserir novo pré-followup (uma linha)
+          const inserted = await tx.unsafe(
+            `INSERT INTO public.followup_queue_temp (session_id, cod_agent, created_at, hub, chat_memory)
+             VALUES ($1::bigint, $2::bigint, now(), $3, $4)`,
+            [whatsappNumberInsert, codAgent, hubFila, chat_memory],
+          );
+
+          // 4) Reativar a sessão
+          const activated = await tx.unsafe(
+            `UPDATE public.sessions SET active = TRUE WHERE id = $1::bigint`,
+            [session_id],
+          );
+
+          return {
+            session_id,
+            agent_id,
+            chat_memory,
+            updated_queue: (updatedQueue as any)?.count ?? 0,
+            deleted_temp: (deletedTemp as any)?.count ?? 0,
+            inserted_temp: (inserted as any)?.count ?? 0,
+            session_activated: ((activated as any)?.count ?? 0) > 0,
+          };
+        });
+
+        result = [txResult];
+        break;
+      }
+
       case 'resolve_module_embed': {
         // Resolve URL final com substituição de variáveis e HMAC opcional.
         // user_id vem do client autenticado; valores sensíveis (clientId, role, etc.)
