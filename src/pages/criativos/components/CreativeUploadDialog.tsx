@@ -39,6 +39,11 @@ const ALLOWED_AUDIO_TYPES = ['audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav'
 const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_AUDIO_TYPES];
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
+const ALLOWED_IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+const ALLOWED_VIDEO_EXTS = ['mp4', 'webm', 'mov'];
+const ALLOWED_AUDIO_EXTS = ['mp3']; // Áudio: somente .mp3
+const ALLOWED_EXTS = [...ALLOWED_IMAGE_EXTS, ...ALLOWED_VIDEO_EXTS, ...ALLOWED_AUDIO_EXTS];
+
 export function CreativeUploadDialog({ open, onOpenChange, categories }: CreativeUploadDialogProps) {
   const { user } = useAuth();
   const createMutation = useCreateCreative();
@@ -57,8 +62,15 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
   const [fileError, setFileError] = useState<string | null>(null);
 
   const validateFile = (file: File): string | null => {
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return 'Tipo de arquivo não permitido. Use imagens (JPG, PNG, GIF, WebP), vídeos (MP4, WebM, MOV) ou áudios (MP3, OGG, WAV).';
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!ALLOWED_EXTS.includes(ext)) {
+      return 'Extensão não permitida. Use imagens (JPG, PNG, GIF, WebP), vídeos (MP4, WebM, MOV) ou áudio .mp3.';
+    }
+    if (file.type && file.type.startsWith('audio/') && ext !== 'mp3') {
+      return 'Somente arquivos de áudio no formato .mp3 são aceitos.';
+    }
+    if (file.type && !ALLOWED_TYPES.includes(file.type) && ext !== 'mp3') {
+      return 'Tipo de arquivo não permitido.';
     }
     if (file.size > MAX_FILE_SIZE) {
       return 'Arquivo muito grande. Tamanho máximo: 50MB.';
@@ -251,7 +263,7 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
                 <input 
                   ref={fileInputRef}
                   type="file" 
-                  accept={ALLOWED_TYPES.join(',')}
+                  accept={ALLOWED_EXTS.map(e => `.${e}`).join(',')}
                   className="hidden"
                   onChange={handleFileChange}
                 />
@@ -268,7 +280,7 @@ export function CreativeUploadDialog({ open, onOpenChange, categories }: Creativ
                       {isDragging ? 'Solte o arquivo aqui' : 'Clique ou arraste um arquivo'}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Imagens (JPG, PNG, GIF, WebP), Vídeos (MP4, WebM, MOV) ou Áudios (MP3, OGG, WAV) até 50MB
+                      Imagens (JPG, PNG, GIF, WebP), Vídeos (MP4, WebM, MOV) ou Áudio .mp3 até 50MB
                     </p>
                   </>
                 )}
