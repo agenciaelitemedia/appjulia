@@ -915,7 +915,7 @@ export function WhatsAppMessagesDialog({
         active: newStatus,
         codAgent,
         whatsappNumber,
-        hubFila: (agentQueueLink as any)?.hub,
+        hubFila: (agentLink as any)?.hub,
       });
       setSessionData({ ...sessionData, active: newStatus });
     } catch (err) {
