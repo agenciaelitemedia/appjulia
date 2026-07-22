@@ -23,6 +23,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { externalDb, SessionStatus } from '@/lib/externalDb';
+import { toggleJuliaSession } from '@/lib/juliaSessionControl';
+import { useAgentQueueLink } from '@/hooks/useAgentQueueLink';
 import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -45,6 +47,7 @@ export function SessionStatusDialog({
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [updating, setUpdating] = useState(false);
   const { toast } = useToast();
+  const { data: agentLink } = useAgentQueueLink(codAgent);
 
   useEffect(() => {
     if (open && whatsappNumber && codAgent) {
@@ -73,7 +76,13 @@ export function SessionStatusDialog({
     setUpdating(true);
     try {
       const newStatus = !session.active;
-      await externalDb.updateSessionStatus(session.id, newStatus);
+      await toggleJuliaSession({
+        sessionId: session.id,
+        active: newStatus,
+        codAgent,
+        whatsappNumber,
+        hubFila: agentLink?.hub as any,
+      });
       setSession({ ...session, active: newStatus });
       toast({
         title: newStatus ? 'Atendimento ativado' : 'Atendimento desativado',
