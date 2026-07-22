@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 export interface QueueAgentLinkInfo {
   hasAgent: boolean;
   codAgent: string | null;
+  /** Queue hub: 'uazapi' | 'waba' | null (when queue not fetched). */
+  hub: string | null;
 }
 
 const STALE = 5 * 60_000;
@@ -16,15 +18,16 @@ export function useQueueAgentLink(queueId: string | null | undefined) {
   return useQuery({
     queryKey: ['queue-agent-link', queueId],
     queryFn: async (): Promise<QueueAgentLinkInfo> => {
-      if (!queueId) return { hasAgent: false, codAgent: null };
+      if (!queueId) return { hasAgent: false, codAgent: null, hub: null };
       const { data, error } = await supabase
         .from('queue_agent_links')
-        .select('cod_agent, is_primary')
+        .select('cod_agent, is_primary, queues(hub)')
         .eq('queue_id', queueId);
       if (error) throw error;
-      if (!data || data.length === 0) return { hasAgent: false, codAgent: null };
+      if (!data || data.length === 0) return { hasAgent: false, codAgent: null, hub: null };
       const primary = data.find((r) => r.is_primary) || data[0];
-      return { hasAgent: true, codAgent: primary.cod_agent };
+      const hub = (primary as any)?.queues?.hub ?? null;
+      return { hasAgent: true, codAgent: primary.cod_agent, hub };
     },
     enabled: !!queueId,
     staleTime: STALE,
@@ -60,10 +63,10 @@ export function useQueueAgentLinks(queueIds: string[]) {
       sorted.forEach((qid) => {
         const arr = byQueue.get(qid);
         if (!arr || arr.length === 0) {
-          map.set(qid, { hasAgent: false, codAgent: null });
+          map.set(qid, { hasAgent: false, codAgent: null, hub: null });
         } else {
           const primary = arr.find((x) => x.is_primary) || arr[0];
-          map.set(qid, { hasAgent: true, codAgent: primary.cod_agent });
+          map.set(qid, { hasAgent: true, codAgent: primary.cod_agent, hub: null });
         }
       });
       return map;

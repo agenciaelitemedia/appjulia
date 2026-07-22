@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useNavigate } from 'react-router-dom';
 import { externalDb } from '@/lib/externalDb';
 import type { SessionStatus } from '@/lib/externalDb';
+import { toggleJuliaSession } from '@/lib/juliaSessionControl';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { useContractInfo } from '@/pages/crm/hooks/useContractInfo';
 import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
@@ -100,7 +101,13 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
     setUpdatingSession(true);
     try {
       const newStatus = !sessionData.active;
-      await externalDb.updateSessionStatus(sessionData.id, newStatus);
+      await toggleJuliaSession({
+        sessionId: sessionData.id,
+        active: newStatus,
+        codAgent: codAgent!,
+        whatsappNumber: phone,
+        hubFila: queueLink?.hub as any,
+      });
       invalidateSession();
     } catch {
       /* noop */

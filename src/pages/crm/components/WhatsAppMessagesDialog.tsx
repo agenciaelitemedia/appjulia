@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { externalDb } from '@/lib/externalDb';
+import { toggleJuliaSession } from '@/lib/juliaSessionControl';
 import { useAuth } from '@/contexts/AuthContext';
 import { SessionStatusDialog } from './SessionStatusDialog';
 import { UaZapiClient } from '@/lib/uazapi';
@@ -909,7 +910,13 @@ export function WhatsAppMessagesDialog({
     setUpdatingSession(true);
     try {
       const newStatus = !sessionData.active;
-      await externalDb.updateSessionStatus(sessionData.id, newStatus);
+      await toggleJuliaSession({
+        sessionId: sessionData.id,
+        active: newStatus,
+        codAgent,
+        whatsappNumber,
+        hubFila: (agentLink as any)?.hub,
+      });
       setSessionData({ ...sessionData, active: newStatus });
     } catch (err) {
       console.error('Erro ao atualizar status:', err);

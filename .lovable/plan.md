@@ -1,117 +1,77 @@
-# Plano: `n8n_execute-agent_and_followup-reactive`
 
-Reativa a Julia (sessão do agent) e agenda um pré-followup para o lead, garantindo que não sobre nenhum followup ativo/pré antigo.
+## Objetivo
 
-## 1. Nova action no `db-query` — `agent_and_followup_reactive`
+Garantir que **toda** desativação da Julia dispare `n8n_execute-followup-stop` e **toda** ativação dispare `n8n_execute-agent_and_followup-reactive`, com os parâmetros corretos (`codAgent`, `whatsappNumber`, `hubFila`).
 
-Arquivo: `supabase/functions/db-query/index.ts` (novo `case` junto do `followup_stop`).
+## Mapeamento — locais que controlam ativar/desativar Julia
 
-**Input (`data`):**
+| # | Local | Tipo de ação | followup-stop hoje | reactive hoje | O que falta |
+|---|---|---|---|---|---|
+| 1 | `src/contexts/WhatsAppDataContext.tsx` `disableJuliaOnAssignOrTransfer` (linhas 573-620) | Desativa (Assumir / Transferir manual no chat) | ✅ Sim | — (não ativa) | Nada — já OK |
+| 2 | `src/components/chat/ChatHeader.tsx` `handleToggleSession` (linhas 98-111) | Toggle Julia no header do chat (switch on/off) | ❌ Não | ❌ Não | Chamar `followup-stop` no desligar e `reactive` no ligar |
+| 3 | `src/pages/crm/components/SessionStatusDialog.tsx` `handleToggleStatus` (linhas 70-93) | Toggle Julia no diálogo do CRM | ❌ Não | ❌ Não | Chamar `followup-stop` no desligar e `reactive` no ligar |
+| 4 | `src/pages/crm/components/WhatsAppMessagesDialog.tsx` `handleToggleSession` (linhas 907-920) | Toggle Julia no diálogo de mensagens do CRM | ❌ Não | ❌ Não | Chamar `followup-stop` no desligar e `reactive` no ligar |
+| 5 | `supabase/functions/_shared/disableJuliaOnHumanSend.ts` (helper legado) | Desativa em envio manual server-side | ✅ Sim | N/A | Nada (não é chamado hoje, mantido) |
 
-- `codAgent: string` (obrigatório)
-- `phones: string[]` — variantes 13/12 dígitos geradas pela edge function
-- `whatsappNumberInsert: string` — número canônico único a inserir no temp (13 díg p/ DDD<30, 12 díg p/ DDD>=30), resolvido na edge function
-- `hubFila: 'uazapi' | 'waba'` (obrigatório)
+Não existem outros pontos que chamem `updateSessionStatus` — grep confirmou 4 call sites no frontend + 1 helper edge.
 
-**Passos (única transação `sql.begin`):**
+## Estratégia de implementação
 
-1. **Buscar session mais recente** (também valida existência):
-  ```sql
-   SELECT 'SessionID_' || a.cod_agent || '-' || s.whatsapp_number || '_' || s.id AS chat_memory,
-          a.id AS agent_id, s.id AS session_id
-   FROM public.sessions s
-   INNER JOIN public.agents a ON a.id = s.agent_id
-   WHERE a.cod_agent = $1::bigint
-     AND s.whatsapp_number = ANY($2::bigint[])
-   ORDER BY s.id DESC LIMIT 1
-  ```
-   Se vazio → erro `sessão não encontrada`.
-2. **Limpar followups pendentes** (mesma lógica do `followup_stop`, mas sem mexer em `agent_processing_status`):
-  ```sql
-   UPDATE public.followup_queue
-      SET "state" = 'STOP', send_date = now()
-    WHERE name_client = $1 AND session_id = ANY($2::text[]) AND "state" = 'SEND';
+### Passo 1 — Criar helper único no frontend
 
-   DELETE FROM public.followup_queue_temp
-    WHERE cod_agent = $1::bigint AND session_id = ANY($2::bigint[]);
-  ```
-3. **Inserir novo pré-followup** (uma única linha):
-  ```sql
-   INSERT INTO public.followup_queue_temp (session_id, cod_agent, created_at, hub, chat_memory)
-   VALUES ($1::bigint, $2::bigint, now(), $3, $4);
-  ```
-4. **Reativar sessão**:
-  ```sql
-   UPDATE public.sessions SET active = TRUE WHERE id = $1;
-  ```
+Criar `src/lib/juliaSessionControl.ts` exportando:
 
-**Retorno:**
-
-```json
-{
-  "session_id": 123,
-  "agent_id": 45,
-  "chat_memory": "SessionID_202605012-5511970558345_371706",
-  "inserted_temp": 1,
-  "updated_queue": N,
-  "deleted_temp": N,
-  "session_activated": true
-}
+```ts
+toggleJuliaSession(args: {
+  sessionId: number;
+  active: boolean;                // novo valor desejado
+  codAgent: string;
+  whatsappNumber: string;         // telefone do lead (qualquer formato)
+  hubFila: 'uazapi' | 'waba';     // canal da fila
+}): Promise<void>
 ```
 
-## 2. Nova Edge Function `n8n_execute-agent_and_followup-reactive`
+Comportamento:
+1. `externalDb.updateSessionStatus(sessionId, active)` (mantém a mudança direta na tabela `sessions` — mesmo comportamento atual, garante consistência quando a edge function falhar).
+2. Se `active === false` → `supabase.functions.invoke('n8n_execute-followup-stop', { body: { codAgent, sessionId: whatsappNumber } })`.
+3. Se `active === true` → `supabase.functions.invoke('n8n_execute-agent_and_followup-reactive', { body: { codAgent, whatsappNumber, hubFila } })`. Nota: a edge `reactive` já executa o `UPDATE sessions.active=TRUE` internamente — o passo 1 aqui vira redundante mas idempotente (garante rollback se a edge falhar antes do UPDATE).
+4. Erros da edge function são `console.warn` (best-effort) — não bloqueiam a UI, seguindo o padrão de `disableJuliaOnAssignOrTransfer`.
 
-Arquivo: `supabase/functions/n8n_execute-agent_and_followup-reactive/index.ts`
+### Passo 2 — Resolver `hubFila` nos 3 call sites de CRM
 
-Espelha o padrão de `n8n_execute-followup-stop`:
+`ChatHeader` já tem `queueLink` mas não expõe `channel_type`. Precisa-se de `hubFila` derivado de `queues.channel_type` (valor já é `'uazapi'` ou `'waba'`, casa 1:1 com `hubFila`).
 
-- Body: `{ codAgent, whatsappNumber, hubFila }`
-- Validação:
-  - `codAgent`, `whatsappNumber`, `hubFila` obrigatórios
-  - `hubFila ∈ ['uazapi','waba']`
-- Normalização:
-  - `phones = brPhoneVariants(whatsappNumber)` (13 + 12 díg)
-  - `whatsappNumberInsert`: aplica regra do DDD
-    - Extrair DDD de `normalizeBrPhone` → posição 2-4
-    - Se DDD < 30 → 13 díg (com o 9º dígito)
-    - Se DDD ≥ 30 → 12 díg (sem o 9º)
-    - Números não-BR: usa como veio
-- Chama `db-query` com action `agent_and_followup_reactive`
-- Envelope de resposta `{ data, error }` idêntico ao followup-stop
+- **ChatHeader** (item 2): `queueId` disponível → estender `useQueueAgentLink` **ou** criar hook auxiliar leve para incluir `channel_type` da fila. Preferir estender o hook existente devolvendo `channelType`.
+- **SessionStatusDialog** (item 3) e **WhatsAppMessagesDialog** (item 4): recebem `whatsappNumber` + `codAgent` mas não têm `queueId`. Duas opções:
+  - **(a)** Buscar `queues` via `queue_agent_links.cod_agent = codAgent` (primeiro/primary) e ler `channel_type`. Reusar em um único hook `useHubFilaByCodAgent(codAgent)`.
+  - **(b)** Fallback para `'uazapi'` quando não encontrar (canal mais comum no legado CRM).
 
-### Helper novo em `_shared/phone-normalize.ts`
+Adotar **(a)** com fallback **(b)**.
 
-Adicionar `toBrCanonicalByDDD(raw)` que retorna o formato "real" pelo DDD (13 se <30, 12 se ≥30). Reutiliza a normalização base.
+### Passo 3 — Aplicar o helper nos 3 call sites
 
-## 3. Config (se necessário)
+Substituir cada bloco `updateSessionStatus(sessionData.id, newStatus)` por `toggleJuliaSession({ sessionId, active: newStatus, codAgent, whatsappNumber, hubFila })`. Manter o restante da lógica (invalidação de cache, toast, `setUpdating`).
 
-Se `supabase/config.toml` tiver bloco para `n8n_execute-followup-stop`, replicar para a nova função (mesmo `verify_jwt`). Verificar antes; provavelmente já é o default.
+### Passo 4 — Reforçar `disableJuliaOnAssignOrTransfer` (opcional, coerência)
 
-## 4. Documentação
+Nada a mudar — já chama `followup-stop`. Como esse fluxo é sempre "desativação" (assumir/transferir), não precisa do `reactive`.
 
-### `supabase/functions/n8n_execute/README.md`
+## Detalhes técnicos
 
-Adicionar seção **"2) Agent & Followup Reactive"** com parâmetros, tabelas afetadas, exemplo de invocação e retorno.
+- **Parâmetros da `reactive`**: `codAgent` (string), `whatsappNumber` (qualquer formato — a edge normaliza via `brPhoneVariants` + `toBrCanonicalByDDD`), `hubFila` (`'uazapi'|'waba'`).
+- **Parâmetros da `followup-stop`**: `codAgent`, `sessionId` (telefone limpo — edge normaliza).
+- **Retro-compat**: o comportamento atual (só flip do `active` na tabela) é mantido pelo passo 1 do helper — a chamada da edge é aditiva. Nenhum caller quebra se as edges estiverem fora do ar.
+- **Sem mudanças em edge functions**: `n8n_execute-followup-stop` e `n8n_execute-agent_and_followup-reactive` já existem e estão deployadas.
 
-### `supabase/functions/db-query/ACTIONS.md`
+## Arquivos afetados
 
-Regenerar via `node scripts/generate-db-query-actions-doc.mjs > ...`.
+- **Novo**: `src/lib/juliaSessionControl.ts`
+- **Novo/estendido**: `src/hooks/useQueueAgentLink.ts` (adicionar `channelType`) e novo hook `src/hooks/useHubFilaByCodAgent.ts`
+- **Editados**: `src/components/chat/ChatHeader.tsx`, `src/pages/crm/components/SessionStatusDialog.tsx`, `src/pages/crm/components/WhatsAppMessagesDialog.tsx`
+- **Memória**: atualizar `mem/features/ai-agent/human-override-logic.md` para refletir os 3 novos pontos e a chamada da `reactive`.
 
-## 5. Memórias
+## Fora do escopo
 
-Criar em `mem/features/n8n-execute/`:
-
-- `**index.md**` — visão geral do grupo, convenções (nome de function, envelope, uso obrigatório de `db-query`, normalização BR compartilhada) e lista de funções.
-- `**followup-stop.md**` — documenta a função já existente (parâmetros, tabelas, comportamento) — retroativo, pois não havia memória.
-- `**agent-and-followup-reactive.md**` — documenta a nova função: propósito, parâmetros, regra do DDD para `whatsappNumberInsert`, SQL executado, ordem transacional, retorno.
-
-Atualizar `mem/index.md`:
-
-- Já existe entrada `[n8n Execute](mem://features/n8n-execute/index)` — adicionar linha citando `agent-and-followup-reactive` na descrição, ou apenas manter o index apontando (o próprio `index.md` do grupo lista as funções).
-
-## Notas técnicas
-
-- Reutilizar `brPhoneVariants` para geração de variantes (mesmo padrão do followup-stop).
-- `codAgent`/`session_id` como `bigint` conforme regra `mem://technical/database/bigint-casting`.
-- Não executar sem transação: se o INSERT falhar, o UPDATE de session não deve ocorrer → envolver em `sql.begin(async tx => { ... })`.
-- Não chama `agent_processing_status` (essa tabela é limpa só no `followup_stop`, aqui a intenção é o oposto: reativar).
+- Não alterar o helper edge `_shared/disableJuliaOnHumanSend.ts` (não é chamado hoje).
+- Não introduzir chamada de `reactive` em `disableJuliaOnAssignOrTransfer` (é fluxo de desligar).
+- Não mexer em `useAgentSessionStatusesBatch` (só leitura).
