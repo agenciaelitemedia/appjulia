@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Send, Loader2, Info, AlertTriangle, MessageSquare, Plus } from 'lucide-react';
+import { Send, Loader2, Info, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,8 +13,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { brPhoneVariants } from '@/lib/phoneNormalize';
 import { setPendingSelection } from '@/lib/chat/pendingSelection';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 interface Queue {
   id: string;
@@ -44,15 +42,11 @@ interface ActiveConv {
   queue_id: string | null;
   status: string;
   assigned_to: string | null;
+  assigned_user_id: number | null;
   opened_at: string | null;
   protocol: string | null;
   channel: string;
-}
-interface ContactRow { id: string; name: string; phone: string }
-interface ConflictState {
-  convs: ActiveConv[];
-  contacts: ContactRow[];
-  queueNames: Record<string, string>;
+  updated_at: string | null;
 }
 
 export function NewConversationDialog({ open, onOpenChange, queues, initialPhone, initialName, lockContact, clientId, currentUser }: Props) {
@@ -61,7 +55,7 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
   const [name, setName] = useState(initialName ?? '');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const [conflict, setConflict] = useState<ConflictState | null>(null);
+  const [blockedBy, setBlockedBy] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -75,7 +69,7 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
     if (open) {
       setPhone(initialPhone ?? '');
       setName(initialName ?? '');
-      setConflict(null);
+      setBlockedBy(null);
     }
   }, [open, initialPhone, initialName]);
 
@@ -85,7 +79,7 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
     setPhone(initialPhone ?? '');
     setName(initialName ?? '');
     setMessage('');
-    setConflict(null);
+    setBlockedBy(null);
     onOpenChange(false);
   };
 
@@ -106,118 +100,156 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
   };
 
   /**
-   * Garante contato (find-or-create) e cria a conversa já atribuída ao usuário
-   * atual, para que apareça imediatamente em "Meu atendimento".
-   * Retorna { contactId, queueId } para focar a conversa após criação.
+   * Busca contato existente por (client_id, variantes do telefone) e reutiliza,
+   * ou cria um novo. Evita duplicate key no unique (phone, client_id).
    */
-  const ensureContactAndAssignedConversation = async (
-    targetQueueId: string,
-    fallbackContactName?: string,
-  ): Promise<{ contactId: string; queueId: string } | null> => {
-    if (!clientId || !currentAssigneeName) return null;
+  const resolveOrCreateContact = async (targetQueueId: string): Promise<string> => {
     const channelType = 'whatsapp_uazapi';
-
-    let contactId: string | null = null;
-    const { data: existingContact } = await supabase
+    const variants = brPhoneVariants(cleanPhone);
+    const { data: existing } = await supabase
       .from('chat_contacts')
-      .select('id')
-      .eq('client_id', clientId)
-      .eq('channel_source', targetQueueId)
-      .eq('phone', cleanPhone)
-      .maybeSingle();
-    if (existingContact?.id) {
-      contactId = (existingContact as any).id as string;
-    } else {
-      const finalName = (name.trim() || fallbackContactName || cleanPhone);
-      const { data: created, error: ce } = await supabase
-        .from('chat_contacts')
-        .insert({
-          client_id: clientId,
-          channel_source: targetQueueId,
-          channel_type: channelType,
-          phone: cleanPhone,
-          name: finalName,
-          remote_jid: `${cleanPhone}@s.whatsapp.net`,
-        })
-        .select('id')
-        .single();
-      if (ce) throw ce;
-      contactId = (created as any).id as string;
+      .select('id, channel_source')
+      .eq('client_id', clientId!)
+      .in('phone', variants.length ? variants : [cleanPhone])
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    if (existing && existing.length > 0) {
+      const row: any = existing[0];
+      if (row.channel_source !== targetQueueId) {
+        await supabase
+          .from('chat_contacts')
+          .update({ channel_source: targetQueueId, channel_type: channelType })
+          .eq('id', row.id);
+      }
+      return row.id as string;
     }
-
-    const { error: ne } = await supabase
-      .from('chat_conversations')
+    const finalName = name.trim() || cleanPhone;
+    const { data: created, error: ce } = await supabase
+      .from('chat_contacts')
       .insert({
-        client_id: clientId,
-        contact_id: contactId,
-        queue_id: targetQueueId,
-        channel: channelType,
-        status: 'open',
-        assigned_to: currentAssigneeName,
-        assigned_user_id: currentAssigneeUserId,
-        opened_at: new Date().toISOString(),
-        protocol: '',
-      });
-    if (ne) throw ne;
-
-    return { contactId: contactId!, queueId: targetQueueId };
+        client_id: clientId!,
+        channel_source: targetQueueId,
+        channel_type: channelType,
+        phone: cleanPhone,
+        name: finalName,
+        remote_jid: `${cleanPhone}@s.whatsapp.net`,
+      })
+      .select('id')
+      .single();
+    if (ce) throw ce;
+    return (created as any).id as string;
   };
 
-  const checkConflicts = async (): Promise<ConflictState | null> => {
-    if (!clientId) return null;
-    const variants = brPhoneVariants(cleanPhone);
-    if (variants.length === 0) return null;
-    const { data: cts } = await supabase
-      .from('chat_contacts')
-      .select('id, name, phone')
-      .eq('client_id', clientId)
-      .in('phone', variants);
-    const ids = (cts ?? []).map((c: any) => c.id as string);
-    if (ids.length === 0) return null;
-    const { data: convs } = await supabase
-      .from('chat_conversations')
-      .select('id, contact_id, queue_id, status, assigned_to, opened_at, protocol, channel')
-      .eq('client_id', clientId)
-      .in('contact_id', ids)
-      .in('status', ['pending', 'open'])
-      .order('updated_at', { ascending: false });
-    if (!convs || convs.length === 0) return null;
-    const qIds = Array.from(new Set(convs.map((c: any) => c.queue_id).filter(Boolean) as string[]));
-    let queueNames: Record<string, string> = {};
-    if (qIds.length) {
-      const { data: qs } = await supabase.from('queues').select('id, name').in('id', qIds);
-      queueNames = Object.fromEntries((qs ?? []).map((q: any) => [q.id as string, q.name as string]));
+  const isSameAssignee = (conv: ActiveConv): boolean => {
+    if (currentAssigneeUserId != null && conv.assigned_user_id != null) {
+      return conv.assigned_user_id === currentAssigneeUserId;
     }
-    return { convs: convs as ActiveConv[], contacts: (cts ?? []) as ContactRow[], queueNames };
+    if (conv.assigned_to && currentAssigneeName) {
+      return conv.assigned_to.trim().toLowerCase() === currentAssigneeName.toLowerCase();
+    }
+    return false;
+  };
+
+  const logHistory = async (conversation_id: string, action: string, notes: string) => {
+    try {
+      await supabase.from('chat_conversation_history').insert({
+        conversation_id,
+        action,
+        actor_name: currentAssigneeName,
+        user_id: currentAssigneeUserId,
+        notes,
+      });
+    } catch { /* histórico é best-effort */ }
   };
 
   const handleSend = async () => {
     if (!canSend || sending || !selectedQueue) return;
+    if (!clientId || !currentAssigneeName) {
+      toast.error('Sessão de usuário indisponível.');
+      return;
+    }
     setSending(true);
+    setBlockedBy(null);
     try {
-      // Pré-check: existe conversa pending/open p/ esse telefone neste cliente?
-      const c = await checkConflicts();
-      if (c) {
-        setConflict(c);
+      const targetQueueId = selectedQueue.id;
+      const contactId = await resolveOrCreateContact(targetQueueId);
+
+      // Busca conversas ativas (pending/open) desse contato
+      const { data: activeConvs } = await supabase
+        .from('chat_conversations')
+        .select('id, contact_id, queue_id, status, assigned_to, assigned_user_id, opened_at, protocol, channel, updated_at')
+        .eq('client_id', clientId)
+        .eq('contact_id', contactId)
+        .in('status', ['pending', 'open'])
+        .order('updated_at', { ascending: false });
+
+      const latest = (activeConvs && activeConvs[0]) as ActiveConv | undefined;
+      let targetConvId: string | null = null;
+
+      if (latest && latest.status === 'open' && latest.assigned_to && !isSameAssignee(latest)) {
+        // Bloqueado: em atendimento por outro usuário
+        setBlockedBy(latest.assigned_to);
         setSending(false);
         return;
       }
 
-      // Cria a conversa já atribuída ao usuário atual ANTES de enviar a mensagem,
-      // para que apareça instantaneamente em "Meu atendimento".
-      let created: { contactId: string; queueId: string } | null = null;
-      if (clientId && currentAssigneeName) {
-        created = await ensureContactAndAssignedConversation(selectedQueue.id);
+      if (!latest) {
+        // Cria nova conversa
+        const { data: created, error: ne } = await supabase
+          .from('chat_conversations')
+          .insert({
+            client_id: clientId,
+            contact_id: contactId,
+            queue_id: targetQueueId,
+            channel: 'whatsapp_uazapi',
+            status: 'open',
+            assigned_to: currentAssigneeName,
+            assigned_user_id: currentAssigneeUserId,
+            opened_at: new Date().toISOString(),
+            protocol: '',
+          })
+          .select('id')
+          .single();
+        if (ne) throw ne;
+        targetConvId = (created as any).id as string;
+        await logHistory(targetConvId, 'created_manual', `Novo atendimento criado na fila "${selectedQueue.name}"`);
+      } else {
+        // Reutiliza conversa existente (pending, ou open do próprio usuário / sem responsável)
+        const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        const notes: string[] = [];
+
+        if (latest.status !== 'open') {
+          patch.status = 'open';
+          patch.opened_at = new Date().toISOString();
+        }
+        if (latest.queue_id !== targetQueueId) {
+          patch.queue_id = targetQueueId;
+          notes.push(`Fila alterada para "${selectedQueue.name}"`);
+        }
+        if (!isSameAssignee(latest)) {
+          patch.assigned_to = currentAssigneeName;
+          patch.assigned_user_id = currentAssigneeUserId;
+          notes.push(`Atribuído a ${currentAssigneeName}`);
+        }
+
+        if (Object.keys(patch).length > 1) {
+          const { error: ue } = await supabase
+            .from('chat_conversations')
+            .update(patch)
+            .eq('id', latest.id);
+          if (ue) throw ue;
+          if (notes.length) {
+            await logHistory(latest.id, 'reassigned_manual', notes.join(' · '));
+          }
+        }
+        targetConvId = latest.id;
       }
 
+      // Envia mensagem via UaZapi
       await sendUaZapiMessage();
 
-      if (created) {
-        goToChatWithSelection(created.contactId, created.queueId);
-        toast.success('Atendimento criado e mensagem enviada.');
-      } else {
-        toast.success('Mensagem enviada! A conversa aparecerá na lista em instantes.');
-      }
+      goToChatWithSelection(contactId, targetQueueId);
+      toast.success('Atendimento aberto e mensagem enviada.');
       handleClose();
     } catch (err: any) {
       toast.error('Falha ao enviar: ' + (err?.message || 'Tente novamente'));
@@ -233,68 +265,6 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
     }
   };
 
-  const handleOpenExisting = (conv: ActiveConv) => {
-    goToChatWithSelection(conv.contact_id, conv.queue_id);
-    toast.success('Abrindo conversa existente…');
-    handleClose();
-  };
-
-  const handleCloseAndStartNew = async () => {
-    if (!selectedQueue || !conflict || !clientId || !currentAssigneeName) return;
-    setSending(true);
-    try {
-      const targetQueueId = selectedQueue.id;
-      const noteSuffix = ` [manual] Encerrada para novo atendimento na fila "${selectedQueue.name}" por ${currentAssigneeName}`;
-
-      // 1) Encerra conversas em conflito (de qualquer fila, inclusive a mesma — a nova será criada limpa)
-      const idsToClose = conflict.convs.map(c => c.id);
-      if (idsToClose.length) {
-        // Buscar close_note atual para concatenar (resolved não toca updated_at via trigger? aqui faremos manual update preservando)
-        const { data: existing } = await supabase
-          .from('chat_conversations')
-          .select('id, close_note, updated_at')
-          .in('id', idsToClose);
-        for (const row of (existing ?? []) as any[]) {
-          await supabase
-            .from('chat_conversations')
-            .update({
-              status: 'resolved',
-              resolved_at: new Date().toISOString(),
-              close_note: (row.close_note ?? '') + noteSuffix,
-              updated_at: row.updated_at, // preserva leader (regra auto-resolve)
-            })
-            .eq('id', row.id);
-          await supabase.from('chat_conversation_history').insert({
-            conversation_id: row.id,
-            action: 'manual_closed_for_new_conversation',
-              actor_name: currentAssigneeName,
-              user_id: currentAssigneeUserId,
-            notes: `Encerrada manualmente para novo atendimento na fila ${selectedQueue.name}`,
-          });
-        }
-      }
-
-      // 2-3) Garante contato + cria conversa atribuída via helper compartilhada
-      const created = await ensureContactAndAssignedConversation(
-        targetQueueId,
-        conflict.contacts[0]?.name,
-      );
-      if (!created) throw new Error('Não foi possível criar a conversa');
-
-      // 4) Envia a mensagem
-      await sendUaZapiMessage();
-
-      // 5) Foca a nova conversa
-      goToChatWithSelection(created.contactId, created.queueId);
-      toast.success('Novo atendimento criado e mensagem enviada.');
-      handleClose();
-    } catch (err: any) {
-      toast.error('Falha ao encerrar/iniciar: ' + (err?.message || 'Tente novamente'));
-    } finally {
-      setSending(false);
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
@@ -304,62 +274,24 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
         onPointerDown={(e) => e.stopPropagation()}
       >
         <DialogHeader>
-          <DialogTitle>{conflict ? 'Atendimento já existe' : 'Novo atendimento'}</DialogTitle>
+          <DialogTitle>{blockedBy ? 'Contato em atendimento' : 'Novo atendimento'}</DialogTitle>
           <DialogDescription>
-            {conflict
-              ? 'Encontramos uma conversa ativa para este contato. Escolha como prosseguir.'
+            {blockedBy
+              ? 'Este contato já está sendo atendido por outro usuário.'
               : 'Inicie uma conversa enviando a primeira mensagem pelo WhatsApp.'}
           </DialogDescription>
         </DialogHeader>
 
-        {conflict ? (
-          <div className="space-y-3">
-            <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
-              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
-                Já existe {conflict.convs.length > 1 ? 'mais de uma conversa ativa' : 'uma conversa ativa'} para este telefone. Para evitar duplicidade, escolha abrir uma existente ou encerrá-la(s) e iniciar uma nova já atribuída a você.
+        {blockedBy ? (
+          <div className="space-y-4">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Este contato está em atendimento por <strong>{blockedBy}</strong>. Se você precisa falar com este número, o melhor é solicitar ao atendente <strong>{blockedBy}</strong> para transferir a conversa para você.
               </AlertDescription>
             </Alert>
-
-            <div className="space-y-2 max-h-[260px] overflow-auto pr-1">
-              {conflict.convs.map((cv) => {
-                const ct = conflict.contacts.find(c => c.id === cv.contact_id);
-                const qName = cv.queue_id ? (conflict.queueNames[cv.queue_id] ?? 'Fila') : 'Sem fila';
-                const opened = cv.opened_at ? formatDistanceToNow(new Date(cv.opened_at), { addSuffix: true, locale: ptBR }) : '';
-                return (
-                  <div key={cv.id} className="border rounded-md p-2.5 text-sm flex items-start gap-2">
-                    <MessageSquare className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium truncate">{ct?.name || cleanPhone}</span>
-                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{cv.status}</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Fila: <span className="text-foreground">{qName}</span>
-                        {cv.assigned_to ? <> · Responsável: <span className="text-foreground">{cv.assigned_to}</span></> : <> · <span className="italic">sem responsável</span></>}
-                      </div>
-                      {opened && <div className="text-[11px] text-muted-foreground">Aberta {opened}</div>}
-                    </div>
-                    <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => handleOpenExisting(cv)} disabled={sending}>
-                      Abrir
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={() => setConflict(null)} disabled={sending}>
-                Voltar
-              </Button>
-              <Button
-                onClick={handleCloseAndStartNew}
-                disabled={sending}
-                className="bg-amber-600 hover:bg-amber-700 text-white"
-              >
-                {sending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
-                Encerrar e iniciar nova
-              </Button>
+            <DialogFooter>
+              <Button onClick={handleClose}>OK</Button>
             </DialogFooter>
           </div>
         ) : (

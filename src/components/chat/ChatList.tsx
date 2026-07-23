@@ -1913,7 +1913,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       <NewConversationDialog
         open={newConvOpen}
         onOpenChange={(v) => { setNewConvOpen(v); if (!v) setFooterPhone(''); }}
-        queues={activeQueues.filter(q => q.channel_type === 'uazapi')}
+        queues={activeQueues.filter(q => q.channel_type === 'uazapi' && queueConnectionMap.get(q.id) === true)}
         initialPhone={footerCountry + footerPhone.replace(/\D/g,'')}
         clientId={clientId || undefined}
         currentUser={user ? { codAgent: user.cod_agent ? String(user.cod_agent) : undefined, name: user?.name || '', id: user?.id } : undefined}
