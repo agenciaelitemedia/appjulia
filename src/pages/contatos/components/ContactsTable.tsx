@@ -100,13 +100,21 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
             .eq('id', conversationId);
           if (updErr) throw updErr;
 
-          const historyRows: Array<Record<string, unknown>> = [];
+          const historyRows: Array<{
+            conversation_id: string;
+            action: string;
+            actor_name?: string;
+            notes?: string;
+            to_value?: string;
+            to_user_id?: number;
+            user_id?: number;
+          }> = [];
           if (needsReopen) {
             historyRows.push({
               conversation_id: conversationId,
               action: 'reopened',
               actor_name: userName,
-              actor_user_id: userId,
+              user_id: userId ?? undefined,
               notes: 'Reaberta ao abrir chat pela lista de contatos',
             });
           }
@@ -114,9 +122,9 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
             conversation_id: conversationId,
             action: 'assigned',
             actor_name: userName,
-            actor_user_id: userId,
+            user_id: userId ?? undefined,
             to_value: userName,
-            to_user_id: userId,
+            to_user_id: userId ?? undefined,
           });
           await supabase.from('chat_conversation_history').insert(historyRows);
         }
