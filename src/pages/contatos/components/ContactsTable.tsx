@@ -77,6 +77,17 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
         queueId = (conv.queue_id as string | null) ?? null;
         const status = String(conv.status || '');
         const currentAssignee = (conv.assigned_to || '').toString().trim();
+        const isBusy =
+          status === 'open' &&
+          currentAssignee !== '' &&
+          currentAssignee.toLowerCase() !== userName.toLowerCase();
+        if (isBusy) {
+          toast.error(
+            `Este contato está em atendimento por ${currentAssignee}. Se precisa falar com este número, peça ao atendente ${currentAssignee} para transferir a conversa para você.`,
+            { duration: 8000 },
+          );
+          return;
+        }
         const needsReopen = status === 'resolved' || status === 'closed';
         const needsAssign = needsReopen || currentAssignee === '' || currentAssignee !== userName;
 
