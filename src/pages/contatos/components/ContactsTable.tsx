@@ -24,6 +24,10 @@ import { EditContactDialog } from './EditContactDialog';
 import { DeleteContactDialog } from './DeleteContactDialog';
 import { MediaLightbox } from '@/components/chat/MediaLightbox';
 import type { ContactRow } from '../hooks/useContactsList';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { setPendingSelection } from '@/lib/chat/pendingSelection';
+import { toast } from 'sonner';
 
 interface Props {
   contacts: ContactRow[];
@@ -35,6 +39,7 @@ const PAGE_SIZE = 50;
 
 export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<ContactRow | null>(null);
   const [deleting, setDeleting] = useState<ContactRow | null>(null);
@@ -46,9 +51,88 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
     [contacts, page],
   );
 
-  const handleOpenChat = (id: string) => {
-    sessionStorage.setItem('chat_pending_contact_id', id);
-    navigate('/chat');
+  const handleOpenChat = async (contactId: string) => {
+    const clientId = user?.client_id ? String(user.client_id) : '';
+    const userName = user?.name || '';
+    const userId = user?.id ? Number(user.id) : null;
+    if (!clientId || !userName) {
+      navigate('/chat');
+      return;
+    }
+    try {
+      const { data: conv } = await supabase
+        .from('chat_conversations')
+        .select('id, queue_id, status, assigned_to')
+        .eq('client_id', clientId)
+        .eq('contact_id', contactId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let conversationId: string | null = null;
+      let queueId: string | null = null;
+
+      if (conv) {
+        conversationId = conv.id as string;
+        queueId = (conv.queue_id as string | null) ?? null;
+        const status = String(conv.status || '');
+        const currentAssignee = (conv.assigned_to || '').toString().trim();
+        const needsReopen = status === 'resolved' || status === 'closed';
+        const needsAssign = needsReopen || currentAssignee === '' || currentAssignee !== userName;
+
+        if (needsReopen || needsAssign) {
+          const updates: Record<string, unknown> = {
+            assigned_to: userName,
+            assigned_user_id: userId,
+            updated_at: new Date().toISOString(),
+          };
+          if (needsReopen) {
+            updates.status = 'open';
+            updates.resolved_at = null;
+            updates.closed_at = null;
+          } else if (status === 'pending') {
+            updates.status = 'open';
+          }
+
+          const { error: updErr } = await supabase
+            .from('chat_conversations')
+            .update(updates)
+            .eq('id', conversationId);
+          if (updErr) throw updErr;
+
+          const historyRows: Array<Record<string, unknown>> = [];
+          if (needsReopen) {
+            historyRows.push({
+              conversation_id: conversationId,
+              action: 'reopened',
+              actor_name: userName,
+              actor_user_id: userId,
+              notes: 'Reaberta ao abrir chat pela lista de contatos',
+            });
+          }
+          historyRows.push({
+            conversation_id: conversationId,
+            action: 'assigned',
+            actor_name: userName,
+            actor_user_id: userId,
+            to_value: userName,
+            to_user_id: userId,
+          });
+          await supabase.from('chat_conversation_history').insert(historyRows);
+        }
+      }
+
+      setPendingSelection({
+        contactId,
+        queueId,
+        conversationId,
+        tab: 'open',
+      });
+      navigate('/chat');
+    } catch (err) {
+      console.error('[ContactsTable] handleOpenChat error:', err);
+      toast.error('Não foi possível abrir o chat. Tente novamente.');
+    }
   };
 
   const truncate = (s: string, n = 30) =>
