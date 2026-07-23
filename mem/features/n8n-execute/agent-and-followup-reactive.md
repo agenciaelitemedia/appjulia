@@ -33,7 +33,7 @@ que nenhum follow-up ou pré-followup antigo continue ativo antes do reagendamen
    `state='SEND'` e `name_client + session_id IN (variantes)`.
 3. **DELETE** `public.followup_queue_temp` por `cod_agent + session_id IN (variantes)`.
 4. **INSERT** uma linha em `public.followup_queue_temp` com
-   `(session_id = whatsappNumberInsert, cod_agent, created_at=now(), hub=hubFila, chat_memory)`.
+   `(session_id = whatsappNumberInsert, cod_agent, created_at=now() - interval '3 hours', hub=hubFila, chat_memory)`.
 5. **UPDATE** `public.sessions SET active = TRUE WHERE id = session_id`.
 
 ## Resposta
