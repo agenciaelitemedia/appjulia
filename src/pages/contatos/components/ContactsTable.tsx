@@ -14,6 +14,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MessageCircle, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Tooltip,
   TooltipContent,
@@ -44,6 +47,7 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
   const [editing, setEditing] = useState<ContactRow | null>(null);
   const [deleting, setDeleting] = useState<ContactRow | null>(null);
   const [lightbox, setLightbox] = useState<ContactRow | null>(null);
+  const [blockedBy, setBlockedBy] = useState<string | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(contacts.length / PAGE_SIZE));
   const paginated = useMemo(
@@ -82,10 +86,7 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
           currentAssignee !== '' &&
           currentAssignee.toLowerCase() !== userName.toLowerCase();
         if (isBusy) {
-          toast.error(
-            `Este contato está em atendimento por ${currentAssignee}. Se precisa falar com este número, peça ao atendente ${currentAssignee} para transferir a conversa para você.`,
-            { duration: 8000 },
-          );
+          setBlockedBy(currentAssignee);
           return;
         }
         const needsReopen = status === 'resolved' || status === 'closed';
@@ -282,6 +283,22 @@ export function ContactsTable({ contacts, isLoading, isGroup }: Props) {
         fileName={lightbox ? `${(lightbox.name || lightbox.phone).replace(/[^a-zA-Z0-9-_]+/g, '_')}.jpg` : null}
         kind="image"
       />
+      <Dialog open={!!blockedBy} onOpenChange={(o) => !o && setBlockedBy(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Contato em atendimento</DialogTitle>
+          </DialogHeader>
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              Este contato está em atendimento por <strong>{blockedBy}</strong>. Se você precisa falar com este número, o melhor é solicitar ao atendente <strong>{blockedBy}</strong> para transferir a conversa para você.
+            </AlertDescription>
+          </Alert>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBlockedBy(null)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }
