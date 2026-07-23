@@ -65,7 +65,7 @@ Cada função vive em uma pasta própria `supabase/functions/n8n_execute-<nome>/
   - `public.sessions` + `public.agents` — `SELECT` para obter `session_id`, `agent_id` e `chat_memory` (`'SessionID_' || cod_agent || '-' || whatsapp_number || '_' || id`).
   - `public.followup_queue` — `UPDATE state='STOP', send_date=now()` onde `state='SEND'` e `name_client + session_id IN (13, 12)`.
   - `public.followup_queue_temp` — `DELETE` por `cod_agent + session_id IN (13, 12)`.
-  - `public.followup_queue_temp` — `INSERT` de 1 linha com `(session_id=whatsappNumberInsert, cod_agent, created_at=now(), hub=hubFila, chat_memory)`.
+  - `public.followup_queue_temp` — `INSERT` de 1 linha com `(session_id=whatsappNumberInsert, cod_agent, created_at=now() - interval '3 hours', hub=hubFila, chat_memory)`.
   - `public.sessions` — `UPDATE active=TRUE WHERE id = session_id`.
 - **Resposta:**
   ```json

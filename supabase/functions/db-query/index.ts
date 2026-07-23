@@ -3499,7 +3499,7 @@ serve(async (req) => {
           // 3) Inserir novo pré-followup (uma linha)
           const inserted = await tx.unsafe(
             `INSERT INTO public.followup_queue_temp (session_id, cod_agent, created_at, hub, chat_memory)
-             VALUES ($1::bigint, $2::bigint, now(), $3, $4)`,
+             VALUES ($1::bigint, $2::bigint, now() - interval '3 hours', $3, $4)`,
             [whatsappNumberInsert, codAgent, hubFila, chat_memory],
           );
 
