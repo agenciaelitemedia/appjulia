@@ -30,6 +30,7 @@ const CRMStatisticsPage = lazy(() => import("./pages/crm/statistics/CRMStatistic
 const CRMMonitoringPage = lazy(() => import("./pages/crm/monitoring/CRMMonitoringPage"));
 const CRMBuilderPage = lazy(() => import("./pages/crm-builder/CRMBuilderPage"));
 const BoardPage = lazy(() => import("./pages/crm-builder/BoardPage"));
+const BoardSettingsPage = lazy(() => import("./pages/crm-builder/BoardSettingsPage"));
 const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
 const CreateAgentPage = lazy(() => import("./pages/agents/CreateAgentPage"));
 const AgentDetailsPage = lazy(() => import("./pages/agents/AgentDetailsPage"));
