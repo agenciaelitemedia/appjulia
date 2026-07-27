@@ -47,6 +47,7 @@ import { useCRMCustomFields } from './hooks/useCRMCustomFields';
 import { useCRMBoards } from './hooks/useCRMBoards';
 import { useMoveDealToBoard } from './hooks/useMoveDealToBoard';
 import { useCRMBoardTaskCounts } from './hooks/useCRMBoardTaskCounts';
+import { useEffectiveBoardPermission } from './hooks/useCRMBoardPermissions';
 import { toast } from 'sonner';
 import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormData, BoardSortState } from './types';
 import { DEFAULT_BOARD_SORT } from './types';
@@ -61,6 +62,13 @@ export default function BoardPage() {
   const codAgent = user?.cod_agent?.toString() || '';
   const clientId = user?.client_id ? String(user.client_id) : '';
   const canManage = user?.role === 'user' || user?.role === 'admin' || user?.role === 'colaborador';
+
+  // Permissões granulares configuradas pelo dono do CRM.
+  const boardPerms = useEffectiveBoardPermission(boardId || null);
+  const canCreateDeal = boardPerms.canCreate;
+  const canEditDeal = boardPerms.canEdit;
+  const canDeleteDeal = boardPerms.canDelete;
+  const canOpenSettings = boardPerms.isOwner || user?.role === 'admin';
 
   // Board state
   const [board, setBoard] = useState<CRMBoard | null>(null);
@@ -608,7 +616,7 @@ export default function BoardPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {canManage && (
+          {canManage && canCreateDeal && (
             <Button
               variant="outline"
               size="sm"
@@ -628,7 +636,7 @@ export default function BoardPage() {
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
 
-          {user?.role === 'admin' && (
+          {canOpenSettings && (
             <Button 
               variant="outline" 
               size="sm"
@@ -742,6 +750,8 @@ export default function BoardPage() {
                                 onChangePriority={(d, p) => updateDeal(d.id, { priority: p })}
                                 taskTotal={taskCounts[deal.id]?.total}
                                 taskDone={taskCounts[deal.id]?.done}
+                                canEdit={canEditDeal}
+                                canDelete={canDeleteDeal}
                               />
                             ))}
                             {remaining > 0 && (
@@ -766,7 +776,7 @@ export default function BoardPage() {
                       );
                     })}
                     
-                    {canManage && (
+                    {canManage && canCreateDeal && (
                       <Button
                         variant="outline"
                         className="h-auto min-h-[200px] min-w-[280px] max-w-[280px] flex-shrink-0 border-2 border-dashed hover:border-primary hover:bg-primary/5"
