@@ -67,6 +67,8 @@ interface DealCardProps {
   onChangePriority?: (deal: CRMDeal, priority: 'low' | 'medium' | 'high' | 'urgent') => void;
   taskTotal?: number;
   taskDone?: number;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export function DealCard({
@@ -81,6 +83,8 @@ export function DealCard({
   onChangePriority,
   taskTotal = 0,
   taskDone = 0,
+  canEdit = true,
+  canDelete = true,
 }: DealCardProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
@@ -310,7 +314,7 @@ export function DealCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {!isLinked && (
+              {!isLinked && canEdit && (
                 <>
                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
                     <Pencil className="h-4 w-4 mr-2" />
@@ -319,22 +323,30 @@ export function DealCard({
                   <DropdownMenuSeparator />
                 </>
               )}
+              {canEdit && (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onWon(); }}>
                 <Trophy className="h-4 w-4 mr-2 text-primary" />
                 Marcar como Ganho
               </DropdownMenuItem>
+              )}
+              {canEdit && (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onLost(); }}>
                 <XCircle className="h-4 w-4 mr-2 text-destructive" />
                 Marcar como Perdido
               </DropdownMenuItem>
+              )}
+              {canDelete && (
+              <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={(e) => { e.stopPropagation(); setConfirmArchive(true); }}
                 className="text-destructive"
               >
                 <Archive className="h-4 w-4 mr-2" />
                 {isLinked ? 'Excluir card' : 'Arquivar'}
               </DropdownMenuItem>
+              </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           </div>
