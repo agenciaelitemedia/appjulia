@@ -67,6 +67,8 @@ interface DealCardProps {
   onChangePriority?: (deal: CRMDeal, priority: 'low' | 'medium' | 'high' | 'urgent') => void;
   taskTotal?: number;
   taskDone?: number;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export function DealCard({
@@ -81,6 +83,8 @@ export function DealCard({
   onChangePriority,
   taskTotal = 0,
   taskDone = 0,
+  canEdit = true,
+  canDelete = true,
 }: DealCardProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
