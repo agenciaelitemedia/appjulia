@@ -5,11 +5,13 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings2, Layers, Zap, BarChart3, History } from 'lucide-react';
+import { Settings2, Layers, Zap, BarChart3, History, Shield } from 'lucide-react';
 import { CustomFieldsManager } from '../custom-fields/CustomFieldsManager';
 import { AutomationsManager } from '../automations/AutomationsManager';
 import { BoardAnalyticsDashboard } from '../analytics/BoardAnalyticsDashboard';
 import { AuditLogPanel } from '../audit/AuditLogPanel';
+import { PermissionsManager } from './permissions/PermissionsManager';
+import { useIsBoardOwner } from '../../hooks/useCRMBoardPermissions';
 import type { CRMPipeline, CRMDeal } from '../../types';
 
 interface BoardSettingsSheetProps {
@@ -35,7 +37,8 @@ export function BoardSettingsSheet({
   deals,
   canManage = true,
 }: BoardSettingsSheetProps) {
-  const tabsCount = canManage ? 5 : 4;
+  const isOwner = useIsBoardOwner();
+  const tabsCount = (canManage ? 5 : 4) + (isOwner ? 1 : 0);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
@@ -69,6 +72,12 @@ export function BoardSettingsSheet({
                 Auditoria
               </TabsTrigger>
             )}
+            {isOwner && (
+              <TabsTrigger value="permissions" className="gap-1 text-xs px-2">
+                <Shield className="h-3.5 w-3.5" />
+                Permissões
+              </TabsTrigger>
+            )}
             <TabsTrigger value="general" className="gap-1 text-xs px-2">
               <Settings2 className="h-3.5 w-3.5" />
               Geral
@@ -90,6 +99,12 @@ export function BoardSettingsSheet({
           {canManage && (
             <TabsContent value="audit" className="mt-4">
               <AuditLogPanel clientId={clientId} boardId={boardId} enabled={open} />
+            </TabsContent>
+          )}
+
+          {isOwner && (
+            <TabsContent value="permissions" className="mt-4">
+              <PermissionsManager boardId={boardId} clientId={clientId} />
             </TabsContent>
           )}
 
