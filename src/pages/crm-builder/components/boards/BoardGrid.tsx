@@ -10,6 +10,7 @@ interface BoardGridProps {
   onBoardClick: (board: CRMBoard) => void;
   onBoardEdit: (board: CRMBoard) => void;
   onBoardArchive: (board: CRMBoard) => void;
+  onBoardSettings?: (board: CRMBoard) => void;
   onCreateClick: () => void;
   canManage?: boolean;
 }
@@ -20,6 +21,7 @@ export function BoardGrid({
   onBoardClick,
   onBoardEdit,
   onBoardArchive,
+  onBoardSettings,
   onCreateClick,
   canManage = true,
 }: BoardGridProps) {
@@ -42,6 +44,7 @@ export function BoardGrid({
           onClick={() => onBoardClick(board)}
           onEdit={() => onBoardEdit(board)}
           onArchive={() => onBoardArchive(board)}
+          onSettings={onBoardSettings ? () => onBoardSettings(board) : undefined}
           canManage={canManage}
         />
       ))}
