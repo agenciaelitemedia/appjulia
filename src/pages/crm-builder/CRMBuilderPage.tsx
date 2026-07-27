@@ -81,6 +81,10 @@ export default function CRMBuilderPage() {
     navigate(`/crm-builder/${board.id}`);
   };
 
+  const handleBoardSettings = (board: CRMBoard) => {
+    navigate(`/crm-builder/${board.id}?settings=permissions`);
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -127,6 +131,7 @@ export default function CRMBuilderPage() {
         onBoardClick={handleBoardClick}
         onBoardEdit={setEditingBoard}
         onBoardArchive={setArchivingBoard}
+        onBoardSettings={handleBoardSettings}
         onCreateClick={() => setIsCreateDialogOpen(true)}
         canManage={canManage}
       />
