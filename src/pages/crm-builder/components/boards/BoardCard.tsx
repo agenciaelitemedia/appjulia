@@ -64,10 +64,11 @@ interface BoardCardProps {
   onClick: () => void;
   onEdit: () => void;
   onArchive: () => void;
+  onSettings?: () => void;
   canManage?: boolean;
 }
 
-export function BoardCard({ board, onClick, onEdit, onArchive, canManage = true }: BoardCardProps) {
+export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canManage = true }: BoardCardProps) {
   const IconComponent = iconMap[board.icon] || LayoutDashboard;
 
   return (
@@ -104,7 +105,7 @@ export function BoardCard({ board, onClick, onEdit, onArchive, canManage = true 
                 <Pencil className="h-4 w-4 mr-2" />
                 Editar
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onClick(); }}>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); (onSettings ?? onClick)(); }}>
                 <Settings className="h-4 w-4 mr-2" />
                 Configurações
               </DropdownMenuItem>
