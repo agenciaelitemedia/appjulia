@@ -1,58 +1,81 @@
 
-## Objetivo
+# Permissionamento por Board no CRM Builder
 
-Ajustar o diálogo **Novo atendimento** (`src/components/chat/NewConversationDialog.tsx` + gatilho em `ChatList.tsx`) para (1) listar só filas conectadas, (2) não quebrar por unique constraint de contato, e (3) tratar conflitos com a mesma lógica do botão "Abrir Chat" do contato.
+Cada board terá uma aba **Permissões** (dentro do botão Configurações) onde o **dono do client_id** define, por usuário ou por perfil, quem pode:
 
-## Diagnóstico
+- **Ver** o board e seus cards
+- **Criar** novos cards
+- **Editar** cards existentes
+- **Remover** cards
 
-- **Erro `duplicate key ... idx_chat_contacts_phone_client`**: existe um índice único em `chat_contacts (phone, client_id)`. O dialog tenta `INSERT` em `chat_contacts` quando a busca por `(client_id, channel_source, phone)` não acha nada — mas o contato já existe vinculado a outra fila. Precisamos buscar/reutilizar contato por `(client_id, phone)` (variantes BR) e nunca criar duplicado.
-- **Filas desconectadas aparecem**: o `Select` usa `activeQueues.filter(channel_type==='uazapi')`. Não há filtro por conexão.
-- **Fluxo de conflito atual**: mostra lista de conversas ativas e pede confirmação para "encerrar e iniciar nova" em qualquer caso — sem diferenciar status, fila ou responsável.
+Sem regra configurada, valem os defaults atuais (admin/user/colaborador gerenciam, demais só leitura).
 
-## Mudanças
+## Quem é o "dono"
 
-### 1. `ChatList.tsx` — filtrar filas conectadas antes de passar ao dialog
-- Reutilizar `useQueueConnectionStatusesBatch(queues)` (já existe) e passar somente `q.channel_type === 'uazapi'` cujo `statusMap.get(q.id) === true`.
-- Se lista final for vazia, o `Select` já mostra "Nenhuma fila WhatsApp disponível".
+O dono do client_id é o usuário cujo `id === client_id` (titular da conta) OU qualquer usuário com `role = 'admin'`. Somente esses veem a aba Permissões e podem gravar. Membros de equipe (time/advogado/comercial) e `colaborador` **não** editam permissões, apenas as recebem.
 
-### 2. `NewConversationDialog.tsx` — reescrever `ensureContactAndAssignedConversation` e o fluxo de envio
+## Modelo de dados (Supabase)
 
-**Resolução de contato (fix do unique constraint):**
-- Buscar contato via `brPhoneVariants(cleanPhone)` filtrando só por `client_id` (não por `channel_source`).
-- Se achar: reutilizar `id`; se `channel_source` estiver vazio ou diferente da fila alvo, apenas atualizar `channel_source`/`channel_type` para a nova fila (o trigger `sync_contact_channel_source_from_conversation` também cobre isso, mas fazemos update explícito para consistência imediata).
-- Se não achar: `INSERT` normal (aí sim único por telefone).
+Nova tabela `public.crm_board_permissions`:
 
-**Fluxo de envio (`handleSend`) — nova lógica de conflito:**
+| coluna | tipo | descrição |
+|---|---|---|
+| id | uuid PK | |
+| board_id | uuid | FK lógica p/ `crm_boards.id` |
+| client_id | text | escopo do tenant (index) |
+| subject_type | text | `'user'` ou `'role'` |
+| subject_id | text | id do usuário (bigint em texto) ou nome do perfil (`user`, `time`, `advogado`, `comercial`, `colaborador`) |
+| can_view / can_create / can_edit / can_delete | boolean default false | |
+| created_at / updated_at | timestamptz | |
+| created_by | text (cod_agent) | |
 
-Depois de resolver `contactId` pelo telefone, buscar conversas do contato em `chat_conversations` com `status in ('pending','open')` (mesmo `client_id`), ordenadas por `updated_at desc`. Aplicar regras na ordem, sempre pela conversa mais recente:
+Constraints: `UNIQUE (board_id, subject_type, subject_id)`.
 
-| Situação da conversa existente | Ação |
-|---|---|
-| Nenhuma pending/open | Criar nova conversa `open` atribuída ao usuário atual → enviar mensagem → focar. |
-| `status='open'` **e** `assigned_to` preenchido e diferente do usuário atual | **Bloquear**. Toast/inline error: "Este contato está em atendimento por **{assigned_to}**. Para falar com este número, peça ao atendente **{assigned_to}** para transferir a conversa para você." Sem enviar mensagem, sem criar nada. |
-| `status='open'` sem responsável **ou** atribuído ao próprio usuário | Se `queue_id === selectedQueueId`: apenas focar a conversa (sem criar nova) e enviar a mensagem. Se `queue_id !== selectedQueueId`: atualizar `queue_id` para a fila alvo, garantir `assigned_to=usuário atual`, enviar mensagem e focar. |
-| `status='pending'` (qualquer responsável) | Atualizar `queue_id` para a fila alvo, `status='open'`, `assigned_to`/`assigned_user_id` = usuário atual, `opened_at=now()`, enviar mensagem, focar. |
-| Existe apenas conversa `resolved`/`closed` (nenhuma ativa) | Cai no caso "nenhuma pending/open" → criar nova conversa `open` atribuída ao usuário na fila solicitada. |
+RLS: policies permissivas (padrão do módulo) — enforcement de escrita é feita na aplicação (dono/admin apenas), coerente com o restante do CRM Builder. GRANT para authenticated e service_role.
 
-- Histórico: gravar em `chat_conversation_history` quando trocar de fila (`action='queue_switched_manual'`), reabrir/atribuir (`action='reassigned_manual'`) ou criar nova (`action='created_manual'`).
-- Enviar mensagem via `sendUaZapiMessage()` só **depois** que a linha em `chat_conversations` estiver no estado esperado (evita mensagem sem ticket).
+Auditoria: cada mudança gera linha em `crm_audit_log` com `entity_type = 'permission'` via `logCRMAudit`.
 
-**UI:**
-- Remover a tela intermediária de "Atendimento já existe" com botão "Encerrar e iniciar nova" (não é mais necessária). Substituir pela regra automática acima.
-- Caso "bloqueado por atendente atual": exibir um `Alert` destructive dentro do próprio dialog com o texto acima e botão "OK" (fecha). Não navegar.
-- Nos demais casos, seguir o padrão do botão "Abrir Chat" do contato: `setPendingSelection({ contactId, queueId })` + `navigate('/chat')` + toast de sucesso.
+## Resolução de permissão efetiva
 
-### 3. Sem mudanças de schema
-Nenhuma migration necessária — o índice `idx_chat_contacts_phone_client` é intencional e a correção é aplicativa (reutilizar contato).
+Novo hook `useBoardPermission(boardId)` retorna `{ canView, canCreate, canEdit, canDelete, isOwner }`:
+
+1. Se `isOwner` (id===client_id) ou `role==='admin'` → tudo `true`.
+2. Buscar regras do board no cache (React Query, key `['crm-board-permissions', boardId]`).
+3. Aplicar merge OR na ordem: default por role → regra por role do usuário → regra por usuário específico. A regra mais específica que existir sobrescreve; flags não definidas caem no nível anterior.
+4. Se não há nenhuma regra e o usuário não é `admin/user/colaborador`, mantém o comportamento atual (só leitura da view do board se `canView` implícito).
+
+Fallback compatível: se a tabela estiver vazia para o board, mantém exatamente o comportamento atual (nada quebra).
+
+## Frontend
+
+- `BoardSettingsSheet`: adicionar aba **Permissões** (ícone `ShieldCheck`), renderizada apenas quando `isOwner || role==='admin'`. Ajustar `tabsCount` dinamicamente.
+- Novo componente `PermissionsManager` dentro de `components/settings/permissions/`:
+  - Sub-aba "Por perfil": tabela com 5 linhas (user, colaborador, time, advogado, comercial) x 4 checkboxes.
+  - Sub-aba "Por usuário": autocomplete de usuários do mesmo `client_id` (via `externalDb.listClientUsers` já usado em Equipe) → adiciona linha com 4 checkboxes; botão remover.
+  - Salvamento com debounce (500ms) por linha; toast de confirmação.
+- Novo hook `useCRMBoardPermissions(boardId, clientId)` com fetch, upsert e delete + realtime channel `crm-board-permissions-${clientId}-${boardId}`.
+- Aplicar `useBoardPermission` em:
+  - `BoardPage` (redireciona se `!canView`).
+  - `DealCard`/`PipelineColumn`: esconde botão "Novo card" quando `!canCreate`; desabilita drag/edição quando `!canEdit`; esconde menu delete quando `!canDelete`.
+  - `useCRMDeals` mutations: guarda-de-servidor extra (early return + toast) para create/update/delete.
 
 ## Detalhes técnicos
 
-- `currentUser` já é passado ao dialog em `ChatList.tsx` (verificar; se não, propagar do `AuthContext`).
-- Comparação de responsável: normalizar por `assigned_user_id` quando existir, senão por `assigned_to` (nome). O usuário atual expõe ambos via `AuthContext`.
-- Ao mudar `queue_id` de conversa existente, o trigger `trg_sync_contact_channel_source` já atualiza `chat_contacts.channel_source` — não duplicamos o update.
-- `updated_at` na finalização de conversas antigas não é mais tocado (não usamos mais o "encerrar em massa").
+- Nomes de canais realtime seguem o padrão do memory `crm-builder-client-scope` (isolamento por clientId).
+- `logCRMAudit` com `entity_type: 'permission'`, `entity_id: <subject_type>:<subject_id>`, `action: created|updated|deleted`, `changes: { before, after }`.
+- Migração cria índices em `(board_id)` e `(client_id, subject_type, subject_id)`.
+- Nenhuma mudança em `crm_boards`, `crm_pipelines`, `crm_deals` — apenas leitura de flags no client.
 
-## Verificação
+## Entrega
 
-- Build via harness.
-- Playwright opcional: abrir `/chat`, clicar "Novo atendimento", validar que só filas com badge conectado aparecem; testar telefone que já tem contato em outra fila (não deve mais dar `duplicate key`).
+1. Migration Supabase: tabela + grants + RLS + triggers de updated_at.
+2. Hook `useCRMBoardPermissions` + `useBoardPermission`.
+3. Componente `PermissionsManager` + integração na aba do `BoardSettingsSheet`.
+4. Enforcement nos pontos de create/edit/delete de deals e no gate de view do board.
+5. Memory update em `mem/features/crm/builder-client-scope.md` documentando o novo layer de permissões.
+
+## Fora do escopo
+
+- Permissões por pipeline/estágio (só a nível de board neste ciclo).
+- Compartilhar boards entre client_ids diferentes.
+- UI para o dono transferir a titularidade do client.
