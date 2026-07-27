@@ -197,6 +197,7 @@ const App = () => (
                   <Route path="/advbox/consultas" element={<AdvboxQueriesPage />} />
                   <Route path="/crm-builder" element={<ProtectedRoute module="crm_leads"><CRMBuilderPage /></ProtectedRoute>} />
                   <Route path="/crm-builder/:boardId" element={<ProtectedRoute module="crm_leads"><BoardPage /></ProtectedRoute>} />
+                  <Route path="/crm-builder/:boardId/configuracoes" element={<ProtectedRoute module="crm_leads"><BoardSettingsPage /></ProtectedRoute>} />
                   <Route path="/datajud" element={<ProtectedRoute module="datajud"><DataJudSearchPage /></ProtectedRoute>} />
                   <Route path="/casos-juridicos" element={<ProtectedRoute module="legal_cases"><LegalCasesPage /></ProtectedRoute>} />
                   <Route path="/notificacoes-contrato" element={<ProtectedRoute module="contract_notifications"><ContractNotificationsPage /></ProtectedRoute>} />
