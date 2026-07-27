@@ -115,20 +115,6 @@ export default function BoardPage() {
     assignedTo: [],
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
-
-  // Abre a aba de permissões automaticamente quando vier de "Configurações" no menu do quadro.
-  useEffect(() => {
-    const settingsParam = searchParams.get('settings');
-    if (!settingsParam) return;
-    if (!canOpenSettings) return;
-    setSettingsInitialTab(settingsParam === 'permissions' ? 'permissions' : settingsParam);
-    setIsSettingsOpen(true);
-    // Limpa o query param para não reabrir ao navegar.
-    const url = new URL(window.location.href);
-    url.searchParams.delete('settings');
-    window.history.replaceState({}, '', url.toString());
-  }, [searchParams, canOpenSettings]);
 
   // Paginação client-side por coluna
   const INITIAL_CARDS_PER_COLUMN = 30;
@@ -931,7 +917,6 @@ export default function BoardPage() {
         pipelines={pipelines}
         deals={deals}
         canManage={canManage}
-        initialTab={settingsInitialTab}
       />
     </div>
   );

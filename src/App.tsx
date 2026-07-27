@@ -30,6 +30,7 @@ const CRMStatisticsPage = lazy(() => import("./pages/crm/statistics/CRMStatistic
 const CRMMonitoringPage = lazy(() => import("./pages/crm/monitoring/CRMMonitoringPage"));
 const CRMBuilderPage = lazy(() => import("./pages/crm-builder/CRMBuilderPage"));
 const BoardPage = lazy(() => import("./pages/crm-builder/BoardPage"));
+const BoardSettingsPage = lazy(() => import("./pages/crm-builder/BoardSettingsPage"));
 const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
 const CreateAgentPage = lazy(() => import("./pages/agents/CreateAgentPage"));
 const AgentDetailsPage = lazy(() => import("./pages/agents/AgentDetailsPage"));
@@ -196,6 +197,7 @@ const App = () => (
                   <Route path="/advbox/consultas" element={<AdvboxQueriesPage />} />
                   <Route path="/crm-builder" element={<ProtectedRoute module="crm_leads"><CRMBuilderPage /></ProtectedRoute>} />
                   <Route path="/crm-builder/:boardId" element={<ProtectedRoute module="crm_leads"><BoardPage /></ProtectedRoute>} />
+                  <Route path="/crm-builder/:boardId/configuracoes" element={<ProtectedRoute module="crm_leads"><BoardSettingsPage /></ProtectedRoute>} />
                   <Route path="/datajud" element={<ProtectedRoute module="datajud"><DataJudSearchPage /></ProtectedRoute>} />
                   <Route path="/casos-juridicos" element={<ProtectedRoute module="legal_cases"><LegalCasesPage /></ProtectedRoute>} />
                   <Route path="/notificacoes-contrato" element={<ProtectedRoute module="contract_notifications"><ContractNotificationsPage /></ProtectedRoute>} />

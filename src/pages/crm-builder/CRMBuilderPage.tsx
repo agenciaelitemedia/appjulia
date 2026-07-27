@@ -82,7 +82,7 @@ export default function CRMBuilderPage() {
   };
 
   const handleBoardSettings = (board: CRMBoard) => {
-    navigate(`/crm-builder/${board.id}?settings=permissions`);
+    navigate(`/crm-builder/${board.id}/configuracoes`);
   };
 
   return (

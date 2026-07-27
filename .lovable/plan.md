@@ -1,81 +1,69 @@
+## Objetivo
 
-# Permissionamento por Board no CRM Builder
+Ao clicar em **Configurações** no menu (⋯) do card do quadro, navegar para uma **página dedicada de configurações do quadro** (não mais o Sheet lateral do board), contendo duas abas:
 
-Cada board terá uma aba **Permissões** (dentro do botão Configurações) onde o **dono do client_id** define, por usuário ou por perfil, quem pode:
+- **Geral** — vazia por enquanto (placeholder).
+- **Permissões** — funcionalidade completa de permissionamento por perfil e por usuário (como já implementado no componente `PermissionsManager`), visível/gerenciável apenas para o dono do client ou admin.
 
-- **Ver** o board e seus cards
-- **Criar** novos cards
-- **Editar** cards existentes
-- **Remover** cards
+## Rota nova
 
-Sem regra configurada, valem os defaults atuais (admin/user/colaborador gerenciam, demais só leitura).
+Criar rota `/crm-builder/:boardId/configuracoes` que renderiza um novo componente `BoardSettingsPage`. É uma página real (com header e voltar), não um sheet.
 
-## Quem é o "dono"
+O menu "Configurações" do `BoardCard` passa a navegar para essa rota diretamente (sem query param). O clique no próprio card continua indo para `/crm-builder/:boardId` (kanban do board), sem mudança.
 
-O dono do client_id é o usuário cujo `id === client_id` (titular da conta) OU qualquer usuário com `role = 'admin'`. Somente esses veem a aba Permissões e podem gravar. Membros de equipe (time/advogado/comercial) e `colaborador` **não** editam permissões, apenas as recebem.
+## Estrutura da página
 
-## Modelo de dados (Supabase)
+```text
+┌───────────────────────────────────────────────────┐
+│  ← Voltar    Configurações: <nome do quadro>      │
+├───────────────────────────────────────────────────┤
+│  [ Geral ]  [ Permissões ]                        │
+├───────────────────────────────────────────────────┤
+│  <conteúdo da aba selecionada>                    │
+└───────────────────────────────────────────────────┘
+```
 
-Nova tabela `public.crm_board_permissions`:
+- **Aba Geral**: card vazio com mensagem "Em breve: cores, ícone, arquivar quadro" (mesmo placeholder que já existe no Sheet).
+- **Aba Permissões**: reutiliza o componente já pronto `PermissionsManager` (`src/pages/crm-builder/components/settings/permissions/PermissionsManager.tsx`) com as sub-abas "Por perfil" / "Por usuário" e o CRUD completo já implementado. Se o usuário não for dono/admin, essa aba fica desabilitada e mostra um estado "Você não tem permissão para gerenciar permissões deste quadro".
 
-| coluna | tipo | descrição |
-|---|---|---|
-| id | uuid PK | |
-| board_id | uuid | FK lógica p/ `crm_boards.id` |
-| client_id | text | escopo do tenant (index) |
-| subject_type | text | `'user'` ou `'role'` |
-| subject_id | text | id do usuário (bigint em texto) ou nome do perfil (`user`, `time`, `advogado`, `comercial`, `colaborador`) |
-| can_view / can_create / can_edit / can_delete | boolean default false | |
-| created_at / updated_at | timestamptz | |
-| created_by | text (cod_agent) | |
+Comportamento de acesso:
+- Se `boardId` não existir ou o quadro não pertencer ao `client_id` atual → redireciona para `/crm-builder`.
+- Aba padrão: `permissions` para dono/admin, senão `general`.
 
-Constraints: `UNIQUE (board_id, subject_type, subject_id)`.
+## Arquivos a criar / alterar
 
-RLS: policies permissivas (padrão do módulo) — enforcement de escrita é feita na aplicação (dono/admin apenas), coerente com o restante do CRM Builder. GRANT para authenticated e service_role.
+1. **Novo**: `src/pages/crm-builder/BoardSettingsPage.tsx`
+   - Header com botão voltar (navega para `/crm-builder/:boardId`).
+   - Fetch do quadro (mesmo padrão de `BoardPage`) só para exibir o nome e validar o `client_id`.
+   - `Tabs` shadcn com `general` e `permissions`.
+   - Usa `useIsBoardOwner` para condicionalizar a aba Permissões.
 
-Auditoria: cada mudança gera linha em `crm_audit_log` com `entity_type = 'permission'` via `logCRMAudit`.
+2. **Alterar**: `src/App.tsx` (ou o arquivo do router principal do CRM Builder)
+   - Registrar a rota `/crm-builder/:boardId/configuracoes` apontando para `BoardSettingsPage`, protegida pelo mesmo `ProtectedRoute` que já cobre `/crm-builder`.
 
-## Resolução de permissão efetiva
+3. **Alterar**: `src/pages/crm-builder/CRMBuilderPage.tsx`
+   - `handleBoardSettings` deixa de navegar para `?settings=permissions` e passa a navegar para `/crm-builder/${board.id}/configuracoes`.
 
-Novo hook `useBoardPermission(boardId)` retorna `{ canView, canCreate, canEdit, canDelete, isOwner }`:
+4. **Alterar**: `src/pages/crm-builder/BoardPage.tsx`
+   - Remover o `useEffect` que lia `?settings=permissions` e o estado `settingsInitialTab` — não são mais necessários.
+   - O botão "Configurações" dentro do próprio board (header do kanban) também passa a navegar para `/crm-builder/:boardId/configuracoes` em vez de abrir o `BoardSettingsSheet`.
+   - O `BoardSettingsSheet` pode continuar existindo para futuras funcionalidades in-line, mas deixa de ser aberto pela ação de configurações do card. (Alternativa: remover a montagem do Sheet em `BoardPage`; decisão: **manter o Sheet montado apenas se ainda houver outro gatilho**; hoje só tinha esse — então removemos a montagem para eliminar código morto.)
 
-1. Se `isOwner` (id===client_id) ou `role==='admin'` → tudo `true`.
-2. Buscar regras do board no cache (React Query, key `['crm-board-permissions', boardId]`).
-3. Aplicar merge OR na ordem: default por role → regra por role do usuário → regra por usuário específico. A regra mais específica que existir sobrescreve; flags não definidas caem no nível anterior.
-4. Se não há nenhuma regra e o usuário não é `admin/user/colaborador`, mantém o comportamento atual (só leitura da view do board se `canView` implícito).
+5. **Manter sem alteração**:
+   - `PermissionsManager.tsx`
+   - `useCRMBoardPermissions.ts` (`useIsBoardOwner`, `useBoardPermissions`, `useEffectiveBoardPermission`)
+   - Tabela `crm_board_permissions` e todas as policies/grants existentes.
+   - `BoardCard.tsx` / `BoardGrid.tsx` — o wiring `onSettings` já existe, só muda o destino no `CRMBuilderPage`.
 
-Fallback compatível: se a tabela estiver vazia para o board, mantém exatamente o comportamento atual (nada quebra).
+## Verificação
 
-## Frontend
+- Clicar em **⋯ → Configurações** em qualquer card do CRM Builder abre `/crm-builder/:id/configuracoes` com a aba **Permissões** ativa (para dono/admin).
+- Editar checkboxes por perfil/usuário salva na tabela `crm_board_permissions` (comportamento inalterado).
+- Voltar retorna para `/crm-builder/:id` (board Kanban).
+- Não-owner ao navegar diretamente para a URL vê a aba Geral vazia e Permissões desabilitada.
 
-- `BoardSettingsSheet`: adicionar aba **Permissões** (ícone `ShieldCheck`), renderizada apenas quando `isOwner || role==='admin'`. Ajustar `tabsCount` dinamicamente.
-- Novo componente `PermissionsManager` dentro de `components/settings/permissions/`:
-  - Sub-aba "Por perfil": tabela com 5 linhas (user, colaborador, time, advogado, comercial) x 4 checkboxes.
-  - Sub-aba "Por usuário": autocomplete de usuários do mesmo `client_id` (via `externalDb.listClientUsers` já usado em Equipe) → adiciona linha com 4 checkboxes; botão remover.
-  - Salvamento com debounce (500ms) por linha; toast de confirmação.
-- Novo hook `useCRMBoardPermissions(boardId, clientId)` com fetch, upsert e delete + realtime channel `crm-board-permissions-${clientId}-${boardId}`.
-- Aplicar `useBoardPermission` em:
-  - `BoardPage` (redireciona se `!canView`).
-  - `DealCard`/`PipelineColumn`: esconde botão "Novo card" quando `!canCreate`; desabilita drag/edição quando `!canEdit`; esconde menu delete quando `!canDelete`.
-  - `useCRMDeals` mutations: guarda-de-servidor extra (early return + toast) para create/update/delete.
+## Fora de escopo
 
-## Detalhes técnicos
-
-- Nomes de canais realtime seguem o padrão do memory `crm-builder-client-scope` (isolamento por clientId).
-- `logCRMAudit` com `entity_type: 'permission'`, `entity_id: <subject_type>:<subject_id>`, `action: created|updated|deleted`, `changes: { before, after }`.
-- Migração cria índices em `(board_id)` e `(client_id, subject_type, subject_id)`.
-- Nenhuma mudança em `crm_boards`, `crm_pipelines`, `crm_deals` — apenas leitura de flags no client.
-
-## Entrega
-
-1. Migration Supabase: tabela + grants + RLS + triggers de updated_at.
-2. Hook `useCRMBoardPermissions` + `useBoardPermission`.
-3. Componente `PermissionsManager` + integração na aba do `BoardSettingsSheet`.
-4. Enforcement nos pontos de create/edit/delete de deals e no gate de view do board.
-5. Memory update em `mem/features/crm/builder-client-scope.md` documentando o novo layer de permissões.
-
-## Fora do escopo
-
-- Permissões por pipeline/estágio (só a nível de board neste ciclo).
-- Compartilhar boards entre client_ids diferentes.
-- UI para o dono transferir a titularidade do client.
+- Conteúdo real da aba Geral (cores, ícone, arquivar) — fica como placeholder.
+- Alterações no schema de permissões.
+- Migrar outras abas do `BoardSettingsSheet` (Analytics, Campos, Automações, Auditoria) para a página nova — permanecem acessíveis pelo botão "Configurações" dentro do próprio board (kanban), se ainda existir; se preferir consolidar tudo em uma página só, é um passo posterior.
