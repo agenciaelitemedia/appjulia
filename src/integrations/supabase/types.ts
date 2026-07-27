@@ -3078,6 +3078,51 @@ export type Database = {
           },
         ]
       }
+      crm_board_permissions: {
+        Row: {
+          board_id: string
+          can_create: boolean
+          can_delete: boolean
+          can_edit: boolean
+          can_view: boolean
+          client_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          subject_id: string
+          subject_type: string
+          updated_at: string
+        }
+        Insert: {
+          board_id: string
+          can_create?: boolean
+          can_delete?: boolean
+          can_edit?: boolean
+          can_view?: boolean
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          subject_id: string
+          subject_type: string
+          updated_at?: string
+        }
+        Update: {
+          board_id?: string
+          can_create?: boolean
+          can_delete?: boolean
+          can_edit?: boolean
+          can_view?: boolean
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          subject_id?: string
+          subject_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       crm_boards: {
         Row: {
           client_id: string | null
