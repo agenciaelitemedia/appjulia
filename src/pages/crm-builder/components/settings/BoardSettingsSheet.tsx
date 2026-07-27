@@ -24,6 +24,7 @@ interface BoardSettingsSheetProps {
   pipelines: CRMPipeline[];
   deals: CRMDeal[];
   canManage?: boolean;
+  initialTab?: string;
 }
 
 export function BoardSettingsSheet({
@@ -36,9 +37,13 @@ export function BoardSettingsSheet({
   pipelines,
   deals,
   canManage = true,
+  initialTab,
 }: BoardSettingsSheetProps) {
   const isOwner = useIsBoardOwner();
   const tabsCount = (canManage ? 5 : 4) + (isOwner ? 1 : 0);
+  const defaultTab = initialTab && (initialTab !== 'permissions' || isOwner)
+    ? initialTab
+    : 'analytics';
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
@@ -49,7 +54,7 @@ export function BoardSettingsSheet({
           </SheetTitle>
         </SheetHeader>
 
-        <Tabs defaultValue="analytics" className="mt-6">
+        <Tabs key={defaultTab} defaultValue={defaultTab} className="mt-6">
           <TabsList
             className="grid w-full"
             style={{ gridTemplateColumns: `repeat(${tabsCount}, minmax(0, 1fr))` }}
