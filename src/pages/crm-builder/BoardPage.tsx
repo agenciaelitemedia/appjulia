@@ -931,6 +931,7 @@ export default function BoardPage() {
         pipelines={pipelines}
         deals={deals}
         canManage={canManage}
+        initialTab={settingsInitialTab}
       />
     </div>
   );
