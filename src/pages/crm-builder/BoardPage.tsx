@@ -911,9 +911,11 @@ export default function BoardPage() {
         open={isSettingsOpen}
         onOpenChange={setIsSettingsOpen}
         boardId={boardId || ''}
+        board={board}
         codAgent={codAgent}
         clientId={clientId}
         boardName={board.name}
+        onBoardUpdated={setBoard}
         pipelines={pipelines}
         deals={deals}
         canManage={canManage}
