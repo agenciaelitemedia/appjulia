@@ -228,17 +228,19 @@ export function PipelineColumn({
       </div>
 
       {/* Rodapé fora do droppable: o botão "Adicionar Card" não intercepta drops */}
-      <div className="p-2 pt-0 rounded-b-lg">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-muted-foreground hover:text-foreground flex-shrink-0"
-          onClick={onAddDeal}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Adicionar Card
-        </Button>
-      </div>
+      {canCreateDeal && (
+        <div className="p-2 pt-0 rounded-b-lg">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-muted-foreground hover:text-foreground flex-shrink-0"
+            onClick={onAddDeal}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Adicionar Card
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
