@@ -99,7 +99,17 @@ export default function BoardPage() {
     setDealStatus,
     archiveDeal,
     fetchDeals,
-  } = useCRMDeals({ boardId: boardId || null, clientId, codAgent, userName: user?.name });
+  } = useCRMDeals({
+    boardId: boardId || null,
+    clientId,
+    codAgent,
+    userName: user?.name,
+    permissions: {
+      canCreate: canCreateDeal,
+      canEdit: canEditDeal,
+      canDelete: canDeleteDeal,
+    },
+  });
 
   // Custom Fields
   const { fields: customFields } = useCRMCustomFields({ boardId: boardId || null, clientId, codAgent, canManage });
