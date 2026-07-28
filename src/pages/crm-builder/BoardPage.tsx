@@ -68,7 +68,7 @@ export default function BoardPage() {
   const canCreateDeal = boardPerms.canCreate;
   const canEditDeal = boardPerms.canEdit;
   const canDeleteDeal = boardPerms.canDelete;
-  const canOpenSettings = boardPerms.isOwner || user?.role === 'admin';
+  const canOpenSettings = user?.role === 'admin';
 
   // Toast helper — sinaliza ao usuário quando uma ação é bloqueada por permissão.
   const denyToast = (msg: string) => toast.error(msg);
