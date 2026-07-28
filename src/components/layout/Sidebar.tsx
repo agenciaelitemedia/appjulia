@@ -77,6 +77,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureNotifyModule();
   useEnsureTicketsModule();
   useEnsureHelpCenterModule();
+  useEnsureCrmBuilderModule();
 
   // Get sorted groups — a visibilidade do módulo é decidida pelas
   // permissões carregadas em `useMenuModules`, sem bloqueios por role
