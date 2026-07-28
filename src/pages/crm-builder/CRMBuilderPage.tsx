@@ -36,7 +36,7 @@ export default function CRMBuilderPage() {
   const codAgent = user?.cod_agent?.toString() || '';
   const clientId = user?.client_id ? String(user.client_id) : '';
   const canManage = user?.role === 'user' || user?.role === 'admin' || user?.role === 'colaborador';
-  const canOpenBoardSettings = canManage || isClientOwnerUser(user);
+  const canOpenBoardSettings = isClientOwnerUser(user);
 
   const {
     boards,
