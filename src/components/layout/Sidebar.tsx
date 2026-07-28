@@ -32,6 +32,7 @@ import { useEnsureVideoModule } from "@/hooks/useEnsureVideoModule";
 import { useEnsureNotifyModule } from "@/hooks/useEnsureNotifyModule";
 import { useEnsureTicketsModule } from "@/hooks/useEnsureTicketsModule";
 import { useEnsureHelpCenterModule } from "@/hooks/useEnsureHelpCenterModule";
+import { useEnsureCrmBuilderModule } from "@/hooks/useEnsureCrmBuilderModule";
 import {
   Tooltip,
   TooltipContent,
