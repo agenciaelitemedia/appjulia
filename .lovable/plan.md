@@ -1,78 +1,101 @@
-## Objetivo
+# Separar CRM Builder em módulo próprio (`crm_builder`)
 
-Permitir que um usuário **sem** permissão nos módulos `chat_admin` e `crm_leads` (CRM da Jul.IA) consiga, dentro de um card do **CRM Builder** onde tenha permissão:
+Objetivo: desacoplar o acesso ao **Construtor de CRM** do módulo `crm_leads` (CRM da Jul.IA), criando um módulo independente `crm_builder`. Ao ligar, replicar as permissões existentes de `crm_leads` para `crm_builder`, de modo que ninguém perca acesso.
 
-- Ver **todas** as informações do card, inclusive dados vindos do CRM da Jul.IA (stage, business_name, contrato, etc.) — normalmente.
-- Abrir o **painel lateral de chat** do card e **ler** a conversa vinculada.
-- **NÃO** poder assumir a conversa nem enviar mensagens/áudio/anexos, a menos que também tenha o módulo `chat_admin`.
+## 1. Registrar o novo módulo `crm_builder`
 
-Ou seja: no CRM Builder, o acesso a dados de outros módulos passa a ser controlado pelas permissões do próprio quadro (Builder). Os módulos `chat_admin` e `crm_leads` só passam a ser exigidos para **ações de escrita no chat** (assumir + enviar).
+Criar `src/hooks/useEnsureCrmBuilderModule.ts` (padrão dos demais `useEnsure*Module`):
 
-## Estado atual (verificado)
+- Só roda para `isAdmin`.
+- Busca módulos via `externalDb.getModules()`; se `crm_builder` não existe, chama `externalDb.createModule` com:
+  - `code: 'crm_builder'`
+  - `name: 'Construtor de CRM'`
+  - `description: 'Quadros, pipelines e cards customizados'`
+  - `icon: 'LayoutDashboard'`
+  - `route: '/crm-builder'`
+  - `menu_group: 'CRM'`
+  - `is_menu_visible: true`
+  - `display_order: 25`
+  - `category: 'crm'`
+  - `is_active: true`
+- Se já existe mas com `route`/`menu_group`/`is_menu_visible` divergentes, atualiza.
+- Invalida `['menu-modules']` e `['admin-modules']`.
 
-- `BoardChatSidePanel` (Builder) e `ChatSidePanel` (`src/components/chat/ChatSidePanel.tsx`) já são reusáveis; hoje renderizam `ChatHeader` + `ChatMessages` + `ChatInput` sem checar `chat_admin`.
-- `useDealJuliaContext` / `DealCard` carregam dados do CRM Jul.IA sem gate por `crm_leads` — leitura já funciona.
-- Ações no header (assumir, transferir, resolver…) vivem em `ChatHeader.tsx`; envio em `ChatInput.tsx`. Ambos usam o `WhatsAppDataProvider` isolado do painel.
-- Permissão de chat = `hasPermission('chat_admin', 'view' | 'create' | 'edit')` via `useAuth()`.
+Chamar o hook em `src/components/layout/MainLayout.tsx` junto aos outros `useEnsure*Module`.
 
-## Escopo da mudança
+## 2. Tornar `crm_builder` reconhecido pelos tipos
 
-Somente frontend / apresentação. Nada de RLS ou edge functions. As permissões no CRM Builder (`crm_board_permissions` + owner/admin) continuam sendo a fonte da verdade para ver/editar o card.
+Em `src/types/permissions.ts`, adicionar `'crm_builder'` ao union `ModuleCode`. (O union já aceita string dinâmica, mas o literal explícito melhora autocomplete e cobertura.)
 
-### 1. `ChatSidePanel` ganha modo read-only
+## 3. Trocar o gate de rota
 
-Adicionar prop `readOnly?: boolean` em `ChatSidePanelProps`. Quando `true`:
-- Passar `readOnly` para `ChatHeader` e `ChatInput` (nova prop).
-- No lugar do `ChatInput`, renderizar uma faixa informativa: *"Você está visualizando esta conversa a partir do CRM. Para responder, é necessário permissão no módulo Chat."*
-- Manter `ChatMessages` totalmente funcional (leitura).
-- Manter o botão "Abrir no Chat" (`ExternalLink`): se o usuário não tiver `chat_admin`, ao clicar mostrar toast informativo em vez de navegar — ou simplesmente ocultar o botão. **Decisão:** ocultar (evita frustração).
+Em `src/App.tsx` (linhas 198-200), trocar as 3 rotas do CRM Builder de `module="crm_leads"` para `module="crm_builder"`:
 
-### 2. `ChatHeader` em modo read-only
+- `/crm-builder`
+- `/crm-builder/:boardId`
+- `/crm-builder/:boardId/configuracoes`
 
-Adicionar prop `readOnly?: boolean`. Quando `true`, ocultar/desabilitar:
-- Botão **Assumir** / **Transferir** / **Encerrar** / **Resolver** / **Reabrir**.
-- Toggle da Jul.IA (ativar/desativar sessão).
-- Ações de ticket que exigem `create/edit`.
+O CRM da Jul.IA (`/crm/leads`) continua em `crm_leads` — sem mudança.
 
-Manter visíveis (leitura pura): nome/avatar do contato, badges de fila/status, botão fechar painel, "ver detalhes".
+## 4. Backfill: copiar permissões de `crm_leads` → `crm_builder`
 
-### 3. `ChatInput` em modo read-only
+Precisa rodar **uma vez**, após o módulo `crm_builder` estar cadastrado em `modules`. Duas partes:
 
-Aceitar prop `readOnly?: boolean` — quando `true`, retornar `null` (o painel já mostra a faixa informativa acima). Alternativa: renderizar textarea desabilitado com placeholder "Sem permissão para responder". **Decisão:** retornar `null` + faixa informativa no painel para evitar UI enganosa.
+**4a. Migração de dados (usuários com permissão custom)** — via `db-query` (Postgres externo), rodada por mim assim que o módulo for criado no ambiente. Efeito: para cada linha em `user_permissions` onde `module_id = (id de crm_leads)`, insere uma linha equivalente para `module_id = (id de crm_builder)`, preservando `can_view/can_create/can_edit/can_delete`, e ignorando se já existir.
 
-### 4. Wiring nos consumidores
-
-`BoardChatSidePanel` (CRM Builder) computa:
-
-```ts
-const { hasPermission } = useAuth();
-const canWriteChat = hasPermission('chat_admin', 'edit') || hasPermission('chat_admin', 'create');
+Esboço (executado via ação `raw` do `db-query`):
+```sql
+INSERT INTO user_permissions (user_id, module_id, can_view, can_create, can_edit, can_delete)
+SELECT up.user_id,
+       (SELECT id FROM modules WHERE code = 'crm_builder'),
+       up.can_view, up.can_create, up.can_edit, up.can_delete
+FROM user_permissions up
+JOIN modules m ON m.id = up.module_id
+WHERE m.code = 'crm_leads'
+ON CONFLICT (user_id, module_id) DO NOTHING;
 ```
 
-E passa `readOnly={!canWriteChat}` para `ChatSidePanel`.
+**4b. Defaults por papel** — se existir tabela `role_default_permissions` (herdada por quem tem `use_custom_permissions=false`), replicar da mesma forma:
+```sql
+INSERT INTO role_default_permissions (role, module_id, can_view, can_create, can_edit, can_delete)
+SELECT rdp.role,
+       (SELECT id FROM modules WHERE code = 'crm_builder'),
+       rdp.can_view, rdp.can_create, rdp.can_edit, rdp.can_delete
+FROM role_default_permissions rdp
+JOIN modules m ON m.id = rdp.module_id
+WHERE m.code = 'crm_leads'
+ON CONFLICT DO NOTHING;
+```
 
-Outros consumidores do `ChatSidePanel` (CRM Jul.IA, Contratos) permanecem inalterados — não passam `readOnly` → comportamento atual (escrita liberada, gate original por rota/módulo).
+Confirmarei o nome exato da tabela de defaults durante a execução (checar `db-query` actions) antes de rodar; se o nome for outro, ajusto a query. Sem migração de schema — só INSERT com `ON CONFLICT DO NOTHING`, então é idempotente e seguro rodar mais de uma vez.
 
-### 5. Dados do CRM Jul.IA no card (leitura)
+## 5. Verificação
 
-`useDealJuliaContext`, `useJuliaCardPreview` e blocos correspondentes em `DealCard` já rodam sem gate por `crm_leads`. **Verificar** e garantir que continuam assim (nenhum guard novo por `crm_leads` deve ser adicionado). Nada a mudar aqui — apenas confirmar durante a implementação.
+Depois do deploy + backfill:
 
-## Arquivos a alterar
+1. Consulto no banco: `SELECT COUNT(*)` de `user_permissions` para `crm_leads` e para `crm_builder` — devem bater.
+2. Verifico especificamente o Ivanaldo (id 376): hoje sem linha em `crm_leads` → continuará sem `crm_builder` (esperado, ele não tinha acesso antes). Para liberar, admin marca no painel de Permissões, ou eu insiro manualmente se você preferir.
+3. Testo com um usuário que hoje tem `crm_leads` → deve ver o menu "Construtor de CRM" e conseguir entrar em `/crm-builder`.
+
+## Arquivos afetados
 
 | Arquivo | Mudança |
 |---|---|
-| `src/components/chat/ChatSidePanel.tsx` | Adicionar prop `readOnly`; ocultar `ExternalLink` e trocar `ChatInput` por faixa informativa quando true. |
-| `src/components/chat/ChatHeader.tsx` | Adicionar prop `readOnly`; esconder Assumir/Transferir/Resolver/Reabrir/toggle Jul.IA. |
-| `src/components/chat/ChatInput.tsx` | Adicionar prop `readOnly` (retorna `null`). |
-| `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx` | Calcular `canWriteChat` via `useAuth().hasPermission('chat_admin', ...)` e propagar `readOnly`. |
+| `src/hooks/useEnsureCrmBuilderModule.ts` | **novo** — registra o módulo |
+| `src/components/layout/MainLayout.tsx` | chama o novo hook |
+| `src/types/permissions.ts` | adiciona `'crm_builder'` ao `ModuleCode` |
+| `src/App.tsx` | troca `module="crm_leads"` → `module="crm_builder"` nas 3 rotas do Builder |
+| Banco externo (via `db-query`) | INSERTs de backfill em `user_permissions` (+ defaults de role se existir) |
 
 ## Fora do escopo
 
-- Rota `/chat` continua exigindo `chat_admin` no `ProtectedRoute` (usuários sem o módulo simplesmente não vão para lá).
-- RLS / edge functions: sem mudanças. Leitura das mensagens já é permitida pela RLS atual do chat (ver contexto de segurança do projeto).
-- Rota `/crm/leads` (Jul.IA CRM) segue exigindo `crm_leads`. A liberação é só para os **dados exibidos dentro do card do Builder**.
+- Não altero `crm_board_permissions` (permissão fina por quadro) — segue por cima do gate de módulo.
+- Não mexo em `/crm/leads` nem no gate de leitura do painel de chat dentro do card (feito na fase anterior).
+- Não removo permissões de `crm_leads` de ninguém — só somo `crm_builder` a quem já tinha.
 
 ## Riscos
 
-- `ChatHeader` é usado também em `/chat` (não só no painel lateral). A prop `readOnly` precisa ter default `false` para não afetar o fluxo principal. Mesmo cuidado com `ChatInput`.
-- Verificar visualmente após a mudança que a UI do painel em modo read-only fica coerente (sem espaços vazios ou botões órfãos).
+- Enquanto o módulo `crm_builder` não estiver cadastrado no `modules`, a rota fica inacessível para não-admin. Mitigação: o hook `useEnsureCrmBuilderModule` roda no login do admin e cadastra em segundos; o backfill vem logo depois. Admins não são afetados (bypass total).
+- Se algum lugar do código ainda usar `crm_leads` para gatear UI do Builder, o menu pode não aparecer para quem só tinha `crm_leads`. Vou grepar por `'crm_leads'` no CRM Builder antes do merge e trocar onde for referente ao Builder.
+
+Confirma que sigo assim?
