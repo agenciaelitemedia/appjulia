@@ -1,56 +1,78 @@
 ## Objetivo
-Reforçar as validações de permissão (Criar / Editar / Remover / Mover) no CRM Builder, garantindo que **toda ação passe pelo gate** de `useEffectiveBoardPermission` e que o usuário receba **feedback visível** quando a ação for negada.
+
+Permitir que um usuário **sem** permissão nos módulos `chat_admin` e `crm_leads` (CRM da Jul.IA) consiga, dentro de um card do **CRM Builder** onde tenha permissão:
+
+- Ver **todas** as informações do card, inclusive dados vindos do CRM da Jul.IA (stage, business_name, contrato, etc.) — normalmente.
+- Abrir o **painel lateral de chat** do card e **ler** a conversa vinculada.
+- **NÃO** poder assumir a conversa nem enviar mensagens/áudio/anexos, a menos que também tenha o módulo `chat_admin`.
+
+Ou seja: no CRM Builder, o acesso a dados de outros módulos passa a ser controlado pelas permissões do próprio quadro (Builder). Os módulos `chat_admin` e `crm_leads` só passam a ser exigidos para **ações de escrita no chat** (assumir + enviar).
 
 ## Estado atual (verificado)
-- `BoardPage.tsx` já lê `canView/canCreate/canEdit/canDelete` e gateia:
-  - Entrada do quadro (`canView`)
-  - `handleDragStart / handleDragOver / handleDragEnd` (checam `canEditDeal` e retornam cedo)
-  - `handleCreateDeal / handleEditDeal / handleAddDeal`
-  - Botões de status, prioridade, arquivar, mover para stage/board no `DealDetailsSheet`
-- `DealCard` recebe `canEdit / canDelete / canDrag` e esconde itens do menu.
-- `PipelineColumn` recebe `canCreateDeal` e esconde "Adicionar Card" no menu do dropdown.
-- `useCRMBoards` filtra a listagem por `can_view`.
 
-## Gaps encontrados
-1. **Silenciosos**: quando a permissão nega, os handlers só fazem `return` sem toast — usuário não entende por que o clique não faz nada.
-2. **Rodapé do `PipelineColumn`**: o botão "Adicionar Card" no rodapé (fora do dropdown) não respeita `canCreateDeal` — só o item do menu é escondido.
-3. **`onChangePriority`, `onArchive`, `onWon`, `onLost`** em `BoardPage` fazem `canX && action()` — se negado, nada acontece e nenhum toast é emitido.
-4. **Camada de hook (`useCRMDeals`)**: `createDeal/updateDeal/moveDeal/archiveDeal/setDealStatus` não têm defense-in-depth. Se algum call site novo esquecer de gateiar, a ação passa direto para o banco (lembrando que a RLS do projeto é permissiva, conforme project-knowledge).
+- `BoardChatSidePanel` (Builder) e `ChatSidePanel` (`src/components/chat/ChatSidePanel.tsx`) já são reusáveis; hoje renderizam `ChatHeader` + `ChatMessages` + `ChatInput` sem checar `chat_admin`.
+- `useDealJuliaContext` / `DealCard` carregam dados do CRM Jul.IA sem gate por `crm_leads` — leitura já funciona.
+- Ações no header (assumir, transferir, resolver…) vivem em `ChatHeader.tsx`; envio em `ChatInput.tsx`. Ambos usam o `WhatsAppDataProvider` isolado do painel.
+- Permissão de chat = `hasPermission('chat_admin', 'view' | 'create' | 'edit')` via `useAuth()`.
 
-## Plano
+## Escopo da mudança
 
-### 1. Feedback visível ao negar (`BoardPage.tsx`)
-Criar um helper local:
+Somente frontend / apresentação. Nada de RLS ou edge functions. As permissões no CRM Builder (`crm_board_permissions` + owner/admin) continuam sendo a fonte da verdade para ver/editar o card.
+
+### 1. `ChatSidePanel` ganha modo read-only
+
+Adicionar prop `readOnly?: boolean` em `ChatSidePanelProps`. Quando `true`:
+- Passar `readOnly` para `ChatHeader` e `ChatInput` (nova prop).
+- No lugar do `ChatInput`, renderizar uma faixa informativa: *"Você está visualizando esta conversa a partir do CRM. Para responder, é necessário permissão no módulo Chat."*
+- Manter `ChatMessages` totalmente funcional (leitura).
+- Manter o botão "Abrir no Chat" (`ExternalLink`): se o usuário não tiver `chat_admin`, ao clicar mostrar toast informativo em vez de navegar — ou simplesmente ocultar o botão. **Decisão:** ocultar (evita frustração).
+
+### 2. `ChatHeader` em modo read-only
+
+Adicionar prop `readOnly?: boolean`. Quando `true`, ocultar/desabilitar:
+- Botão **Assumir** / **Transferir** / **Encerrar** / **Resolver** / **Reabrir**.
+- Toggle da Jul.IA (ativar/desativar sessão).
+- Ações de ticket que exigem `create/edit`.
+
+Manter visíveis (leitura pura): nome/avatar do contato, badges de fila/status, botão fechar painel, "ver detalhes".
+
+### 3. `ChatInput` em modo read-only
+
+Aceitar prop `readOnly?: boolean` — quando `true`, retornar `null` (o painel já mostra a faixa informativa acima). Alternativa: renderizar textarea desabilitado com placeholder "Sem permissão para responder". **Decisão:** retornar `null` + faixa informativa no painel para evitar UI enganosa.
+
+### 4. Wiring nos consumidores
+
+`BoardChatSidePanel` (CRM Builder) computa:
+
 ```ts
-const denyToast = (msg = 'Você não tem permissão para esta ação') => toast.error(msg);
+const { hasPermission } = useAuth();
+const canWriteChat = hasPermission('chat_admin', 'edit') || hasPermission('chat_admin', 'create');
 ```
-Aplicar em:
-- `handleDragStart` / `handleDragOver` / `handleDragEnd` quando `!canEditDeal` → `denyToast('Sem permissão para mover cards')`
-- `handleAddDeal` / `handleCreateDeal` quando `!canCreateDeal` → `denyToast('Sem permissão para criar cards')`
-- `handleEditDeal` e callbacks inline (`onChangePriority`, `onWon`, `onLost`, `onUpdate`, `onMoveToStage`, `onMoveToBoard`) quando `!canEditDeal` → `denyToast('Sem permissão para editar cards')`
-- `onArchive` quando `!canDeleteDeal` → `denyToast('Sem permissão para remover cards')`
 
-### 2. Esconder o botão "Adicionar Card" do rodapé (`PipelineColumn.tsx`)
-Envolver o `<Button>` de "Adicionar Card" (rodapé, linhas ~231-241) em `{canCreateDeal && (...)}` — mesmo padrão já usado no item do dropdown.
+E passa `readOnly={!canWriteChat}` para `ChatSidePanel`.
 
-### 3. Defense-in-depth no hook (`useCRMDeals.ts`)
-Nas mutações `createDeal / updateDeal / moveDeal / setDealStatus / archiveDeal`, no início de cada uma, consultar as regras vigentes para o `board_id` do deal e checar o modo/permissão do usuário atual antes do write. Se negado:
-- `toast.error('Sem permissão...')`
-- retornar `false` / `null`
+Outros consumidores do `ChatSidePanel` (CRM Jul.IA, Contratos) permanecem inalterados — não passam `readOnly` → comportamento atual (escrita liberada, gate original por rota/módulo).
 
-Implementação: pequena função `assertBoardPermission(boardId, action)` no próprio hook, que reusa a lógica de `useEffectiveBoardPermission` (extraída para um util puro `computeEffectivePermission(rules, mode, user)` em `useCRMBoardPermissions.ts` para não duplicar).
+### 5. Dados do CRM Jul.IA no card (leitura)
 
-### 4. Verificação
-- Rodar preview e testar como usuário sem permissão: cliques em criar/editar/remover/arrastar mostram toast e não persistem.
-- Owner/admin continua com acesso total.
-- Modo "Desativada" mantém tudo aberto.
+`useDealJuliaContext`, `useJuliaCardPreview` e blocos correspondentes em `DealCard` já rodam sem gate por `crm_leads`. **Verificar** e garantir que continuam assim (nenhum guard novo por `crm_leads` deve ser adicionado). Nada a mudar aqui — apenas confirmar durante a implementação.
 
-## Arquivos afetados
-- `src/pages/crm-builder/BoardPage.tsx` — toasts nos gates existentes
-- `src/pages/crm-builder/components/pipeline/PipelineColumn.tsx` — esconder botão rodapé
-- `src/pages/crm-builder/hooks/useCRMBoardPermissions.ts` — extrair `computeEffectivePermission` puro
-- `src/pages/crm-builder/hooks/useCRMDeals.ts` — checagem defensiva antes de cada mutação
+## Arquivos a alterar
 
-## Fora de escopo
-- RLS no Supabase (permissiva por design do projeto; mudar isso é sensível e não foi pedido).
-- Alterações no UI de gestão de regras (`PermissionsManager`).
+| Arquivo | Mudança |
+|---|---|
+| `src/components/chat/ChatSidePanel.tsx` | Adicionar prop `readOnly`; ocultar `ExternalLink` e trocar `ChatInput` por faixa informativa quando true. |
+| `src/components/chat/ChatHeader.tsx` | Adicionar prop `readOnly`; esconder Assumir/Transferir/Resolver/Reabrir/toggle Jul.IA. |
+| `src/components/chat/ChatInput.tsx` | Adicionar prop `readOnly` (retorna `null`). |
+| `src/pages/crm-builder/components/deals/BoardChatSidePanel.tsx` | Calcular `canWriteChat` via `useAuth().hasPermission('chat_admin', ...)` e propagar `readOnly`. |
+
+## Fora do escopo
+
+- Rota `/chat` continua exigindo `chat_admin` no `ProtectedRoute` (usuários sem o módulo simplesmente não vão para lá).
+- RLS / edge functions: sem mudanças. Leitura das mensagens já é permitida pela RLS atual do chat (ver contexto de segurança do projeto).
+- Rota `/crm/leads` (Jul.IA CRM) segue exigindo `crm_leads`. A liberação é só para os **dados exibidos dentro do card do Builder**.
+
+## Riscos
+
+- `ChatHeader` é usado também em `/chat` (não só no painel lateral). A prop `readOnly` precisa ter default `false` para não afetar o fluxo principal. Mesmo cuidado com `ChatInput`.
+- Verificar visualmente após a mudança que a UI do painel em modo read-only fica coerente (sem espaços vazios ou botões órfãos).
