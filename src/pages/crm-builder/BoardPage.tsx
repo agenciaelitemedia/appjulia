@@ -925,14 +925,26 @@ export default function BoardPage() {
         open={!!viewingDeal}
         onOpenChange={(open) => !open && setViewingDeal(null)}
         onEdit={() => {
-          if (viewingDeal && canEditDeal) {
+          if (!viewingDeal) return;
+          if (!canEditDeal) return denyToast('Sem permissão para editar cards');
             setEditingDeal(viewingDeal);
             setViewingDeal(null);
-          }
         }}
-        onArchive={() => viewingDeal && canDeleteDeal && archiveDeal(viewingDeal.id)}
-        onWon={() => viewingDeal && canEditDeal && setDealStatus(viewingDeal.id, 'won')}
-        onLost={() => viewingDeal && canEditDeal && setDealStatus(viewingDeal.id, 'lost')}
+        onArchive={() => {
+          if (!viewingDeal) return;
+          if (!canDeleteDeal) return denyToast('Sem permissão para remover cards');
+          archiveDeal(viewingDeal.id);
+        }}
+        onWon={() => {
+          if (!viewingDeal) return;
+          if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+          setDealStatus(viewingDeal.id, 'won');
+        }}
+        onLost={() => {
+          if (!viewingDeal) return;
+          if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+          setDealStatus(viewingDeal.id, 'lost');
+        }}
         hideStatusActions={!canEditDeal}
         hideArchiveAction={!canDeleteDeal}
         onUpdate={canEditDeal ? async (data) => {
