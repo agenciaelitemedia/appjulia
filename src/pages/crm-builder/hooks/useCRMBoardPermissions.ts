@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import type { BoardPermissionMode, CRMBoardSettings } from '../types';
 
 export type PermissionSubjectType = 'user' | 'role';
 
@@ -29,6 +30,22 @@ export interface EffectiveBoardPermission {
   isOwner: boolean;
   loading: boolean;
   hasRules: boolean;
+  mode: BoardPermissionMode;
+}
+
+const DEFAULT_PERMISSION_MODE: BoardPermissionMode = 'disabled';
+
+export function getBoardPermissionMode(settings?: CRMBoardSettings | Record<string, unknown> | null): BoardPermissionMode {
+  const value = settings?.permission_mode;
+  if (value === 'role' || value === 'user') return value;
+  return DEFAULT_PERMISSION_MODE;
+}
+
+export function isClientOwnerUser(user: unknown): boolean {
+  const u = user as { role?: string; client_id?: unknown; user_id?: unknown } | null;
+  if (!u) return false;
+  if (u.role === 'admin') return true;
+  return Boolean(u.client_id) && !u.user_id;
 }
 
 /**
@@ -37,10 +54,7 @@ export interface EffectiveBoardPermission {
  */
 export function useIsBoardOwner(): boolean {
   const { user } = useAuth();
-  if (!user) return false;
-  if (user.role === 'admin') return true;
-  // Dono do client_id = usuário titular do tenant (tem client_id e não é sub-usuário)
-  return !!user.client_id && !(user as any).user_id;
+  return isClientOwnerUser(user);
 }
 
 /** Fetch all permission rules for a board (owner-scoped in UI). */
@@ -104,12 +118,22 @@ export function useBoardPermissions(boardId: string | null) {
         created_by: ctx.createdBy ?? null,
         ...input,
       };
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('crm_board_permissions')
-        .upsert(payload as any, { onConflict: 'board_id,subject_type,subject_id' });
+        .upsert(payload as any, { onConflict: 'board_id,subject_type,subject_id' })
+        .select('*')
+        .single();
       if (error) {
         toast.error('Erro ao salvar permissão: ' + error.message);
         return false;
+      }
+      if (data) {
+        const saved = data as BoardPermissionRule;
+        setRules((prev) => {
+          const key = `${saved.subject_type}:${saved.subject_id}`;
+          const without = prev.filter((r) => `${r.subject_type}:${r.subject_id}` !== key);
+          return [...without, saved];
+        });
       }
       return true;
     },
@@ -123,6 +147,7 @@ export function useBoardPermissions(boardId: string | null) {
         toast.error('Erro ao remover permissão: ' + error.message);
         return false;
       }
+      setRules((prev) => prev.filter((r) => r.id !== id));
       return true;
     },
     []
@@ -144,14 +169,31 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
   const { user } = useAuth();
   const isOwner = useIsBoardOwner();
   const [rules, setRules] = useState<BoardPermissionRule[] | null>(null);
+  const [mode, setMode] = useState<BoardPermissionMode | null>(null);
+
+  const fetchBoardMode = useCallback(async () => {
+    if (!boardId) {
+      setMode(DEFAULT_PERMISSION_MODE);
+      return;
+    }
+    const { data } = await supabase
+      .from('crm_boards')
+      .select('settings')
+      .eq('id', boardId)
+      .maybeSingle();
+    setMode(getBoardPermissionMode((data as { settings?: CRMBoardSettings } | null)?.settings));
+  }, [boardId]);
 
   useEffect(() => {
     let cancelled = false;
     if (!boardId) {
       setRules([]);
+      setMode(DEFAULT_PERMISSION_MODE);
       return;
     }
     setRules(null);
+    setMode(null);
+    fetchBoardMode();
     supabase
       .from('crm_board_permissions')
       .select('*')
@@ -173,14 +215,27 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
         }
       )
       .subscribe();
+    const boardChannel = supabase
+      .channel(`crm-board-eff-settings-${boardId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'crm_boards', filter: `id=eq.${boardId}` },
+        (payload) => {
+          const next = payload.new as { settings?: CRMBoardSettings } | null;
+          setMode(getBoardPermissionMode(next?.settings));
+        }
+      )
+      .subscribe();
     return () => {
       cancelled = true;
       supabase.removeChannel(ch);
+      supabase.removeChannel(boardChannel);
     };
-  }, [boardId]);
+  }, [boardId, fetchBoardMode]);
 
   return useMemo<EffectiveBoardPermission>(() => {
-    const loading = rules === null;
+    const loading = rules === null || mode === null;
+    const permissionMode = mode ?? DEFAULT_PERMISSION_MODE;
     if (isOwner) {
       return {
         canView: true,
@@ -191,6 +246,7 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
         isOwner: true,
         loading,
         hasRules: (rules?.length ?? 0) > 0,
+        mode: permissionMode,
       };
     }
     if (!user || loading) {
@@ -203,10 +259,10 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
         isOwner: false,
         loading,
         hasRules: false,
+        mode: permissionMode,
       };
     }
-    // No rules configured → open (backward compatible)
-    if (rules!.length === 0) {
+    if (permissionMode === 'disabled') {
       return {
         canView: true,
         canCreate: true,
@@ -215,16 +271,17 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
         canManage: false,
         isOwner: false,
         loading: false,
-        hasRules: false,
+        hasRules: (rules?.length ?? 0) > 0,
+        mode: permissionMode,
       };
     }
     const uid = String(user.id);
     const role = String(user.role || '');
-    const matches = rules!.filter(
-      (r) =>
-        (r.subject_type === 'user' && r.subject_id === uid) ||
-        (r.subject_type === 'role' && r.subject_id === role)
-    );
+    const activeRules = rules ?? [];
+    const matches = activeRules.filter((r) => {
+      if (permissionMode === 'user') return r.subject_type === 'user' && r.subject_id === uid;
+      return r.subject_type === 'role' && r.subject_id === role;
+    });
     const any = (k: keyof BoardPermissionRule) => matches.some((r) => Boolean(r[k]));
     return {
       canView: any('can_view'),
@@ -235,6 +292,7 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
       isOwner: false,
       loading: false,
       hasRules: true,
+      mode: permissionMode,
     };
-  }, [rules, user, isOwner]);
+  }, [rules, mode, user, isOwner]);
 }

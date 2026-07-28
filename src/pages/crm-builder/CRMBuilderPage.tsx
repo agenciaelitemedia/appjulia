@@ -28,6 +28,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { AuditLogPanel } from './components/audit/AuditLogPanel';
+import { isClientOwnerUser } from './hooks/useCRMBoardPermissions';
 
 export default function CRMBuilderPage() {
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ export default function CRMBuilderPage() {
   const codAgent = user?.cod_agent?.toString() || '';
   const clientId = user?.client_id ? String(user.client_id) : '';
   const canManage = user?.role === 'user' || user?.role === 'admin' || user?.role === 'colaborador';
+  const canOpenBoardSettings = isClientOwnerUser(user);
 
   const {
     boards,
@@ -134,6 +136,7 @@ export default function CRMBuilderPage() {
         onBoardSettings={handleBoardSettings}
         onCreateClick={() => setIsCreateDialogOpen(true)}
         canManage={canManage}
+        canOpenSettings={canOpenBoardSettings}
       />
 
       {/* Create Board Dialog */}

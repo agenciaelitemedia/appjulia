@@ -66,10 +66,12 @@ interface BoardCardProps {
   onArchive: () => void;
   onSettings?: () => void;
   canManage?: boolean;
+  canOpenSettings?: boolean;
 }
 
-export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canManage = true }: BoardCardProps) {
+export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canManage = true, canOpenSettings = canManage }: BoardCardProps) {
   const IconComponent = iconMap[board.icon] || LayoutDashboard;
+  const showMenu = canManage || canOpenSettings;
 
   return (
     <Card 
@@ -89,7 +91,7 @@ export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canMa
             />
           </div>
           
-          {canManage && (
+          {showMenu && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
               <Button 
@@ -101,22 +103,30 @@ export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canMa
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); (onSettings ?? onClick)(); }}>
-                <Settings className="h-4 w-4 mr-2" />
-                Configurações
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={(e) => { e.stopPropagation(); onArchive(); }}
-                className="text-destructive"
-              >
-                <Archive className="h-4 w-4 mr-2" />
-                Arquivar
-              </DropdownMenuItem>
+              {canManage && (
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar
+                </DropdownMenuItem>
+              )}
+              {canOpenSettings && (
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); (onSettings ?? onClick)(); }}>
+                  <Settings className="h-4 w-4 mr-2" />
+                  Configurações
+                </DropdownMenuItem>
+              )}
+              {canManage && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={(e) => { e.stopPropagation(); onArchive(); }}
+                    className="text-destructive"
+                  >
+                    <Archive className="h-4 w-4 mr-2" />
+                    Arquivar
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           )}

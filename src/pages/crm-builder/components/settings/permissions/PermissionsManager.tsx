@@ -1,12 +1,16 @@
 import { useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { ShieldAlert, Users, UserCog } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ShieldAlert, Users, UserCog, ShieldOff } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTeamMembers } from '@/pages/equipe/hooks/useEquipeData';
 import {
+  getBoardPermissionMode,
   useBoardPermissions,
   useIsBoardOwner,
   type BoardPermissionRule,
@@ -14,6 +18,8 @@ import {
 } from '../../../hooks/useCRMBoardPermissions';
 import type { AppRole } from '@/types/permissions';
 import { roleLabels } from '@/pages/admin/permissoes/types';
+import type { BoardPermissionMode, CRMBoard } from '../../../types';
+import { toast } from 'sonner';
 
 const ROLES: AppRole[] = ['user', 'colaborador', 'time', 'advogado', 'comercial'];
 
@@ -26,13 +32,17 @@ const PERM_COLS: { key: PermKey; label: string }[] = [
 ];
 
 interface Props {
-  boardId: string;
+  board: CRMBoard;
   clientId: string;
+  onBoardUpdated: (board: CRMBoard) => void;
 }
 
-export function PermissionsManager({ boardId, clientId }: Props) {
+export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isOwner = useIsBoardOwner();
+  const boardId = board.id;
+  const permissionMode = getBoardPermissionMode(board.settings);
   const { rules, loading, upsert, remove } = useBoardPermissions(boardId);
   const { data: teamMembers = [], isLoading: loadingUsers } = useTeamMembers();
 
@@ -70,12 +80,22 @@ export function PermissionsManager({ boardId, clientId }: Props) {
       can_delete: existing?.can_delete ?? false,
       [key]: checked,
     };
+    if (key === 'can_view' && !checked) {
+      next.can_create = false;
+      next.can_edit = false;
+      next.can_delete = false;
+    }
+    if (key !== 'can_view' && checked) {
+      next.can_view = true;
+    }
     const allFalse = !next.can_view && !next.can_create && !next.can_edit && !next.can_delete;
     if (allFalse && existing) {
-      await remove(existing.id);
+      const success = await remove(existing.id);
+      if (success) queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
       return;
     }
-    await upsert(
+    if (allFalse) return;
+    const success = await upsert(
       {
         subject_type: subjectType,
         subject_id: subjectId,
@@ -83,6 +103,29 @@ export function PermissionsManager({ boardId, clientId }: Props) {
       },
       { clientId, createdBy: user?.name ?? null }
     );
+    if (success) queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
+  };
+
+  const handleModeChange = async (value: string) => {
+    if (value !== 'disabled' && value !== 'role' && value !== 'user') return;
+    const nextMode = value as BoardPermissionMode;
+    const nextSettings = {
+      ...(board.settings ?? {}),
+      permission_mode: nextMode,
+    };
+    const { data, error } = await supabase
+      .from('crm_boards')
+      .update({ settings: nextSettings })
+      .eq('id', boardId)
+      .select('*')
+      .single();
+    if (error) {
+      toast.error('Erro ao alterar modo de permissão: ' + error.message);
+      return;
+    }
+    if (data) onBoardUpdated(data as CRMBoard);
+    queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
+    toast.success('Modo de permissão atualizado');
   };
 
   const renderRow = (
@@ -127,15 +170,44 @@ export function PermissionsManager({ boardId, clientId }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
-        <p>
-          Configure quem pode <strong>ver</strong>, <strong>criar</strong>,{' '}
-          <strong>editar</strong> ou <strong>remover</strong> cards deste CRM. Regras por
-          usuário e por perfil somam entre si (OR). Sem nenhuma regra, o CRM permanece
-          aberto a toda a equipe. Administradores e o dono do cliente têm acesso total.
+      <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">Permissão por</p>
+            <p className="text-xs text-muted-foreground">
+              A opção escolhida define se este quadro aparece para todos, perfis específicos ou usuários específicos.
+            </p>
+          </div>
+          <ToggleGroup
+            type="single"
+            value={permissionMode}
+            onValueChange={handleModeChange}
+            variant="outline"
+            size="sm"
+            className="justify-start sm:justify-end"
+          >
+            <ToggleGroupItem value="disabled" aria-label="Desativada">Desativada</ToggleGroupItem>
+            <ToggleGroupItem value="role" aria-label="Perfil">Perfil</ToggleGroupItem>
+            <ToggleGroupItem value="user" aria-label="Usuário">Usuário</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          {permissionMode === 'disabled'
+            ? 'O permissionamento está desativado: o quadro aparece para toda a equipe com acesso ao CRM Builder.'
+            : 'Marque Ver para fazer o quadro aparecer e use Criar, Editar e Remover para limitar as ações dentro dele.'}
         </p>
       </div>
 
+      {permissionMode === 'disabled' && (
+        <div className="rounded-lg border bg-background p-10 text-center text-muted-foreground">
+          <ShieldOff className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">Permissão específica desativada</p>
+          <p className="text-xs mt-1">Selecione Perfil ou Usuário para restringir a visualização deste quadro.</p>
+        </div>
+      )}
+
+      {permissionMode === 'role' && (
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -150,7 +222,9 @@ export function PermissionsManager({ boardId, clientId }: Props) {
           {ROLES.map((r) => renderRow('role', r, roleLabels[r] || r, `perfil "${r}"`))}
         </CardContent>
       </Card>
+      )}
 
+      {permissionMode === 'user' && (
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -179,6 +253,7 @@ export function PermissionsManager({ boardId, clientId }: Props) {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

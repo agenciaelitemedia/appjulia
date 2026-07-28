@@ -1,9 +1,11 @@
 import { useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMBoard, CRMBoardFormData } from '../types';
 import { logCRMAudit } from './useCRMAuditLog';
+import { getBoardPermissionMode, isClientOwnerUser, type BoardPermissionRule } from './useCRMBoardPermissions';
 
 interface UseCRMBoardsOptions {
   clientId: string;
@@ -11,16 +13,18 @@ interface UseCRMBoardsOptions {
   canManage?: boolean;
 }
 
-const boardsKey = (clientId: string) => ['crm-boards', clientId] as const;
+const boardsKey = (clientId: string, userId?: unknown, role?: unknown) => ['crm-boards', clientId, String(userId ?? ''), String(role ?? '')] as const;
 
 export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoardsOptions) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isOwner = isClientOwnerUser(user);
 
   // React Query-backed cache: instant return on revisits, background refresh,
   // shared between all hook instances mounted with the same clientId.
   const query = useQuery<CRMBoard[]>({
-    queryKey: boardsKey(clientId),
+    queryKey: boardsKey(clientId, user?.id, user?.role),
     enabled: !!clientId,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
@@ -32,7 +36,35 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
         .eq('is_archived', false)
         .order('position', { ascending: true });
       if (queryError) throw queryError;
-      return (data as CRMBoard[]) || [];
+      const fetchedBoards = (data as CRMBoard[]) || [];
+      if (isOwner) return fetchedBoards;
+
+      const restrictedBoardIds = fetchedBoards
+        .filter((board) => getBoardPermissionMode(board.settings) !== 'disabled')
+        .map((board) => board.id);
+
+      if (restrictedBoardIds.length === 0) return fetchedBoards;
+
+      const { data: permissionRows, error: permissionError } = await supabase
+        .from('crm_board_permissions')
+        .select('board_id,subject_type,subject_id,can_view')
+        .in('board_id', restrictedBoardIds)
+        .eq('can_view', true);
+      if (permissionError) throw permissionError;
+
+      const permissions = (permissionRows || []) as Pick<BoardPermissionRule, 'board_id' | 'subject_type' | 'subject_id' | 'can_view'>[];
+      const uid = String(user?.id ?? '');
+      const role = String(user?.role ?? '');
+
+      return fetchedBoards.filter((board) => {
+        const mode = getBoardPermissionMode(board.settings);
+        if (mode === 'disabled') return true;
+        return permissions.some((permission) => {
+          if (permission.board_id !== board.id || !permission.can_view) return false;
+          if (mode === 'user') return permission.subject_type === 'user' && permission.subject_id === uid;
+          return permission.subject_type === 'role' && permission.subject_id === role;
+        });
+      });
     },
   });
 
@@ -57,9 +89,9 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
 
   const setCache = useCallback(
     (updater: (prev: CRMBoard[]) => CRMBoard[]) => {
-      queryClient.setQueryData<CRMBoard[]>(boardsKey(clientId), (prev) => updater(prev ?? []));
+      queryClient.setQueryData<CRMBoard[]>(boardsKey(clientId, user?.id, user?.role), (prev) => updater(prev ?? []));
     },
-    [queryClient, clientId],
+    [queryClient, clientId, user?.id, user?.role],
   );
 
   // Create a new board
@@ -68,7 +100,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
 
     try {
       // Get the max position
-      const current = queryClient.getQueryData<CRMBoard[]>(boardsKey(clientId)) ?? [];
+      const current = queryClient.getQueryData<CRMBoard[]>(boardsKey(clientId, user?.id, user?.role)) ?? [];
       const maxPosition = current.length > 0
         ? Math.max(...current.map(b => b.position)) + 1
         : 0;
@@ -142,7 +174,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
         codAgent,
         entityType: 'board',
         entityId: boardId,
-        entityName: data.name ?? (queryClient.getQueryData<CRMBoard[]>(boardsKey(clientId)) ?? []).find(b => b.id === boardId)?.name ?? null,
+        entityName: data.name ?? (queryClient.getQueryData<CRMBoard[]>(boardsKey(clientId, user?.id, user?.role)) ?? []).find(b => b.id === boardId)?.name ?? null,
         action: 'updated',
         changes: data as Record<string, unknown>,
       });
@@ -168,7 +200,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
   const archiveBoard = useCallback(async (boardId: string): Promise<boolean> => {
     if (!canManage) return false;
     try {
-      const target = (queryClient.getQueryData<CRMBoard[]>(boardsKey(clientId)) ?? []).find(b => b.id === boardId);
+      const target = (queryClient.getQueryData<CRMBoard[]>(boardsKey(clientId, user?.id, user?.role)) ?? []).find(b => b.id === boardId);
       const { error: updateError } = await supabase
         .from('crm_boards')
         .update({ is_archived: true })
@@ -259,12 +291,23 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
           filter: `client_id=eq.${clientId}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: boardsKey(clientId) });
+          queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
+        },
+      )
+      .subscribe();
+    const permissionsChannel = supabase
+      .channel(`crm-board-permissions-list-${clientId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'crm_board_permissions', filter: `client_id=eq.${clientId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
         },
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(permissionsChannel);
     };
   }, [clientId, queryClient]);
 

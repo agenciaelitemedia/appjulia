@@ -12,15 +12,17 @@ import { BoardAnalyticsDashboard } from '../analytics/BoardAnalyticsDashboard';
 import { AuditLogPanel } from '../audit/AuditLogPanel';
 import { PermissionsManager } from './permissions/PermissionsManager';
 import { useIsBoardOwner } from '../../hooks/useCRMBoardPermissions';
-import type { CRMPipeline, CRMDeal } from '../../types';
+import type { CRMBoard, CRMPipeline, CRMDeal } from '../../types';
 
 interface BoardSettingsSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   boardId: string;
+  board: CRMBoard;
   codAgent: string;
   clientId: string;
   boardName: string;
+  onBoardUpdated: (board: CRMBoard) => void;
   pipelines: CRMPipeline[];
   deals: CRMDeal[];
   canManage?: boolean;
@@ -31,9 +33,11 @@ export function BoardSettingsSheet({
   open,
   onOpenChange,
   boardId,
+  board,
   codAgent,
   clientId,
   boardName,
+  onBoardUpdated,
   pipelines,
   deals,
   canManage = true,
@@ -109,7 +113,7 @@ export function BoardSettingsSheet({
 
           {isOwner && (
             <TabsContent value="permissions" className="mt-4">
-              <PermissionsManager boardId={boardId} clientId={clientId} />
+              <PermissionsManager board={board} clientId={clientId} onBoardUpdated={onBoardUpdated} />
             </TabsContent>
           )}
 

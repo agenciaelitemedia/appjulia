@@ -31,6 +31,7 @@ interface PipelineColumnProps {
   onEdit: () => void;
   onDelete: () => void;
   onAddDeal: () => void;
+  canCreateDeal?: boolean;
 }
 
 export function PipelineColumn({
@@ -40,6 +41,7 @@ export function PipelineColumn({
   onEdit,
   onDelete,
   onAddDeal,
+  canCreateDeal = true,
 }: PipelineColumnProps) {
   const [isHovering, setIsHovering] = useState(false);
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
@@ -156,11 +158,15 @@ export function PipelineColumn({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onAddDeal}>
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar Card
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {canCreateDeal && (
+              <>
+                <DropdownMenuItem onClick={onAddDeal}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Card
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem onClick={onEdit}>
               <Pencil className="h-4 w-4 mr-2" />
               Editar Etapa

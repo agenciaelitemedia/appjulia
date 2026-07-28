@@ -108,7 +108,7 @@ export default function BoardSettingsPage() {
 
           <TabsContent value="permissions" className="mt-6">
             {isOwner ? (
-              <PermissionsManager boardId={board.id} clientId={clientId} />
+              <PermissionsManager board={board} clientId={clientId} onBoardUpdated={setBoard} />
             ) : (
               <div className="rounded-lg border bg-muted/20 p-10 text-center text-muted-foreground">
                 <Shield className="h-8 w-8 mx-auto mb-2 opacity-50" />
