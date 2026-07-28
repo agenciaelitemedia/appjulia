@@ -40,7 +40,6 @@ interface TeamMember { id: number | string; name: string }
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
 export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMessage, onCancelEdit, readOnly = false }: ChatInputProps) {
-  if (readOnly) return null;
   const { sendMessage, editMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead, setConversationStatusFilter } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
