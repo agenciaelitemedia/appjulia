@@ -796,11 +796,23 @@ export default function BoardPage() {
                                 pipelineColor={pipeline.color}
                                 onClick={() => setViewingDeal(deal)}
                                 onEdit={() => setEditingDeal(deal)}
-                                onArchive={() => canDeleteDeal && archiveDeal(deal.id)}
-                                onWon={() => canEditDeal && setDealStatus(deal.id, 'won')}
-                                onLost={() => canEditDeal && setDealStatus(deal.id, 'lost')}
+                                onArchive={() => {
+                                  if (!canDeleteDeal) return denyToast('Sem permissão para remover cards');
+                                  archiveDeal(deal.id);
+                                }}
+                                onWon={() => {
+                                  if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+                                  setDealStatus(deal.id, 'won');
+                                }}
+                                onLost={() => {
+                                  if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+                                  setDealStatus(deal.id, 'lost');
+                                }}
                                 onOpenChat={(d) => setChatPanelDeal(d)}
-                                onChangePriority={(d, p) => canEditDeal && updateDeal(d.id, { priority: p })}
+                                onChangePriority={(d, p) => {
+                                  if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+                                  updateDeal(d.id, { priority: p });
+                                }}
                                 taskTotal={taskCounts[deal.id]?.total}
                                 taskDone={taskCounts[deal.id]?.done}
                                 canEdit={canEditDeal}
