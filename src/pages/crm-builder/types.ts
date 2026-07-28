@@ -18,6 +18,13 @@ export const DEFAULT_BOARD_SORT: BoardSortState = {
   direction: 'desc',
 };
 
+export type BoardPermissionMode = 'disabled' | 'role' | 'user';
+
+export interface CRMBoardSettings {
+  permission_mode?: BoardPermissionMode;
+  [key: string]: unknown;
+}
+
 // Board - Quadro/Painel do CRM
 export interface CRMBoard {
   id: string;
@@ -29,7 +36,7 @@ export interface CRMBoard {
   color: string;
   position: number;
   is_archived: boolean;
-  settings: Record<string, unknown>;
+  settings: CRMBoardSettings;
   created_at: string;
   updated_at: string;
   created_by?: string;
