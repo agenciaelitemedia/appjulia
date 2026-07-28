@@ -39,7 +39,8 @@ export function useIsBoardOwner(): boolean {
   const { user } = useAuth();
   if (!user) return false;
   if (user.role === 'admin') return true;
-  return Number(user.id) === Number(user.client_id);
+  // Dono do client_id = usuário titular do tenant (tem client_id e não é sub-usuário)
+  return !!user.client_id && !(user as any).user_id;
 }
 
 /** Fetch all permission rules for a board (owner-scoped in UI). */
