@@ -27,13 +27,20 @@ interface ChatInputProps {
   onCancelReply?: () => void;
   editingMessage?: ChatMessage | null;
   onCancelEdit?: () => void;
+  /**
+   * Modo somente-leitura: não renderiza o input.
+   * Usado pelo painel lateral de chat quando o usuário não tem
+   * permissão `chat_admin`.
+   */
+  readOnly?: boolean;
 }
 
 interface TeamMember { id: number | string; name: string }
 
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
-export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMessage, onCancelEdit }: ChatInputProps) {
+export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMessage, onCancelEdit, readOnly = false }: ChatInputProps) {
+  if (readOnly) return null;
   const { sendMessage, editMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead, setConversationStatusFilter } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
