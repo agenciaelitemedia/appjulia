@@ -38,6 +38,13 @@ export interface ChatSidePanelProps {
   title?: string;
   /** Texto exibido quando o target é null. */
   emptyDescription?: string;
+  /**
+   * Modo somente-leitura: oculta o botão "Abrir no Chat", esconde as ações
+   * do header (Assumir, Transferir, Resolver, etc.) e não renderiza o
+   * input de envio. Use quando o usuário tem permissão para ver o card
+   * no CRM mas não tem o módulo `chat_admin`.
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -57,6 +64,7 @@ export function ChatSidePanel({
   isLoading = false,
   title = 'Conversa',
   emptyDescription = 'O vínculo não aponta para uma conversa válida.',
+  readOnly = false,
 }: ChatSidePanelProps) {
   const navigate = useNavigate();
   const { data: queueAccess } = useUserQueueAccess();
@@ -108,6 +116,7 @@ export function ChatSidePanel({
             <span className="text-sm font-medium truncate">{title}</span>
           </div>
           <div className="flex items-center gap-1 mr-8">
+            {!readOnly && (
             <Button
               variant="ghost"
               size="icon"
@@ -147,6 +156,7 @@ export function ChatSidePanel({
             >
               <ExternalLink className="h-4 w-4" />
             </Button>
+            )}
           </div>
         </div>
 
@@ -187,6 +197,7 @@ export function ChatSidePanel({
                 conversationId={target.conversationId}
                 queue={queueRow ?? null}
                 onClose={onClose}
+                readOnly={readOnly}
               />
             </WhatsAppDataProvider>
           </div>
