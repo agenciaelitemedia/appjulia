@@ -13,6 +13,7 @@ interface BoardGridProps {
   onBoardSettings?: (board: CRMBoard) => void;
   onCreateClick: () => void;
   canManage?: boolean;
+  canOpenSettings?: boolean;
 }
 
 export function BoardGrid({
@@ -24,6 +25,7 @@ export function BoardGrid({
   onBoardSettings,
   onCreateClick,
   canManage = true,
+  canOpenSettings = canManage,
 }: BoardGridProps) {
   if (isLoading) {
     return (
@@ -46,6 +48,7 @@ export function BoardGrid({
           onArchive={() => onBoardArchive(board)}
           onSettings={onBoardSettings ? () => onBoardSettings(board) : undefined}
           canManage={canManage}
+          canOpenSettings={canOpenSettings}
         />
       ))}
       

@@ -594,6 +594,31 @@ export default function BoardPage() {
     );
   }
 
+  if (boardPerms.loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-12 w-64" />
+        <div className="flex gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-96 w-80 flex-shrink-0" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!boardPerms.canView) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center h-[50vh] gap-4">
+        <p className="text-muted-foreground">Você não tem permissão para ver este quadro</p>
+        <Button onClick={() => navigate('/crm-builder')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Voltar
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}

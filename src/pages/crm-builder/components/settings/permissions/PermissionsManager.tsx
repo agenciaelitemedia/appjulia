@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,6 +39,7 @@ interface Props {
 
 export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isOwner = useIsBoardOwner();
   const boardId = board.id;
   const permissionMode = getBoardPermissionMode(board.settings);
@@ -88,11 +90,12 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
     }
     const allFalse = !next.can_view && !next.can_create && !next.can_edit && !next.can_delete;
     if (allFalse && existing) {
-      await remove(existing.id);
+      const success = await remove(existing.id);
+      if (success) queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
       return;
     }
     if (allFalse) return;
-    await upsert(
+    const success = await upsert(
       {
         subject_type: subjectType,
         subject_id: subjectId,
@@ -100,6 +103,7 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
       },
       { clientId, createdBy: user?.name ?? null }
     );
+    if (success) queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
   };
 
   const handleModeChange = async (value: string) => {
@@ -120,6 +124,7 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
       return;
     }
     if (data) onBoardUpdated(data as CRMBoard);
+    queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
     toast.success('Modo de permissão atualizado');
   };
 
