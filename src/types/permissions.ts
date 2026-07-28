@@ -7,6 +7,7 @@ export type ModuleCategory = 'principal' | 'crm' | 'agente' | 'sistema' | 'admin
 export type ModuleCode =
   | 'dashboard'
   | 'crm_leads'
+  | 'crm_builder'
   | 'crm_monitoring'
   | 'crm_statistics'
   | 'agent_management'
