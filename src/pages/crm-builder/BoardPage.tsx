@@ -375,7 +375,10 @@ export default function BoardPage() {
 
   // DnD handlers
   const handleDragStart = (event: DragStartEvent) => {
-    if (!canEditDeal) return;
+    if (!canEditDeal) {
+      denyToast('Sem permissão para mover cards');
+      return;
+    }
     const { active } = event;
     const activeId = String(active.id);
     
@@ -454,6 +457,7 @@ export default function BoardPage() {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     if (!canEditDeal) {
+      denyToast('Sem permissão para mover cards');
       setActiveDeal(null);
       dragPreviewRef.current = null;
       dragOriginPipelineRef.current = null;
@@ -553,18 +557,29 @@ export default function BoardPage() {
   };
 
   const handleAddDeal = (pipeline: CRMPipeline) => {
-    if (!canCreateDeal) return;
+    if (!canCreateDeal) {
+      denyToast('Sem permissão para criar cards');
+      return;
+    }
     setSelectedPipelineForDeal(pipeline);
     setIsCreateDealOpen(true);
   };
 
   const handleCreateDeal = async (data: CRMDealFormData) => {
-    if (!selectedPipelineForDeal || !canCreateDeal) return null;
+    if (!selectedPipelineForDeal) return null;
+    if (!canCreateDeal) {
+      denyToast('Sem permissão para criar cards');
+      return null;
+    }
     return await createDeal(selectedPipelineForDeal.id, data);
   };
 
   const handleEditDeal = async (data: CRMDealFormData) => {
-    if (!editingDeal || !canEditDeal) return null;
+    if (!editingDeal) return null;
+    if (!canEditDeal) {
+      denyToast('Sem permissão para editar cards');
+      return null;
+    }
     const success = await updateDeal(editingDeal.id, data);
     if (success) {
       setEditingDeal(null);
