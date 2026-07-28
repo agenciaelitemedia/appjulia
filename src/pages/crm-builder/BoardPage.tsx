@@ -905,23 +905,23 @@ export default function BoardPage() {
         onLost={() => viewingDeal && canEditDeal && setDealStatus(viewingDeal.id, 'lost')}
         hideStatusActions={!canEditDeal}
         hideArchiveAction={!canDeleteDeal}
-        onUpdate={async (data) => {
-          if (!viewingDeal || !canEditDeal) return false;
+        onUpdate={canEditDeal ? async (data) => {
+          if (!viewingDeal) return false;
           return await updateDeal(viewingDeal.id, data);
-        }}
+        } : undefined}
         stages={pipelines}
-        onMoveToStage={async (stageId) => {
-          if (!viewingDeal || !canEditDeal) return false;
+        onMoveToStage={canEditDeal ? async (stageId) => {
+          if (!viewingDeal) return false;
           return await moveDeal({
             dealId: viewingDeal.id,
             fromPipelineId: viewingDeal.pipeline_id,
             toPipelineId: stageId,
             newPosition: 0,
           });
-        }}
+        } : undefined}
         boards={allBoards}
-        onMoveToBoard={async (targetBoardId, targetPipelineId) => {
-          if (!viewingDeal || !canEditDeal) return null;
+        onMoveToBoard={canEditDeal ? async (targetBoardId, targetPipelineId) => {
+          if (!viewingDeal) return null;
           const targetBoard = allBoards.find((b) => b.id === targetBoardId);
           const result = await moveDealToBoard(
             viewingDeal,
@@ -941,7 +941,7 @@ export default function BoardPage() {
             await fetchDeals();
           }
           return result;
-        }}
+        } : undefined}
       />
 
       {/* Settings Sheet */}
