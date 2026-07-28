@@ -355,6 +355,8 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
   // (Lock total removido — apenas o botão de Nota Interna permanece ativo
   // quando a conversa não está assumida; cada controle individual usa `disabled={!canSend}`.)
 
+  if (readOnly) return null;
+
   return (
     <div className="border-t bg-background">
       {/* Claim/Reopen banner — same position, same layout */}
