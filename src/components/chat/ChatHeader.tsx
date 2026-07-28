@@ -585,7 +585,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
             </div>
           )}
         </div>
-        {selectedConversation && (
+        {selectedConversation && !readOnly && (
           <div className="hidden md:flex flex-col items-end gap-2 shrink-0">
             <div className="flex flex-wrap items-center justify-end gap-2">
               {canTakeOver && (
@@ -761,7 +761,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
         </Button>
       </div>
 
-      {selectedConversation && (
+      {selectedConversation && !readOnly && (
         <div className="px-3 pb-3 flex flex-col gap-2 md:hidden">
           <div className="flex flex-wrap items-center gap-2">
             {canTakeOver && (
