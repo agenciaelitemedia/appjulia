@@ -1,5 +1,6 @@
 import { ChatSidePanel } from '@/components/chat/ChatSidePanel';
 import { useDealConversation } from '../../hooks/useDealConversation';
+import { useAuth } from '@/contexts/AuthContext';
 import type { CRMDeal } from '../../types';
 
 interface BoardChatSidePanelProps {
@@ -14,6 +15,13 @@ interface BoardChatSidePanelProps {
  */
 export function BoardChatSidePanel({ open, onOpenChange, deal }: BoardChatSidePanelProps) {
   const { data: conv, isLoading } = useDealConversation(deal);
+  const { hasPermission, isAdmin } = useAuth();
+  // Só permite escrita no chat (assumir/enviar) se o usuário tiver o módulo
+  // `chat_admin`. Sem ele, o painel abre em modo somente-leitura.
+  const canWriteChat =
+    isAdmin ||
+    hasPermission('chat_admin', 'edit') ||
+    hasPermission('chat_admin', 'create');
 
   const target = conv
     ? {
@@ -31,6 +39,7 @@ export function BoardChatSidePanel({ open, onOpenChange, deal }: BoardChatSidePa
       isLoading={isLoading}
       title="Conversa do card"
       emptyDescription="O vínculo deste card não aponta para uma conversa válida."
+      readOnly={!canWriteChat}
     />
   );
 }

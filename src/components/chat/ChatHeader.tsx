@@ -53,6 +53,12 @@ interface ChatHeaderProps {
   contact: ChatContact;
   onClose: () => void;
   onShowDetails?: () => void;
+  /**
+   * Modo somente-leitura: oculta ações de escrita (Assumir, Transferir,
+   * Resolver, Encerrar, Reabrir, Adiar, Devolver, toggle Jul.IA, tickets…).
+   * Mantém informações do contato, badges, avatar e botão fechar.
+   */
+  readOnly?: boolean;
 }
 
 function ChannelBadge({ channel }: { channel?: string }) {
@@ -232,7 +238,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
   );
 }
 
-export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
+export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter, sendInternalNote } = useWhatsAppData();
   const { user, hasPermission } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
@@ -579,7 +585,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
             </div>
           )}
         </div>
-        {selectedConversation && (
+        {selectedConversation && !readOnly && (
           <div className="hidden md:flex flex-col items-end gap-2 shrink-0">
             <div className="flex flex-wrap items-center justify-end gap-2">
               {canTakeOver && (
@@ -755,7 +761,7 @@ export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps)
         </Button>
       </div>
 
-      {selectedConversation && (
+      {selectedConversation && !readOnly && (
         <div className="px-3 pb-3 flex flex-col gap-2 md:hidden">
           <div className="flex flex-wrap items-center gap-2">
             {canTakeOver && (

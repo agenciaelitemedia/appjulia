@@ -38,6 +38,13 @@ export interface ChatSidePanelProps {
   title?: string;
   /** Texto exibido quando o target é null. */
   emptyDescription?: string;
+  /**
+   * Modo somente-leitura: oculta o botão "Abrir no Chat", esconde as ações
+   * do header (Assumir, Transferir, Resolver, etc.) e não renderiza o
+   * input de envio. Use quando o usuário tem permissão para ver o card
+   * no CRM mas não tem o módulo `chat_admin`.
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -57,6 +64,7 @@ export function ChatSidePanel({
   isLoading = false,
   title = 'Conversa',
   emptyDescription = 'O vínculo não aponta para uma conversa válida.',
+  readOnly = false,
 }: ChatSidePanelProps) {
   const navigate = useNavigate();
   const { data: queueAccess } = useUserQueueAccess();
@@ -108,6 +116,7 @@ export function ChatSidePanel({
             <span className="text-sm font-medium truncate">{title}</span>
           </div>
           <div className="flex items-center gap-1 mr-8">
+            {!readOnly && (
             <Button
               variant="ghost"
               size="icon"
@@ -147,6 +156,7 @@ export function ChatSidePanel({
             >
               <ExternalLink className="h-4 w-4" />
             </Button>
+            )}
           </div>
         </div>
 
@@ -187,6 +197,7 @@ export function ChatSidePanel({
                 conversationId={target.conversationId}
                 queue={queueRow ?? null}
                 onClose={onClose}
+                readOnly={readOnly}
               />
             </WhatsAppDataProvider>
           </div>
@@ -205,11 +216,13 @@ function ScopedChat({
   conversationId,
   queue,
   onClose,
+  readOnly = false,
 }: {
   contactId: string;
   conversationId: string | null;
   queue: SelectedQueue | null;
   onClose: () => void;
+  readOnly?: boolean;
 }) {
   const {
     selectedContact,
@@ -341,13 +354,25 @@ function ScopedChat({
         contact={effectiveContact}
         onClose={onClose}
         onShowDetails={() => {}}
+        readOnly={readOnly}
       />
       <ChatMessages contactId={contactId} onReply={setReplyToMessage} />
-      <ChatInput
-        contactId={contactId}
-        replyToMessage={replyToMessage}
-        onCancelReply={() => setReplyToMessage(null)}
-      />
+      {readOnly ? (
+        <div className="border-t bg-muted/30 px-4 py-3 flex items-start gap-2 text-xs text-muted-foreground">
+          <Lock className="h-4 w-4 mt-0.5 flex-shrink-0 opacity-60" />
+          <p>
+            Você está visualizando esta conversa a partir do CRM. Para
+            responder ou assumir o atendimento, é necessário permissão no
+            módulo <span className="font-medium">Chat</span>.
+          </p>
+        </div>
+      ) : (
+        <ChatInput
+          contactId={contactId}
+          replyToMessage={replyToMessage}
+          onCancelReply={() => setReplyToMessage(null)}
+        />
+      )}
     </div>
   );
 }
