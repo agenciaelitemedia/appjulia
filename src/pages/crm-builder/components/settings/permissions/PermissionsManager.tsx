@@ -22,6 +22,7 @@ import type { BoardPermissionMode, CRMBoard } from '../../../types';
 import { toast } from 'sonner';
 
 const ROLES: AppRole[] = ['user', 'colaborador', 'time', 'advogado', 'comercial'];
+const ADMIN_ONLY_ROLES: AppRole[] = ['user', 'colaborador'];
 
 type PermKey = 'can_view' | 'can_create' | 'can_edit' | 'can_delete';
 const PERM_COLS: { key: PermKey; label: string }[] = [
@@ -42,6 +43,11 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
   const queryClient = useQueryClient();
   const isOwner = useIsBoardOwner();
   const boardId = board.id;
+  const isAdmin = user?.role === 'admin';
+  const visibleRoles = useMemo(
+    () => ROLES.filter((r) => isAdmin || !ADMIN_ONLY_ROLES.includes(r)),
+    [isAdmin]
+  );
   const permissionMode = getBoardPermissionMode(board.settings);
   const { rules, loading, upsert, remove } = useBoardPermissions(boardId);
   const { data: teamMembers = [], isLoading: loadingUsers } = useTeamMembers();
@@ -219,7 +225,7 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
         </CardHeader>
         <CardContent>
           {header}
-          {ROLES.map((r) => renderRow('role', r, roleLabels[r] || r, `perfil "${r}"`))}
+          {visibleRoles.map((r) => renderRow('role', r, roleLabels[r] || r, `perfil "${r}"`))}
         </CardContent>
       </Card>
       )}
