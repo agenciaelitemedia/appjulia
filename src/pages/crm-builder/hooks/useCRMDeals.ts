@@ -18,10 +18,20 @@ interface UseCRMDealsOptions {
   clientId: string;
   codAgent: string;
   userName?: string;
+  permissions?: {
+    canCreate?: boolean;
+    canEdit?: boolean;
+    canDelete?: boolean;
+  };
 }
 
-export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDealsOptions) {
+export function useCRMDeals({ boardId, clientId, codAgent, userName, permissions }: UseCRMDealsOptions) {
   const { toast } = useToast();
+  const permissionsRef = useRef(permissions);
+  useEffect(() => { permissionsRef.current = permissions; }, [permissions]);
+  const denyMutation = useCallback((msg: string) => {
+    toast({ title: 'Ação bloqueada', description: msg, variant: 'destructive' });
+  }, [toast]);
   const [deals, setDeals] = useState<CRMDeal[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +92,11 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
   // Create a new deal
   const createDeal = useCallback(async (pipelineId: string, data: CRMDealFormData): Promise<CRMDeal | null> => {
     if (!boardId || !clientId) return null;
+    const perms = permissionsRef.current;
+    if (perms && perms.canCreate === false) {
+      denyMutation('Sem permissão para criar cards');
+      return null;
+    }
 
     try {
       // Get the max position in the pipeline
@@ -141,10 +156,15 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
       });
       return null;
     }
-  }, [boardId, clientId, codAgent, deals, toast]);
+  }, [boardId, clientId, codAgent, deals, toast, denyMutation]);
 
   // Update a deal
   const updateDeal = useCallback(async (dealId: string, data: Partial<CRMDealFormData>): Promise<boolean> => {
+    const perms = permissionsRef.current;
+    if (perms && perms.canEdit === false) {
+      denyMutation('Sem permissão para editar cards');
+      return false;
+    }
     try {
       const updatePayload: Record<string, unknown> = {
         title: data.title,
@@ -208,11 +228,16 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
       });
       return false;
     }
-  }, [toast]);
+  }, [toast, denyMutation]);
 
   // Move deal to another pipeline (drag & drop)
   const moveDeal = useCallback(async (result: DropResult): Promise<boolean> => {
     const { dealId, fromPipelineId, toPipelineId, newPosition } = result;
+    const perms = permissionsRef.current;
+    if (perms && perms.canEdit === false) {
+      denyMutation('Sem permissão para mover cards');
+      return false;
+    }
 
     try {
       isMovingRef.current = true;
@@ -322,10 +347,15 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
       });
       return false;
     }
-  }, [fetchDeals, toast]);
+  }, [fetchDeals, toast, denyMutation]);
 
   // Mark deal as won/lost
   const setDealStatus = useCallback(async (dealId: string, status: 'won' | 'lost'): Promise<boolean> => {
+    const perms = permissionsRef.current;
+    if (perms && perms.canEdit === false) {
+      denyMutation('Sem permissão para editar cards');
+      return false;
+    }
     try {
       const { error: updateError } = await supabase
         .from('crm_deals')
@@ -361,10 +391,15 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
       });
       return false;
     }
-  }, [toast]);
+  }, [toast, denyMutation]);
 
   // Archive deal
   const archiveDeal = useCallback(async (dealId: string): Promise<boolean> => {
+    const perms = permissionsRef.current;
+    if (perms && perms.canDelete === false) {
+      denyMutation('Sem permissão para remover cards');
+      return false;
+    }
     try {
       const { error: updateError } = await supabase
         .from('crm_deals')
@@ -393,7 +428,7 @@ export function useCRMDeals({ boardId, clientId, codAgent, userName }: UseCRMDea
       });
       return false;
     }
-  }, [toast]);
+  }, [toast, denyMutation]);
 
   // Record deal history
   const recordHistory = async (

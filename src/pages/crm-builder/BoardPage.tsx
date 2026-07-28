@@ -70,6 +70,9 @@ export default function BoardPage() {
   const canDeleteDeal = boardPerms.canDelete;
   const canOpenSettings = boardPerms.isOwner || user?.role === 'admin';
 
+  // Toast helper — sinaliza ao usuário quando uma ação é bloqueada por permissão.
+  const denyToast = (msg: string) => toast.error(msg);
+
   // Board state
   const [board, setBoard] = useState<CRMBoard | null>(null);
   const [isLoadingBoard, setIsLoadingBoard] = useState(true);
@@ -96,7 +99,17 @@ export default function BoardPage() {
     setDealStatus,
     archiveDeal,
     fetchDeals,
-  } = useCRMDeals({ boardId: boardId || null, clientId, codAgent, userName: user?.name });
+  } = useCRMDeals({
+    boardId: boardId || null,
+    clientId,
+    codAgent,
+    userName: user?.name,
+    permissions: {
+      canCreate: canCreateDeal,
+      canEdit: canEditDeal,
+      canDelete: canDeleteDeal,
+    },
+  });
 
   // Custom Fields
   const { fields: customFields } = useCRMCustomFields({ boardId: boardId || null, clientId, codAgent, canManage });
@@ -372,7 +385,10 @@ export default function BoardPage() {
 
   // DnD handlers
   const handleDragStart = (event: DragStartEvent) => {
-    if (!canEditDeal) return;
+    if (!canEditDeal) {
+      denyToast('Sem permissão para mover cards');
+      return;
+    }
     const { active } = event;
     const activeId = String(active.id);
     
@@ -451,6 +467,7 @@ export default function BoardPage() {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     if (!canEditDeal) {
+      denyToast('Sem permissão para mover cards');
       setActiveDeal(null);
       dragPreviewRef.current = null;
       dragOriginPipelineRef.current = null;
@@ -550,18 +567,29 @@ export default function BoardPage() {
   };
 
   const handleAddDeal = (pipeline: CRMPipeline) => {
-    if (!canCreateDeal) return;
+    if (!canCreateDeal) {
+      denyToast('Sem permissão para criar cards');
+      return;
+    }
     setSelectedPipelineForDeal(pipeline);
     setIsCreateDealOpen(true);
   };
 
   const handleCreateDeal = async (data: CRMDealFormData) => {
-    if (!selectedPipelineForDeal || !canCreateDeal) return null;
+    if (!selectedPipelineForDeal) return null;
+    if (!canCreateDeal) {
+      denyToast('Sem permissão para criar cards');
+      return null;
+    }
     return await createDeal(selectedPipelineForDeal.id, data);
   };
 
   const handleEditDeal = async (data: CRMDealFormData) => {
-    if (!editingDeal || !canEditDeal) return null;
+    if (!editingDeal) return null;
+    if (!canEditDeal) {
+      denyToast('Sem permissão para editar cards');
+      return null;
+    }
     const success = await updateDeal(editingDeal.id, data);
     if (success) {
       setEditingDeal(null);
@@ -778,11 +806,23 @@ export default function BoardPage() {
                                 pipelineColor={pipeline.color}
                                 onClick={() => setViewingDeal(deal)}
                                 onEdit={() => setEditingDeal(deal)}
-                                onArchive={() => canDeleteDeal && archiveDeal(deal.id)}
-                                onWon={() => canEditDeal && setDealStatus(deal.id, 'won')}
-                                onLost={() => canEditDeal && setDealStatus(deal.id, 'lost')}
+                                onArchive={() => {
+                                  if (!canDeleteDeal) return denyToast('Sem permissão para remover cards');
+                                  archiveDeal(deal.id);
+                                }}
+                                onWon={() => {
+                                  if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+                                  setDealStatus(deal.id, 'won');
+                                }}
+                                onLost={() => {
+                                  if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+                                  setDealStatus(deal.id, 'lost');
+                                }}
                                 onOpenChat={(d) => setChatPanelDeal(d)}
-                                onChangePriority={(d, p) => canEditDeal && updateDeal(d.id, { priority: p })}
+                                onChangePriority={(d, p) => {
+                                  if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+                                  updateDeal(d.id, { priority: p });
+                                }}
                                 taskTotal={taskCounts[deal.id]?.total}
                                 taskDone={taskCounts[deal.id]?.done}
                                 canEdit={canEditDeal}
@@ -895,14 +935,26 @@ export default function BoardPage() {
         open={!!viewingDeal}
         onOpenChange={(open) => !open && setViewingDeal(null)}
         onEdit={() => {
-          if (viewingDeal && canEditDeal) {
+          if (!viewingDeal) return;
+          if (!canEditDeal) return denyToast('Sem permissão para editar cards');
             setEditingDeal(viewingDeal);
             setViewingDeal(null);
-          }
         }}
-        onArchive={() => viewingDeal && canDeleteDeal && archiveDeal(viewingDeal.id)}
-        onWon={() => viewingDeal && canEditDeal && setDealStatus(viewingDeal.id, 'won')}
-        onLost={() => viewingDeal && canEditDeal && setDealStatus(viewingDeal.id, 'lost')}
+        onArchive={() => {
+          if (!viewingDeal) return;
+          if (!canDeleteDeal) return denyToast('Sem permissão para remover cards');
+          archiveDeal(viewingDeal.id);
+        }}
+        onWon={() => {
+          if (!viewingDeal) return;
+          if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+          setDealStatus(viewingDeal.id, 'won');
+        }}
+        onLost={() => {
+          if (!viewingDeal) return;
+          if (!canEditDeal) return denyToast('Sem permissão para editar cards');
+          setDealStatus(viewingDeal.id, 'lost');
+        }}
         hideStatusActions={!canEditDeal}
         hideArchiveAction={!canDeleteDeal}
         onUpdate={canEditDeal ? async (data) => {
