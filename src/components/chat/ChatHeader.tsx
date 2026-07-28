@@ -53,6 +53,12 @@ interface ChatHeaderProps {
   contact: ChatContact;
   onClose: () => void;
   onShowDetails?: () => void;
+  /**
+   * Modo somente-leitura: oculta ações de escrita (Assumir, Transferir,
+   * Resolver, Encerrar, Reabrir, Adiar, Devolver, toggle Jul.IA, tickets…).
+   * Mantém informações do contato, badges, avatar e botão fechar.
+   */
+  readOnly?: boolean;
 }
 
 function ChannelBadge({ channel }: { channel?: string }) {
@@ -232,7 +238,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
   );
 }
 
-export function ChatHeader({ contact, onClose, onShowDetails }: ChatHeaderProps) {
+export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter, sendInternalNote } = useWhatsAppData();
   const { user, hasPermission } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
