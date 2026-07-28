@@ -216,11 +216,13 @@ function ScopedChat({
   conversationId,
   queue,
   onClose,
+  readOnly = false,
 }: {
   contactId: string;
   conversationId: string | null;
   queue: SelectedQueue | null;
   onClose: () => void;
+  readOnly?: boolean;
 }) {
   const {
     selectedContact,
@@ -352,13 +354,25 @@ function ScopedChat({
         contact={effectiveContact}
         onClose={onClose}
         onShowDetails={() => {}}
+        readOnly={readOnly}
       />
       <ChatMessages contactId={contactId} onReply={setReplyToMessage} />
-      <ChatInput
-        contactId={contactId}
-        replyToMessage={replyToMessage}
-        onCancelReply={() => setReplyToMessage(null)}
-      />
+      {readOnly ? (
+        <div className="border-t bg-muted/30 px-4 py-3 flex items-start gap-2 text-xs text-muted-foreground">
+          <Lock className="h-4 w-4 mt-0.5 flex-shrink-0 opacity-60" />
+          <p>
+            Você está visualizando esta conversa a partir do CRM. Para
+            responder ou assumir o atendimento, é necessário permissão no
+            módulo <span className="font-medium">Chat</span>.
+          </p>
+        </div>
+      ) : (
+        <ChatInput
+          contactId={contactId}
+          replyToMessage={replyToMessage}
+          onCancelReply={() => setReplyToMessage(null)}
+        />
+      )}
     </div>
   );
 }
