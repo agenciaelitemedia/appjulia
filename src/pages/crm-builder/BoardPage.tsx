@@ -372,6 +372,7 @@ export default function BoardPage() {
 
   // DnD handlers
   const handleDragStart = (event: DragStartEvent) => {
+    if (!canEditDeal) return;
     const { active } = event;
     const activeId = String(active.id);
     
@@ -387,6 +388,7 @@ export default function BoardPage() {
   };
 
   const handleDragOver = (event: DragOverEvent) => {
+    if (!canEditDeal) return;
     const { active, over } = event;
     if (!over) return;
 
@@ -448,6 +450,12 @@ export default function BoardPage() {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
+    if (!canEditDeal) {
+      setActiveDeal(null);
+      dragPreviewRef.current = null;
+      dragOriginPipelineRef.current = null;
+      return;
+    }
     const { active, over } = event;
     const wasActive = activeDeal;
     setActiveDeal(null);
@@ -542,17 +550,18 @@ export default function BoardPage() {
   };
 
   const handleAddDeal = (pipeline: CRMPipeline) => {
+    if (!canCreateDeal) return;
     setSelectedPipelineForDeal(pipeline);
     setIsCreateDealOpen(true);
   };
 
   const handleCreateDeal = async (data: CRMDealFormData) => {
-    if (!selectedPipelineForDeal) return null;
+    if (!selectedPipelineForDeal || !canCreateDeal) return null;
     return await createDeal(selectedPipelineForDeal.id, data);
   };
 
   const handleEditDeal = async (data: CRMDealFormData) => {
-    if (!editingDeal) return null;
+    if (!editingDeal || !canEditDeal) return null;
     const success = await updateDeal(editingDeal.id, data);
     if (success) {
       setEditingDeal(null);
@@ -748,6 +757,7 @@ export default function BoardPage() {
                           onEdit={() => canManage && setEditingPipeline(pipeline)}
                           onDelete={() => canManage && deletePipeline(pipeline.id)}
                           onAddDeal={() => handleAddDeal(pipeline)}
+                          canCreateDeal={canCreateDeal}
                         >
                           <SortableContext
                             items={visibleDeals.map(d => `deal-${d.id}`)}
@@ -768,15 +778,16 @@ export default function BoardPage() {
                                 pipelineColor={pipeline.color}
                                 onClick={() => setViewingDeal(deal)}
                                 onEdit={() => setEditingDeal(deal)}
-                                onArchive={() => archiveDeal(deal.id)}
-                                onWon={() => setDealStatus(deal.id, 'won')}
-                                onLost={() => setDealStatus(deal.id, 'lost')}
+                                onArchive={() => canDeleteDeal && archiveDeal(deal.id)}
+                                onWon={() => canEditDeal && setDealStatus(deal.id, 'won')}
+                                onLost={() => canEditDeal && setDealStatus(deal.id, 'lost')}
                                 onOpenChat={(d) => setChatPanelDeal(d)}
-                                onChangePriority={(d, p) => updateDeal(d.id, { priority: p })}
+                                onChangePriority={(d, p) => canEditDeal && updateDeal(d.id, { priority: p })}
                                 taskTotal={taskCounts[deal.id]?.total}
                                 taskDone={taskCounts[deal.id]?.done}
                                 canEdit={canEditDeal}
                                 canDelete={canDeleteDeal}
+                                canDrag={canEditDeal}
                               />
                             ))}
                             {remaining > 0 && (
@@ -884,21 +895,23 @@ export default function BoardPage() {
         open={!!viewingDeal}
         onOpenChange={(open) => !open && setViewingDeal(null)}
         onEdit={() => {
-          if (viewingDeal) {
+          if (viewingDeal && canEditDeal) {
             setEditingDeal(viewingDeal);
             setViewingDeal(null);
           }
         }}
-        onArchive={() => viewingDeal && archiveDeal(viewingDeal.id)}
-        onWon={() => viewingDeal && setDealStatus(viewingDeal.id, 'won')}
-        onLost={() => viewingDeal && setDealStatus(viewingDeal.id, 'lost')}
+        onArchive={() => viewingDeal && canDeleteDeal && archiveDeal(viewingDeal.id)}
+        onWon={() => viewingDeal && canEditDeal && setDealStatus(viewingDeal.id, 'won')}
+        onLost={() => viewingDeal && canEditDeal && setDealStatus(viewingDeal.id, 'lost')}
+        hideStatusActions={!canEditDeal}
+        hideArchiveAction={!canDeleteDeal}
         onUpdate={async (data) => {
-          if (!viewingDeal) return false;
+          if (!viewingDeal || !canEditDeal) return false;
           return await updateDeal(viewingDeal.id, data);
         }}
         stages={pipelines}
         onMoveToStage={async (stageId) => {
-          if (!viewingDeal) return false;
+          if (!viewingDeal || !canEditDeal) return false;
           return await moveDeal({
             dealId: viewingDeal.id,
             fromPipelineId: viewingDeal.pipeline_id,
@@ -908,7 +921,7 @@ export default function BoardPage() {
         }}
         boards={allBoards}
         onMoveToBoard={async (targetBoardId, targetPipelineId) => {
-          if (!viewingDeal) return null;
+          if (!viewingDeal || !canEditDeal) return null;
           const targetBoard = allBoards.find((b) => b.id === targetBoardId);
           const result = await moveDealToBoard(
             viewingDeal,

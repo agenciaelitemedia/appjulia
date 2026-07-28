@@ -69,6 +69,7 @@ interface DealCardProps {
   taskDone?: number;
   canEdit?: boolean;
   canDelete?: boolean;
+  canDrag?: boolean;
 }
 
 export function DealCard({
@@ -85,6 +86,7 @@ export function DealCard({
   taskDone = 0,
   canEdit = true,
   canDelete = true,
+  canDrag = canEdit,
 }: DealCardProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
@@ -105,6 +107,7 @@ export function DealCard({
     isDragging,
   } = useSortable({
     id: `deal-${deal.id}`,
+    disabled: !canDrag,
     data: {
       type: 'deal',
       deal,
@@ -220,14 +223,15 @@ export function DealCard({
     <Card
       ref={mergedRef}
       style={{
-        ...style,
+        ...(canDrag ? style : {}),
         borderLeftColor: pipelineColor || 'transparent',
         borderLeftWidth: pipelineColor ? '4px' : undefined,
       }}
-      {...attributes}
-      {...listeners}
+      {...(canDrag ? attributes : {})}
+      {...(canDrag ? listeners : {})}
       className={cn(
-        'cursor-grab active:cursor-grabbing transition-all hover:shadow-md group border-l-4',
+        'transition-all hover:shadow-md group border-l-4',
+        canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
         isDragging && 'opacity-30 ring-2 ring-primary/50 ring-dashed bg-primary/5',
         deal.status === 'won' && 'border-l-primary bg-primary/5',
         deal.status === 'lost' && 'border-l-destructive bg-destructive/5'
@@ -302,6 +306,7 @@ export function DealCard({
               </Tooltip>
             )}
 
+          {(canEdit || canDelete) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
@@ -349,6 +354,7 @@ export function DealCard({
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
           </div>
         </div>
 
