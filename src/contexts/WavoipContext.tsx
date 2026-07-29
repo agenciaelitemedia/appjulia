@@ -33,6 +33,55 @@ async function loadWebphone(): Promise<any> {
   return (mod as any).default ?? mod;
 }
 
+// O SDK Wavoip persiste a lista de dispositivos em localStorage e, ao renderizar,
+// abre um WebSocket para CADA token em cache — inclusive tokens de dispositivos
+// desconectados/removidos/de outro cliente. Isso gera falhas de conexão em loop
+// em wss://devices.wavoip.com/<token>/websocket. Limpamos o cache antes do render
+// deixando apenas os tokens permitidos.
+function pruneSdkDeviceCache(allowed: string[]) {
+  if (typeof localStorage === 'undefined') return;
+  const allowSet = new Set(allowed.filter(Boolean));
+  const isToken = (v: any) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+  const filterValue = (val: any): any => {
+    if (Array.isArray(val)) {
+      return val
+        .filter((item) => {
+          if (isToken(item)) return allowSet.has(item);
+          const t = item && typeof item === 'object' ? (item.token ?? item.device_token) : null;
+          if (isToken(t)) return allowSet.has(t);
+          return true;
+        })
+        .map(filterValue);
+    }
+    if (val && typeof val === 'object') {
+      const out: any = Array.isArray(val) ? [] : {};
+      for (const [k, v] of Object.entries(val)) {
+        if (isToken(k) && !allowSet.has(k)) continue;
+        out[k] = filterValue(v);
+      }
+      return out;
+    }
+    return val;
+  };
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key || !/wavoip|webphone|device/i.test(key)) continue;
+    const raw = localStorage.getItem(key);
+    if (!raw || !/[0-9a-f]{8}-[0-9a-f]{4}/i.test(raw)) continue;
+    try {
+      const parsed = JSON.parse(raw);
+      const next = filterValue(parsed);
+      const serialized = JSON.stringify(next);
+      if (serialized !== raw) localStorage.setItem(key, serialized);
+    } catch {
+      // Valor não-JSON: se for um token puro não permitido, remove a chave.
+      if (isToken(raw) && !allowSet.has(raw)) {
+        try { localStorage.removeItem(key); } catch {}
+      }
+    }
+  }
+}
+
 export function WavoipProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const clientId = user?.client_id ?? null;
@@ -49,6 +98,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   // Status ao vivo do SDK por token (fonte da verdade — DB pode estar defasado).
   const [liveDeviceStatuses, setLiveDeviceStatuses] = useState<Record<string, string>>({});
   const liveDeviceStatusesRef = useRef<Record<string, string>>({});
+
+  const allowedTokensRef = useRef<string[]>([]);
 
   const loadPlanAndDevices = useCallback(async (): Promise<{ active: boolean; tokens: string[] }> => {
     if (!clientId) {
@@ -123,6 +174,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       .filter((d: any) => d.connection_status === 'connected' || d.connection_status === 'connecting')
       .map((d: any) => d.device_token)
       .filter(Boolean);
+    allowedTokensRef.current = enableTokens;
     return { active: true, tokens: enableTokens };
   }, [clientId, user?.id]);
 
@@ -134,6 +186,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      // Remove do cache do SDK tokens que não devem conectar (evita WS em loop).
+      try { pruneSdkDeviceCache(allowedTokensRef.current); } catch {}
       // Força tema claro em toda sessão: remove chaves de tema persistidas
       // pelo SDK e injeta CSS que oculta o toggle de tema e neutraliza
       // classes dark caso o SDK tente aplicá-las.
