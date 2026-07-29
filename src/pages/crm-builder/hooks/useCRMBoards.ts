@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMBoard, CRMBoardFormData } from '../types';
 import { logCRMAudit } from './useCRMAuditLog';
-import { getBoardPermissionMode, type BoardPermissionRule } from './useCRMBoardPermissions';
+import { getBoardPermissionMode, isClientOwnerUser, type BoardPermissionRule } from './useCRMBoardPermissions';
 
 interface UseCRMBoardsOptions {
   clientId: string;
@@ -20,6 +20,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const isOwner = isClientOwnerUser(user);
 
   // React Query-backed cache: instant return on revisits, background refresh,
   // shared between all hook instances mounted with the same clientId.
@@ -37,7 +38,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
         .order('position', { ascending: true });
       if (queryError) throw queryError;
       const fetchedBoards = (data as CRMBoard[]) || [];
-      if (isAdmin) return fetchedBoards;
+      if (isAdmin || isOwner) return fetchedBoards;
 
       const restrictedBoardIds = fetchedBoards
         .filter((board) => getBoardPermissionMode(board.settings) !== 'disabled')
