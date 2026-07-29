@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { BoardPermissionMode, CRMBoardSettings } from '../types';
+import { isOwnerUser, useIsOwner } from '@/lib/auth/isOwner';
 
 export type PermissionSubjectType = 'user' | 'role';
 
@@ -42,11 +43,8 @@ export function getBoardPermissionMode(settings?: CRMBoardSettings | Record<stri
 }
 
 export function isClientOwnerUser(user: unknown): boolean {
-  const u = user as { role?: string } | null;
-  if (!u) return false;
-  // Alinhado com a gestão de equipe (get_principal_users): titulares são
-  // usuários com role 'admin' ou 'user'.
-  return u.role === 'admin' || u.role === 'user';
+  // Delegado ao helper compartilhado (admin | user | colaborador).
+  return isOwnerUser(user);
 }
 
 /**
@@ -54,8 +52,7 @@ export function isClientOwnerUser(user: unknown): boolean {
  * Owners always have full access and can manage permissions.
  */
 export function useIsBoardOwner(): boolean {
-  const { user } = useAuth();
-  return isClientOwnerUser(user);
+  return useIsOwner();
 }
 
 /**
@@ -68,7 +65,7 @@ function isFullAccessUser(user: unknown): boolean {
   if (!user) return false;
   const u = user as { role?: string } | null;
   if (u?.role === 'admin') return true;
-  return isClientOwnerUser(user);
+  return isOwnerUser(user);
 }
 
 /** Fetch all permission rules for a board (owner-scoped in UI). */
