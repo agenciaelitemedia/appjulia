@@ -64,7 +64,11 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
         return permissions.some((permission) => {
           if (permission.board_id !== board.id || !permission.can_view) return false;
           if (mode === 'user') return permission.subject_type === 'user' && permission.subject_id === uid;
-          return permission.subject_type === 'role' && permission.subject_id === role;
+          // Modo 'role': visível para o perfil OU usuário adicionado explicitamente.
+          return (
+            (permission.subject_type === 'role' && permission.subject_id === role) ||
+            (permission.subject_type === 'user' && permission.subject_id === uid)
+          );
         });
       });
     },
