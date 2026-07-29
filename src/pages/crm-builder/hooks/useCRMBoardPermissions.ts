@@ -42,10 +42,11 @@ export function getBoardPermissionMode(settings?: CRMBoardSettings | Record<stri
 }
 
 export function isClientOwnerUser(user: unknown): boolean {
-  const u = user as { role?: string; client_id?: unknown; user_id?: unknown } | null;
+  const u = user as { role?: string } | null;
   if (!u) return false;
-  if (u.role === 'admin') return true;
-  return Boolean(u.client_id) && !u.user_id;
+  // Alinhado com a gestão de equipe (get_principal_users): titulares são
+  // usuários com role 'admin' ou 'user'.
+  return u.role === 'admin' || u.role === 'user';
 }
 
 /**
