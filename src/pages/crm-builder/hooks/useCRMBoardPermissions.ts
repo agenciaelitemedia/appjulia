@@ -57,6 +57,17 @@ export function useIsBoardOwner(): boolean {
   return isClientOwnerUser(user);
 }
 
+/**
+ * Bypass total das regras — reservado a administradores globais.
+ * Donos de cliente (role='user' sem user_id) continuam podendo gerenciar
+ * permissões via `useIsBoardOwner`, mas passam pela filtragem normal para
+ * que o modo "Perfil"/"Usuário" tenha efeito também sobre eles.
+ */
+function isFullAccessUser(user: unknown): boolean {
+  const u = user as { role?: string } | null;
+  return u?.role === 'admin';
+}
+
 /** Fetch all permission rules for a board (owner-scoped in UI). */
 export function useBoardPermissions(boardId: string | null) {
   const [rules, setRules] = useState<BoardPermissionRule[]>([]);
@@ -168,6 +179,7 @@ export function useBoardPermissions(boardId: string | null) {
 export function useEffectiveBoardPermission(boardId: string | null): EffectiveBoardPermission {
   const { user } = useAuth();
   const isOwner = useIsBoardOwner();
+  const hasFullAccess = isFullAccessUser(user);
   const [rules, setRules] = useState<BoardPermissionRule[] | null>(null);
   const [mode, setMode] = useState<BoardPermissionMode | null>(null);
 
@@ -236,14 +248,14 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
   return useMemo<EffectiveBoardPermission>(() => {
     const loading = rules === null || mode === null;
     const permissionMode = mode ?? DEFAULT_PERMISSION_MODE;
-    if (isOwner) {
+    if (hasFullAccess) {
       return {
         canView: true,
         canCreate: true,
         canEdit: true,
         canDelete: true,
         canManage: true,
-        isOwner: true,
+        isOwner,
         loading,
         hasRules: (rules?.length ?? 0) > 0,
         mode: permissionMode,
@@ -256,7 +268,7 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
         canEdit: false,
         canDelete: false,
         canManage: false,
-        isOwner: false,
+        isOwner,
         loading,
         hasRules: false,
         mode: permissionMode,
@@ -268,8 +280,8 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
         canCreate: true,
         canEdit: true,
         canDelete: true,
-        canManage: false,
-        isOwner: false,
+        canManage: isOwner,
+        isOwner,
         loading: false,
         hasRules: (rules?.length ?? 0) > 0,
         mode: permissionMode,
@@ -288,11 +300,11 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
       canCreate: any('can_create'),
       canEdit: any('can_edit'),
       canDelete: any('can_delete'),
-      canManage: false,
-      isOwner: false,
+      canManage: isOwner,
+      isOwner,
       loading: false,
       hasRules: true,
       mode: permissionMode,
     };
-  }, [rules, mode, user, isOwner]);
+  }, [rules, mode, user, isOwner, hasFullAccess]);
 }
