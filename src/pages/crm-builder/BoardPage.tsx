@@ -53,6 +53,7 @@ import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormDa
 import { DEFAULT_BOARD_SORT } from './types';
 import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation';
 import { cn } from '@/lib/utils';
+import { isOwnerUser } from '@/lib/auth/isOwner';
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();

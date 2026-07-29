@@ -48,6 +48,7 @@ import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
 import type { ConversationFilterStatus } from '@/types/conversation';
 import type { ChatContact } from '@/types/chat';
 import { cn } from '@/lib/utils';
+import { isOwnerUser } from '@/lib/auth/isOwner';
 
 type ConversationModeFilter = 'all' | 'julia' | 'human';
 type AssigneeFilter = 'all' | 'mine' | 'unassigned';
