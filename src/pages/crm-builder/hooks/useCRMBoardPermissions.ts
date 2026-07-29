@@ -292,7 +292,11 @@ export function useEffectiveBoardPermission(boardId: string | null): EffectiveBo
     const activeRules = rules ?? [];
     const matches = activeRules.filter((r) => {
       if (permissionMode === 'user') return r.subject_type === 'user' && r.subject_id === uid;
-      return r.subject_type === 'role' && r.subject_id === role;
+      // Modo 'role': aceita perfil do usuário OU usuário adicionado explicitamente.
+      return (
+        (r.subject_type === 'role' && r.subject_id === role) ||
+        (r.subject_type === 'user' && r.subject_id === uid)
+      );
     });
     const any = (k: keyof BoardPermissionRule) => matches.some((r) => Boolean(r[k]));
     return {
