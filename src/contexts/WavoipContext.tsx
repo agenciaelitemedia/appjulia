@@ -115,10 +115,15 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       connection_status: d.connection_status,
     }));
     setDevices(userDevicesRef.current);
-    // Retorna todos os tokens conhecidos (para o SDK carregar) — quem filtra
-    // por conexão real é o discador via devicesCount/connectedNumbers.
-    const allTokens = allDevs.map((d: any) => d.device_token).filter(Boolean);
-    return { active: true, tokens: allTokens };
+    // Só carregamos no SDK tokens de dispositivos pareados (ou em pareamento).
+    // Dispositivos desconectados/erro geram WebSocket falho em loop em
+    // wss://devices.wavoip.com/<token>/websocket — ruído puro no console.
+    // O pareamento (/wavoip) faz add/enable explícito quando necessário.
+    const enableTokens = allDevs
+      .filter((d: any) => d.connection_status === 'connected' || d.connection_status === 'connecting')
+      .map((d: any) => d.device_token)
+      .filter(Boolean);
+    return { active: true, tokens: enableTokens };
   }, [clientId, user?.id]);
 
   const ensureWebphone = useCallback(async (): Promise<WavoipApi | null> => {
