@@ -99,6 +99,8 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
   const [liveDeviceStatuses, setLiveDeviceStatuses] = useState<Record<string, string>>({});
   const liveDeviceStatusesRef = useRef<Record<string, string>>({});
 
+  const allowedTokensRef = useRef<string[]>([]);
+
   const loadPlanAndDevices = useCallback(async (): Promise<{ active: boolean; tokens: string[] }> => {
     if (!clientId) {
       setHasActivePlan(false);
@@ -175,8 +177,6 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     allowedTokensRef.current = enableTokens;
     return { active: true, tokens: enableTokens };
   }, [clientId, user?.id]);
-
-  const allowedTokensRef = useRef<string[]>([]);
 
   const ensureWebphone = useCallback(async (): Promise<WavoipApi | null> => {
     if (apiRef.current || (window as any).wavoip) {
