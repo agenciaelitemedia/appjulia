@@ -172,6 +172,7 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       .filter((d: any) => d.connection_status === 'connected' || d.connection_status === 'connecting')
       .map((d: any) => d.device_token)
       .filter(Boolean);
+    allowedTokensRef.current = enableTokens;
     return { active: true, tokens: enableTokens };
   }, [clientId, user?.id]);
 
