@@ -16,8 +16,7 @@ import { QueueAccessDialog } from './QueueAccessDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-const DELETE_ALLOWED_ROLES = ['admin', 'colaborador', 'user'] as const;
+import { isOwnerUser } from '@/lib/auth/isOwner';
 
 const channelIcons: Record<string, React.ReactNode> = {
   uazapi: <Phone className="w-4 h-4" />,
@@ -54,7 +53,7 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
   const [subscribing, setSubscribing] = useState(false);
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const canDelete = !!user?.role && (DELETE_ALLOWED_ROLES as readonly string[]).includes(user.role);
+  const canDelete = isOwnerUser(user);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
   const { flags: clientFlags } = useClientAutomationFlags();
   const { updateQueue } = useQueueMutations();

@@ -53,6 +53,7 @@ import type { CRMBoard, CRMPipeline, CRMDeal, CRMPipelineFormData, CRMDealFormDa
 import { DEFAULT_BOARD_SORT } from './types';
 import { CRMScrollNavigation } from '@/pages/crm/components/CRMScrollNavigation';
 import { cn } from '@/lib/utils';
+import { isOwnerUser } from '@/lib/auth/isOwner';
 
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
@@ -61,7 +62,7 @@ export default function BoardPage() {
   const { user } = useAuth();
   const codAgent = user?.cod_agent?.toString() || '';
   const clientId = user?.client_id ? String(user.client_id) : '';
-  const canManage = user?.role === 'user' || user?.role === 'admin' || user?.role === 'colaborador';
+  const canManage = isOwnerUser(user);
 
   // Permissões granulares configuradas pelo dono do CRM.
   const boardPerms = useEffectiveBoardPermission(boardId || null);
