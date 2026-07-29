@@ -734,8 +734,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   // users that are NOT admin/colaborador/user only see open conversations
   // assigned to themselves. Pending (Em Aberto) remains visible to everyone
   // with queue access so they can claim new chats.
-  const PRIVILEGED_ROLES = ['admin', 'colaborador', 'user'];
-  const isPrivileged = isAdmin || PRIVILEGED_ROLES.includes(user?.role || '');
+  const isPrivileged = isAdmin || isOwnerUser(user);
   const restrictOpenToMine = !isPrivileged;
   const isVisibleByOpenScope = React.useCallback(
     (contactId: string) => {

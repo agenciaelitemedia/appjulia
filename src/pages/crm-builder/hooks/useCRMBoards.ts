@@ -5,7 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { CRMBoard, CRMBoardFormData } from '../types';
 import { logCRMAudit } from './useCRMAuditLog';
-import { getBoardPermissionMode, isClientOwnerUser, type BoardPermissionRule } from './useCRMBoardPermissions';
+import { getBoardPermissionMode, type BoardPermissionRule } from './useCRMBoardPermissions';
+import { isOwnerUser } from '@/lib/auth/isOwner';
 
 interface UseCRMBoardsOptions {
   clientId: string;
@@ -20,7 +21,7 @@ export function useCRMBoards({ clientId, codAgent, canManage = true }: UseCRMBoa
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const isOwner = isClientOwnerUser(user);
+  const isOwner = isOwnerUser(user);
 
   // React Query-backed cache: instant return on revisits, background refresh,
   // shared between all hook instances mounted with the same clientId.

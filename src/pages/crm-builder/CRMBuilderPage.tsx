@@ -28,15 +28,15 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { AuditLogPanel } from './components/audit/AuditLogPanel';
-import { isClientOwnerUser } from './hooks/useCRMBoardPermissions';
+import { isOwnerUser } from '@/lib/auth/isOwner';
 
 export default function CRMBuilderPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const codAgent = user?.cod_agent?.toString() || '';
   const clientId = user?.client_id ? String(user.client_id) : '';
-  const canManage = user?.role === 'user' || user?.role === 'admin' || user?.role === 'colaborador';
-  const canOpenBoardSettings = isClientOwnerUser(user);
+  const canManage = isOwnerUser(user);
+  const canOpenBoardSettings = isOwnerUser(user);
 
   const {
     boards,

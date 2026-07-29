@@ -17,6 +17,7 @@ import {
 import { Star, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import type { TaskTemplate } from '@/hooks/useTaskTemplates';
+import { isOwnerUser } from '@/lib/auth/isOwner';
 
 interface AddRankedTasksDialogProps {
   open: boolean;
@@ -37,8 +38,7 @@ export function AddRankedTasksDialog({ open, onOpenChange, dealId, clientId }: A
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  const ALLOWED_FULL_LIST_ROLES = ['admin', 'colaborador', 'user'];
-  const canSeeFullTeam = !!user?.role && ALLOWED_FULL_LIST_ROLES.includes(user.role);
+  const canSeeFullTeam = isOwnerUser(user);
   const visibleTeam = canSeeFullTeam
     ? team
     : team.filter((m) => String(m.id) === String(user?.id ?? ''));

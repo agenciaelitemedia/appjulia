@@ -61,7 +61,7 @@ export default function BoardPage() {
   const { user } = useAuth();
   const codAgent = user?.cod_agent?.toString() || '';
   const clientId = user?.client_id ? String(user.client_id) : '';
-  const canManage = user?.role === 'user' || user?.role === 'admin' || user?.role === 'colaborador';
+  const canManage = isOwnerUser(user);
 
   // Permissões granulares configuradas pelo dono do CRM.
   const boardPerms = useEffectiveBoardPermission(boardId || null);
