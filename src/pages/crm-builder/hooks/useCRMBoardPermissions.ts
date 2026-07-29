@@ -64,8 +64,10 @@ export function useIsBoardOwner(): boolean {
  * que o modo "Perfil"/"Usuário" tenha efeito também sobre eles.
  */
 function isFullAccessUser(user: unknown): boolean {
+  if (!user) return false;
   const u = user as { role?: string } | null;
-  return u?.role === 'admin';
+  if (u?.role === 'admin') return true;
+  return isClientOwnerUser(user);
 }
 
 /** Fetch all permission rules for a board (owner-scoped in UI). */
