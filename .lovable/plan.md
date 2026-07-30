@@ -1,24 +1,32 @@
-# Permissões de quadro: bypass de admin/owner e modo Perfil combinado
+# Mover conversas de filas excluídas para a fila MRA
 
-## Comportamento atual (verificado no código)
+## Situação atual (verificada no banco)
 
-- `useEffectiveBoardPermission` já concede acesso total a admin e owner (`isFullAccessUser` → `admin | user | colaborador`). ✅ isso já atende "admin e owner veem e gerenciam tudo".
-- No modo **Perfil**, tanto `useEffectiveBoardPermission` quanto o filtro de listagem em `useCRMBoards` consideram **apenas** regras `subject_type='role'`. Regras individuais (`subject_type='user'`) adicionadas ao quadro são ignoradas nesse modo — este é o ponto a corrigir.
-- No modo **Usuário** o inverso já é intencional: só regras por usuário contam.
+Client ID **30**. A fila ativa de destino é **MRA** (`9ddbf116…`), hoje com 650 conversas.
 
-## Mudança
+Filas excluídas desse cliente que ainda guardam conversas:
 
-No modo **Perfil**, aceitar união: perfil do usuário **OU** o usuário estar explicitamente listado nas regras. Modo **Usuário** e **Desativada** ficam iguais.
+| Fila excluída | Conversas | Não resolvidas |
+|---|---|---|
+| Mario MRC | 303 | 258 |
+| MCastro | 310 | 282 |
+| Meta Official | 11 | 0 |
+| Oficial | 1 | 0 |
+| **Total** | **625** | **540** |
 
-### Arquivos
+As demais filas excluídas (mario, Comercial, Waba etc.) estão sem conversas.
 
-1. `src/pages/crm-builder/hooks/useCRMBoardPermissions.ts` — em `useEffectiveBoardPermission`, ajustar o `matches` do modo `role`:
-   - manter: `subject_type='role' && subject_id === role`
-   - adicionar: `OR subject_type='user' && subject_id === uid`
-2. `src/pages/crm-builder/hooks/useCRMBoards.ts` — no filtro de listagem, aplicar a mesma união no modo `role` para que o quadro apareça também para usuários adicionados individualmente.
+## O que será feito
 
-## Fora do escopo
+1. Mover as **625 conversas** dessas 4 filas excluídas para a fila **MRA**.
+2. Marcar todas como **resolvidas** (status `resolved`, data de resolução preenchida, com observação de encerramento indicando que vieram de fila excluída). Conversas que já estavam resolvidas/fechadas mantêm o status original.
+3. Mover também as **mensagens** vinculadas a essas filas para MRA, para que o histórico continue coerente com a conversa.
+4. Registrar cada movimentação no histórico da conversa, para auditoria.
 
-- UI do `PermissionsManager` (já permite adicionar usuários individuais nos dois modos — nada muda visualmente).
-- Regras de admin/owner (já corretas).
-- Modo Usuário e Desativada (sem alteração).
+## Detalhes técnicos
+
+- Operação de dados (ferramenta de insert/update), sem mudança de schema.
+- `UPDATE chat_conversations SET queue_id = MRA, status = 'resolved', resolved_at = now(), close_note` para as conversas cujo `queue_id` está entre as 4 filas com `is_active = false` do client 30.
+- `UPDATE chat_messages SET queue_id = MRA` para o mesmo conjunto de filas.
+- `INSERT INTO chat_conversation_history (action = 'queue_migrated_bulk', actor_name = 'system')` para cada conversa movida.
+- As filas excluídas permanecem excluídas (não são reativadas).
