@@ -10,6 +10,9 @@ Estudo técnico do sistema (gerado por análise do código-fonte, 2026-07). Pont
 - [tickets-telemetry.md](tickets-telemetry.md) — Helpdesk/Tickets, Telemetria, Notificações.
 - [telephony-payments.md](telephony-payments.md) — Telefonia (SIP/Wavoip), Pagamentos, Vídeo.
 
+## Handoff de dados (para agentes de IA)
+- [data-handoff.md](data-handoff.md) — dossiê para outro agente se conectar aos dois bancos: como consultar cada um, chaves de correlação (telefone/`cod_agent`/`client_id`), dicionário de tabelas verificado ao vivo, mecanismo de integração Chat↔CRM↔Agentes, cookbook de queries de relatório e riscos a observar.
+
 ## Protótipos
 - [prototipos/callcenter-recuperacao.html](prototipos/callcenter-recuperacao.html) — protótipo navegável do módulo **Call Center (Recuperação de Oportunidades)**: fila priorizada de leads com problema + workspace com fluxo guiado sequencial e a conversa do WhatsApp sempre visível. Abrir direto no navegador.
 
