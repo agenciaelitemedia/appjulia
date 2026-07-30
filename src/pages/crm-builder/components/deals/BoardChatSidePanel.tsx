@@ -1,27 +1,34 @@
 import { ChatSidePanel } from '@/components/chat/ChatSidePanel';
 import { useDealConversation } from '../../hooks/useDealConversation';
 import { useAuth } from '@/contexts/AuthContext';
+import { isOwnerUser } from '@/lib/auth/isOwner';
+import type { BoardPermissionMode } from '../../types';
 import type { CRMDeal } from '../../types';
 
 interface BoardChatSidePanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   deal: CRMDeal | null;
+  /** Modo de permissão do quadro. 'disabled' libera as ações do chat. */
+  permissionMode?: BoardPermissionMode;
 }
 
 /**
  * Wrapper fino que resolve a conversa vinculada ao deal e delega o render
  * para o painel reusável `ChatSidePanel`.
  */
-export function BoardChatSidePanel({ open, onOpenChange, deal }: BoardChatSidePanelProps) {
+export function BoardChatSidePanel({ open, onOpenChange, deal, permissionMode = 'disabled' }: BoardChatSidePanelProps) {
   const { data: conv, isLoading } = useDealConversation(deal);
-  const { hasPermission, isAdmin } = useAuth();
-  // Só permite escrita no chat (assumir/enviar) se o usuário tiver o módulo
-  // `chat_admin`. Sem ele, o painel abre em modo somente-leitura.
+  const { hasPermission, isAdmin, user } = useAuth();
+  // Regras:
+  //  1. Admin ou dono do client_id: acesso total sempre.
+  //  2. Permissionamento do quadro desativado: acesso total.
+  //  3. Permissionamento ativo: precisa do módulo `chat` (inbox, rota /chat).
   const canWriteChat =
     isAdmin ||
-    hasPermission('chat_admin', 'edit') ||
-    hasPermission('chat_admin', 'create');
+    isOwnerUser(user) ||
+    permissionMode === 'disabled' ||
+    hasPermission('chat', 'view');
 
   const target = conv
     ? {

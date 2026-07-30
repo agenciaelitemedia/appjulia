@@ -890,6 +890,7 @@ export default function BoardPage() {
         open={!!chatPanelDeal}
         onOpenChange={(o) => { if (!o) setChatPanelDeal(null); }}
         deal={chatPanelDeal}
+        permissionMode={boardPerms.mode}
       />
 
       {/* Fixed bottom scroll navigation */}
