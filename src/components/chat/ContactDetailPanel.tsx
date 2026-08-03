@@ -331,13 +331,17 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
       const corrected = (data as { corrected?: number })?.corrected ?? 0;
-      if (corrected > 0) {
-        toast.success(`${corrected} mensagem(ns) com data corrigida`);
+      const imported = (data as { imported?: number })?.imported ?? 0;
+      if (corrected > 0 || imported > 0) {
+        const parts: string[] = [];
+        if (corrected > 0) parts.push(`${corrected} data(s) corrigida(s)`);
+        if (imported > 0) parts.push(`${imported} mensagem(ns) importada(s)`);
+        toast.success(parts.join(' · '));
         queryClient.invalidateQueries({ queryKey: ['chat-messages'] });
         queryClient.invalidateQueries({ queryKey: ['chat-contacts'] });
         queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
       } else {
-        toast.info('Nenhuma data divergente encontrada');
+        toast.info('Conversa já está sincronizada');
       }
     } catch (e) {
       toast.error(`Falha ao ressincronizar: ${(e as Error).message}`);
@@ -539,7 +543,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                             ) : (
                               <RefreshCw className="h-3 w-3 mr-1.5" />
                             )}
-                            Ressincronizar datas
+                            Ressincronizar conversa
                           </Button>
                         </div>
                       )}
