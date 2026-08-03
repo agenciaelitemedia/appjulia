@@ -1,9 +1,9 @@
 // ============================================
 // chat-resync-timestamps
-// Busca o histórico real do chat na UaZapi (POST /message/find) e corrige
-// APENAS as datas (timestamp/created_at) das mensagens já persistidas,
-// além de recalcular os agregados da conversa/contato.
-// Nunca cria, apaga ou reescreve conteúdo de mensagens.
+// Busca o histórico real do chat na UaZapi (POST /message/find), corrige as
+// datas (timestamp/created_at) das mensagens já persistidas E importa as
+// mensagens que existem no provedor mas não existem localmente.
+// Nunca apaga nem reescreve conteúdo de mensagens existentes.
 // ============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
@@ -42,6 +42,65 @@ function tsToIso(raw: any): string | null {
 
 function onlyDigits(v: string) {
   return (v || '').replace(/\D/g, '');
+}
+
+function isGroupChatId(value: unknown): boolean {
+  return typeof value === 'string' && value.includes('@g.us');
+}
+
+function isGroupMessage(msg: any): boolean {
+  if (!msg || typeof msg !== 'object') return false;
+  return isGroupChatId(msg.key?.remoteJid)
+    || isGroupChatId(msg.remoteJid)
+    || isGroupChatId(msg.chatId)
+    || isGroupChatId(msg.chatid)
+    || isGroupChatId(msg.wa_chatid)
+    || isGroupChatId(msg.from)
+    || isGroupChatId(msg.to)
+    || msg.isGroup === true
+    || msg.wa_isGroup === true
+    || msg.is_group === true
+    || !!msg.groupName
+    || !!msg.wa_groupName
+    || !!msg.group_name
+    || !!msg.participant
+    || !!msg.key?.participant;
+}
+
+function extractText(msg: any): string | undefined {
+  if (typeof msg.text === 'string' && msg.text) return msg.text;
+  if (msg.text?.body) return msg.text.body;
+  if (typeof msg.content === 'string' && msg.content) return msg.content;
+  if (msg.body) return msg.body;
+  if (msg.message?.conversation) return msg.message.conversation;
+  if (msg.message?.extendedTextMessage?.text) return msg.message.extendedTextMessage.text;
+  if (msg.message?.imageMessage?.caption) return msg.message.imageMessage.caption;
+  if (msg.message?.videoMessage?.caption) return msg.message.videoMessage.caption;
+  return undefined;
+}
+
+function extractType(msg: any): string {
+  const mt = String(msg.messageType || msg.mediaType || msg.type || '').toLowerCase();
+  if (mt.includes('image') || msg.message?.imageMessage) return 'image';
+  if (mt.includes('video') || msg.message?.videoMessage) return 'video';
+  if (mt.includes('ptt') || msg.message?.audioMessage?.ptt) return 'ptt';
+  if (mt.includes('audio') || msg.message?.audioMessage) return 'audio';
+  if (mt.includes('document') || msg.message?.documentMessage) return 'document';
+  if (mt.includes('sticker') || msg.message?.stickerMessage) return 'sticker';
+  if (mt.includes('location') || msg.message?.locationMessage) return 'location';
+  if (mt.includes('contact') || msg.message?.contactMessage) return 'contact';
+  return 'text';
+}
+
+function extractMediaUrl(msg: any): string | undefined {
+  return msg.mediaUrl
+    || msg.media?.url
+    || msg.fileURL
+    || msg.message?.imageMessage?.url
+    || msg.message?.videoMessage?.url
+    || msg.message?.audioMessage?.url
+    || msg.message?.documentMessage?.url
+    || undefined;
 }
 
 Deno.serve(async (req) => {
@@ -101,26 +160,51 @@ Deno.serve(async (req) => {
       return json({ error: 'Ressincronização disponível apenas para filas UaZapi conectadas' }, 400);
     }
 
-    // ── Busca histórico real na UaZapi ──
+    // ── Busca histórico real na UaZapi (paginado) ──
     const chatid = `${onlyDigits(contact.phone)}@s.whatsapp.net`;
-    const res = await fetch(`${String(queue.evo_url).replace(/\/$/, '')}/message/find`, {
-      method: 'POST',
-      headers: { token: queue.evo_apikey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chatid, limit }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      return json({ error: `UaZapi respondeu ${res.status}`, details: body.slice(0, 400) }, 502);
+    const endpoint = `${String(queue.evo_url).replace(/\/$/, '')}/message/find`;
+    const pageSize = Math.min(limit, 200);
+    const remote: any[] = [];
+    const seenRemoteIds = new Set<string>();
+
+    for (let offset = 0; remote.length < limit; offset += pageSize) {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { token: queue.evo_apikey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatid, limit: pageSize, offset }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        if (offset === 0) {
+          return json({ error: `UaZapi respondeu ${res.status}`, details: body.slice(0, 400) }, 502);
+        }
+        break;
+      }
+      const raw = await res.json();
+      const page: any[] = Array.isArray(raw) ? raw : (raw?.messages ?? raw?.data ?? []);
+      if (!Array.isArray(page)) {
+        if (offset === 0) return json({ error: 'Resposta inesperada da UaZapi' }, 502);
+        break;
+      }
+      let added = 0;
+      for (const m of page) {
+        const id = m?.id || m?.messageid || m?.messageId || m?.key?.id;
+        if (!id || seenRemoteIds.has(String(id))) continue;
+        seenRemoteIds.add(String(id));
+        remote.push(m);
+        added++;
+      }
+      if (page.length < pageSize || added === 0) break;
     }
-    const raw = await res.json();
-    const remote: any[] = Array.isArray(raw) ? raw : (raw?.messages ?? raw?.data ?? []);
-    if (!Array.isArray(remote)) return json({ error: 'Resposta inesperada da UaZapi' }, 502);
 
     const remoteById = new Map<string, string>();
+    const remoteMsgById = new Map<string, any>();
     for (const m of remote) {
       const id = m?.id || m?.messageid || m?.messageId || m?.key?.id;
       const iso = tsToIso(m?.messageTimestamp ?? m?.timestamp);
-      if (id && iso) remoteById.set(String(id), iso);
+      if (!id) continue;
+      remoteMsgById.set(String(id), m);
+      if (iso) remoteById.set(String(id), iso);
     }
 
     // ── Mensagens locais ──
@@ -132,9 +216,13 @@ Deno.serve(async (req) => {
       .limit(2000);
 
     const fixes: any[] = [];
+    const localIds = new Set<string>();
     for (const m of localMsgs ?? []) {
       const externalId = m.message_id;
       if (!externalId) continue;
+      localIds.add(String(externalId));
+      const shortId = String(externalId).split(':').pop();
+      if (shortId) localIds.add(shortId);
       const realIso = remoteById.get(String(externalId)) ?? remoteById.get(String(externalId).split(':').pop() || '');
       if (!realIso) continue;
       const current = m.timestamp || m.created_at;
@@ -159,9 +247,81 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Detecta e importa mensagens que existem no provedor mas não localmente ──
+    let conversationId: string | null = null;
+    {
+      const { data: openConv } = await supabase
+        .from('chat_conversations')
+        .select('id')
+        .eq('contact_id', contact.id)
+        .in('status', ['pending', 'open'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (openConv) conversationId = openConv.id;
+      if (!conversationId) {
+        const { data: anyConv } = await supabase
+          .from('chat_conversations')
+          .select('id')
+          .eq('contact_id', contact.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        conversationId = anyConv?.id ?? null;
+      }
+    }
+
+    const missing: any[] = [];
+    for (const [id, msg] of remoteMsgById.entries()) {
+      if (localIds.has(id) || localIds.has(id.split(':').pop() || '')) continue;
+      if (isGroupMessage(msg)) continue; // chat individual: descarta vazamento de grupo
+      const iso = tsToIso(msg?.messageTimestamp ?? msg?.timestamp);
+      if (!iso) continue;
+      const fromMe = msg.from_me ?? msg.fromMe ?? msg.key?.fromMe ?? false;
+      const text = extractText(msg);
+      const type = extractType(msg);
+      missing.push({
+        message_id: id,
+        timestamp: iso,
+        from_me: !!fromMe,
+        type,
+        preview: (text || type || '').toString().slice(0, 60),
+        row: {
+          contact_id: contact.id,
+          client_id: contact.client_id,
+          message_id: id,
+          external_id: id,
+          text: text ?? null,
+          type,
+          from_me: !!fromMe,
+          status: 'read',
+          media_url: extractMediaUrl(msg) || null,
+          timestamp: iso,
+          created_at: iso,
+          channel_type: 'whatsapp_uazapi',
+          conversation_id: conversationId,
+          sender_name: fromMe ? null : (msg.senderName || msg.pushName || msg.wa_contactName || null),
+          raw_payload: msg,
+          metadata: { resynced: true },
+        },
+      });
+    }
+
+    let imported = 0;
+    if (!dryRun && missing.length > 0) {
+      for (let i = 0; i < missing.length; i += 50) {
+        const chunk = missing.slice(i, i + 50).map((m) => m.row);
+        const { error } = await supabase
+          .from('chat_messages')
+          .upsert(chunk, { onConflict: 'message_id', ignoreDuplicates: true });
+        if (!error) imported += chunk.length;
+        else console.warn('[chat-resync-timestamps] import chunk error:', error.message);
+      }
+    }
+
     // ── Recalcula agregados da conversa/contato ──
     let aggregates: any = null;
-    if (!dryRun && fixes.length > 0) {
+    if (!dryRun && (fixes.length > 0 || imported > 0)) {
       const { data: latest } = await supabase
         .from('chat_messages')
         .select('id, timestamp, created_at, from_me, text, type, conversation_id')
@@ -214,6 +374,10 @@ Deno.serve(async (req) => {
       local_messages: (localMsgs ?? []).length,
       corrected: fixes.length,
       fixes,
+      imported: dryRun ? missing.length : imported,
+      imported_messages: missing.map(({ message_id, timestamp, from_me, type, preview }) => ({
+        message_id, timestamp, from_me, type, preview,
+      })),
       aggregates,
     });
   } catch (e) {
