@@ -524,6 +524,25 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                           <span className="text-xs text-muted-foreground">N/A</span>
                         )}
                       </div>
+                      {canResync && (
+                        <div className="pt-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={handleResyncTimestamps}
+                            disabled={isResyncing}
+                            title="Compara as datas com o WhatsApp e corrige mensagens fora de ordem"
+                          >
+                            {isResyncing ? (
+                              <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3 w-3 mr-1.5" />
+                            )}
+                            Ressincronizar datas
+                          </Button>
+                        </div>
+                      )}
                       {(() => {
                         const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
                           low:    { label: 'Baixa',   color: 'text-muted-foreground' },
