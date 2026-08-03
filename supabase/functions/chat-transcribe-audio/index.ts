@@ -166,6 +166,11 @@ Deno.serve(async (req) => {
 
         const mediaId = extractWabaMediaId(msg);
         if (!mediaId) {
+          // Outbound/API-logged audio with no stored media: nothing to transcribe.
+          if (!msg.media_url && !msg.raw_payload) {
+            await markFailed(supabase, msg, "no_media");
+            return ok({ ok: false, error: "no media stored", reason: "no_media" });
+          }
           await markFailed(supabase, msg, "waba_media_id_missing");
           return ok({ ok: false, error: "waba media id missing", reason: "waba_media_id_missing" });
         }
