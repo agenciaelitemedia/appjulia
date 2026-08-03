@@ -30,6 +30,35 @@ function ok(body: unknown) {
   });
 }
 
+function isWabaChannel(msg: any, queue: any): boolean {
+  const ct = String(queue?.channel_type ?? msg?.channel_type ?? "").toLowerCase();
+  if (ct === "waba" || ct === "whatsapp_waba") return true;
+  if (String(queue?.hub ?? "").toLowerCase() === "waba") return true;
+  if (typeof msg?.media_url === "string" && msg.media_url.startsWith("waba_media:")) return true;
+  return false;
+}
+
+function extractWabaMediaId(msg: any): string | null {
+  if (typeof msg?.media_url === "string" && msg.media_url.startsWith("waba_media:")) {
+    return msg.media_url.replace("waba_media:", "").trim() || null;
+  }
+  const raw = msg?.raw_payload || {};
+  for (const k of ["audio", "voice", "video", "document"]) {
+    if (raw?.[k]?.id) return String(raw[k].id);
+  }
+  if (raw?.media?.id) return String(raw.media.id);
+  return null;
+}
+
+async function bytesToBase64(bytes: Uint8Array): Promise<string> {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -49,7 +78,7 @@ Deno.serve(async (req) => {
     // 1) Load message
     const { data: msg, error: msgErr } = await supabase
       .from("chat_messages")
-      .select("id, client_id, type, conversation_id, message_id, external_id, metadata")
+      .select("id, client_id, type, conversation_id, message_id, external_id, metadata, media_url, channel_type, raw_payload")
       .eq("id", messageId)
       .maybeSingle();
 
@@ -79,41 +108,110 @@ Deno.serve(async (req) => {
 
     const { data: queue } = await supabase
       .from("queues")
-      .select("evo_url, evo_apikey, hub")
+      .select("id, channel_type, hub, evo_url, evo_apikey, waba_token, waba_number_id, client_id")
       .eq("id", conv.queue_id)
       .maybeSingle();
 
-    if (!queue?.evo_url || !queue?.evo_apikey) {
-      await markFailed(supabase, msg, "queue_credentials_missing");
-      return ok({ ok: false, error: "queue uazapi credentials missing", reason: "queue_credentials_missing" });
+    const wabaMode = isWabaChannel(msg, queue);
+
+    // 3) Download audio (channel-aware)
+    let base64Data: string | null = null;
+    let mimetype = "audio/ogg";
+    let audioUrl: string | null = null;
+    let audioDurationS: number | null = null;
+    let extId: string | null = msg.external_id || msg.message_id || null;
+
+    if (wabaMode) {
+      // 3a) WABA (API Oficial): prefer already-persisted media, else Graph API via waba-send
+      const persisted =
+        typeof msg.media_url === "string" &&
+        /^https?:\/\//i.test(msg.media_url) &&
+        !msg.media_url.startsWith("waba_media:")
+          ? msg.media_url
+          : null;
+
+      if (persisted) {
+        const res = await fetch(persisted);
+        if (!res.ok) {
+          await markFailed(supabase, msg, "download_failed");
+          return ok({ ok: false, error: "download failed", reason: "download_failed", status: res.status });
+        }
+        mimetype = res.headers.get("content-type") || "audio/ogg";
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (bytes.length > MAX_BASE64_BYTES) {
+          await markFailed(supabase, msg, "audio_too_large");
+          return ok({ ok: false, error: "audio too large", reason: "audio_too_large" });
+        }
+        base64Data = await bytesToBase64(bytes);
+        audioUrl = persisted;
+      } else {
+        let wabaQueue = queue?.waba_token && queue?.waba_number_id ? queue : null;
+        if (!wabaQueue) {
+          const { data } = await supabase
+            .from("queues")
+            .select("id, waba_token, waba_number_id")
+            .eq("client_id", msg.client_id)
+            .in("channel_type", ["whatsapp_waba", "waba"])
+            .not("waba_token", "is", null)
+            .not("waba_number_id", "is", null)
+            .limit(1)
+            .maybeSingle();
+          if (data) wabaQueue = data as any;
+        }
+        if (!wabaQueue) {
+          await markFailed(supabase, msg, "waba_credentials_missing");
+          return ok({ ok: false, error: "waba credentials missing", reason: "waba_credentials_missing" });
+        }
+
+        const mediaId = extractWabaMediaId(msg);
+        if (!mediaId) {
+          await markFailed(supabase, msg, "waba_media_id_missing");
+          return ok({ ok: false, error: "waba media id missing", reason: "waba_media_id_missing" });
+        }
+        extId = extId || mediaId;
+
+        const { data: dlData, error: dlErr } = await supabase.functions.invoke("waba-send", {
+          body: { action: "download_media", queue_id: wabaQueue.id, media_id: mediaId },
+        });
+        if (dlErr || !dlData?.base64) {
+          console.warn("[chat-transcribe-audio] waba download failed:", dlErr?.message || dlData?.error);
+          await markFailed(supabase, msg, "download_failed");
+          return ok({ ok: false, error: "download failed", reason: "download_failed" });
+        }
+        base64Data = dlData.base64;
+        mimetype = dlData.mimetype || msg.metadata?.mimetype || "audio/ogg";
+      }
+    } else {
+      // 3b) UaZapi: decrypt via /message/download
+      if (!queue?.evo_url || !queue?.evo_apikey) {
+        await markFailed(supabase, msg, "queue_credentials_missing");
+        return ok({ ok: false, error: "queue uazapi credentials missing", reason: "queue_credentials_missing" });
+      }
+      if (!extId) {
+        await markFailed(supabase, msg, "external_id_missing");
+        return ok({ ok: false, error: "external_id missing", reason: "external_id_missing" });
+      }
+
+      const baseUrl = queue.evo_url.replace(/\/$/, "");
+      const downloadResp = await fetch(`${baseUrl}/message/download`, {
+        method: "POST",
+        headers: { token: queue.evo_apikey, "Content-Type": "application/json" },
+        body: JSON.stringify({ id: extId, return_base64: true, return_link: false, generate_mp3: false }),
+      });
+
+      if (!downloadResp.ok) {
+        const errTxt = await downloadResp.text();
+        console.warn(`[chat-transcribe-audio] download failed ${downloadResp.status}: ${errTxt}`);
+        await markFailed(supabase, msg, "download_failed");
+        return ok({ ok: false, error: "download failed", reason: "download_failed", status: downloadResp.status });
+      }
+
+      const dl = await downloadResp.json();
+      base64Data = dl.base64Data || dl.base64 || dl.data || dl.file || null;
+      mimetype = dl.mimetype || dl.mimeType || dl.mime || "audio/ogg";
+      audioUrl = dl.url || dl.fileURL || dl.link || null;
+      audioDurationS = dl.seconds || dl.duration || null;
     }
-
-    // 3) Download decrypted audio via UaZapi /message/download
-    const extId = msg.external_id || msg.message_id;
-    if (!extId) {
-      await markFailed(supabase, msg, "external_id_missing");
-      return ok({ ok: false, error: "external_id missing", reason: "external_id_missing" });
-    }
-
-    const baseUrl = queue.evo_url.replace(/\/$/, "");
-    const downloadResp = await fetch(`${baseUrl}/message/download`, {
-      method: "POST",
-      headers: { token: queue.evo_apikey, "Content-Type": "application/json" },
-      body: JSON.stringify({ id: extId, return_base64: true, return_link: false, generate_mp3: false }),
-    });
-
-    if (!downloadResp.ok) {
-      const errTxt = await downloadResp.text();
-      console.warn(`[chat-transcribe-audio] download failed ${downloadResp.status}: ${errTxt}`);
-      await markFailed(supabase, msg, "download_failed");
-      return ok({ ok: false, error: "download failed", reason: "download_failed", status: downloadResp.status });
-    }
-
-    const dl = await downloadResp.json();
-    const base64Data = dl.base64Data || dl.base64 || dl.data || dl.file || null;
-    const mimetype: string = dl.mimetype || dl.mimeType || dl.mime || "audio/ogg";
-    const audioUrl: string | null = dl.url || dl.fileURL || dl.link || null;
-    const audioDurationS: number | null = dl.seconds || dl.duration || null;
 
     if (!base64Data) {
       await markFailed(supabase, msg, "no_base64");
