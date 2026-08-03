@@ -316,6 +316,36 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
     setIsEditingName(false);
   };
 
+  // ── Ressincronizar datas das mensagens com o provedor (UaZapi) ──
+  const isOwner = useIsOwner();
+  const [isResyncing, setIsResyncing] = useState(false);
+  const canResync = isOwner && !!contact.id;
+
+  const handleResyncTimestamps = async () => {
+    if (isResyncing) return;
+    setIsResyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('chat-resync-timestamps', {
+        body: { contact_id: contact.id, queue_id: queueId || undefined },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      const corrected = (data as { corrected?: number })?.corrected ?? 0;
+      if (corrected > 0) {
+        toast.success(`${corrected} mensagem(ns) com data corrigida`);
+        queryClient.invalidateQueries({ queryKey: ['chat-messages'] });
+        queryClient.invalidateQueries({ queryKey: ['chat-contacts'] });
+        queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      } else {
+        toast.info('Nenhuma data divergente encontrada');
+      }
+    } catch (e) {
+      toast.error(`Falha ao ressincronizar: ${(e as Error).message}`);
+    } finally {
+      setIsResyncing(false);
+    }
+  };
+
   const convTagsKey = ['conv-tags', selectedConversation?.id];
 
   const handleAddTag = async () => {
