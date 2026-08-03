@@ -194,7 +194,6 @@ Deno.serve(async (req) => {
         const convId = last.conversation_id || convs?.[0]?.id;
         if (convId) {
           const update: Record<string, any> = {
-            last_message_at: lastAt,
             last_message_from_me: last.from_me,
             updated_at: lastAt,
           };
