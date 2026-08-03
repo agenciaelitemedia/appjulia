@@ -42,6 +42,7 @@ function extractWabaMediaId(msg: any): string | null {
   if (typeof msg?.media_url === "string" && msg.media_url.startsWith("waba_media:")) {
     return msg.media_url.replace("waba_media:", "").trim() || null;
   }
+  if (msg?.metadata?.waba_media_id) return String(msg.metadata.waba_media_id);
   const raw = msg?.raw_payload || {};
   for (const k of ["audio", "voice", "video", "document"]) {
     if (raw?.[k]?.id) return String(raw[k].id);
