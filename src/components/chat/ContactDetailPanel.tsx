@@ -543,7 +543,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                             ) : (
                               <RefreshCw className="h-3 w-3 mr-1.5" />
                             )}
-                            Ressincronizar datas
+                            Ressincronizar conversa
                           </Button>
                         </div>
                       )}
