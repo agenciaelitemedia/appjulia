@@ -21,6 +21,8 @@ function translateReason(reason?: string | null): string {
     audio_too_large: 'áudio muito grande',
     queue_not_found: 'fila não encontrada',
     queue_credentials_missing: 'credenciais da fila ausentes',
+    waba_credentials_missing: 'credenciais da API Oficial ausentes',
+    waba_media_id_missing: 'mídia da API Oficial sem id',
     external_id_missing: 'id da mensagem ausente',
     no_api_key: 'IA não configurada',
     not_found: 'mensagem não encontrada',
