@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone, Loader2 } from 'lucide-react';
+import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone, Loader2, RefreshCw } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -28,6 +28,7 @@ import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useContactCampaigns, useContactFirstInboundMessage } from './hooks/useContactCampaigns';
 import { ContactCampaignCard } from './ContactCampaignCard';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useIsOwner } from '@/lib/auth/isOwner';
 
 // ─── TagSelector ─────────────────────────────────────────────────────────────
 interface TagSelectorProps {
