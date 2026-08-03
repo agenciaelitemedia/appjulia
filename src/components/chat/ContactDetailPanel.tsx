@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone, Loader2 } from 'lucide-react';
+import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone, Loader2, RefreshCw } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -28,6 +28,7 @@ import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
 import { useContactCampaigns, useContactFirstInboundMessage } from './hooks/useContactCampaigns';
 import { ContactCampaignCard } from './ContactCampaignCard';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useIsOwner } from '@/lib/auth/isOwner';
 
 // ─── TagSelector ─────────────────────────────────────────────────────────────
 interface TagSelectorProps {
@@ -315,6 +316,36 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
     setIsEditingName(false);
   };
 
+  // ── Ressincronizar datas das mensagens com o provedor (UaZapi) ──
+  const isOwner = useIsOwner();
+  const [isResyncing, setIsResyncing] = useState(false);
+  const canResync = isOwner && !!contact.id;
+
+  const handleResyncTimestamps = async () => {
+    if (isResyncing) return;
+    setIsResyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('chat-resync-timestamps', {
+        body: { contact_id: contact.id, queue_id: queueId || undefined },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+      const corrected = (data as { corrected?: number })?.corrected ?? 0;
+      if (corrected > 0) {
+        toast.success(`${corrected} mensagem(ns) com data corrigida`);
+        queryClient.invalidateQueries({ queryKey: ['chat-messages'] });
+        queryClient.invalidateQueries({ queryKey: ['chat-contacts'] });
+        queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
+      } else {
+        toast.info('Nenhuma data divergente encontrada');
+      }
+    } catch (e) {
+      toast.error(`Falha ao ressincronizar: ${(e as Error).message}`);
+    } finally {
+      setIsResyncing(false);
+    }
+  };
+
   const convTagsKey = ['conv-tags', selectedConversation?.id];
 
   const handleAddTag = async () => {
@@ -493,6 +524,25 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
                           <span className="text-xs text-muted-foreground">N/A</span>
                         )}
                       </div>
+                      {canResync && (
+                        <div className="pt-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={handleResyncTimestamps}
+                            disabled={isResyncing}
+                            title="Compara as datas com o WhatsApp e corrige mensagens fora de ordem"
+                          >
+                            {isResyncing ? (
+                              <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3 w-3 mr-1.5" />
+                            )}
+                            Ressincronizar datas
+                          </Button>
+                        </div>
+                      )}
                       {(() => {
                         const PRIORITY_LABELS: Record<string, { label: string; color: string }> = {
                           low:    { label: 'Baixa',   color: 'text-muted-foreground' },
