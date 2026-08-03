@@ -1,56 +1,52 @@
-# API de Leitura dos Dados da Julia (para BI / scripts externos)
+# Ressincronizar mensagens do lead pela UaZapi (corrigir datas)
 
-## Por que não dá acesso direto ao banco
+## Diagnóstico confirmado
 
-- O backend do projeto é gerenciado (Lovable Cloud): não há URL de projeto, senha de banco nem service role key para acesso externo.
-- Os dados da Julia (contratos, sessões, CRM de leads, agentes) não estão nesse banco — estão no **Postgres externo legado**, cujas credenciais ficam apenas nos secrets do backend e são usadas somente pela função interna `db-query`.
-- Portanto, o caminho correto para BI/script é uma **API de leitura própria**, com chave, que consulta esse banco por trás.
+Contato **Tassia — 5519982045075** (client 294, fila Comercial), 1 conversa aberta, **23 mensagens** no chat — exatamente as 23 que a UaZapi retorna. Ou seja, **nenhuma mensagem está faltando: 8 delas estão com a data 3 horas atrasada**.
 
-## O que será construído
+| Mensagem | Data real (UaZapi) | Data gravada no chat | Diferença |
+|---|---|---|---|
+| áudio `3EB01E88…` | 13:11:17 | 10:11:14 | −3h |
+| "*Dr. Juarez:* , vou te explicar…" | 13:11:26 | 10:11:24 | −3h |
+| áudio `3EB09352…` | 13:27:26 | 10:27:24 | −3h |
+| áudio `3EB0A9B6…` | 13:31:24 | 10:31:20 | −3h |
+| áudio `3EB0E28D…` | 13:32:10 | 10:32:06 | −3h |
+| áudio `3EB09BD2…` | 13:38:27 | 10:38:24 | −3h |
+| áudio `3EB0DCA4…` | 13:39:23 | 10:39:20 | −3h |
+| "*Dr. Juarez:* NOME COMPLETO…" | 13:51:55 | 10:51:54 | −3h |
 
-Uma nova função de backend `julia-report-api`: endpoint HTTP público, autenticado por chave de API, **somente leitura**, com consultas pré-definidas (sem SQL vindo de fora).
+Todas as 8 são de saída, com `sender_name = "Dr. Juarez"` e sem `metadata` — ou seja, foram gravadas por um sistema externo (fluxo n8n / agente Júlia) que grava a hora de Brasília **sem o fuso**, e o banco interpreta como UTC. As mensagens gravadas pelo webhook da UaZapi estão com data correta.
 
-```text
-BI / script  --(x-api-key)-->  julia-report-api  --(credenciais internas)-->  Postgres Julia
-```
+Efeito visível: essas 8 aparecem todas amontoadas no início da conversa, fora da ordem real do diálogo.
 
-### Endpoints
+## O que será feito
 
-| Método / rota | O que retorna |
-|---|---|
-| `GET /agents` | agentes do client (cod_agent, nome, business_name, perfil) |
-| `GET /sessoes?from&to&cod_agent` | sessões de atendimento (view `vw_painelv2_desempenho_julia`) |
-| `GET /contratos?from&to&cod_agent&status` | contratos (view `vw_painelv2_desempenho_julia_contratos`) |
-| `GET /leads?from&to&stage` | cards do CRM da Julia + estágio |
-| `GET /resumo?from&to` | totais agregados por agente (sessões, contratos, assinados, taxa) |
+### 1. Função de ressincronização (`chat-resync-timestamps`)
+Nova função de backend que recebe `{ queue_id, phone | contact_id, limit }` e:
+- busca o histórico real na UaZapi (`POST /message/find` do chat);
+- casa cada mensagem pelo `message_id`;
+- quando a data real difere da gravada em mais de 60 segundos, corrige `timestamp` e `created_at`;
+- **não** cria, apaga nem reescreve texto/mídia — só datas;
+- devolve um relatório do que foi corrigido (e roda em modo `dry_run` primeiro, para você conferir antes de aplicar).
 
-Todos aceitam `format=json` (padrão) ou `format=csv` — CSV para conectar direto em Power BI / Google Sheets / Excel.
-Paginação por `limit` (máx. 5000) e `offset`.
+### 2. Correção dos agregados da conversa
+Depois de ajustar as datas, recalcula na conversa e no contato:
+- `last_message_at` do contato;
+- `last_customer_message_at`, `last_message_from_me` e `updated_at` da conversa,
+sempre a partir da mensagem real mais recente — assim a ordem na lista de conversas e os prazos de SLA voltam a bater.
 
-### Segurança
+### 3. Botão "Ressincronizar datas" no painel da conversa
+Nos detalhes da conversa (painel lateral do chat), uma ação para admin/owner que dispara a ressincronização daquele contato, mostra quantas mensagens foram corrigidas e recarrega a conversa.
 
-- Chave de API gerada e guardada como secret; enviada no header `x-api-key`. Requisição sem chave válida → 401.
-- A chave é vinculada a um `client_id`: **todas** as queries filtram por esse client, então um BI externo nunca lê dados de outro escritório.
-- Nada de SQL livre: apenas as consultas parametrizadas acima (sem reuso da action `raw`).
-- Somente `SELECT`. Nenhuma rota de escrita.
-- Datas obrigatórias em `from`/`to` nas rotas de volume, com janela máxima (ex.: 180 dias) para não derrubar o banco legado.
+### 4. Aplicar agora nesse lead
+Executo a ressincronização para o 5519982045075 e te mostro o antes/depois das 8 mensagens.
 
-### Como você vai usar
+## Causa raiz (fora do app)
 
-```bash
-curl -H "x-api-key: SUA_CHAVE" \
-  "<url-da-função>/julia-report-api/contratos?from=2026-07-01&to=2026-07-31&format=csv"
-```
-
-No Power BI / Sheets: usar a URL com `format=csv` como fonte web, com a chave na querystring desabilitada por padrão (só header) — se você precisar de fonte que não permite header, incluo suporte opcional a `?key=`.
+O fluxo externo que grava as respostas do "Dr. Juarez" envia a hora local sem `-03:00`. Enquanto isso não for ajustado no n8n, mensagens novas vão continuar nascendo 3h atrasadas — a ressincronização corrige depois, mas o ideal é o fluxo passar a enviar a data em UTC (ou com o fuso explícito). Se você quiser, na mesma leva eu adiciono uma proteção no lado do banco: um gatilho que, ao inserir uma mensagem sem fuso vinda desse caminho, ajusta a data para o horário do servidor.
 
 ## Detalhes técnicos
 
-- Nova função `supabase/functions/julia-report-api/index.ts`, com CORS, `verify_jwt = false` (autenticação própria por chave) e roteamento por sufixo de path.
-- Reaproveita o padrão de conexão do `db-query` (postgresjs, detecção de socket Unix, normalização do CA SSL) via `_shared`.
-- Secrets novos: `JULIA_REPORT_API_KEY` (gerada) e `JULIA_REPORT_CLIENT_ID` (o client que a chave pode ler). Se precisar de mais de um cliente/chave, faço um mapa de chaves em tabela.
-- Serialização CSV feita na própria função (sem dependência extra).
-
-## Perguntas que definem detalhes finais
-
-- Se você quiser mais de uma chave (uma por escritório/consumidor), eu troco os secrets por uma tabela de chaves com hash — diga se é necessário.
+- Nova função em `supabase/functions/chat-resync-timestamps/index.ts`, reutilizando as credenciais da fila (`evo_url`, `evo_apikey`) já guardadas em `queues` e o padrão `{action, data}` das outras funções.
+- Correção via `UPDATE` por `id` em `chat_messages` (lote), tolerância de 60s para não mexer em diferenças normais de rede.
+- Frontend: ação no `ChatSidePanel` (oculta em modo somente leitura), com `invalidateQueries` das mensagens e da lista de conversas.
