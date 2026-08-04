@@ -33,6 +33,10 @@ const BoardPage = lazy(() => import("./pages/crm-builder/BoardPage"));
 const BoardSettingsPage = lazy(() => import("./pages/crm-builder/BoardSettingsPage"));
 const FlowListPage = lazy(() => import("./modules/flow-builder/pages/FlowListPage"));
 const FlowEditorPage = lazy(() => import("./modules/flow-builder/pages/FlowEditorPage"));
+const OfficesListPage = lazy(() => import("./modules/escritorios/pages/OfficesListPage"));
+const CreateOfficePage = lazy(() => import("./modules/escritorios/pages/CreateOfficePage"));
+const OfficeDetailsPage = lazy(() => import("./modules/escritorios/pages/OfficeDetailsPage"));
+const OfficeDashboardPage = lazy(() => import("./modules/escritorios/pages/OfficeDashboardPage"));
 const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
 const CreateAgentPage = lazy(() => import("./pages/agents/CreateAgentPage"));
 const AgentDetailsPage = lazy(() => import("./pages/agents/AgentDetailsPage"));
@@ -202,6 +206,11 @@ const App = () => (
                   <Route path="/crm-builder/:boardId/configuracoes" element={<ProtectedRoute module="crm_painel"><BoardSettingsPage /></ProtectedRoute>} />
                   <Route path="/automacoes" element={<ProtectedRoute module="flow_builder"><FlowListPage /></ProtectedRoute>} />
                   <Route path="/automacoes/:flowId" element={<ProtectedRoute module="flow_builder"><FlowEditorPage /></ProtectedRoute>} />
+                  {/* Escritórios — módulo independente (clientes sem agente da Julia) */}
+                  <Route path="/escritorios" element={<ProtectedRoute module="escritorios"><OfficesListPage /></ProtectedRoute>} />
+                  <Route path="/escritorios/novo" element={<ProtectedRoute module="escritorios"><CreateOfficePage /></ProtectedRoute>} />
+                  <Route path="/escritorios/:officeId" element={<ProtectedRoute module="escritorios"><OfficeDetailsPage /></ProtectedRoute>} />
+                  <Route path="/painel-atendimento" element={<ProtectedRoute><OfficeDashboardPage /></ProtectedRoute>} />
                   <Route path="/datajud" element={<ProtectedRoute module="datajud"><DataJudSearchPage /></ProtectedRoute>} />
                   <Route path="/casos-juridicos" element={<ProtectedRoute module="legal_cases"><LegalCasesPage /></ProtectedRoute>} />
                   <Route path="/notificacoes-contrato" element={<ProtectedRoute module="contract_notifications"><ContractNotificationsPage /></ProtectedRoute>} />
