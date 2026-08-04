@@ -362,7 +362,6 @@ export const NODE_DEFINITIONS: Record<FlowNodeKind, FlowNodeDefinition> = {
   flow_end: {
     kind: 'flow_end',
     category: 'data',
-    // eslint-disable-next-line
     label: 'Encerrar fluxo',
     description: 'Finaliza a execução da automação',
     icon: Flag,
