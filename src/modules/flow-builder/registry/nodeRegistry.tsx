@@ -1,4 +1,21 @@
-import { MessageSquarePlus, GitBranch, Send, Tag, UserCheck, Flag, Timer, Hourglass, UserX, MailQuestion } from 'lucide-react';
+import {
+  MessageSquarePlus,
+  GitBranch,
+  Send,
+  Tag,
+  UserCheck,
+  Flag,
+  Timer,
+  Hourglass,
+  UserX,
+  MailQuestion,
+  Bot,
+  BellOff,
+  KanbanSquare,
+  MoveRight,
+  PencilLine,
+  Link2,
+} from 'lucide-react';
 import type { FlowNodeCategory, FlowNodeConfig, FlowNodeKind } from '../types';
 import {
   TriggerMessageForm,
@@ -11,6 +28,12 @@ import {
   TriggerAgentInactiveForm,
   DelayForm,
   WaitReplyForm,
+  JuliaToggleForm,
+  FollowupStopForm,
+  CrmCreateCardForm,
+  CrmMoveCardForm,
+  CrmUpdateCardForm,
+  CrmLinkConversationForm,
   CONDITION_FIELDS,
   CONDITION_OPERATORS,
   type NodeFormProps,
