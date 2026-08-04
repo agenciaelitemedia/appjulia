@@ -126,6 +126,7 @@ export function FlowCanvas({
       onSelectionChange={onSelectionChange}
       onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
       onNodeMouseLeave={() => setHoveredNodeId(null)}
+      onNodeDoubleClick={(_, node) => onNodeDoubleClick?.(node.id)}
       onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
       onEdgeMouseLeave={() => setHoveredEdgeId(null)}
       onDrop={handleDrop}
@@ -133,6 +134,7 @@ export function FlowCanvas({
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
       }}
+      onPaneClick={onPaneClick}
       defaultEdgeOptions={ANIMATED_EDGE}
       connectionLineStyle={{ stroke: 'hsl(var(--flow-edge))', strokeWidth: 2 }}
       nodesDraggable={!readOnly}
