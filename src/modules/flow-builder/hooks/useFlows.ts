@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
-import { useFlowBuilderIdentity } from '../extend/auth';
+import { useFlowBuilderIdentity, useFlowClientId } from '../extend/auth';
 import { convertLegacyFlow, isLegacyFlow } from '../lib/legacyFlow';
 import type { FlowCanvasEdge, FlowCanvasNode } from '../types';
 
@@ -75,17 +75,33 @@ function normalize(row: Record<string, unknown>): FlowSummary {
 }
 
 export function useFlows() {
-  const { clientId } = useFlowBuilderIdentity();
+  const { clientId: legacyId, codAgent } = useFlowBuilderIdentity();
+  const { data: effectiveClientId } = useFlowClientId();
+  const clientId = effectiveClientId ? String(effectiveClientId) : null;
   return useQuery({
-    queryKey: [KEY, clientId],
+    queryKey: [KEY, clientId, legacyId],
     enabled: !!clientId,
     queryFn: async (): Promise<FlowSummary[]> => {
+      // Compatibilidade: automações antigas foram gravadas com cod_agent no
+      // lugar do client_id do tenant. Buscamos ambos e corrigimos o vínculo,
+      // senão os gatilhos nunca casam com as conversas (que usam client_id).
+      const legacyKeys = [legacyId, codAgent].filter(Boolean).filter((v) => String(v) !== clientId);
+      const filters = [`client_id.eq.${clientId}`, ...legacyKeys.map((v) => `client_id.eq.${v}`)];
       const { data, error } = await supabase
         .from(TABLE)
         .select('*')
-        .eq('client_id', clientId)
+        .or(filters.join(','))
         .order('updated_at', { ascending: false });
       if (error) throw error;
+
+      const orphans = (data ?? []).filter((row: any) => String(row.client_id) !== clientId);
+      if (orphans.length > 0) {
+        await supabase
+          .from(TABLE)
+          .update({ client_id: clientId })
+          .in('id', orphans.map((row: any) => row.id));
+      }
+
       return (data ?? []).map(normalize);
     },
   });
@@ -105,7 +121,9 @@ export function useFlow(flowId?: string) {
 
 export function useFlowMutations() {
   const queryClient = useQueryClient();
-  const { clientId, codAgent } = useFlowBuilderIdentity();
+  const { clientId: legacyId, codAgent } = useFlowBuilderIdentity();
+  const { data: effectiveClientId } = useFlowClientId();
+  const clientId = effectiveClientId ? String(effectiveClientId) : legacyId;
   const invalidate = () => queryClient.invalidateQueries({ queryKey: [KEY] });
 
   const createFlow = useMutation({
