@@ -84,7 +84,7 @@ async function executeOne(flow: FlowRow, input: FlowEventInput, simulate: boolea
     if (outcome.status === "completed") {
       await supabase
         .from("chat_bot_flows")
-        .update({ execution_count: (flow.execution_count ?? 0) + 1, last_run_at: new Date().toISOString() })
+        .update({ execution_count: (flow.execution_count ?? 0) + 1, last_executed_at: new Date().toISOString() })
         .eq("id", flow.id);
     }
   }
