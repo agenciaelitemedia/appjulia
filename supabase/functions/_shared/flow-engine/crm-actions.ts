@@ -25,6 +25,7 @@ async function findDeal(
   supabase: any,
   ctx: FlowRunContext,
   boardId: string | null,
+  pipelineId?: string | null,
 ): Promise<Record<string, any> | null> {
   if (ctx.conversation?.id) {
     const { data: link } = await supabase
@@ -41,7 +42,7 @@ async function findDeal(
         .select("*")
         .eq("id", link.external_id)
         .maybeSingle();
-      if (data) return data;
+      if (data && (!pipelineId || data.pipeline_id === pipelineId)) return data;
     }
   }
 
@@ -57,6 +58,7 @@ async function findDeal(
     .order("updated_at", { ascending: false })
     .limit(1);
   if (boardId) query = query.eq("board_id", boardId);
+  if (pipelineId) query = query.eq("pipeline_id", pipelineId);
 
   const { data } = await query.maybeSingle();
   return data ?? null;
@@ -192,7 +194,12 @@ export async function actionCrmLinkConversation(
   if (ctx.simulate) return "Vincularia a conversa ao card do lead";
   if (!ctx.conversation?.id) throw new Error("sem conversa para vincular");
 
-  const deal = await findDeal(supabase, ctx, String(config.board_id ?? "") || null);
+  const deal = await findDeal(
+    supabase,
+    ctx,
+    String(config.board_id ?? "") || null,
+    String(config.pipeline_id ?? "") || null,
+  );
   if (!deal) throw new Error("card do lead não encontrado no CRM");
 
   const { data: existing } = await supabase

@@ -571,20 +571,21 @@ function BoardField({ config, onChange, allowAny }: NodeFormProps & { allowAny?:
   );
 }
 
-function StageField({ config, onChange, label, hint }: NodeFormProps & { label: string; hint?: string }) {
+function StageField({ config, onChange, label, hint, allowAny }: NodeFormProps & { label: string; hint?: string; allowAny?: boolean }) {
   const boardId = String(config.board_id ?? '');
   const { data: stages = [] } = useFlowStages(boardId);
   return (
     <Field label={label} hint={hint}>
       <Select
-        value={String(config.pipeline_id ?? '')}
-        onValueChange={(v) => onChange({ pipeline_id: v })}
+        value={String(config.pipeline_id ?? '') || (allowAny ? 'any' : '')}
+        onValueChange={(v) => onChange({ pipeline_id: v === 'any' ? '' : v })}
         disabled={!boardId}
       >
         <SelectTrigger>
           <SelectValue placeholder={boardId ? (stages.length ? 'Escolha a fase' : 'Quadro sem fases') : 'Escolha o quadro primeiro'} />
         </SelectTrigger>
         <SelectContent>
+          {allowAny && <SelectItem value="any">Qualquer fase</SelectItem>}
           {stages.map((s) => (
             <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
           ))}
@@ -755,6 +756,13 @@ export function CrmLinkConversationForm({ config, onChange }: NodeFormProps) {
   return (
     <div className="space-y-4">
       <BoardField config={config} onChange={onChange} allowAny />
+      <StageField
+        config={config}
+        onChange={onChange}
+        label="Fase do quadro"
+        hint="Opcional: restringe a busca do card a uma fase."
+        allowAny
+      />
       <p className="text-[11px] text-muted-foreground">
         Cria o vínculo entre a conversa atual e o card do lead, sem duplicar vínculos existentes.
       </p>
