@@ -10,6 +10,7 @@ import {
   actionCrmMoveCard,
   actionCrmUpdateCard,
 } from "./crm-actions.ts";
+import { actionHttpRequest, actionNotify, actionSetVariables, actionWebhook } from "./data-actions.ts";
 import type { FlowEdge, FlowNode, FlowRow, FlowRunContext, NodeLogEntry } from "./types.ts";
 
 const MAX_STEPS = 60;
