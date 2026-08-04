@@ -95,7 +95,8 @@ export function resolveField(field: string, ctx: FlowRunContext): string {
     case "contact_phone":
       return ctx.contact?.phone ?? "";
     case "julia_active":
-      return ctx.conversation?.ai_enabled === false ? "false" : "true";
+      // Estado real da Julia vive no banco externo (sessões) — Fase 4.
+      return String(ctx.variables?.julia_active ?? "");
     default:
       return String(ctx.variables?.[field] ?? "");
   }
