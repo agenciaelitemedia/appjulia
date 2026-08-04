@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { useFlowQueues } from '../../extend/queues';
 import { useFlowTags, useFlowQuickMessages } from '../../extend/chat';
+import { useFlowBoards, useFlowStages } from '../../extend/crm';
 import type { FlowNodeConfig } from '../../types';
 
 export interface NodeFormProps {
@@ -440,6 +441,255 @@ export function EndForm({ config, onChange }: NodeFormProps) {
           onCheckedChange={(v) => onChange({ resolve_conversation: v })}
         />
       </div>
+    </div>
+  );
+}
+/* ── Julia: ativar / desativar ──────────────────────────────── */
+export function JuliaToggleForm({ config, onChange }: NodeFormProps) {
+  const mode = String(config.mode ?? 'on');
+  return (
+    <div className="space-y-4">
+      <Field
+        label="O que fazer com a Julia"
+        hint="Ativar reagenda o followup do lead; desativar interrompe a IA e o followup."
+      >
+        <Select value={mode} onValueChange={(v) => onChange({ mode: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="on">Ativar Julia (com followup)</SelectItem>
+            <SelectItem value="off">Desativar Julia e parar followup</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <p className="text-[11px] text-muted-foreground">
+        O agente usado é o vinculado à fila da conversa.
+      </p>
+    </div>
+  );
+}
+
+/* ── Julia: parar followup ──────────────────────────────────── */
+export function FollowupStopForm() {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Interrompe as mensagens de followup deste lead, mantendo a Julia ativa para responder.
+      </p>
+      <p className="text-[11px] text-muted-foreground">
+        Não precisa de configuração: usa o lead da conversa e o agente vinculado à fila.
+      </p>
+    </div>
+  );
+}
+
+/* ── CRM: seletores de quadro e fase ────────────────────────── */
+function BoardField({ config, onChange, allowAny }: NodeFormProps & { allowAny?: boolean }) {
+  const { data: boards = [] } = useFlowBoards();
+  return (
+    <Field label="Quadro do CRM" hint={allowAny ? 'Deixe em branco para procurar em qualquer quadro.' : undefined}>
+      <Select
+        value={String(config.board_id ?? (allowAny ? 'any' : ''))}
+        onValueChange={(v) => onChange({ board_id: v === 'any' ? '' : v, pipeline_id: '' })}
+      >
+        <SelectTrigger><SelectValue placeholder={boards.length ? 'Escolha o quadro' : 'Nenhum quadro criado'} /></SelectTrigger>
+        <SelectContent>
+          {allowAny && <SelectItem value="any">Qualquer quadro</SelectItem>}
+          {boards.map((b) => (
+            <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}
+
+function StageField({ config, onChange, label, hint }: NodeFormProps & { label: string; hint?: string }) {
+  const boardId = String(config.board_id ?? '');
+  const { data: stages = [] } = useFlowStages(boardId);
+  return (
+    <Field label={label} hint={hint}>
+      <Select
+        value={String(config.pipeline_id ?? '')}
+        onValueChange={(v) => onChange({ pipeline_id: v })}
+        disabled={!boardId}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder={boardId ? (stages.length ? 'Escolha a fase' : 'Quadro sem fases') : 'Escolha o quadro primeiro'} />
+        </SelectTrigger>
+        <SelectContent>
+          {stages.map((s) => (
+            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}
+
+const PRIORITIES = [
+  { value: 'low', label: 'Baixa' },
+  { value: 'medium', label: 'Média' },
+  { value: 'high', label: 'Alta' },
+  { value: 'urgent', label: 'Urgente' },
+];
+
+/* ── CRM: criar card ────────────────────────────────────────── */
+export function CrmCreateCardForm({ config, onChange }: NodeFormProps) {
+  const title = String(config.title ?? '');
+  return (
+    <div className="space-y-4">
+      <BoardField config={config} onChange={onChange} />
+      <StageField config={config} onChange={onChange} label="Fase inicial" hint="Vazio = primeira fase do quadro." />
+      <Field label="Título do card">
+        <Input
+          value={title}
+          onChange={(e) => onChange({ title: e.target.value })}
+          placeholder="Lead {{nome}}"
+        />
+        <VariableChips onInsert={(v) => onChange({ title: `${title}${title ? ' ' : ''}${v}` })} />
+      </Field>
+      <Field label="Observação (opcional)">
+        <Textarea
+          rows={3}
+          value={String(config.description ?? '')}
+          onChange={(e) => onChange({ description: e.target.value })}
+          placeholder="Criado automaticamente pelo fluxo"
+        />
+      </Field>
+      <Field label="Valor (opcional)">
+        <Input
+          type="number"
+          min={0}
+          value={String(config.value ?? '')}
+          onChange={(e) => onChange({ value: e.target.value })}
+        />
+      </Field>
+      <Field label="Prioridade">
+        <Select value={String(config.priority ?? 'medium')} onValueChange={(v) => onChange({ priority: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PRIORITIES.map((p) => (
+              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="Responsável (opcional)">
+        <Input
+          value={String(config.assigned_to ?? '')}
+          onChange={(e) => onChange({ assigned_to: e.target.value })}
+          placeholder="Nome do responsável"
+        />
+      </Field>
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div>
+          <p className="text-sm font-medium">Não duplicar</p>
+          <p className="text-[11px] text-muted-foreground">Ignora se o lead já tem card no quadro.</p>
+        </div>
+        <Switch
+          checked={config.skip_if_exists !== false}
+          onCheckedChange={(v) => onChange({ skip_if_exists: v })}
+        />
+      </div>
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div>
+          <p className="text-sm font-medium">Vincular conversa ao card</p>
+          <p className="text-[11px] text-muted-foreground">Permite abrir o chat direto do card.</p>
+        </div>
+        <Switch
+          checked={config.link_conversation !== false}
+          onCheckedChange={(v) => onChange({ link_conversation: v })}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ── CRM: mover card ────────────────────────────────────────── */
+export function CrmMoveCardForm({ config, onChange }: NodeFormProps) {
+  return (
+    <div className="space-y-4">
+      <BoardField config={config} onChange={onChange} />
+      <StageField config={config} onChange={onChange} label="Mover para a fase" />
+      <p className="text-[11px] text-muted-foreground">
+        O card é localizado pelo vínculo da conversa ou pelo telefone do lead.
+      </p>
+    </div>
+  );
+}
+
+/* ── CRM: editar card ───────────────────────────────────────── */
+export function CrmUpdateCardForm({ config, onChange }: NodeFormProps) {
+  const title = String(config.title ?? '');
+  return (
+    <div className="space-y-4">
+      <BoardField config={config} onChange={onChange} allowAny />
+      <Field label="Novo título (opcional)">
+        <Input value={title} onChange={(e) => onChange({ title: e.target.value })} placeholder="{{nome}} — retorno" />
+        <VariableChips onInsert={(v) => onChange({ title: `${title}${title ? ' ' : ''}${v}` })} />
+      </Field>
+      <Field label="Prioridade" hint="Deixe em “Não alterar” para manter.">
+        <Select
+          value={String(config.priority ?? 'keep')}
+          onValueChange={(v) => onChange({ priority: v === 'keep' ? '' : v })}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="keep">Não alterar</SelectItem>
+            {PRIORITIES.map((p) => (
+              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="Situação">
+        <Select
+          value={String(config.status ?? 'keep')}
+          onValueChange={(v) => onChange({ status: v === 'keep' ? '' : v })}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="keep">Não alterar</SelectItem>
+            <SelectItem value="open">Em aberto</SelectItem>
+            <SelectItem value="won">Ganho</SelectItem>
+            <SelectItem value="lost">Perdido</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="Valor (opcional)">
+        <Input
+          type="number"
+          min={0}
+          value={String(config.value ?? '')}
+          onChange={(e) => onChange({ value: e.target.value })}
+        />
+      </Field>
+      <Field label="Responsável (opcional)">
+        <Input
+          value={String(config.assigned_to ?? '')}
+          onChange={(e) => onChange({ assigned_to: e.target.value })}
+          placeholder="Nome do responsável"
+        />
+      </Field>
+      <Field label="Observação (opcional)">
+        <Textarea
+          rows={3}
+          value={String(config.description ?? '')}
+          onChange={(e) => onChange({ description: e.target.value })}
+        />
+      </Field>
+    </div>
+  );
+}
+
+/* ── CRM: vincular conversa ao card ─────────────────────────── */
+export function CrmLinkConversationForm({ config, onChange }: NodeFormProps) {
+  return (
+    <div className="space-y-4">
+      <BoardField config={config} onChange={onChange} allowAny />
+      <p className="text-[11px] text-muted-foreground">
+        Cria o vínculo entre a conversa atual e o card do lead, sem duplicar vínculos existentes.
+      </p>
     </div>
   );
 }
