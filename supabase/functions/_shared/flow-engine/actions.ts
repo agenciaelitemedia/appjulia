@@ -4,6 +4,7 @@
 // ============================================
 import { createMessagingAdapter } from "../messaging-factory.ts";
 import { interpolate } from "./context.ts";
+import { actionJuliaToggle } from "./julia-actions.ts";
 import type { FlowRunContext } from "./types.ts";
 
 export async function actionSendText(
@@ -90,11 +91,21 @@ export async function actionHandoff(
   await supabase.from("chat_conversations").update(update).eq("id", ctx.conversation.id);
   Object.assign(ctx.conversation, update);
 
-  // A desativação da Julia acontece no banco externo (sessões) — Fase 4 do módulo.
+  // Desativa a Julia (IA + followup) quando o nó pede handoff completo.
+  let juliaDetail = "";
+  if (config.disable_julia !== false) {
+    try {
+      juliaDetail = await actionJuliaToggle(supabase, { mode: "off" }, ctx);
+    } catch (err) {
+      juliaDetail = `Julia não desativada (${err instanceof Error ? err.message : String(err)})`;
+    }
+  }
+
   const note = interpolate(String(config.note ?? ""), ctx).trim();
-  return note
-    ? `Encaminhado para atendimento humano — ${note}`
-    : "Encaminhado para atendimento humano";
+  const parts = ["Encaminhado para atendimento humano"];
+  if (note) parts.push(note);
+  if (juliaDetail) parts.push(juliaDetail);
+  return parts.join(" — ");
 }
 
 export async function actionEnd(

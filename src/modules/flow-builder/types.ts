@@ -15,6 +15,14 @@ export type FlowNodeKind =
   | 'chat_send_text'
   | 'chat_tag'
   | 'chat_handoff'
+  // Julia
+  | 'julia_toggle'
+  | 'julia_followup_stop'
+  // CRM
+  | 'crm_create_card'
+  | 'crm_move_card'
+  | 'crm_update_card'
+  | 'crm_link_conversation'
   // Controle
   | 'flow_end';
 

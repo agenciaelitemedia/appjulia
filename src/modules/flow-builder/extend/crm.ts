@@ -26,3 +26,30 @@ export function useFlowBoards() {
     staleTime: 60_000,
   });
 }
+
+export interface FlowStageOption {
+  id: string;
+  name: string;
+  board_id: string;
+}
+
+/** Fases (pipelines) de um quadro do CRM Builder. */
+export function useFlowStages(boardId?: string | null) {
+  const { clientId } = useFlowBuilderIdentity();
+  return useQuery<FlowStageOption[]>({
+    queryKey: ['flow-builder', 'crm-stages', clientId, boardId ?? 'none'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('crm_pipelines')
+        .select('id, name, board_id')
+        .eq('client_id', clientId)
+        .eq('board_id', boardId as string)
+        .eq('is_active', true)
+        .order('position');
+      if (error) throw error;
+      return (data || []) as unknown as FlowStageOption[];
+    },
+    enabled: Boolean(boardId),
+    staleTime: 60_000,
+  });
+}
