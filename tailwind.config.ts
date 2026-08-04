@@ -61,6 +61,17 @@ export default {
           DEFAULT: "hsl(var(--brand-accent))",
           foreground: "hsl(var(--brand-accent-foreground))",
         },
+        flow: {
+          trigger: "hsl(var(--flow-trigger))",
+          logic: "hsl(var(--flow-logic))",
+          chat: "hsl(var(--flow-chat))",
+          julia: "hsl(var(--flow-julia))",
+          crm: "hsl(var(--flow-crm))",
+          data: "hsl(var(--flow-data))",
+          canvas: "hsl(var(--flow-canvas))",
+          grid: "hsl(var(--flow-grid))",
+          edge: "hsl(var(--flow-edge))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
