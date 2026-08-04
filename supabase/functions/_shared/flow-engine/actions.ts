@@ -85,7 +85,6 @@ export async function actionHandoff(
     priority: config.priority ?? ctx.conversation.priority ?? "normal",
   };
   if (config.queue_id) update.queue_id = config.queue_id;
-  if (config.disable_julia !== false) update.ai_enabled = false;
 
   if (ctx.simulate) {
     return `Encaminharia para humano${config.queue_id ? " (troca de fila)" : ""}`;
@@ -95,19 +94,16 @@ export async function actionHandoff(
   Object.assign(ctx.conversation, update);
 
   const note = interpolate(String(config.note ?? ""), ctx).trim();
-  if (note && ctx.contact?.id) {
-    await supabase.from("chat_messages").insert({
-      contact_id: ctx.contact.id,
+  if (note) {
+    await supabase.from("chat_internal_notes" as never).insert({
       conversation_id: ctx.conversation.id,
       client_id: ctx.clientId,
-      text: note,
-      from_me: true,
-      type: "note",
-      status: "sent",
-      sender_name: "Automação",
-      channel_type: ctx.conversation.channel ?? "whatsapp_uazapi",
-      timestamp: new Date().toISOString(),
-    });
+      author_name: "Automação",
+      note,
+    }).then(
+      () => undefined,
+      (e: unknown) => console.warn("[flow] nota interna ignorada:", (e as Error)?.message),
+    );
   }
 
   return "Encaminhado para atendimento humano";
