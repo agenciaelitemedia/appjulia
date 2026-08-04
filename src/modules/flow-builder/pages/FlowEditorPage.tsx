@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ReactFlowProvider } from '@xyflow/react';
-import { ArrowLeft, Loader2, Save, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, AlertTriangle, CheckCircle2, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { FlowCanvas } from '../components/canvas/FlowCanvas';
 import { NodePalette } from '../components/palette/NodePalette';
 import { NodeInspector } from '../components/inspector/NodeInspector';
+import { FlowTestPanel } from '../components/test/FlowTestPanel';
 import { setNodeCallbacks } from '../components/nodes/BaseNode';
 import { useFlowEditorState } from '../hooks/useFlowEditorState';
 import { useFlow, useFlowMutations } from '../hooks/useFlows';
@@ -42,6 +43,7 @@ export default function FlowEditorPage() {
   const [name, setName] = useState('');
   const [isActive, setIsActive] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [testOpen, setTestOpen] = useState(false);
 
   useEffect(() => {
     if (!flow) return;
@@ -138,6 +140,16 @@ export default function FlowEditorPage() {
         )}
 
         <div className="ml-auto flex items-center gap-3">
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => setTestOpen(true)}
+            disabled={editor.dirty}
+            title={editor.dirty ? 'Salve a automação antes de testar' : 'Simular execução'}
+          >
+            <Play className="mr-2 h-4 w-4" />
+            Testar
+          </Button>
           <div className="flex items-center gap-2">
             <Switch
               id="flow-active"
@@ -206,6 +218,8 @@ export default function FlowEditorPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {flowId && <FlowTestPanel flowId={flowId} open={testOpen} onOpenChange={setTestOpen} />}
     </div>
   );
 }
