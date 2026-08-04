@@ -3,10 +3,26 @@
  */
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwnerUser } from '@/lib/auth/isOwner';
+import { useQuery } from '@tanstack/react-query';
+import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
 import { FLOW_BUILDER_MODULE } from '../module';
 import type { FlowPermissions } from '../types';
 
 export { isOwnerUser };
+
+/**
+ * client_id efetivo do tenant (mesma resolução usada em filas/CRM/chat).
+ * Use este id para listar recursos do cliente (filas, quadros, etiquetas, webhooks).
+ */
+export function useFlowClientId() {
+  const { user } = useAuth();
+  return useQuery<string | null>({
+    queryKey: ['flow-builder', 'client-id', user?.id, user?.client_id],
+    enabled: !!user?.id,
+    queryFn: () => resolveEffectiveClientId(user, 'flow-builder'),
+    staleTime: 10 * 60_000,
+  });
+}
 
 export function useFlowBuilderIdentity() {
   const { user } = useAuth();
