@@ -47,17 +47,22 @@ import { Navigate } from 'react-router-dom';
 import { useOfficeByClient } from '@/modules/escritorios/hooks/useOffices';
 import { ESCRITORIOS_ROUTES } from '@/modules/escritorios/module';
 
+/**
+ * Guarda de rota: escritórios (clientes sem agente da Julia) usam o painel de atendimento próprio.
+ */
 export default function Dashboard() {
   const { user } = useAuth();
-
-  // Escritórios (clientes sem agente da Julia) usam um painel de atendimento próprio.
   const isAdmin = user?.role === 'admin';
-  const { data: office, isLoading: isLoadingOffice } = useOfficeByClient(
-    !isAdmin && user?.client_id ? Number(user.client_id) : null,
-  );
-  if (!isAdmin && user?.client_id && isLoadingOffice) return null;
-  if (office && !isAdmin) return <Navigate to={ESCRITORIOS_ROUTES.dashboard} replace />;
+  const clientId = !isAdmin && user?.client_id ? Number(user.client_id) : null;
+  const { data: office, isLoading } = useOfficeByClient(clientId);
 
+  if (clientId && isLoading) return null;
+  if (office) return <Navigate to={ESCRITORIOS_ROUTES.dashboard} replace />;
+  return <AgentDashboard />;
+}
+
+function AgentDashboard() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasInitializedFilters = useRef(false);
