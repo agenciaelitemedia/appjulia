@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ReactFlowProvider } from '@xyflow/react';
-import { ArrowLeft, Loader2, Save, AlertTriangle, CheckCircle2, Play } from 'lucide-react';
+import {
+  ArrowLeft,
+  Loader2,
+  Save,
+  AlertTriangle,
+  CheckCircle2,
+  Play,
+  Undo2,
+  Redo2,
+  LayoutTemplate,
+  History,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -23,6 +34,7 @@ import { FlowCanvas } from '../components/canvas/FlowCanvas';
 import { NodePalette } from '../components/palette/NodePalette';
 import { NodeInspector } from '../components/inspector/NodeInspector';
 import { FlowTestPanel } from '../components/test/FlowTestPanel';
+import { FlowRunsPanel } from '../components/runs/FlowRunsPanel';
 import { setNodeCallbacks } from '../components/nodes/BaseNode';
 import { useFlowEditorState } from '../hooks/useFlowEditorState';
 import { useFlow, useFlowMutations } from '../hooks/useFlows';
@@ -44,12 +56,17 @@ export default function FlowEditorPage() {
   const [isActive, setIsActive] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [testOpen, setTestOpen] = useState(false);
+  const [runsOpen, setRunsOpen] = useState(false);
 
   useEffect(() => {
     if (!flow) return;
     setName(flow.name);
     setIsActive(flow.is_active);
     editor.reset(flow.nodes, flow.edges);
+    if (flow.migrated_from_legacy) {
+      editor.setDirty(true);
+      toast.info('Fluxo do construtor antigo convertido — revise os blocos e salve para concluir a migração.');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flow?.id]);
 
@@ -77,6 +94,29 @@ export default function FlowEditorPage() {
     editor.setDirty(false);
     toast.success('Automação salva');
   };
+
+  // Atalhos: desfazer, refazer e salvar.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') {
+        event.preventDefault();
+        if (readOnly) return;
+        if (event.shiftKey) editor.redo();
+        else editor.undo();
+      } else if (key === 'y') {
+        event.preventDefault();
+        if (!readOnly) editor.redo();
+      } else if (key === 's') {
+        event.preventDefault();
+        if (!readOnly && editor.dirty) void handleSave();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor.redo, editor.undo, editor.dirty, readOnly, editor.nodes, editor.edges, name, isActive]);
 
   if (isLoading) {
     return (
@@ -140,6 +180,42 @@ export default function FlowEditorPage() {
         )}
 
         <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              onClick={editor.undo}
+              disabled={readOnly || !editor.canUndo}
+              title="Desfazer (Ctrl+Z)"
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              onClick={editor.redo}
+              disabled={readOnly || !editor.canRedo}
+              title="Refazer (Ctrl+Shift+Z)"
+            >
+              <Redo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              onClick={editor.applyAutoLayout}
+              disabled={readOnly || editor.nodes.length === 0}
+              title="Organizar blocos automaticamente"
+            >
+              <LayoutTemplate className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button variant="outline" className="rounded-full" onClick={() => setRunsOpen(true)}>
+            <History className="mr-2 h-4 w-4" />
+            Execuções
+          </Button>
           <Button
             variant="outline"
             className="rounded-full"
@@ -180,7 +256,10 @@ export default function FlowEditorPage() {
               edges={editor.edges}
               onNodesChange={editor.onNodesChange}
               onEdgesChange={editor.onEdgesChange}
-              setEdges={editor.setEdges}
+              setEdges={(updater) => {
+                editor.pushHistory();
+                editor.setEdges(updater);
+              }}
               onSelectionChange={editor.onSelectionChange}
               onDropNode={(kind, position) => editor.addNode(kind as FlowNodeKind, position)}
               readOnly={readOnly}
@@ -220,6 +299,7 @@ export default function FlowEditorPage() {
       </AlertDialog>
 
       {flowId && <FlowTestPanel flowId={flowId} open={testOpen} onOpenChange={setTestOpen} />}
+      {flowId && <FlowRunsPanel flowId={flowId} open={runsOpen} onOpenChange={setRunsOpen} />}
     </div>
   );
 }

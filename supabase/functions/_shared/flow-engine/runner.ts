@@ -11,6 +11,7 @@ import {
   actionCrmUpdateCard,
 } from "./crm-actions.ts";
 import { actionHttpRequest, actionNotify, actionSetVariables, actionWebhook } from "./data-actions.ts";
+import { actionSendMedia } from "./media-actions.ts";
 import type { FlowEdge, FlowNode, FlowRow, FlowRunContext, NodeLogEntry } from "./types.ts";
 
 const MAX_STEPS = 60;
@@ -257,6 +258,9 @@ export async function runFlow(
         }
         case "chat_tag":
           detail = await actionTag(supabase, config, ctx);
+          break;
+        case "chat_send_media":
+          detail = await actionSendMedia(supabase, config, ctx);
           break;
         case "chat_handoff":
           detail = await actionHandoff(supabase, config, ctx);

@@ -13,6 +13,7 @@ export type FlowNodeKind =
   | 'logic_wait_reply'
   // Chat
   | 'chat_send_text'
+  | 'chat_send_media'
   | 'chat_tag'
   | 'chat_handoff'
   // Julia

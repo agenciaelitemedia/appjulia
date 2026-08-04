@@ -337,6 +337,71 @@ export function SendTextForm({ config, onChange }: NodeFormProps) {
   );
 }
 
+/* ── Chat: enviar mídia ─────────────────────────────────────── */
+const MEDIA_TYPES = [
+  { value: 'image', label: 'Imagem' },
+  { value: 'audio', label: 'Áudio' },
+  { value: 'video', label: 'Vídeo' },
+  { value: 'document', label: 'Documento' },
+  { value: 'sticker', label: 'Sticker' },
+];
+
+export function SendMediaForm({ config, onChange }: NodeFormProps) {
+  const mediaType = String(config.media_type ?? 'image');
+  const caption = String(config.caption ?? '');
+  const supportsCaption = mediaType !== 'audio' && mediaType !== 'sticker';
+  return (
+    <div className="space-y-4">
+      <Field label="Tipo de mídia">
+        <Select value={mediaType} onValueChange={(v) => onChange({ media_type: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {MEDIA_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="Link do arquivo" hint="Use um link público (https) do arquivo a enviar.">
+        <Input
+          value={String(config.url ?? '')}
+          onChange={(e) => onChange({ url: e.target.value })}
+          placeholder="https://..."
+        />
+      </Field>
+      {supportsCaption && (
+        <Field label="Legenda">
+          <Textarea
+            value={caption}
+            rows={3}
+            onChange={(e) => onChange({ caption: e.target.value })}
+            placeholder="Olá {{nome}}, veja o material em anexo."
+          />
+          <VariableChips onInsert={(v) => onChange({ caption: `${caption}${caption ? ' ' : ''}${v}` })} />
+        </Field>
+      )}
+      {mediaType === 'document' && (
+        <Field label="Nome do arquivo" hint="Opcional — como o lead verá o documento.">
+          <Input
+            value={String(config.file_name ?? '')}
+            onChange={(e) => onChange({ file_name: e.target.value })}
+            placeholder="proposta.pdf"
+          />
+        </Field>
+      )}
+      <Field label="Atraso antes de enviar" hint={`${Number(config.delay_seconds ?? 0)} segundo(s)`}>
+        <Slider
+          value={[Number(config.delay_seconds ?? 0)]}
+          min={0}
+          max={60}
+          step={1}
+          onValueChange={([v]) => onChange({ delay_seconds: v })}
+        />
+      </Field>
+    </div>
+  );
+}
+
 /* ── Chat: etiquetar ────────────────────────────────────────── */
 export function TagForm({ config, onChange }: NodeFormProps) {
   const { data: tags = [] } = useFlowTags();

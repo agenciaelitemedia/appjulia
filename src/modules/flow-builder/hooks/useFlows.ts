@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
 import { useFlowBuilderIdentity } from '../extend/auth';
+import { convertLegacyFlow, isLegacyFlow } from '../lib/legacyFlow';
 import type { FlowCanvasEdge, FlowCanvasNode } from '../types';
 
 export interface FlowSummary {
@@ -15,23 +16,37 @@ export interface FlowSummary {
   execution_count: number;
   last_executed_at: string | null;
   updated_at: string;
+  /** Fluxo veio do construtor antigo e foi convertido na leitura. */
+  migrated_from_legacy?: boolean;
 }
 
 const TABLE = 'chat_bot_flows';
 const KEY = 'flow-builder-flows';
 
 function normalize(row: Record<string, unknown>): FlowSummary {
+  const rawNodes = Array.isArray(row.nodes) ? (row.nodes as unknown[]) : [];
+  const rawEdges = Array.isArray(row.edges) ? (row.edges as unknown[]) : [];
+  const legacy = isLegacyFlow(rawNodes);
+  const converted = legacy
+    ? convertLegacyFlow(rawNodes, rawEdges, {
+        keywords: Array.isArray(row.trigger_keywords) ? (row.trigger_keywords as string[]) : [],
+        match_mode: (row.match_mode as string) ?? 'contains',
+        only_business_hours: Boolean(row.only_business_hours),
+      })
+    : null;
+
   return {
     id: String(row.id),
     name: String(row.name ?? 'Sem nome'),
     description: (row.description as string) ?? null,
     is_active: Boolean(row.is_active),
-    nodes: Array.isArray(row.nodes) ? (row.nodes as FlowCanvasNode[]) : [],
-    edges: Array.isArray(row.edges) ? (row.edges as FlowCanvasEdge[]) : [],
-    start_node_id: (row.start_node_id as string) ?? null,
+    nodes: converted ? converted.nodes : (rawNodes as FlowCanvasNode[]),
+    edges: converted ? converted.edges : (rawEdges as FlowCanvasEdge[]),
+    start_node_id: converted ? converted.nodes[0]?.id ?? null : ((row.start_node_id as string) ?? null),
     execution_count: Number(row.execution_count ?? 0),
     last_executed_at: (row.last_executed_at as string) ?? null,
     updated_at: String(row.updated_at ?? ''),
+    migrated_from_legacy: legacy,
   };
 }
 

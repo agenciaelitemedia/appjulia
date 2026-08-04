@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNodesState, useEdgesState, type OnSelectionChangeParams } from '@xyflow/react';
 import { NODE_DEFINITIONS } from '../registry/nodeRegistry';
+import { autoLayout } from '../lib/autoLayout';
 import type { FlowCanvasEdge, FlowCanvasNode, FlowNodeConfig, FlowNodeKind } from '../types';
 
 let seq = 0;
@@ -24,18 +25,76 @@ export function useFlowEditorState(initialNodes: FlowCanvasNode[], initialEdges:
 
   const markDirty = useCallback(() => setDirty(true), []);
 
+  /* ── Histórico (desfazer / refazer) ───────────────────────── */
+  const HISTORY_LIMIT = 50;
+  type Snapshot = { nodes: FlowCanvasNode[]; edges: FlowCanvasEdge[] };
+  const stateRef = useRef<Snapshot>({ nodes: initialNodes, edges: initialEdges });
+  stateRef.current = { nodes, edges };
+  const pastRef = useRef<Snapshot[]>([]);
+  const futureRef = useRef<Snapshot[]>([]);
+  const [historyTick, setHistoryTick] = useState(0);
+
+  const snapshot = useCallback((source: Snapshot): Snapshot => ({
+    nodes: source.nodes.map((n) => ({ ...n, data: { ...n.data, config: { ...n.data.config } } })),
+    edges: source.edges.map((e) => ({ ...e })),
+  }), []);
+
+  const pushHistory = useCallback(() => {
+    pastRef.current = [...pastRef.current, snapshot(stateRef.current)].slice(-HISTORY_LIMIT);
+    futureRef.current = [];
+    setHistoryTick((t) => t + 1);
+  }, [snapshot]);
+
+  const applySnapshot = useCallback(
+    (target: Snapshot) => {
+      setNodes(target.nodes);
+      setEdges(target.edges);
+      setSelectedId(null);
+      markDirty();
+    },
+    [markDirty, setEdges, setNodes],
+  );
+
+  const undo = useCallback(() => {
+    const past = pastRef.current;
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    pastRef.current = past.slice(0, -1);
+    futureRef.current = [...futureRef.current, snapshot(stateRef.current)].slice(-HISTORY_LIMIT);
+    applySnapshot(previous);
+    setHistoryTick((t) => t + 1);
+  }, [applySnapshot, snapshot]);
+
+  const redo = useCallback(() => {
+    const future = futureRef.current;
+    if (future.length === 0) return;
+    const next = future[future.length - 1];
+    futureRef.current = future.slice(0, -1);
+    pastRef.current = [...pastRef.current, snapshot(stateRef.current)].slice(-HISTORY_LIMIT);
+    applySnapshot(next);
+    setHistoryTick((t) => t + 1);
+  }, [applySnapshot, snapshot]);
+
+  const applyAutoLayout = useCallback(() => {
+    pushHistory();
+    setNodes((current) => autoLayout(current, stateRef.current.edges));
+    markDirty();
+  }, [markDirty, pushHistory, setNodes]);
+
   const addNode = useCallback(
     (kind: FlowNodeKind, position?: { x: number; y: number }) => {
+      pushHistory();
       const node = createFlowNode(kind, position ?? { x: 240 + Math.random() * 120, y: 160 + Math.random() * 160 });
       setNodes((current) => [...current, node]);
       setSelectedId(node.id);
       markDirty();
     },
-    [markDirty, setNodes],
+    [markDirty, pushHistory, setNodes],
   );
 
   const duplicateNode = useCallback(
     (nodeId: string) => {
+      pushHistory();
       setNodes((current) => {
         const source = current.find((n) => n.id === nodeId);
         if (!source) return current;
@@ -52,25 +111,27 @@ export function useFlowEditorState(initialNodes: FlowCanvasNode[], initialEdges:
       });
       markDirty();
     },
-    [markDirty, setNodes],
+    [markDirty, pushHistory, setNodes],
   );
 
   const deleteNode = useCallback(
     (nodeId: string) => {
+      pushHistory();
       setNodes((current) => current.filter((n) => n.id !== nodeId));
       setEdges((current) => current.filter((e) => e.source !== nodeId && e.target !== nodeId));
       setSelectedId((current) => (current === nodeId ? null : current));
       markDirty();
     },
-    [markDirty, setEdges, setNodes],
+    [markDirty, pushHistory, setEdges, setNodes],
   );
 
   const updateNodeData = useCallback(
     (nodeId: string, updater: (node: FlowCanvasNode) => FlowCanvasNode['data']) => {
+      pushHistory();
       setNodes((current) => current.map((n) => (n.id === nodeId ? { ...n, data: updater(n) } : n)));
       markDirty();
     },
-    [markDirty, setNodes],
+    [markDirty, pushHistory, setNodes],
   );
 
   const setNodeLabel = useCallback(
@@ -112,6 +173,9 @@ export function useFlowEditorState(initialNodes: FlowCanvasNode[], initialEdges:
       setEdges(nextEdges);
       setSelectedId(null);
       setDirty(false);
+      pastRef.current = [];
+      futureRef.current = [];
+      setHistoryTick((t) => t + 1);
     },
     [setEdges, setNodes],
   );
@@ -122,10 +186,12 @@ export function useFlowEditorState(initialNodes: FlowCanvasNode[], initialEdges:
     setNodes,
     setEdges,
     onNodesChange: (changes: Parameters<typeof onNodesChange>[0]) => {
+      if (changes.some((c) => c.type === 'remove' || (c.type === 'position' && c.dragging === false))) pushHistory();
       onNodesChange(changes);
       if (changes.some((c) => c.type !== 'select' && c.type !== 'dimensions')) markDirty();
     },
     onEdgesChange: (changes: Parameters<typeof onEdgesChange>[0]) => {
+      if (changes.some((c) => c.type === 'remove')) pushHistory();
       onEdgesChange(changes);
       if (changes.some((c) => c.type !== 'select')) markDirty();
     },
@@ -140,5 +206,12 @@ export function useFlowEditorState(initialNodes: FlowCanvasNode[], initialEdges:
     dirty,
     setDirty,
     reset,
+    undo,
+    redo,
+    canUndo: pastRef.current.length > 0,
+    canRedo: futureRef.current.length > 0,
+    historyTick,
+    applyAutoLayout,
+    pushHistory,
   };
 }
