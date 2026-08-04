@@ -91,8 +91,21 @@ export default function FlowListPage() {
               <CardContent className="space-y-3 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <p className="min-w-0 flex-1 truncate font-medium">{flow.name}</p>
-                  <Badge variant={flow.is_active ? 'default' : 'secondary'}>
-                    {flow.is_active ? 'Ativa' : 'Pausada'}
+                  <Badge
+                    variant="outline"
+                    className={
+                      flow.status === 'published'
+                        ? 'border-emerald-500/40 text-emerald-600'
+                        : flow.status === 'archived'
+                          ? 'border-muted text-muted-foreground'
+                          : 'border-amber-500/40 text-amber-600'
+                    }
+                  >
+                    {flow.status === 'published'
+                      ? `Publicada${flow.published_version ? ` v${flow.published_version}` : ''}`
+                      : flow.status === 'archived'
+                        ? 'Arquivada'
+                        : 'Rascunho'}
                   </Badge>
                 </div>
                 <p className="line-clamp-2 text-xs text-muted-foreground">

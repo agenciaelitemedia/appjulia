@@ -68,6 +68,10 @@ export interface NodeLogEntry {
   detail?: string;
   branch?: string;
   at: string;
+  /** Tempo gasto no nó em milissegundos. */
+  duration_ms?: number;
+  /** Snapshot das variáveis após executar o nó. */
+  variables?: Record<string, unknown>;
 }
 
 export interface NodeResult {

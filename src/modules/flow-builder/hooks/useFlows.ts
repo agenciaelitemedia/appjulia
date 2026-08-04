@@ -10,6 +10,12 @@ export interface FlowSummary {
   name: string;
   description: string | null;
   is_active: boolean;
+  /** Situação da automação: rascunho, publicada ou arquivada. */
+  status: FlowStatus;
+  published_at: string | null;
+  published_version: number | null;
+  /** Rascunho difere da versão publicada. */
+  has_unpublished_changes: boolean;
   nodes: FlowCanvasNode[];
   edges: FlowCanvasEdge[];
   start_node_id: string | null;
@@ -20,8 +26,14 @@ export interface FlowSummary {
   migrated_from_legacy?: boolean;
 }
 
+export type FlowStatus = 'draft' | 'published' | 'archived';
+
 const TABLE = 'chat_bot_flows';
 const KEY = 'flow-builder-flows';
+
+function graphSignature(nodes: unknown[], edges: unknown[]): string {
+  return JSON.stringify([nodes ?? [], edges ?? []]);
+}
 
 function normalize(row: Record<string, unknown>): FlowSummary {
   const rawNodes = Array.isArray(row.nodes) ? (row.nodes as unknown[]) : [];
@@ -35,11 +47,23 @@ function normalize(row: Record<string, unknown>): FlowSummary {
       })
     : null;
 
+  const publishedNodes = Array.isArray(row.published_nodes) ? (row.published_nodes as unknown[]) : [];
+  const publishedEdges = Array.isArray(row.published_edges) ? (row.published_edges as unknown[]) : [];
+  const status = (String(row.status ?? 'draft') as FlowStatus) ?? 'draft';
+
   return {
     id: String(row.id),
     name: String(row.name ?? 'Sem nome'),
     description: (row.description as string) ?? null,
     is_active: Boolean(row.is_active),
+    status,
+    published_at: (row.published_at as string) ?? null,
+    published_version: row.published_version != null ? Number(row.published_version) : null,
+    has_unpublished_changes:
+      publishedNodes.length === 0
+        ? status !== 'published'
+        : graphSignature(converted ? converted.nodes : rawNodes, converted ? converted.edges : rawEdges) !==
+          graphSignature(publishedNodes, publishedEdges),
     nodes: converted ? converted.nodes : (rawNodes as FlowCanvasNode[]),
     edges: converted ? converted.edges : (rawEdges as FlowCanvasEdge[]),
     start_node_id: converted ? converted.nodes[0]?.id ?? null : ((row.start_node_id as string) ?? null),
@@ -144,5 +168,100 @@ export function useFlowMutations() {
     onError: (e: Error) => toast.error(`Falha ao excluir: ${e.message}`),
   });
 
-  return { createFlow, saveFlow, deleteFlow };
+  /** Publica o rascunho atual: cria uma versão e ativa a automação. */
+  const publishFlow = useMutation({
+    mutationFn: async (input: {
+      id: string;
+      nodes: FlowCanvasNode[];
+      edges: FlowCanvasEdge[];
+      notes?: string;
+    }) => {
+      const trigger = input.nodes.find((n) => String(n.data?.kind ?? '').startsWith('trigger_'));
+      const startNodeId = trigger?.id ?? null;
+
+      const { data: last } = await supabase
+        .from('chat_bot_flow_versions')
+        .select('version')
+        .eq('flow_id', input.id)
+        .order('version', { ascending: false })
+        .limit(1);
+      const nextVersion = Number(last?.[0]?.version ?? 0) + 1;
+
+      // Versões anteriores passam a arquivadas.
+      await supabase
+        .from('chat_bot_flow_versions')
+        .update({ status: 'archived' })
+        .eq('flow_id', input.id)
+        .eq('status', 'published');
+
+      const { error: versionError } = await supabase.from('chat_bot_flow_versions').insert({
+        flow_id: input.id,
+        client_id: clientId,
+        version: nextVersion,
+        status: 'published',
+        nodes: input.nodes,
+        edges: input.edges,
+        start_node_id: startNodeId,
+        notes: input.notes ?? null,
+        created_by: clientId,
+      } as never);
+      if (versionError) throw versionError;
+
+      const publishPayload: Record<string, unknown> = {
+          status: 'published',
+          is_active: true,
+          published_at: new Date().toISOString(),
+          published_version: nextVersion,
+          published_nodes: input.nodes,
+          published_edges: input.edges,
+          published_start_node_id: startNodeId,
+          nodes: input.nodes,
+          edges: input.edges,
+          start_node_id: startNodeId,
+          updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase.from(TABLE).update(publishPayload).eq('id', input.id);
+      if (error) throw error;
+      return nextVersion;
+    },
+    onSuccess: (version) => {
+      toast.success(`Versão ${version} publicada e ativa`);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(`Falha ao publicar: ${e.message}`),
+  });
+
+  /** Arquiva a automação: sai do ar mas o desenho fica preservado. */
+  const archiveFlow = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from(TABLE)
+        .update({ status: 'archived', is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Automação arquivada');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(`Falha ao arquivar: ${e.message}`),
+  });
+
+  /** Volta a automação para rascunho (para de rodar em produção). */
+  const unpublishFlow = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from(TABLE)
+        .update({ status: 'draft', is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Automação voltou para rascunho');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(`Falha ao despublicar: ${e.message}`),
+  });
+
+  return { createFlow, saveFlow, deleteFlow, publishFlow, archiveFlow, unpublishFlow };
 }

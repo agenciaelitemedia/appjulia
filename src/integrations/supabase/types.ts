@@ -825,6 +825,56 @@ export type Database = {
           },
         ]
       }
+      chat_bot_flow_versions: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          edges: Json
+          flow_id: string
+          id: string
+          nodes: Json
+          notes: string | null
+          start_node_id: string | null
+          status: string
+          version: number
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          edges?: Json
+          flow_id: string
+          id?: string
+          nodes?: Json
+          notes?: string | null
+          start_node_id?: string | null
+          status?: string
+          version?: number
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          edges?: Json
+          flow_id?: string
+          id?: string
+          nodes?: Json
+          notes?: string | null
+          start_node_id?: string | null
+          status?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_bot_flow_versions_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "chat_bot_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_bot_flows: {
         Row: {
           client_id: string
@@ -841,7 +891,13 @@ export type Database = {
           nodes: Json
           only_business_hours: boolean
           position: number
+          published_at: string | null
+          published_edges: Json
+          published_nodes: Json
+          published_start_node_id: string | null
+          published_version: number | null
           start_node_id: string | null
+          status: string
           trigger_config: Json
           trigger_keywords: string[]
           trigger_type: string
@@ -864,7 +920,13 @@ export type Database = {
           nodes?: Json
           only_business_hours?: boolean
           position?: number
+          published_at?: string | null
+          published_edges?: Json
+          published_nodes?: Json
+          published_start_node_id?: string | null
+          published_version?: number | null
           start_node_id?: string | null
+          status?: string
           trigger_config?: Json
           trigger_keywords?: string[]
           trigger_type?: string
@@ -887,7 +949,13 @@ export type Database = {
           nodes?: Json
           only_business_hours?: boolean
           position?: number
+          published_at?: string | null
+          published_edges?: Json
+          published_nodes?: Json
+          published_start_node_id?: string | null
+          published_version?: number | null
           start_node_id?: string | null
+          status?: string
           trigger_config?: Json
           trigger_keywords?: string[]
           trigger_type?: string

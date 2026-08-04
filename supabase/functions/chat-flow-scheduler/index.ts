@@ -71,14 +71,30 @@ async function processWaitingRuns() {
 async function processInactivityTriggers() {
   const { data: flows, error } = await supabase
     .from("chat_bot_flows")
-    .select("id, client_id, name, is_active, nodes, edges, start_node_id, execution_count, variables")
+    .select(
+      "id, client_id, name, is_active, status, nodes, edges, start_node_id, published_nodes, published_edges, published_start_node_id, execution_count, variables",
+    )
     .eq("is_active", true)
     .limit(500);
   if (error) throw new Error(`falha ao ler fluxos: ${error.message}`);
 
   let fired = 0;
 
-  for (const flow of (flows ?? []) as unknown as FlowRow[]) {
+  // Agendador só considera a versão publicada de cada automação.
+  const published = (flows ?? [])
+    .filter((row: any) => String(row.status ?? "published") === "published")
+    .map((row: any) => {
+      const nodes = Array.isArray(row.published_nodes) && row.published_nodes.length > 0 ? row.published_nodes : row.nodes;
+      const edges = Array.isArray(row.published_nodes) && row.published_nodes.length > 0 ? row.published_edges : row.edges;
+      return {
+        ...row,
+        nodes,
+        edges,
+        start_node_id: row.published_start_node_id ?? row.start_node_id,
+      };
+    }) as unknown as FlowRow[];
+
+  for (const flow of published) {
     const trigger = findTriggerNode(flow);
     const kind = String(trigger?.data?.kind ?? "");
     if (kind !== "trigger_lead_inactive" && kind !== "trigger_agent_inactive") continue;
