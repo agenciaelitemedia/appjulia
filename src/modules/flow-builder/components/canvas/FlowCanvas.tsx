@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -32,6 +32,8 @@ interface FlowCanvasProps {
   onSelectionChange: (params: OnSelectionChangeParams) => void;
   onDropNode: (kind: string, position: { x: number; y: number }) => void;
   readOnly: boolean;
+  /** Bloco em foco na simulação passo a passo. */
+  highlightNodeId?: string | null;
 }
 
 export function FlowCanvas({
@@ -43,8 +45,46 @@ export function FlowCanvas({
   onSelectionChange,
   onDropNode,
   readOnly,
+  highlightNodeId,
 }: FlowCanvasProps) {
   const nodeTypes = useMemo(() => ({ flowNode: BaseNode }), []);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+
+  const focusNodeId = highlightNodeId ?? hoveredNodeId;
+
+  // Destaca a ligação quando o mouse passa pelo nó ou pela própria conexão.
+  const decoratedEdges = useMemo(() => {
+    if (!focusNodeId && !hoveredEdgeId) return edges;
+    return edges.map((edge) => {
+      const active =
+        edge.id === hoveredEdgeId ||
+        (!!focusNodeId && (edge.source === focusNodeId || edge.target === focusNodeId));
+      if (!active) return { ...edge, style: { ...(edge.style ?? {}), opacity: 0.35 } };
+      return {
+        ...edge,
+        animated: true,
+        zIndex: 10,
+        style: {
+          ...(edge.style ?? {}),
+          opacity: 1,
+          stroke: 'hsl(var(--primary))',
+          strokeWidth: 3.5,
+          filter: 'drop-shadow(0 0 6px hsl(var(--primary) / 0.5))',
+        },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' },
+      };
+    });
+  }, [edges, focusNodeId, hoveredEdgeId]);
+
+  const decoratedNodes = useMemo(() => {
+    if (!highlightNodeId) return nodes;
+    return nodes.map((node) =>
+      node.id === highlightNodeId
+        ? { ...node, className: `${node.className ?? ''} ring-2 ring-primary ring-offset-2 rounded-xl`.trim() }
+        : { ...node, className: (node.className ?? '').replace(/ring-2 ring-primary ring-offset-2 rounded-xl/g, '').trim() },
+    );
+  }, [nodes, highlightNodeId]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -71,13 +111,17 @@ export function FlowCanvas({
 
   return (
     <ReactFlow
-      nodes={nodes}
-      edges={edges}
+      nodes={decoratedNodes}
+      edges={decoratedEdges}
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
       onSelectionChange={onSelectionChange}
+      onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
+      onNodeMouseLeave={() => setHoveredNodeId(null)}
+      onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+      onEdgeMouseLeave={() => setHoveredEdgeId(null)}
       onDrop={handleDrop}
       onDragOver={(e) => {
         e.preventDefault();
