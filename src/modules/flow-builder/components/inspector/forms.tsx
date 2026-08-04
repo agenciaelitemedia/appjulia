@@ -343,6 +343,10 @@ export function TagForm({ config, onChange }: NodeFormProps) {
   return (
     <div className="space-y-4">
       <Field label="Ação">
+  const { data: tags = [] } = useFlowTags();
+  return (
+    <div className="space-y-4">
+      <Field label="Ação">
         <Select value={String(config.action ?? 'add')} onValueChange={(v) => onChange({ action: v })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
