@@ -3,7 +3,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from './db';
-import { useFlowBuilderIdentity } from './auth';
+import { useFlowClientId } from './auth';
 
 export interface FlowBoardOption {
   id: string;
@@ -11,14 +11,15 @@ export interface FlowBoardOption {
 }
 
 export function useFlowBoards() {
-  const { clientId } = useFlowBuilderIdentity();
+  const { data: clientId } = useFlowClientId();
   return useQuery<FlowBoardOption[]>({
     queryKey: ['flow-builder', 'crm-boards', clientId],
+    enabled: !!clientId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('crm_boards')
         .select('id, name')
-        .eq('client_id', clientId)
+        .eq('client_id', String(clientId))
         .order('name');
       if (error) throw error;
       return (data || []) as unknown as FlowBoardOption[];
@@ -35,21 +36,21 @@ export interface FlowStageOption {
 
 /** Fases (pipelines) de um quadro do CRM Builder. */
 export function useFlowStages(boardId?: string | null) {
-  const { clientId } = useFlowBuilderIdentity();
+  const { data: clientId } = useFlowClientId();
   return useQuery<FlowStageOption[]>({
     queryKey: ['flow-builder', 'crm-stages', clientId, boardId ?? 'none'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('crm_pipelines')
         .select('id, name, board_id')
-        .eq('client_id', clientId)
+        .eq('client_id', String(clientId))
         .eq('board_id', boardId as string)
         .eq('is_active', true)
         .order('position');
       if (error) throw error;
       return (data || []) as unknown as FlowStageOption[];
     },
-    enabled: Boolean(boardId),
+    enabled: Boolean(boardId) && !!clientId,
     staleTime: 60_000,
   });
 }

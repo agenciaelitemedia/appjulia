@@ -3,7 +3,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from './db';
-import { useFlowBuilderIdentity } from './auth';
+import { useFlowBuilderIdentity, useFlowClientId } from './auth';
 
 export interface FlowTagOption {
   id: string;
@@ -12,14 +12,15 @@ export interface FlowTagOption {
 }
 
 export function useFlowTags() {
-  const { clientId } = useFlowBuilderIdentity();
+  const { data: clientId } = useFlowClientId();
   return useQuery<FlowTagOption[]>({
     queryKey: ['flow-builder', 'tags', clientId],
+    enabled: !!clientId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('chat_tags')
         .select('id, name, color')
-        .eq('client_id', clientId)
+        .eq('client_id', String(clientId))
         .order('name');
       if (error) throw error;
       return (data || []) as FlowTagOption[];
