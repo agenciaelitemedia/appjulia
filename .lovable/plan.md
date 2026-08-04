@@ -71,21 +71,59 @@ Construtor visual de automações (estilo n8n) para orquestrar **CHAT**, **CRM**
 - Modo de teste: escolher uma conversa e simular (sem enviar nada), mostrando caminho e log por nó
 - Aba de execuções: histórico com status por nó
 
+## Módulo independente
+
+Todo o código vive em **uma única pasta**: `src/modules/flow-builder/`. Nada do fluxo é espalhado por `src/pages`, `src/hooks` ou `src/components`.
+
+```text
+src/modules/flow-builder/
+  index.ts                 # ponto único de entrada (rotas + exports públicos)
+  routes.tsx               # rotas do módulo (/automacoes, /automacoes/:flowId)
+  module.ts                # metadados: code 'flow_builder', nome, ícone, rota, grupo
+  pages/                   # FlowBuilderPage, FlowEditorPage, FlowRunsPage
+  components/              # canvas, nodes, edges, palette, inspector, dialogs
+  registry/                # nodeRegistry + schemas Zod por nó
+  hooks/                   # useFlows, useFlowEditor, useFlowRuns
+  extend/                  # ADAPTADORES para o resto do sistema (ver abaixo)
+  lib/                     # utils puros do módulo (layout, validação, resumo)
+  types.ts
+```
+
+**Camada `extend/`** — nada dentro do módulo importa hooks/libs de outros módulos diretamente. Cada dependência externa ganha um adaptador fino e nomeado pelo domínio, então manutenção = editar um arquivo:
+- `extend/queues.ts` → filas e membros (`useQueueMembers`, `useUserQueueAccess`)
+- `extend/chat.ts` → conversas, etiquetas, mensagens rápidas, envio
+- `extend/crm.ts` → boards/pipelines/fases do CRM Builder e do CRM Julia
+- `extend/julia.ts` → `juliaSessionControl` (ativar/desativar, followup)
+- `extend/webhooks.ts` → `chat_webhooks` e requisição HTTP
+- `extend/auth.ts` → usuário atual, `client_id` efetivo, `isOwnerUser`, `hasPermission`
+- `extend/db.ts` → cliente Supabase e wrapper `externalDb`
+
+Se um adaptador precisar de algo que ainda não existe fora, ele encapsula a chamada; nunca duplica regra de negócio de outro módulo.
+
+## Permissionamento
+
+O módulo entra na matriz de permissões como os demais:
+- Novo `ModuleCode` `flow_builder` em `src/types/permissions.ts`
+- Hook `extend/useEnsureFlowBuilderModule.ts` seguindo o padrão auto-registro (`externalDb.createModule`): nome "Automações", ícone `Workflow`, rota `/automacoes`, grupo `SISTEMA`, aparecendo no menu e na tela de permissões sem migration manual
+- Rotas envolvidas por `ProtectedRoute` com `module="flow_builder"`
+- Gates por ação: `view` (abrir editor em leitura), `create` (novo fluxo), `edit` (salvar/ativar), `delete` (excluir fluxo/nó). Owner/admin com bypass via `isOwnerUser`
+
 ## Detalhes técnicos
 
 **Dependências**: `@xyflow/react` (React Flow 12) e `dagre` (auto-layout).
 
 **Dados**: reutiliza `chat_bot_flows` (`nodes`/`edges` JSONB, `trigger_type`, `is_active`, `client_id`) e `chat_bot_flow_runs`. Migração adiciona só o necessário: em `chat_bot_flows` → `variables jsonb`, `trigger_config jsonb`, `version int`; em `chat_bot_flow_runs` → `node_logs jsonb`, `status`, `error_message`. GRANTs e RLS por `client_id` no mesmo padrão do módulo chat.
 
-**Frontend** (novo diretório `src/pages/chat/flow-builder/`):
-- `FlowBuilderPage.tsx` — lista de fluxos e criação
-- `FlowEditorPage.tsx` — canvas em `/chat/builder/:flowId`
+**Frontend** (tudo em `src/modules/flow-builder/`):
+- `pages/FlowBuilderPage.tsx` — lista de fluxos e criação
+- `pages/FlowEditorPage.tsx` — canvas em `/automacoes/:flowId`
 - `components/canvas/` — `FlowCanvas.tsx`, `NodePalette.tsx`, `FlowToolbar.tsx`, `edges/AnimatedEdge.tsx`
 - `components/nodes/` — `BaseNode.tsx` (casca com handles laterais, ícone, resumo, menu excluir/duplicar) + variantes por categoria
 - `components/inspector/` — `NodeInspector.tsx` e um form por tipo de nó
 - `registry/nodeRegistry.ts` — fonte única da verdade: categoria, ícone, cor, handles de saída, schema Zod da config, função de resumo e form de cada nó. Novo nó = uma entrada no registro.
 - `hooks/useFlowEditor.ts` — estado do canvas, undo/redo, dirty tracking
-- Reaproveita hooks existentes: `useChatBotFlows` (estendido), `useQueueMembers`, tags, `useQuickMessages`, `useCRMBoards`/`useCRMDeals`, webhooks
+- `hooks/useFlows.ts` — dados dos fluxos (próprio do módulo, não estende `useChatBotFlows`); todo acesso a outros domínios passa por `extend/`
+- Integração com `src/App.tsx` limitada a montar `routes.tsx` do módulo
 
 **Backend** — nova edge function `chat-flow-engine`:
 - Entrada `{ event, flow_id?, conversation_id, client_id, payload }`
@@ -98,6 +136,7 @@ Construtor visual de automações (estilo n8n) para orquestrar **CHAT**, **CRM**
 ## Fases de entrega
 
 1. **Fundação do editor** — dependências, registro de nós, canvas com arestas animadas, handles laterais, paleta, inspetor, salvar/carregar, exclusão com confirmação. Nós iniciais: trigger de mensagem, condição, enviar texto, etiquetar, encaminhar para humano, encerrar.
+   Inclui: estrutura da pasta do módulo, `module.ts`, auto-registro do módulo e gates de permissão.
 2. **Executor** — `chat-flow-engine`, logs em `chat_bot_flow_runs`, gancho nos webhooks, modo de teste em simulação.
 3. **Tempo e inatividade** — triggers e condições de tempo de resposta do lead/atendente, delay, aguardar resposta, `chat-flow-scheduler` via cron.
 4. **CRM e Julia** — criar/editar/mover card, mudar CRM da Julia, ativar/desativar Julia, followup.
