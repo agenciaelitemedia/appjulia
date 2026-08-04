@@ -9,6 +9,8 @@ export interface SimulationNodeLog {
   detail?: string;
   branch?: string;
   at: string;
+  duration_ms?: number;
+  variables?: Record<string, unknown>;
 }
 
 export interface SimulationResult {

@@ -168,5 +168,102 @@ export function useFlowMutations() {
     onError: (e: Error) => toast.error(`Falha ao excluir: ${e.message}`),
   });
 
-  return { createFlow, saveFlow, deleteFlow };
+  /** Publica o rascunho atual: cria uma versão e ativa a automação. */
+  const publishFlow = useMutation({
+    mutationFn: async (input: {
+      id: string;
+      nodes: FlowCanvasNode[];
+      edges: FlowCanvasEdge[];
+      notes?: string;
+    }) => {
+      const trigger = input.nodes.find((n) => String(n.data?.kind ?? '').startsWith('trigger_'));
+      const startNodeId = trigger?.id ?? null;
+
+      const { data: last } = await supabase
+        .from('chat_bot_flow_versions')
+        .select('version')
+        .eq('flow_id', input.id)
+        .order('version', { ascending: false })
+        .limit(1);
+      const nextVersion = Number(last?.[0]?.version ?? 0) + 1;
+
+      // Versões anteriores passam a arquivadas.
+      await supabase
+        .from('chat_bot_flow_versions')
+        .update({ status: 'archived' })
+        .eq('flow_id', input.id)
+        .eq('status', 'published');
+
+      const { error: versionError } = await supabase.from('chat_bot_flow_versions').insert({
+        flow_id: input.id,
+        client_id: clientId,
+        version: nextVersion,
+        status: 'published',
+        nodes: input.nodes,
+        edges: input.edges,
+        start_node_id: startNodeId,
+        notes: input.notes ?? null,
+        created_by: clientId,
+      });
+      if (versionError) throw versionError;
+
+      const { error } = await supabase
+        .from(TABLE)
+        .update({
+          status: 'published',
+          is_active: true,
+          published_at: new Date().toISOString(),
+          published_version: nextVersion,
+          published_nodes: input.nodes,
+          published_edges: input.edges,
+          published_start_node_id: startNodeId,
+          nodes: input.nodes,
+          edges: input.edges,
+          start_node_id: startNodeId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.id);
+      if (error) throw error;
+      return nextVersion;
+    },
+    onSuccess: (version) => {
+      toast.success(`Versão ${version} publicada e ativa`);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(`Falha ao publicar: ${e.message}`),
+  });
+
+  /** Arquiva a automação: sai do ar mas o desenho fica preservado. */
+  const archiveFlow = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from(TABLE)
+        .update({ status: 'archived', is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Automação arquivada');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(`Falha ao arquivar: ${e.message}`),
+  });
+
+  /** Volta a automação para rascunho (para de rodar em produção). */
+  const unpublishFlow = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from(TABLE)
+        .update({ status: 'draft', is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Automação voltou para rascunho');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(`Falha ao despublicar: ${e.message}`),
+  });
+
+  return { createFlow, saveFlow, deleteFlow, publishFlow, archiveFlow, unpublishFlow };
 }
