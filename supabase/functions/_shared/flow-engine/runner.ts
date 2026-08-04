@@ -176,6 +176,8 @@ export async function runFlow(
     const kind = String(node.data?.kind ?? "");
     const config = (node.data?.config ?? {}) as Record<string, any>;
     const label = node.data?.label || kind;
+    const nodeStartedAt = Date.now();
+    const snapshot = () => ({ ...(ctx.variables ?? {}) });
 
     try {
       let handle: string | null = "out";
@@ -188,7 +190,10 @@ export async function runFlow(
           const left = resolveField(field, ctx);
           const result = compare(left, String(config.operator ?? "contains"), String(config.value ?? ""));
           handle = result ? "true" : "false";
-          detail = `Condição ${result ? "verdadeira" : "falsa"}`;
+          const shown = left === undefined || left === null ? "(vazio)" : String(left).slice(0, 60);
+          detail = `Condição ${result ? "verdadeira" : "falsa"} — ${field}="${shown}" ${String(
+            config.operator ?? "contains",
+          )} "${String(config.value ?? "")}"`;
           break;
         }
         case "chat_send_text":
@@ -214,6 +219,8 @@ export async function runFlow(
             status: "ok",
             detail: `Aguardando ${unitLabel(amount, unit)}`,
             at: new Date().toISOString(),
+            duration_ms: Date.now() - nodeStartedAt,
+            variables: snapshot(),
           });
           return {
             status: "waiting",
@@ -243,6 +250,8 @@ export async function runFlow(
             status: "ok",
             detail: `Aguardando resposta do lead por até ${unitLabel(amount, unit)}`,
             at: new Date().toISOString(),
+            duration_ms: Date.now() - nodeStartedAt,
+            variables: snapshot(),
           });
           return {
             status: "waiting",
@@ -311,6 +320,8 @@ export async function runFlow(
             status: "skipped",
             detail,
             at: new Date().toISOString(),
+            duration_ms: Date.now() - nodeStartedAt,
+            variables: snapshot(),
           });
           currentId = nextNodeId(edges, node.id, "out");
           continue;
@@ -324,6 +335,8 @@ export async function runFlow(
         detail,
         branch: handle ?? undefined,
         at: new Date().toISOString(),
+        duration_ms: Date.now() - nodeStartedAt,
+        variables: snapshot(),
       });
 
       currentId = handle ? nextNodeId(edges, node.id, handle) : null;
@@ -336,6 +349,8 @@ export async function runFlow(
         status: "error",
         detail: message,
         at: new Date().toISOString(),
+        duration_ms: Date.now() - nodeStartedAt,
+        variables: snapshot(),
       });
       return { status: "failed", logs, error: message, lastNodeId };
     }
