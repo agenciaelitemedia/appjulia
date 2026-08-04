@@ -12,6 +12,9 @@ import {
   Redo2,
   LayoutTemplate,
   History,
+  Rocket,
+  GitBranch,
+  Archive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +38,7 @@ import { NodePalette } from '../components/palette/NodePalette';
 import { NodeInspector } from '../components/inspector/NodeInspector';
 import { FlowTestPanel } from '../components/test/FlowTestPanel';
 import { FlowRunsPanel } from '../components/runs/FlowRunsPanel';
+import { FlowVersionsPanel } from '../components/versions/FlowVersionsPanel';
 import { setNodeCallbacks } from '../components/nodes/BaseNode';
 import { useFlowEditorState } from '../hooks/useFlowEditorState';
 import { useFlow, useFlowMutations } from '../hooks/useFlows';
@@ -49,7 +53,7 @@ export default function FlowEditorPage() {
   const permissions = useFlowBuilderPermissions();
   const readOnly = !permissions.canEdit;
   const { data: flow, isLoading } = useFlow(flowId);
-  const { saveFlow } = useFlowMutations();
+  const { saveFlow, publishFlow, archiveFlow, unpublishFlow } = useFlowMutations();
 
   const editor = useFlowEditorState([], []);
   const [name, setName] = useState('');
@@ -57,6 +61,8 @@ export default function FlowEditorPage() {
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [testOpen, setTestOpen] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!flow) return;
@@ -93,6 +99,26 @@ export default function FlowEditorPage() {
     });
     editor.setDirty(false);
     toast.success('Automação salva');
+  };
+
+  const handlePublish = async () => {
+    if (!flowId) return;
+    if (editor.issues.length > 0) {
+      toast.error('Corrija os avisos antes de publicar a automação.');
+      return;
+    }
+    if (editor.dirty) {
+      await saveFlow.mutateAsync({
+        id: flowId,
+        name: name.trim() || 'Automação sem nome',
+        nodes: editor.nodes,
+        edges: editor.edges,
+        is_active: isActive,
+      });
+      editor.setDirty(false);
+    }
+    await publishFlow.mutateAsync({ id: flowId, nodes: editor.nodes, edges: editor.edges });
+    setIsActive(true);
   };
 
   // Atalhos: desfazer, refazer e salvar.
@@ -142,6 +168,13 @@ export default function FlowEditorPage() {
     ? deleteTarget.data.label || getNodeDefinition(deleteTarget.data.kind)?.label || 'bloco'
     : '';
 
+  const statusMeta =
+    flow.status === 'published'
+      ? { label: `Publicada${flow.published_version ? ` · v${flow.published_version}` : ''}`, className: 'border-emerald-500/40 text-emerald-600' }
+      : flow.status === 'archived'
+        ? { label: 'Arquivada', className: 'border-muted text-muted-foreground' }
+        : { label: 'Rascunho', className: 'border-amber-500/40 text-amber-600' };
+
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b bg-card px-4 py-3">
@@ -176,6 +209,15 @@ export default function FlowEditorPage() {
         ) : (
           <Badge variant="outline" className="gap-1 text-muted-foreground">
             <CheckCircle2 className="h-3 w-3" /> Fluxo válido
+          </Badge>
+        )}
+
+        <Badge variant="outline" className={statusMeta.className}>
+          {statusMeta.label}
+        </Badge>
+        {(flow.has_unpublished_changes || editor.dirty) && flow.status === 'published' && (
+          <Badge variant="outline" className="border-amber-500/40 text-amber-600">
+            Rascunho com alterações
           </Badge>
         )}
 
@@ -216,6 +258,10 @@ export default function FlowEditorPage() {
             <History className="mr-2 h-4 w-4" />
             Execuções
           </Button>
+          <Button variant="outline" className="rounded-full" onClick={() => setVersionsOpen(true)}>
+            <GitBranch className="mr-2 h-4 w-4" />
+            Versões
+          </Button>
           <Button
             variant="outline"
             className="rounded-full"
@@ -226,6 +272,51 @@ export default function FlowEditorPage() {
             <Play className="mr-2 h-4 w-4" />
             Testar
           </Button>
+          {!readOnly && (
+            <>
+              <Button
+                className="rounded-full"
+                variant="secondary"
+                onClick={handlePublish}
+                disabled={publishFlow.isPending || saveFlow.isPending}
+                title="Publicar esta versão e colocar a automação no ar"
+              >
+                {publishFlow.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Rocket className="mr-2 h-4 w-4" />
+                )}
+                Publicar
+              </Button>
+              {flow.status === 'published' ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full"
+                  title="Voltar para rascunho (para de rodar)"
+                  disabled={unpublishFlow.isPending}
+                  onClick={() => {
+                    if (flowId) unpublishFlow.mutate(flowId, { onSuccess: () => setIsActive(false) });
+                  }}
+                >
+                  <Undo2 className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full"
+                  title="Arquivar automação"
+                  disabled={archiveFlow.isPending || flow.status === 'archived'}
+                  onClick={() => {
+                    if (flowId) archiveFlow.mutate(flowId, { onSuccess: () => setIsActive(false) });
+                  }}
+                >
+                  <Archive className="h-4 w-4" />
+                </Button>
+              )}
+            </>
+          )}
           <div className="flex items-center gap-2">
             <Switch
               id="flow-active"
@@ -263,6 +354,7 @@ export default function FlowEditorPage() {
               onSelectionChange={editor.onSelectionChange}
               onDropNode={(kind, position) => editor.addNode(kind as FlowNodeKind, position)}
               readOnly={readOnly}
+              highlightNodeId={highlightNodeId}
             />
           </ReactFlowProvider>
         </div>
@@ -298,8 +390,18 @@ export default function FlowEditorPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {flowId && <FlowTestPanel flowId={flowId} open={testOpen} onOpenChange={setTestOpen} />}
+      {flowId && (
+        <FlowTestPanel
+          flowId={flowId}
+          open={testOpen}
+          onOpenChange={setTestOpen}
+          onHighlightNode={setHighlightNodeId}
+        />
+      )}
       {flowId && <FlowRunsPanel flowId={flowId} open={runsOpen} onOpenChange={setRunsOpen} />}
+      {flowId && (
+        <FlowVersionsPanel flowId={flowId} open={versionsOpen} onOpenChange={setVersionsOpen} readOnly={readOnly} />
+      )}
     </div>
   );
 }
