@@ -20,17 +20,34 @@ function json(body: unknown, status = 200) {
   });
 }
 
-async function loadFlows(clientId: string, flowId?: string | null): Promise<FlowRow[]> {
+/**
+ * Escolhe o desenho a executar: execuções reais usam a versão publicada,
+ * simulações usam o rascunho atual do editor.
+ */
+function resolveGraph(row: any, simulate: boolean): FlowRow {
+  const publishedNodes = Array.isArray(row.published_nodes) ? row.published_nodes : [];
+  const usePublished = !simulate && publishedNodes.length > 0;
+  return {
+    ...row,
+    nodes: usePublished ? publishedNodes : row.nodes,
+    edges: usePublished ? (Array.isArray(row.published_edges) ? row.published_edges : []) : row.edges,
+    start_node_id: usePublished ? (row.published_start_node_id ?? null) : row.start_node_id,
+  } as FlowRow;
+}
+
+async function loadFlows(clientId: string, flowId?: string | null, simulate = false): Promise<FlowRow[]> {
   let query = supabase
     .from("chat_bot_flows")
-    .select("id, client_id, name, is_active, nodes, edges, start_node_id, execution_count, variables");
+    .select(
+      "id, client_id, name, is_active, status, nodes, edges, start_node_id, published_nodes, published_edges, published_start_node_id, execution_count, variables",
+    );
 
   if (flowId) query = query.eq("id", flowId);
   else query = query.eq("client_id", clientId).eq("is_active", true);
 
   const { data, error } = await query;
   if (error) throw new Error(`falha ao carregar fluxos: ${error.message}`);
-  return (data ?? []) as unknown as FlowRow[];
+  return (data ?? []).map((row: any) => resolveGraph(row, simulate)) as FlowRow[];
 }
 
 async function persistOutcome(runId: string, flow: FlowRow, outcome: any, contextPatch: Record<string, unknown> = {}) {
@@ -222,6 +239,9 @@ Deno.serve(async (req) => {
     const eligible = flows.filter((flow) => {
       if (simulate) return true;
       if (!flow.is_active) return false;
+      // Só a versão publicada roda de verdade.
+      if (String((flow as any).status ?? "published") === "archived") return false;
+      if (String((flow as any).status ?? "published") === "draft") return false;
       const trigger = findTriggerNode(flow);
       if (!trigger) return false;
       return triggerMatches(trigger, {
