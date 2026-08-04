@@ -10,7 +10,7 @@ export const ESCRITORIOS_MODULE = {
   description: 'Cadastro e liberação de escritórios que operam sem agente da Julia',
   icon: 'Building2',
   route: '/escritorios',
-  menuGroup: 'ADMIN',
+  menuGroup: 'ADMINISTRATIVO',
   category: 'admin',
   displayOrder: 93,
 } as const;

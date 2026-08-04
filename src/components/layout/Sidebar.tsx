@@ -32,6 +32,7 @@ import { useEnsureVideoModule } from "@/hooks/useEnsureVideoModule";
 import { useEnsureNotifyModule } from "@/hooks/useEnsureNotifyModule";
 import { useEnsureTicketsModule } from "@/hooks/useEnsureTicketsModule";
 import { useEnsureHelpCenterModule } from "@/hooks/useEnsureHelpCenterModule";
+import { useEnsureEscritoriosModule } from "@/modules/escritorios/extend/useEnsureEscritoriosModule";
 import {
   Tooltip,
   TooltipContent,
@@ -76,6 +77,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureNotifyModule();
   useEnsureTicketsModule();
   useEnsureHelpCenterModule();
+  useEnsureEscritoriosModule();
 
   // Get sorted groups — a visibilidade do módulo é decidida pelas
   // permissões carregadas em `useMenuModules`, sem bloqueios por role
