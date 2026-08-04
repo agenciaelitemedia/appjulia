@@ -145,6 +145,11 @@ export default function FlowEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor.redo, editor.undo, editor.dirty, readOnly, editor.nodes, editor.edges, name, isActive]);
 
+  const editingNode = useMemo(
+    () => editor.nodes.find((n) => n.id === editingNodeId) ?? null,
+    [editor.nodes, editingNodeId],
+  );
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -163,11 +168,6 @@ export default function FlowEditorPage() {
       </div>
     );
   }
-
-  const editingNode = useMemo(
-    () => editor.nodes.find((n) => n.id === editingNodeId) ?? null,
-    [editor.nodes, editingNodeId],
-  );
 
   const deleteTarget = pendingDelete ? editor.nodes.find((n) => n.id === pendingDelete) : null;
   const deleteLabel = deleteTarget
