@@ -63,6 +63,7 @@ export default function FlowEditorPage() {
   const [runsOpen, setRunsOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!flow) return;
