@@ -56,6 +56,8 @@ export interface FlowRunContext {
   messageType: string;
   tag: string | null;
   variables: Record<string, unknown>;
+  /** Última mensagem enviada pelo atendente/automação (ISO) — base para inatividade. */
+  lastAgentMessageAt: string | null;
 }
 
 export interface NodeLogEntry {

@@ -1,4 +1,4 @@
-import { MessageSquarePlus, GitBranch, Send, Tag, UserCheck, Flag } from 'lucide-react';
+import { MessageSquarePlus, GitBranch, Send, Tag, UserCheck, Flag, Timer, Hourglass, UserX, MailQuestion } from 'lucide-react';
 import type { FlowNodeCategory, FlowNodeConfig, FlowNodeKind } from '../types';
 import {
   TriggerMessageForm,
@@ -7,6 +7,10 @@ import {
   TagForm,
   HandoffForm,
   EndForm,
+  TriggerLeadInactiveForm,
+  TriggerAgentInactiveForm,
+  DelayForm,
+  WaitReplyForm,
   CONDITION_FIELDS,
   CONDITION_OPERATORS,
   type NodeFormProps,
@@ -35,6 +39,20 @@ export interface FlowNodeDefinition {
 
 const OUT = [{ id: 'out', label: 'Saída' }];
 
+const UNIT_LABELS: Record<string, [string, string]> = {
+  seconds: ['segundo', 'segundos'],
+  minutes: ['minuto', 'minutos'],
+  hours: ['hora', 'horas'],
+  days: ['dia', 'dias'],
+};
+
+function durationText(config: FlowNodeConfig, fallbackUnit = 'minutes'): string {
+  const amount = Number(config.amount ?? 0);
+  const unit = String(config.unit ?? fallbackUnit);
+  const [one, many] = UNIT_LABELS[unit] ?? UNIT_LABELS.minutes;
+  return `${amount} ${amount === 1 ? one : many}`;
+}
+
 export const NODE_DEFINITIONS: Record<FlowNodeKind, FlowNodeDefinition> = {
   trigger_message_received: {
     kind: 'trigger_message_received',
@@ -51,6 +69,34 @@ export const NODE_DEFINITIONS: Record<FlowNodeKind, FlowNodeDefinition> = {
     },
     validate: () => [],
     Form: TriggerMessageForm,
+  },
+
+  trigger_lead_inactive: {
+    kind: 'trigger_lead_inactive',
+    category: 'trigger',
+    label: 'Lead sem responder',
+    description: 'Dispara quando o lead fica um tempo sem responder',
+    icon: UserX,
+    hasInput: false,
+    outputs: OUT,
+    defaultConfig: { queue_id: '', amount: 30, unit: 'minutes', cooldown_minutes: 720 },
+    summary: (c) => `Lead sem responder há ${durationText(c)}`,
+    validate: (c) => (Number(c.amount ?? 0) > 0 ? [] : ['Informe o tempo de inatividade']),
+    Form: TriggerLeadInactiveForm,
+  },
+
+  trigger_agent_inactive: {
+    kind: 'trigger_agent_inactive',
+    category: 'trigger',
+    label: 'Atendente sem responder',
+    description: 'Dispara quando a equipe demora para responder o lead',
+    icon: MailQuestion,
+    hasInput: false,
+    outputs: OUT,
+    defaultConfig: { queue_id: '', amount: 15, unit: 'minutes', cooldown_minutes: 720 },
+    summary: (c) => `Equipe sem responder há ${durationText(c)}`,
+    validate: (c) => (Number(c.amount ?? 0) > 0 ? [] : ['Informe o tempo de inatividade']),
+    Form: TriggerAgentInactiveForm,
   },
 
   logic_condition: {
@@ -74,6 +120,37 @@ export const NODE_DEFINITIONS: Record<FlowNodeKind, FlowNodeDefinition> = {
     },
     validate: (c) => (c.field ? [] : ['Escolha o campo da condição']),
     Form: ConditionForm,
+  },
+
+  logic_delay: {
+    kind: 'logic_delay',
+    category: 'logic',
+    label: 'Aguardar tempo',
+    description: 'Pausa o fluxo por um tempo e continua depois',
+    icon: Timer,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: { amount: 5, unit: 'minutes' },
+    summary: (c) => `Aguardar ${durationText(c)}`,
+    validate: (c) => (Number(c.amount ?? 0) > 0 ? [] : ['Informe o tempo de espera']),
+    Form: DelayForm,
+  },
+
+  logic_wait_reply: {
+    kind: 'logic_wait_reply',
+    category: 'logic',
+    label: 'Aguardar resposta',
+    description: 'Espera o lead responder, com prazo limite',
+    icon: Hourglass,
+    hasInput: true,
+    outputs: [
+      { id: 'replied', label: 'Respondeu' },
+      { id: 'timeout', label: 'Sem resposta' },
+    ],
+    defaultConfig: { amount: 10, unit: 'minutes' },
+    summary: (c) => `Esperar resposta por até ${durationText(c)}`,
+    validate: (c) => (Number(c.amount ?? 0) > 0 ? [] : ['Informe o prazo de espera']),
+    Form: WaitReplyForm,
   },
 
   chat_send_text: {

@@ -46,6 +46,20 @@ export async function buildRunContext(
     queue = data ?? null;
   }
 
+  // Última resposta do atendente (mensagem enviada), usada nos nós de tempo/inatividade
+  let lastAgentMessageAt: string | null = null;
+  if (conversation?.id) {
+    const { data } = await supabase
+      .from("chat_messages")
+      .select("timestamp")
+      .eq("conversation_id", conversation.id)
+      .eq("from_me", true)
+      .order("timestamp", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    lastAgentMessageAt = data?.timestamp ?? null;
+  }
+
   return {
     event: input.event,
     simulate: input.simulate,
@@ -57,7 +71,16 @@ export async function buildRunContext(
     messageType: input.message_type ?? "text",
     tag: input.tag ?? null,
     variables: { ...(input.variables ?? {}) },
+    lastAgentMessageAt,
   };
+}
+
+/** Minutos decorridos desde um instante ISO. `null` quando não há referência. */
+export function minutesSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ts = new Date(iso).getTime();
+  if (Number.isNaN(ts)) return null;
+  return Math.floor((Date.now() - ts) / 60000);
 }
 
 /** Substitui `{{chave}}` por valores do contexto. Desconhecidos viram string vazia. */
@@ -97,6 +120,18 @@ export function resolveField(field: string, ctx: FlowRunContext): string {
     case "julia_active":
       // Estado real da Julia vive no banco externo (sessões) — Fase 4.
       return String(ctx.variables?.julia_active ?? "");
+    case "minutes_since_lead_reply": {
+      const v = minutesSince(ctx.conversation?.last_customer_message_at);
+      return v === null ? "" : String(v);
+    }
+    case "minutes_since_agent_reply": {
+      const v = minutesSince(ctx.lastAgentMessageAt);
+      return v === null ? "" : String(v);
+    }
+    case "channel":
+      return ctx.conversation?.channel ?? "";
+    case "priority":
+      return ctx.conversation?.priority ?? "";
     default:
       return String(ctx.variables?.[field] ?? "");
   }
@@ -105,6 +140,14 @@ export function resolveField(field: string, ctx: FlowRunContext): string {
 export function compare(left: string, operator: string, right: string): boolean {
   const a = (left ?? "").toString().trim().toLowerCase();
   const b = (right ?? "").toString().trim().toLowerCase();
+
+  if (operator === "greater_than" || operator === "less_than") {
+    const na = Number(a);
+    const nb = Number(b);
+    if (Number.isNaN(na) || Number.isNaN(nb)) return false;
+    return operator === "greater_than" ? na > nb : na < nb;
+  }
+
   switch (operator) {
     case "contains":
       return a.includes(b);
