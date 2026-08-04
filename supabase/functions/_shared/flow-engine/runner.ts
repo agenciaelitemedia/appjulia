@@ -259,6 +259,9 @@ export async function runFlow(
         case "chat_tag":
           detail = await actionTag(supabase, config, ctx);
           break;
+        case "chat_send_media":
+          detail = await actionSendMedia(supabase, config, ctx);
+          break;
         case "chat_handoff":
           detail = await actionHandoff(supabase, config, ctx);
           break;
