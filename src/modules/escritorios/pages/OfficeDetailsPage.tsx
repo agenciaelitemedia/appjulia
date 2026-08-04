@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Building2, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Building2, Copy, Loader2, Lock, RefreshCw, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,10 +8,29 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useEscritoriosPermissions } from '../extend/auth';
 import { applyOfficePermissions } from '../extend/permissions';
 import { useOffice, useOfficeMutations } from '../hooks/useOffices';
+import { useOfficeOwnerPassword } from '../hooks/useOfficeOwnerPassword';
 import { ESCRITORIOS_ROUTES, OFFICE_MODULE_PACKAGE } from '../module';
 
 export default function OfficeDetailsPage() {
@@ -27,6 +46,10 @@ export default function OfficeDetailsPage() {
   const [expiresAt, setExpiresAt] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showConfirmReset, setShowConfirmReset] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
+  const { password, resetPassword, isResetting } = useOfficeOwnerPassword(office?.owner_user_id);
 
   useEffect(() => {
     if (!office) return;
@@ -57,6 +80,23 @@ export default function OfficeDetailsPage() {
 
   const toggle = (code: string) =>
     setModules((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+
+  const copyToClipboard = (value: string | null, label: string) => {
+    if (!value) return;
+    navigator.clipboard.writeText(value);
+    toast.success(`${label} copiada para a área de transferência`);
+  };
+
+  const handleResetPassword = async () => {
+    setShowConfirmReset(false);
+    const result = await resetPassword();
+    if (result.success && result.newPassword) {
+      setNewPassword(result.newPassword);
+      setShowNewPassword(true);
+    } else {
+      toast.error(result.error || 'Erro ao resetar senha');
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -119,6 +159,38 @@ export default function OfficeDetailsPage() {
             <Badge variant={office.is_active ? 'default' : 'secondary'}>
               {office.is_active ? 'Ativo' : 'Inativo'}
             </Badge>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 p-3 sm:col-span-2">
+            <div className="flex items-center gap-3">
+              <Lock className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Senha</p>
+                <p className="font-mono text-sm font-medium">{password || '••••••••••'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {password && (
+                <Button variant="ghost" size="sm" onClick={() => copyToClipboard(password, 'Senha')}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              )}
+              {permissions.canEdit && office.owner_user_id && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full"
+                  disabled={isResetting}
+                  onClick={() => setShowConfirmReset(true)}
+                >
+                  {isResetting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  )}
+                  Resetar Senha
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -198,6 +270,45 @@ export default function OfficeDetailsPage() {
           </Button>
         </div>
       )}
+
+      <AlertDialog open={showConfirmReset} onOpenChange={setShowConfirmReset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resetar Senha</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja gerar uma nova senha para o titular deste escritório? A senha atual será
+              substituída permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetPassword}>Confirmar Reset</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={showNewPassword} onOpenChange={setShowNewPassword}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Senha Gerada</DialogTitle>
+            <DialogDescription>A senha do titular foi resetada. Anote a nova senha:</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="flex items-center justify-between rounded-lg bg-muted p-4">
+              <code className="font-mono text-lg font-semibold">{newPassword}</code>
+              <Button variant="outline" size="sm" onClick={() => copyToClipboard(newPassword, 'Nova senha')}>
+                <Copy className="mr-2 h-4 w-4" /> Copiar
+              </Button>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Esta senha foi salva no sistema. Recomendamos que o usuário altere a senha no primeiro acesso.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowNewPassword(false)}>Entendi</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
