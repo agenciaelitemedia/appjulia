@@ -98,10 +98,18 @@ export async function actionCrmCreateCard(
   const pipelineId = String(config.pipeline_id ?? "") || (await firstPipeline(supabase, boardId));
   if (!pipelineId) throw new Error("quadro sem fases cadastradas");
 
+  const { data: board } = await supabase
+    .from("crm_boards")
+    .select("cod_agent, client_id")
+    .eq("id", boardId)
+    .maybeSingle();
+  const codAgent = String(board?.cod_agent ?? ctx.clientId ?? "");
+
   const { data, error } = await supabase
     .from("crm_deals")
     .insert({
       client_id: ctx.clientId,
+      cod_agent: codAgent,
       board_id: boardId,
       pipeline_id: pipelineId,
       title,
