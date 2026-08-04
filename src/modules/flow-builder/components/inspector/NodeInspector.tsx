@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, MousePointerClick, Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getNodeDefinition } from '../../registry/nodeRegistry';
 import { CATEGORY_META } from '../../registry/categories';
