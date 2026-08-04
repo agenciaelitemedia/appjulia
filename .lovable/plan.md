@@ -55,9 +55,9 @@ src/modules/escritorios/
 ## Detalhes técnicos
 
 - Novos códigos de módulo `offices` e `dashboard_atendimento` em `src/types/permissions.ts`, com `extend/useEnsureOfficesModule.ts` dentro do módulo (padrão dos `useEnsure*Module`, via `externalDb.createModule`).
-- Rotas em `src/App.tsx`: `/admin/escritorios`, `/admin/escritorios-novo`, `/admin/escritorios/:id/editar`, `/admin/escritorios/:id/detalhes` (protegidas por `admin_agents`) e `/dashboard-atendimento` (protegida por `dashboard_atendimento`).
-- Persistência do escritório no Postgres externo via `externalDb` (`insertClient`, `insertUser`, atualização de plano/vencimento no cliente, `upsertUserPermissions`); serão adicionadas as actions que faltarem em `supabase/functions/db-query` (listagem de clientes sem agente, gravação do pacote de permissões).
-- `useOfficeSave` reaproveita `generateSecurePassword` + bcrypt, `ensureChatClientSettings` e o log de mudanças, sem `insertAgent`/`insertUserAgent`.
-- Dashboard de atendimentos em `src/pages/dashboard-atendimento/` consultando `chat_conversations`, `chat_messages`, `chat_analytics_daily` e `queues` no backend (Supabase), filtrado por `client_id` efetivo (`resolveEffectiveClientId`).
+- `src/App.tsx` monta apenas o `routes.tsx` do módulo: `/admin/escritorios`, `/admin/escritorios-novo`, `/admin/escritorios/:id/editar`, `/admin/escritorios/:id/detalhes` (protegidas por `admin_agents`) e `/dashboard-atendimento` (protegida por `dashboard_atendimento`).
+- Persistência via `extend/db.ts` → `externalDb` (`insertClient`, `insertUser`, plano/vencimento do cliente, permissões do usuário); serão adicionadas as actions que faltarem em `supabase/functions/db-query` (listar clientes sem agente, gravar o pacote de permissões).
+- `useOfficeSave` reaproveita `generateSecurePassword` + bcrypt, `ensureChatClientSettings` (via `extend/chat.ts`) e log de criação, sem `insertAgent`/`insertUserAgent`.
+- Dashboard de atendimentos consulta `chat_conversations`, `chat_messages`, `chat_analytics_daily` e `queues`, filtrado pelo `client_id` efetivo (`resolveEffectiveClientId`, exposto em `extend/auth.ts`).
 - Redirecionamento pós-login: em `src/pages/Login.tsx`, escolher `/dashboard` ou `/dashboard-atendimento` conforme o usuário possuir agente vinculado.
 - `MainLayout`/`AgentBlockedScreen`, `DisconnectedAgentsAlert` e `CopilotWidget` recebem guarda para clientes sem agente.
