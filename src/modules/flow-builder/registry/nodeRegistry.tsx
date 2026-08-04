@@ -19,12 +19,14 @@ import {
   Globe,
   Variable,
   BellRing,
+  Image as ImageIcon,
 } from 'lucide-react';
 import type { FlowNodeCategory, FlowNodeConfig, FlowNodeKind } from '../types';
 import {
   TriggerMessageForm,
   ConditionForm,
   SendTextForm,
+  SendMediaForm,
   TagForm,
   HandoffForm,
   EndForm,
@@ -200,6 +202,32 @@ export const NODE_DEFINITIONS: Record<FlowNodeKind, FlowNodeDefinition> = {
     },
     validate: (c) => (String(c.text ?? '').trim() ? [] : ['Escreva a mensagem a enviar']),
     Form: SendTextForm,
+  },
+
+  chat_send_media: {
+    kind: 'chat_send_media',
+    category: 'chat',
+    label: 'Enviar mídia',
+    description: 'Envia imagem, áudio, vídeo, documento ou sticker',
+    icon: ImageIcon,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: { media_type: 'image', url: '', caption: '', file_name: '', delay_seconds: 0 },
+    summary: (c) => {
+      const labels: Record<string, string> = {
+        image: 'imagem',
+        audio: 'áudio',
+        video: 'vídeo',
+        document: 'documento',
+        sticker: 'sticker',
+      };
+      const type = labels[String(c.media_type ?? 'image')] ?? 'mídia';
+      const url = String(c.url ?? '').trim();
+      if (!url) return `Enviar ${type} (link não definido)`;
+      return `Enviar ${type}: ${url.replace(/^https?:\/\//, '').slice(0, 40)}`;
+    },
+    validate: (c) => (String(c.url ?? '').trim() ? [] : ['Informe o link do arquivo a enviar']),
+    Form: SendMediaForm,
   },
 
   chat_tag: {
