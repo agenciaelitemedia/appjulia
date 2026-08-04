@@ -45,11 +45,13 @@ import {
   BookOpen,
   LifeBuoy,
   HelpCircle,
+  Building2,
   type LucideIcon,
 } from 'lucide-react';
 
 export const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
+  Building2,
   Users,
   Bot,
   CreditCard,
