@@ -61,7 +61,8 @@ export const BaseNode = memo(({ id, data, selected }: NodeProps) => {
         <Handle
           type="target"
           position={Position.Left}
-          className="!left-[-7px] !h-3 !w-3 !rounded-full !border-2 !border-background !bg-flow-edge"
+          style={{ top: '50%' }}
+          className="!left-[-7px] !h-3 !w-3 !-translate-y-1/2 !rounded-full !border-2 !border-background !bg-flow-edge"
         />
       )}
 
@@ -116,17 +117,27 @@ export const BaseNode = memo(({ id, data, selected }: NodeProps) => {
         <p className="text-xs leading-snug text-muted-foreground">{def.summary(nodeData.config || {})}</p>
       </div>
 
-      {outputs.length > 0 && (
+      {outputs.length === 1 && (
+        <Handle
+          id={outputs[0].id}
+          type="source"
+          position={Position.Right}
+          style={{ top: '50%' }}
+          className="!right-[-7px] !h-3 !w-3 !-translate-y-1/2 !rounded-full !border-2 !border-background !bg-flow-edge"
+        />
+      )}
+
+      {outputs.length > 1 && (
         <div className="border-t">
           {outputs.map((out, index) => (
             <div key={out.id} className="relative flex items-center justify-end px-3 py-1.5 text-[11px] text-muted-foreground">
-              {outputs.length > 1 ? out.label : ''}
+              {out.label}
               <Handle
                 id={out.id}
                 type="source"
                 position={Position.Right}
-                style={{ top: `${28 + index * 28}px` }}
-                className="!right-[-7px] !h-3 !w-3 !rounded-full !border-2 !border-background !bg-flow-edge"
+                style={{ top: '50%' }}
+                className="!right-[-7px] !h-3 !w-3 !-translate-y-1/2 !rounded-full !border-2 !border-background !bg-flow-edge"
               />
             </div>
           ))}

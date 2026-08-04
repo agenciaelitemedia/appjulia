@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, MousePointerClick, Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getNodeDefinition } from '../../registry/nodeRegistry';
 import { CATEGORY_META } from '../../registry/categories';
@@ -18,17 +18,7 @@ interface NodeInspectorProps {
 }
 
 export function NodeInspector({ node, onChangeLabel, onChangeConfig, onRequestDelete, readOnly }: NodeInspectorProps) {
-  if (!node) {
-    return (
-      <aside className="hidden w-80 shrink-0 flex-col items-center justify-center gap-3 border-l bg-card p-8 text-center lg:flex">
-        <MousePointerClick className="h-8 w-8 text-muted-foreground" />
-        <p className="text-sm font-medium">Nenhum bloco selecionado</p>
-        <p className="text-xs text-muted-foreground">
-          Clique em um bloco do quadro para configurar o que ele faz.
-        </p>
-      </aside>
-    );
-  }
+  if (!node) return null;
 
   const def = getNodeDefinition(node.data.kind);
   if (!def) return null;
