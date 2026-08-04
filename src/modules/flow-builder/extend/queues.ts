@@ -4,6 +4,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from './db';
 import { useFlowBuilderIdentity } from './auth';
+import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
 
 export interface FlowQueueOption {
   id: string;
@@ -13,14 +14,17 @@ export interface FlowQueueOption {
 }
 
 export function useFlowQueues() {
-  const { clientId } = useFlowBuilderIdentity();
+  const { user } = useFlowBuilderIdentity();
   return useQuery<FlowQueueOption[]>({
-    queryKey: ['flow-builder', 'queues', clientId],
+    queryKey: ['flow-builder', 'queues', user?.id, user?.client_id],
+    enabled: !!user?.id,
     queryFn: async () => {
+      const clientId = await resolveEffectiveClientId(user, 'flow-builder');
+      if (!clientId) return [];
       const { data, error } = await supabase
         .from('queues')
         .select('id, name, channel_type, is_active')
-        .eq('client_id', clientId)
+        .eq('client_id', String(clientId))
         .eq('is_deleted', false)
         .order('name');
       if (error) throw error;
