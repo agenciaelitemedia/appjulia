@@ -50,6 +50,8 @@ export function FlowCanvas({
   onDropNode,
   readOnly,
   highlightNodeId,
+  onNodeDoubleClick,
+  onPaneClick,
 }: FlowCanvasProps) {
   const nodeTypes = useMemo(() => ({ flowNode: BaseNode }), []);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
