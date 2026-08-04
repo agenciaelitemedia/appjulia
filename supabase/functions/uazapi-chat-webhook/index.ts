@@ -1767,6 +1767,16 @@ Deno.serve(async (req) => {
           audioMessageIdsToTranscribe.push(insertedMsg.id);
         }
 
+        // Enfileira evento para o motor de fluxos (somente mensagens do lead)
+        if (insertedMsg?.id && !fromMe) {
+          flowEvents.push({
+            conversation_id: conversationId ?? null,
+            contact_id: contact.id,
+            message_text: toSafeString(text) || '',
+            message_type: type === 'ptt' ? 'audio' : type,
+          });
+        }
+
         processed++;
       } catch (msgErr) {
         console.error('[uazapi-chat-webhook] Error processing message:', msgErr);
