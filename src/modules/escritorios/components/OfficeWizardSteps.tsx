@@ -1,17 +1,30 @@
 import { useState } from 'react';
-import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  AlertCircle,
+  Building2,
+  CheckCircle2,
+  ChevronRight,
+  Loader2,
+  Search,
+  UserPlus,
+  X,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { maskCPFCNPJ, maskPhone, maskCEP, unmask } from '@/lib/inputMasks';
 import { externalDb } from '../extend/db';
 import { OFFICE_MODULE_PACKAGE } from '../module';
 import type { OfficeFormData } from '../types';
 import { useOfficePlans } from '../hooks/useOfficePlans';
+import { useOfficeClientSearch, type OfficeSearchedClient } from '../hooks/useOfficeClientSearch';
 
 type Setter = <K extends keyof OfficeFormData>(key: K, value: OfficeFormData[K]) => void;
 
@@ -29,10 +42,37 @@ function StatusIcon({ status }: { status: ValidationStatus }) {
   return null;
 }
 
-/** Passo 1 — dados do escritório (cliente). */
+/** Passo 1 — seleção/cadastro do escritório (cliente), no mesmo padrão do passo Cliente do agente. */
 export function OfficeDataStep({ form, set }: StepProps) {
   const [federalStatus, setFederalStatus] = useState<ValidationStatus>('idle');
   const [loadingCep, setLoadingCep] = useState(false);
+  const { searchTerm, setSearchTerm, results, isLoading, clearSearch } = useOfficeClientSearch();
+  const [viewState, setViewState] = useState<'search' | 'selected' | 'new'>(
+    form.client_id ? 'selected' : 'search',
+  );
+
+  const handleSelectClient = (client: OfficeSearchedClient) => {
+    set('is_new_client', false);
+    set('client_id', client.id);
+    set('office_name', client.name || '');
+    set('business_name', client.business_name || '');
+    set('email', client.email || '');
+    set('phone', client.phone || '');
+    setViewState('selected');
+    clearSearch();
+  };
+
+  const handleNewClient = () => {
+    set('is_new_client', true);
+    set('client_id', null);
+    setViewState('new');
+  };
+
+  const handleChangeClient = () => {
+    set('client_id', null);
+    set('is_new_client', true);
+    setViewState('search');
+  };
 
   const checkFederalId = async (value: string) => {
     const clean = unmask(value);
@@ -63,11 +103,145 @@ export function OfficeDataStep({ form, set }: StepProps) {
     }
   };
 
+  if (viewState === 'search') {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-medium text-foreground">Selecionar Escritório</h3>
+          <p className="text-sm text-muted-foreground">
+            Busque um escritório existente ou cadastre um novo
+          </p>
+        </div>
+
+        <div className="flex gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar escritório por nome, razão social ou email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-10"
+            />
+            {searchTerm && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                onClick={() => setSearchTerm('')}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <Button type="button" variant="outline" onClick={handleNewClient}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Novo Escritório
+          </Button>
+        </div>
+
+        <div className="min-h-[300px] rounded-lg border">
+          {isLoading ? (
+            <div className="space-y-3 p-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-3 p-3">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-[200px]" />
+                    <Skeleton className="h-3 w-[150px]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : searchTerm.length < 3 ? (
+            <div className="flex h-[300px] flex-col items-center justify-center text-muted-foreground">
+              <Search className="mb-4 h-12 w-12 opacity-50" />
+              <p className="text-center">
+                Busque um escritório existente
+                <br />
+                ou clique em "Novo Escritório" para cadastrar
+              </p>
+            </div>
+          ) : results.length === 0 ? (
+            <div className="flex h-[300px] flex-col items-center justify-center text-muted-foreground">
+              <p>Nenhum escritório encontrado</p>
+              <Button type="button" variant="link" onClick={handleNewClient}>
+                Cadastrar novo escritório
+              </Button>
+            </div>
+          ) : (
+            <ScrollArea className="h-[300px]">
+              <div className="p-2">
+                <p className="mb-2 px-2 py-1 text-sm text-muted-foreground">
+                  {results.length} escritório(s) encontrado(s)
+                </p>
+                {results.map((client) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => handleSelectClient(client)}
+                    className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-accent"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                      <Building2 className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{client.name}</p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {client.business_name || client.email || 'Sem informação adicional'}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (viewState === 'selected' && form.client_id) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-lg font-medium text-foreground">Escritório Selecionado</h3>
+          <p className="text-sm text-muted-foreground">Confirme os dados e siga para o titular</p>
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg border bg-accent/30 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+              <Building2 className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium">{form.office_name}</p>
+              <p className="text-sm text-muted-foreground">{form.business_name || form.email}</p>
+            </div>
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={handleChangeClient}>
+            <X className="mr-1 h-4 w-4" />
+            Trocar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">Dados do Escritório</h3>
-        <p className="text-sm text-muted-foreground">Escritório operando sem agente da Julia</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium text-foreground">Novo Escritório</h3>
+          <p className="text-sm text-muted-foreground">
+            Preencha os dados do escritório (opera sem agente da Julia)
+          </p>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setViewState('search')}>
+          <X className="mr-1 h-4 w-4" />
+          Cancelar
+        </Button>
       </div>
       <div className="grid gap-5 md:grid-cols-2">
         <div className="space-y-2">
