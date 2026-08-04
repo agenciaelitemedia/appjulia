@@ -1234,6 +1234,13 @@ Deno.serve(async (req) => {
     const skipped: Record<string, number> = { group: 0, no_id: 0, no_phone: 0 };
     const backfillTriggered = new Set<string>();
     const audioMessageIdsToTranscribe: string[] = [];
+    // Eventos para o motor de fluxos visuais (Automações) — apenas mensagens recebidas
+    const flowEvents: Array<{
+      conversation_id: string | null;
+      contact_id: string | null;
+      message_text: string;
+      message_type: string;
+    }> = [];
     for (const msg of messages) {
       try {
         const chatId = msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender || '';
