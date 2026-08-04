@@ -1,0 +1,1 @@
+UPDATE public.chat_bot_flows SET client_id = '405' WHERE id = '3d49d85a-2192-4dff-8957-d2c7305578da'; UPDATE public.chat_bot_flow_versions SET client_id = '405' WHERE flow_id = '3d49d85a-2192-4dff-8957-d2c7305578da';
