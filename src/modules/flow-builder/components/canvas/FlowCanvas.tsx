@@ -34,6 +34,10 @@ interface FlowCanvasProps {
   readOnly: boolean;
   /** Bloco em foco na simulação passo a passo. */
   highlightNodeId?: string | null;
+  /** Abre as propriedades do nó ao dar duplo clique. */
+  onNodeDoubleClick?: (nodeId: string) => void;
+  /** Fecha o painel de propriedades ao clicar no canvas vazio. */
+  onPaneClick?: () => void;
 }
 
 export function FlowCanvas({
