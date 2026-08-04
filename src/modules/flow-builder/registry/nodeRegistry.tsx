@@ -15,6 +15,10 @@ import {
   MoveRight,
   PencilLine,
   Link2,
+  Webhook,
+  Globe,
+  Variable,
+  BellRing,
 } from 'lucide-react';
 import type { FlowNodeCategory, FlowNodeConfig, FlowNodeKind } from '../types';
 import {
@@ -34,6 +38,10 @@ import {
   CrmMoveCardForm,
   CrmUpdateCardForm,
   CrmLinkConversationForm,
+  WebhookForm,
+  HttpRequestForm,
+  SetVariablesForm,
+  NotifyForm,
   CONDITION_FIELDS,
   CONDITION_OPERATORS,
   type NodeFormProps,
@@ -349,6 +357,85 @@ export const NODE_DEFINITIONS: Record<FlowNodeKind, FlowNodeDefinition> = {
     summary: () => 'Vincular conversa ao card do lead',
     validate: () => [],
     Form: CrmLinkConversationForm,
+  },
+
+  data_webhook: {
+    kind: 'data_webhook',
+    category: 'data',
+    label: 'Enviar para webhook',
+    description: 'Envia os dados da conversa para um webhook',
+    icon: Webhook,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: { webhook_id: '', url: '', note: '', timeout_seconds: 15 },
+    summary: (c) => {
+      if (c.webhook_id) return 'Enviar dados ao webhook cadastrado';
+      const url = String(c.url ?? '').trim();
+      return url ? `Enviar dados para ${url.replace(/^https?:\/\//, '').slice(0, 40)}` : 'Destino não definido';
+    },
+    validate: (c) =>
+      c.webhook_id || String(c.url ?? '').trim() ? [] : ['Escolha o webhook ou informe a URL de destino'],
+    Form: WebhookForm,
+  },
+
+  data_http_request: {
+    kind: 'data_http_request',
+    category: 'data',
+    label: 'Requisição HTTP',
+    description: 'Chama uma API externa e guarda a resposta',
+    icon: Globe,
+    hasInput: true,
+    outputs: [
+      { id: 'success', label: 'Sucesso' },
+      { id: 'error', label: 'Erro' },
+    ],
+    defaultConfig: { method: 'GET', url: '', headers: [], body: '', save_as: 'resp', timeout_seconds: 15 },
+    summary: (c) => {
+      const url = String(c.url ?? '').trim();
+      if (!url) return 'URL não definida';
+      return `${String(c.method ?? 'GET')} ${url.replace(/^https?:\/\//, '').slice(0, 40)}`;
+    },
+    validate: (c) => (String(c.url ?? '').trim() ? [] : ['Informe a URL da requisição']),
+    Form: HttpRequestForm,
+  },
+
+  data_set_variables: {
+    kind: 'data_set_variables',
+    category: 'data',
+    label: 'Guardar dados',
+    description: 'Cria variáveis para usar nos próximos nós',
+    icon: Variable,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: { items: [] },
+    summary: (c) => {
+      const items = Array.isArray(c.items) ? (c.items as Array<{ name?: string }>) : [];
+      const names = items.map((i) => String(i?.name ?? '').trim()).filter(Boolean);
+      if (names.length === 0) return 'Nenhuma variável definida';
+      return `Guardar ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`;
+    },
+    validate: (c) => {
+      const items = Array.isArray(c.items) ? (c.items as Array<{ name?: string }>) : [];
+      return items.some((i) => String(i?.name ?? '').trim()) ? [] : ['Adicione ao menos uma variável'];
+    },
+    Form: SetVariablesForm,
+  },
+
+  data_notify: {
+    kind: 'data_notify',
+    category: 'data',
+    label: 'Notificar equipe',
+    description: 'Envia uma notificação interna (e push) para a equipe',
+    icon: BellRing,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: { title: '', body: '', audience: 'my_team', alert_level: 'info' },
+    summary: (c) => {
+      const title = String(c.title ?? '').trim();
+      return title ? `Avisar equipe: ${title.slice(0, 50)}` : 'Aviso sem título';
+    },
+    validate: (c) => (String(c.title ?? '').trim() ? [] : ['Escreva o título da notificação']),
+    Form: NotifyForm,
   },
 
   flow_end: {

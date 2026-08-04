@@ -10,6 +10,7 @@ import {
   actionCrmMoveCard,
   actionCrmUpdateCard,
 } from "./crm-actions.ts";
+import { actionHttpRequest, actionNotify, actionSetVariables, actionWebhook } from "./data-actions.ts";
 import type { FlowEdge, FlowNode, FlowRow, FlowRunContext, NodeLogEntry } from "./types.ts";
 
 const MAX_STEPS = 60;
@@ -277,6 +278,21 @@ export async function runFlow(
           break;
         case "crm_link_conversation":
           detail = await actionCrmLinkConversation(supabase, config, ctx);
+          break;
+        case "data_webhook":
+          detail = await actionWebhook(supabase, config, ctx);
+          break;
+        case "data_http_request": {
+          const result = await actionHttpRequest(config, ctx);
+          detail = result.detail;
+          handle = result.handle;
+          break;
+        }
+        case "data_set_variables":
+          detail = await actionSetVariables(config, ctx);
+          break;
+        case "data_notify":
+          detail = await actionNotify(supabase, config, ctx);
           break;
         case "flow_end":
           detail = await actionEnd(supabase, config, ctx);
