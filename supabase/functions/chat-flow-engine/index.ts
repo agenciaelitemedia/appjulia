@@ -223,7 +223,7 @@ Deno.serve(async (req) => {
       return json({ error: "não foi possível resolver o client_id" }, 400);
     }
 
-    const flows = await loadFlows(String(clientId ?? ""), input.flow_id ?? null);
+    const flows = await loadFlows(String(clientId ?? ""), input.flow_id ?? null, simulate);
     if (flows.length === 0) return json({ executed: 0, results: [] });
 
     let queueId: string | null = null;

@@ -10,6 +10,12 @@ export interface FlowSummary {
   name: string;
   description: string | null;
   is_active: boolean;
+  /** Situação da automação: rascunho, publicada ou arquivada. */
+  status: FlowStatus;
+  published_at: string | null;
+  published_version: number | null;
+  /** Rascunho difere da versão publicada. */
+  has_unpublished_changes: boolean;
   nodes: FlowCanvasNode[];
   edges: FlowCanvasEdge[];
   start_node_id: string | null;
@@ -20,8 +26,14 @@ export interface FlowSummary {
   migrated_from_legacy?: boolean;
 }
 
+export type FlowStatus = 'draft' | 'published' | 'archived';
+
 const TABLE = 'chat_bot_flows';
 const KEY = 'flow-builder-flows';
+
+function graphSignature(nodes: unknown[], edges: unknown[]): string {
+  return JSON.stringify([nodes ?? [], edges ?? []]);
+}
 
 function normalize(row: Record<string, unknown>): FlowSummary {
   const rawNodes = Array.isArray(row.nodes) ? (row.nodes as unknown[]) : [];
@@ -35,11 +47,23 @@ function normalize(row: Record<string, unknown>): FlowSummary {
       })
     : null;
 
+  const publishedNodes = Array.isArray(row.published_nodes) ? (row.published_nodes as unknown[]) : [];
+  const publishedEdges = Array.isArray(row.published_edges) ? (row.published_edges as unknown[]) : [];
+  const status = (String(row.status ?? 'draft') as FlowStatus) ?? 'draft';
+
   return {
     id: String(row.id),
     name: String(row.name ?? 'Sem nome'),
     description: (row.description as string) ?? null,
     is_active: Boolean(row.is_active),
+    status,
+    published_at: (row.published_at as string) ?? null,
+    published_version: row.published_version != null ? Number(row.published_version) : null,
+    has_unpublished_changes:
+      publishedNodes.length === 0
+        ? status !== 'published'
+        : graphSignature(converted ? converted.nodes : rawNodes, converted ? converted.edges : rawEdges) !==
+          graphSignature(publishedNodes, publishedEdges),
     nodes: converted ? converted.nodes : (rawNodes as FlowCanvasNode[]),
     edges: converted ? converted.edges : (rawEdges as FlowCanvasEdge[]),
     start_node_id: converted ? converted.nodes[0]?.id ?? null : ((row.start_node_id as string) ?? null),
