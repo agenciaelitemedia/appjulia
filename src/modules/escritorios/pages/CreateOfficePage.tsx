@@ -73,7 +73,10 @@ export default function CreateOfficePage() {
   }
 
   const canAdvance = () => {
-    if (step === 0) return !!form.office_name.trim() && !!form.email.trim();
+    if (step === 0)
+      return form.is_new_client
+        ? !!form.office_name.trim() && !!form.email.trim()
+        : !!form.client_id;
     if (step === 1) return !!form.user_name.trim() && form.user_email.includes('@');
     if (step === 3) return form.modules.length > 0;
     return true;
