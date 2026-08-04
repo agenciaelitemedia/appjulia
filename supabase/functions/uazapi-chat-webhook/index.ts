@@ -1817,6 +1817,37 @@ Deno.serve(async (req) => {
     }
 
     // Move n8n fan-out to background so webhook responds immediately.
+    // Dispara o motor de fluxos visuais em background (não bloqueia o webhook).
+    if (flowEvents.length > 0) {
+      const flowPromise = (async () => {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        for (const ev of flowEvents) {
+          try {
+            await fetch(`${supabaseUrl}/functions/v1/chat-flow-engine`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${serviceKey}`,
+                apikey: serviceKey,
+              },
+              body: JSON.stringify({
+                action: 'run',
+                data: {
+                  event: 'message_received',
+                  client_id: queue.client_id,
+                  ...ev,
+                },
+              }),
+            });
+          } catch (e) {
+            console.warn('[uazapi-chat-webhook] flow-engine invoke err:', String(e));
+          }
+        }
+      })();
+      EdgeRuntime.waitUntil(flowPromise);
+    }
+
     // EdgeRuntime.waitUntil keeps the isolate alive until the promise settles
     // without blocking the HTTP response — prevents duplicate deliveries caused
     // by provider retries when fan-out to many agents takes > 15s.
