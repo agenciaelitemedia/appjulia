@@ -693,3 +693,284 @@ export function CrmLinkConversationForm({ config, onChange }: NodeFormProps) {
     </div>
   );
 }
+
+/* ── Dados: enviar para webhook ─────────────────────────────── */
+export function WebhookForm({ config, onChange }: NodeFormProps) {
+  const { data: webhooks = [] } = useFlowWebhooks();
+  const webhookId = String(config.webhook_id ?? '');
+  return (
+    <div className="space-y-4">
+      <Field label="Webhook cadastrado" hint="Escolha um webhook do chat ou informe uma URL abaixo.">
+        <Select
+          value={webhookId || 'custom'}
+          onValueChange={(v) => onChange({ webhook_id: v === 'custom' ? '' : v })}
+        >
+          <SelectTrigger><SelectValue placeholder="URL avulsa" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="custom">URL avulsa</SelectItem>
+            {webhooks.map((w) => (
+              <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      {!webhookId && (
+        <Field label="URL de destino">
+          <Input
+            value={String(config.url ?? '')}
+            onChange={(e) => onChange({ url: e.target.value })}
+            placeholder="https://exemplo.com/webhook"
+          />
+        </Field>
+      )}
+      <Field label="Observação enviada (opcional)" hint="Vai no campo “note” do envio.">
+        <Input
+          value={String(config.note ?? '')}
+          onChange={(e) => onChange({ note: e.target.value })}
+          placeholder="Lead {{nome}} entrou no fluxo"
+        />
+      </Field>
+      <Field label={`Tempo limite: ${Number(config.timeout_seconds ?? 15)}s`}>
+        <Slider
+          min={5}
+          max={60}
+          step={5}
+          value={[Number(config.timeout_seconds ?? 15)]}
+          onValueChange={([v]) => onChange({ timeout_seconds: v })}
+        />
+      </Field>
+      <p className="text-[11px] text-muted-foreground">
+        São enviados os dados da conversa, do contato, da fila, da mensagem e as variáveis do fluxo.
+      </p>
+    </div>
+  );
+}
+
+/* ── Dados: requisição HTTP ─────────────────────────────────── */
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+
+interface HeaderItem {
+  key: string;
+  value: string;
+}
+
+export function HttpRequestForm({ config, onChange }: NodeFormProps) {
+  const method = String(config.method ?? 'GET');
+  const headers: HeaderItem[] = Array.isArray(config.headers) ? (config.headers as HeaderItem[]) : [];
+  const body = String(config.body ?? '');
+  const setHeaders = (next: HeaderItem[]) => onChange({ headers: next });
+
+  return (
+    <div className="space-y-4">
+      <Field label="Método">
+        <Select value={method} onValueChange={(v) => onChange({ method: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {HTTP_METHODS.map((m) => (
+              <SelectItem key={m} value={m}>{m}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="URL">
+        <Input
+          value={String(config.url ?? '')}
+          onChange={(e) => onChange({ url: e.target.value })}
+          placeholder="https://api.exemplo.com/leads/{{telefone}}"
+        />
+      </Field>
+      <Field label="Cabeçalhos" hint="Opcional. Use para autenticação, por exemplo.">
+        <div className="space-y-2">
+          {headers.map((h, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <Input
+                className="flex-1"
+                value={h.key ?? ''}
+                placeholder="Authorization"
+                onChange={(e) =>
+                  setHeaders(headers.map((item, i) => (i === index ? { ...item, key: e.target.value } : item)))
+                }
+              />
+              <Input
+                className="flex-1"
+                value={h.value ?? ''}
+                placeholder="Bearer ..."
+                onChange={(e) =>
+                  setHeaders(headers.map((item, i) => (i === index ? { ...item, value: e.target.value } : item)))
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="rounded-full text-muted-foreground"
+                onClick={() => setHeaders(headers.filter((_, i) => i !== index))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-full"
+            onClick={() => setHeaders([...headers, { key: '', value: '' }])}
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" /> Adicionar cabeçalho
+          </Button>
+        </div>
+      </Field>
+      {method !== 'GET' && (
+        <Field label="Corpo da requisição" hint="JSON aceito. Variáveis do fluxo podem ser usadas.">
+          <Textarea
+            rows={5}
+            className="font-mono text-xs"
+            value={body}
+            onChange={(e) => onChange({ body: e.target.value })}
+            placeholder={'{\n  "telefone": "{{telefone}}"\n}'}
+          />
+          <VariableChips onInsert={(v) => onChange({ body: `${body}${v}` })} />
+        </Field>
+      )}
+      <Field label="Guardar resposta em" hint="Depois use como {{resp.data.campo}} nos outros nós.">
+        <Input
+          value={String(config.save_as ?? 'resp')}
+          onChange={(e) => onChange({ save_as: e.target.value.replace(/[^\w]/g, '') })}
+          placeholder="resp"
+        />
+      </Field>
+      <Field label={`Tempo limite: ${Number(config.timeout_seconds ?? 15)}s`}>
+        <Slider
+          min={5}
+          max={60}
+          step={5}
+          value={[Number(config.timeout_seconds ?? 15)]}
+          onValueChange={([v]) => onChange({ timeout_seconds: v })}
+        />
+      </Field>
+    </div>
+  );
+}
+
+/* ── Dados: guardar dados / variáveis ───────────────────────── */
+interface VariableItem {
+  name: string;
+  mode?: 'text' | 'path';
+  value?: string;
+  path?: string;
+}
+
+export function SetVariablesForm({ config, onChange }: NodeFormProps) {
+  const items: VariableItem[] = Array.isArray(config.items) ? (config.items as VariableItem[]) : [];
+  const setItems = (next: VariableItem[]) => onChange({ items: next });
+  const patch = (index: number, data: Partial<VariableItem>) =>
+    setItems(items.map((item, i) => (i === index ? { ...item, ...data } : item)));
+
+  return (
+    <div className="space-y-4">
+      {items.length === 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          Nenhuma variável ainda. Elas ficam disponíveis nos nós seguintes como {'{{minha_variavel}}'}.
+        </p>
+      )}
+      {items.map((item, index) => (
+        <div key={index} className="space-y-3 rounded-lg border p-3">
+          <div className="flex items-center gap-2">
+            <Input
+              className="flex-1"
+              value={item.name ?? ''}
+              placeholder="nome_da_variavel"
+              onChange={(e) => patch(index, { name: e.target.value.replace(/[^\w]/g, '') })}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="rounded-full text-muted-foreground"
+              onClick={() => setItems(items.filter((_, i) => i !== index))}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <Field label="Origem do valor">
+            <Select value={item.mode ?? 'text'} onValueChange={(v) => patch(index, { mode: v as 'text' | 'path' })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="text">Texto (com variáveis)</SelectItem>
+                <SelectItem value="path">Campo de uma resposta guardada</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          {(item.mode ?? 'text') === 'text' ? (
+            <Field label="Valor">
+              <Input
+                value={item.value ?? ''}
+                placeholder="{{nome}} — via automação"
+                onChange={(e) => patch(index, { value: e.target.value })}
+              />
+              <VariableChips onInsert={(v) => patch(index, { value: `${item.value ?? ''}${v}` })} />
+            </Field>
+          ) : (
+            <Field label="Caminho" hint="Ex.: resp.data.id (usa o que foi guardado na requisição HTTP).">
+              <Input
+                className="font-mono text-xs"
+                value={item.path ?? ''}
+                placeholder="resp.data.id"
+                onChange={(e) => patch(index, { path: e.target.value })}
+              />
+            </Field>
+          )}
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="rounded-full"
+        onClick={() => setItems([...items, { name: '', mode: 'text', value: '' }])}
+      >
+        <Plus className="mr-1 h-3.5 w-3.5" /> Adicionar variável
+      </Button>
+    </div>
+  );
+}
+
+/* ── Dados: notificação interna ─────────────────────────────── */
+export function NotifyForm({ config, onChange }: NodeFormProps) {
+  const title = String(config.title ?? '');
+  const body = String(config.body ?? '');
+  return (
+    <div className="space-y-4">
+      <Field label="Título">
+        <Input value={title} onChange={(e) => onChange({ title: e.target.value })} placeholder="Lead aguardando retorno" />
+        <VariableChips onInsert={(v) => onChange({ title: `${title}${title ? ' ' : ''}${v}` })} />
+      </Field>
+      <Field label="Mensagem (opcional)">
+        <Textarea rows={4} value={body} onChange={(e) => onChange({ body: e.target.value })} />
+        <VariableChips onInsert={(v) => onChange({ body: `${body}${body ? ' ' : ''}${v}` })} />
+      </Field>
+      <Field label="Quem recebe">
+        <Select value={String(config.audience ?? 'my_team')} onValueChange={(v) => onChange({ audience: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="my_team">Minha equipe</SelectItem>
+            <SelectItem value="owners">Titulares</SelectItem>
+            <SelectItem value="teams">Equipes</SelectItem>
+            <SelectItem value="all">Todos</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field label="Nível do aviso">
+        <Select value={String(config.alert_level ?? 'info')} onValueChange={(v) => onChange({ alert_level: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="info">Informativo</SelectItem>
+            <SelectItem value="notice">Atenção</SelectItem>
+            <SelectItem value="alert">Urgente</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+    </div>
+  );
+}
