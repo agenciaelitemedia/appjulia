@@ -23,6 +23,11 @@ export type FlowNodeKind =
   | 'crm_move_card'
   | 'crm_update_card'
   | 'crm_link_conversation'
+  // Dados e integrações
+  | 'data_webhook'
+  | 'data_http_request'
+  | 'data_set_variables'
+  | 'data_notify'
   // Controle
   | 'flow_end';
 
