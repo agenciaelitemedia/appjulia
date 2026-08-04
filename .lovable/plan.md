@@ -27,10 +27,34 @@ Criar um novo módulo **Escritórios** que cadastra e lista clientes/usuários (
    - Garantir que a tela de bloqueio por agente inativo não afete quem não tem agente.
    - Revisar os pontos que hoje assumem existência de agente (chat, filas, automações, ZAP Call, copiloto, alertas de agente desconectado) para que fiquem ocultos/neutros quando o cliente não tem agente, sem alterar o comportamento de quem tem.
 
+## Arquitetura: módulo independente
+
+O módulo Escritórios vive em uma pasta autocontida `src/modules/escritorios/`, seguindo o mesmo padrão já usado pelo Flow Builder: **nada de fora é importado diretamente pelas telas do módulo**. Todo recurso vindo de outros módulos (banco, auth/permissões, planos, chat, filas, UI compartilhada) é exposto por arquivos `extend/*`, que são o único ponto de acoplamento com o resto do sistema. Se algo mudar fora, só os `extend/` são ajustados.
+
+```text
+src/modules/escritorios/
+  module.ts                  # metadados, código do módulo, rotas
+  routes.tsx                 # rotas do módulo (montadas no App)
+  extend/
+    db.ts                    # reexporta supabase + externalDb
+    auth.ts                  # useAuth, isOwnerUser, usePermission
+    permissions.ts           # leitura/gravação de permissões do usuário
+    plans.ts                 # planos e limites
+    chat.ts                  # ensureChatClientSettings e métricas de chat
+    queues.ts                # filas do cliente
+    ui.ts                    # componentes shadcn/reutilizáveis usados
+  pages/                     # OfficesList, CreateOfficePage, EditOfficePage, OfficeDetailsPage, OfficeDashboardPage
+  components/                # CreateOfficeWizard + steps (Cliente, Planos, Usuário, Módulos)
+  hooks/                     # useOfficeSave, useOfficesList, useOfficeModules, useOfficeDashboard
+  lib/                       # helpers próprios do módulo
+```
+
+- Os steps de Cliente/Planos/Usuário serão **implementados dentro do módulo** (cópia adaptada, sem abas de Configurações/Prompt e sem `cod_agent`), para que o módulo de agentes possa evoluir sem quebrar Escritórios.
+- O dashboard de atendimentos também mora dentro do módulo (`pages/OfficeDashboardPage.tsx` + `hooks/useOfficeDashboard.ts`), consumindo dados via `extend/chat.ts` e `extend/queues.ts`.
+
 ## Detalhes técnicos
 
-- Novo diretório `src/pages/escritorios/` espelhando `src/pages/agents/`: `OfficesList.tsx`, `CreateOfficePage.tsx`, `EditOfficePage.tsx`, `OfficeDetailsPage.tsx`, `components/CreateOfficeWizard.tsx` (abas `ClientStep`, `PlanStep` reaproveitados + novo `ModulesStep`), `hooks/useOfficeSave.ts`, `useOfficesList.ts`.
-- Novo código de módulo `offices` em `src/types/permissions.ts` + `useEnsureOfficesModule.ts` (padrão dos `useEnsure*Module`, via `externalDb.createModule`) e novo código `dashboard_atendimento` para o dashboard.
+- Novos códigos de módulo `offices` e `dashboard_atendimento` em `src/types/permissions.ts`, com `extend/useEnsureOfficesModule.ts` dentro do módulo (padrão dos `useEnsure*Module`, via `externalDb.createModule`).
 - Rotas em `src/App.tsx`: `/admin/escritorios`, `/admin/escritorios-novo`, `/admin/escritorios/:id/editar`, `/admin/escritorios/:id/detalhes` (protegidas por `admin_agents`) e `/dashboard-atendimento` (protegida por `dashboard_atendimento`).
 - Persistência do escritório no Postgres externo via `externalDb` (`insertClient`, `insertUser`, atualização de plano/vencimento no cliente, `upsertUserPermissions`); serão adicionadas as actions que faltarem em `supabase/functions/db-query` (listagem de clientes sem agente, gravação do pacote de permissões).
 - `useOfficeSave` reaproveita `generateSecurePassword` + bcrypt, `ensureChatClientSettings` e o log de mudanças, sem `insertAgent`/`insertUserAgent`.
