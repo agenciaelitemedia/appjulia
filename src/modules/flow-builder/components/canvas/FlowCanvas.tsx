@@ -14,10 +14,11 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { BaseNode } from '../nodes/BaseNode';
+import { DeletableEdge, setEdgeCallbacks } from './edges/DeletableEdge';
 import type { FlowCanvasEdge, FlowCanvasNode } from '../../types';
 
 export const ANIMATED_EDGE = {
-  type: 'default' as const,
+  type: 'deletable' as const,
   animated: true,
   style: { stroke: 'hsl(var(--flow-edge))', strokeWidth: 2 },
   markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--flow-edge))' },
@@ -54,8 +55,14 @@ export function FlowCanvas({
   onPaneClick,
 }: FlowCanvasProps) {
   const nodeTypes = useMemo(() => ({ flowNode: BaseNode }), []);
+  const edgeTypes = useMemo(() => ({ deletable: DeletableEdge }), []);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+
+  setEdgeCallbacks({
+    readOnly,
+    onDelete: (edgeId) => setEdges((eds) => eds.filter((e) => e.id !== edgeId)),
+  });
 
   const focusNodeId = highlightNodeId ?? hoveredNodeId;
 
@@ -120,6 +127,7 @@ export function FlowCanvas({
       nodes={decoratedNodes}
       edges={decoratedEdges}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
