@@ -5072,6 +5072,78 @@ export type Database = {
         }
         Relationships: []
       }
+      offices: {
+        Row: {
+          business_name: string | null
+          client_id: number
+          created_at: string
+          created_by: string | null
+          due_day: number | null
+          email: string | null
+          expires_at: string | null
+          federal_id: string | null
+          id: string
+          is_active: boolean
+          leads_limit: number | null
+          modules: string[]
+          notes: string | null
+          office_name: string
+          owner_email: string | null
+          owner_name: string | null
+          owner_user_id: number | null
+          phone: string | null
+          plan_id: number | null
+          plan_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_name?: string | null
+          client_id: number
+          created_at?: string
+          created_by?: string | null
+          due_day?: number | null
+          email?: string | null
+          expires_at?: string | null
+          federal_id?: string | null
+          id?: string
+          is_active?: boolean
+          leads_limit?: number | null
+          modules?: string[]
+          notes?: string | null
+          office_name: string
+          owner_email?: string | null
+          owner_name?: string | null
+          owner_user_id?: number | null
+          phone?: string | null
+          plan_id?: number | null
+          plan_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_name?: string | null
+          client_id?: number
+          created_at?: string
+          created_by?: string | null
+          due_day?: number | null
+          email?: string | null
+          expires_at?: string | null
+          federal_id?: string | null
+          id?: string
+          is_active?: boolean
+          leads_limit?: number | null
+          modules?: string[]
+          notes?: string | null
+          office_name?: string
+          owner_email?: string | null
+          owner_name?: string | null
+          owner_user_id?: number | null
+          phone?: string | null
+          plan_id?: number | null
+          plan_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       phone_call_logs: {
         Row: {
           answered_at: string | null
