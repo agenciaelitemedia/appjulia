@@ -361,14 +361,19 @@ export default function FlowEditorPage() {
               onDropNode={(kind, position) => editor.addNode(kind as FlowNodeKind, position)}
               readOnly={readOnly}
               highlightNodeId={highlightNodeId}
+              onNodeDoubleClick={(nodeId) => setEditingNodeId(nodeId)}
+              onPaneClick={() => setEditingNodeId(null)}
             />
           </ReactFlowProvider>
         </div>
         <NodeInspector
-          node={editor.selectedNode}
+          node={editingNode}
           onChangeLabel={editor.setNodeLabel}
           onChangeConfig={editor.setNodeConfig}
-          onRequestDelete={(id) => setPendingDelete(id)}
+          onRequestDelete={(id) => {
+            setPendingDelete(id);
+            setEditingNodeId(null);
+          }}
           readOnly={readOnly}
         />
       </div>
