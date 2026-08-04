@@ -68,14 +68,15 @@ export function triggerMatches(
   if (kind === "trigger_lead_inactive" || kind === "trigger_agent_inactive") {
     const expected = kind === "trigger_lead_inactive" ? "lead_inactive" : "agent_inactive";
     if (ctx.event !== expected) return false;
-    if (config.queue_id && ctx.queueId && String(config.queue_id) !== String(ctx.queueId)) return false;
+    // Fila selecionada: roda somente nessa fila (sem fila resolvida = não dispara).
+    if (config.queue_id && String(config.queue_id) !== String(ctx.queueId ?? "")) return false;
     return true;
   }
 
   if (kind !== "trigger_message_received") return false;
   if (ctx.event !== "message_received") return false;
 
-  if (config.queue_id && ctx.queueId && String(config.queue_id) !== String(ctx.queueId)) return false;
+  if (config.queue_id && String(config.queue_id) !== String(ctx.queueId ?? "")) return false;
 
   const mediaType = String(config.media_type ?? "any");
   if (mediaType !== "any" && mediaType !== ctx.messageType) return false;
