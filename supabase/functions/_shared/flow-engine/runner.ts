@@ -3,6 +3,13 @@
 // ============================================
 import { buildRunContext, compare, resolveField } from "./context.ts";
 import { actionEnd, actionHandoff, actionSendText, actionTag } from "./actions.ts";
+import { actionJuliaToggle, actionFollowupStop, ensureJuliaActive } from "./julia-actions.ts";
+import {
+  actionCrmCreateCard,
+  actionCrmLinkConversation,
+  actionCrmMoveCard,
+  actionCrmUpdateCard,
+} from "./crm-actions.ts";
 import type { FlowEdge, FlowNode, FlowRow, FlowRunContext, NodeLogEntry } from "./types.ts";
 
 const MAX_STEPS = 60;
@@ -174,7 +181,9 @@ export async function runFlow(
 
       switch (kind) {
         case "logic_condition": {
-          const left = resolveField(String(config.field ?? ""), ctx);
+          const field = String(config.field ?? "");
+          if (field === "julia_active") await ensureJuliaActive(supabase, ctx);
+          const left = resolveField(field, ctx);
           const result = compare(left, String(config.operator ?? "contains"), String(config.value ?? ""));
           handle = result ? "true" : "false";
           detail = `Condição ${result ? "verdadeira" : "falsa"}`;
@@ -250,6 +259,24 @@ export async function runFlow(
           break;
         case "chat_handoff":
           detail = await actionHandoff(supabase, config, ctx);
+          break;
+        case "julia_toggle":
+          detail = await actionJuliaToggle(supabase, config, ctx);
+          break;
+        case "julia_followup_stop":
+          detail = await actionFollowupStop(supabase, config, ctx);
+          break;
+        case "crm_create_card":
+          detail = await actionCrmCreateCard(supabase, config, ctx);
+          break;
+        case "crm_move_card":
+          detail = await actionCrmMoveCard(supabase, config, ctx);
+          break;
+        case "crm_update_card":
+          detail = await actionCrmUpdateCard(supabase, config, ctx);
+          break;
+        case "crm_link_conversation":
+          detail = await actionCrmLinkConversation(supabase, config, ctx);
           break;
         case "flow_end":
           detail = await actionEnd(supabase, config, ctx);
