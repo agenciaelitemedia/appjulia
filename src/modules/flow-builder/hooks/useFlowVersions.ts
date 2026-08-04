@@ -57,7 +57,7 @@ export function useRestoreFlowVersion() {
           edges: version.edges,
           start_node_id: version.start_node_id,
           updated_at: new Date().toISOString(),
-        })
+        } as Record<string, unknown>)
         .eq('id', version.flow_id);
       if (error) throw error;
       return version;

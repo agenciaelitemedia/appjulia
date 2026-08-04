@@ -204,12 +204,10 @@ export function useFlowMutations() {
         start_node_id: startNodeId,
         notes: input.notes ?? null,
         created_by: clientId,
-      });
+      } as never);
       if (versionError) throw versionError;
 
-      const { error } = await supabase
-        .from(TABLE)
-        .update({
+      const publishPayload: Record<string, unknown> = {
           status: 'published',
           is_active: true,
           published_at: new Date().toISOString(),
@@ -221,8 +219,8 @@ export function useFlowMutations() {
           edges: input.edges,
           start_node_id: startNodeId,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', input.id);
+      };
+      const { error } = await supabase.from(TABLE).update(publishPayload).eq('id', input.id);
       if (error) throw error;
       return nextVersion;
     },
