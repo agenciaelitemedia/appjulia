@@ -15,6 +15,10 @@ import {
   MoveRight,
   PencilLine,
   Link2,
+  Webhook,
+  Globe,
+  Variable,
+  BellRing,
 } from 'lucide-react';
 import type { FlowNodeCategory, FlowNodeConfig, FlowNodeKind } from '../types';
 import {
@@ -34,6 +38,10 @@ import {
   CrmMoveCardForm,
   CrmUpdateCardForm,
   CrmLinkConversationForm,
+  WebhookForm,
+  HttpRequestForm,
+  SetVariablesForm,
+  NotifyForm,
   CONDITION_FIELDS,
   CONDITION_OPERATORS,
   type NodeFormProps,
