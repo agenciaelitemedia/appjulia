@@ -93,20 +93,11 @@ export async function actionHandoff(
   await supabase.from("chat_conversations").update(update).eq("id", ctx.conversation.id);
   Object.assign(ctx.conversation, update);
 
+  // A desativação da Julia acontece no banco externo (sessões) — Fase 4 do módulo.
   const note = interpolate(String(config.note ?? ""), ctx).trim();
-  if (note) {
-    await supabase.from("chat_internal_notes" as never).insert({
-      conversation_id: ctx.conversation.id,
-      client_id: ctx.clientId,
-      author_name: "Automação",
-      note,
-    }).then(
-      () => undefined,
-      (e: unknown) => console.warn("[flow] nota interna ignorada:", (e as Error)?.message),
-    );
-  }
-
-  return "Encaminhado para atendimento humano";
+  return note
+    ? `Encaminhado para atendimento humano — ${note}`
+    : "Encaminhado para atendimento humano";
 }
 
 export async function actionEnd(
