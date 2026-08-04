@@ -112,6 +112,10 @@ export const CONDITION_FIELDS = [
   { value: 'contact_name', label: 'Nome do contato' },
   { value: 'contact_phone', label: 'Telefone do contato' },
   { value: 'julia_active', label: 'Julia ativa' },
+  { value: 'channel', label: 'Canal da conversa' },
+  { value: 'priority', label: 'Prioridade da conversa' },
+  { value: 'minutes_since_lead_reply', label: 'Minutos desde a resposta do lead' },
+  { value: 'minutes_since_agent_reply', label: 'Minutos desde a resposta do atendente' },
 ];
 
 export const CONDITION_OPERATORS = [
@@ -121,7 +125,130 @@ export const CONDITION_OPERATORS = [
   { value: 'not_equals', label: 'é diferente de' },
   { value: 'is_empty', label: 'está vazio' },
   { value: 'is_not_empty', label: 'não está vazio' },
+  { value: 'greater_than', label: 'é maior que (número)' },
+  { value: 'less_than', label: 'é menor que (número)' },
 ];
+
+/* ── Tempo: seletor de duração reaproveitável ────────────────── */
+const UNITS = [
+  { value: 'seconds', label: 'segundos' },
+  { value: 'minutes', label: 'minutos' },
+  { value: 'hours', label: 'horas' },
+  { value: 'days', label: 'dias' },
+];
+
+function DurationField({
+  label,
+  hint,
+  config,
+  onChange,
+  units = UNITS,
+}: NodeFormProps & { label: string; hint?: string; units?: typeof UNITS }) {
+  return (
+    <Field label={label} hint={hint}>
+      <div className="flex gap-2">
+        <Input
+          type="number"
+          min={1}
+          className="w-24"
+          value={String(config.amount ?? '')}
+          onChange={(e) => onChange({ amount: Number(e.target.value) })}
+        />
+        <Select value={String(config.unit ?? units[0].value)} onValueChange={(v) => onChange({ unit: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {units.map((u) => (
+              <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </Field>
+  );
+}
+
+/* ── Disparo: inatividade (lead ou atendente) ───────────────── */
+function InactivityForm({ config, onChange, side }: NodeFormProps & { side: 'lead' | 'agent' }) {
+  const { data: queues = [] } = useFlowQueues();
+  return (
+    <div className="space-y-4">
+      <Field label="Fila" hint="Deixe em branco para valer para todas as filas.">
+        <Select
+          value={String(config.queue_id ?? 'all')}
+          onValueChange={(v) => onChange({ queue_id: v === 'all' ? '' : v })}
+        >
+          <SelectTrigger><SelectValue placeholder="Todas as filas" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as filas</SelectItem>
+            {queues.map((q) => (
+              <SelectItem key={q.id} value={q.id}>{q.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <DurationField
+        label={side === 'lead' ? 'Tempo sem resposta do lead' : 'Tempo sem resposta do atendente'}
+        hint={
+          side === 'lead'
+            ? 'Conta desde a última mensagem enviada pela equipe.'
+            : 'Conta desde a última mensagem enviada pelo lead.'
+        }
+        config={config}
+        onChange={onChange}
+        units={UNITS.slice(1)}
+      />
+      <Field label="Intervalo mínimo entre disparos (minutos)" hint="Evita repetir a automação na mesma conversa.">
+        <Input
+          type="number"
+          min={5}
+          value={String(config.cooldown_minutes ?? 720)}
+          onChange={(e) => onChange({ cooldown_minutes: Number(e.target.value) })}
+        />
+      </Field>
+      <p className="text-[11px] text-muted-foreground">
+        A verificação roda automaticamente a cada poucos minutos, apenas em conversas abertas ou pendentes.
+      </p>
+    </div>
+  );
+}
+
+export function TriggerLeadInactiveForm(props: NodeFormProps) {
+  return <InactivityForm {...props} side="lead" />;
+}
+
+export function TriggerAgentInactiveForm(props: NodeFormProps) {
+  return <InactivityForm {...props} side="agent" />;
+}
+
+/* ── Lógica: aguardar tempo ─────────────────────────────────── */
+export function DelayForm({ config, onChange }: NodeFormProps) {
+  return (
+    <div className="space-y-4">
+      <DurationField label="Aguardar" config={config} onChange={onChange} />
+      <p className="text-[11px] text-muted-foreground">
+        Esperas de até 15 segundos acontecem na hora; acima disso o fluxo pausa e retoma sozinho depois.
+      </p>
+    </div>
+  );
+}
+
+/* ── Lógica: aguardar resposta do lead ──────────────────────── */
+export function WaitReplyForm({ config, onChange }: NodeFormProps) {
+  return (
+    <div className="space-y-4">
+      <DurationField
+        label="Aguardar resposta por até"
+        hint="Se o lead responder antes, o fluxo segue por “Respondeu”."
+        config={config}
+        onChange={onChange}
+        units={UNITS.slice(1)}
+      />
+      <p className="text-[11px] text-muted-foreground">
+        Saídas do nó: <span className="font-medium">Respondeu</span> e <span className="font-medium">Sem resposta</span>.
+      </p>
+    </div>
+  );
+}
 
 export function ConditionForm({ config, onChange }: NodeFormProps) {
   const operator = String(config.operator ?? 'contains');

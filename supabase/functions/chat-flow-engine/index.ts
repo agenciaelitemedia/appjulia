@@ -33,6 +33,97 @@ async function loadFlows(clientId: string, flowId?: string | null): Promise<Flow
   return (data ?? []) as unknown as FlowRow[];
 }
 
+async function persistOutcome(runId: string, flow: FlowRow, outcome: any, contextPatch: Record<string, unknown> = {}) {
+  const waiting = outcome.status === "waiting" && outcome.wait;
+  const { data: existing } = await supabase
+    .from("chat_bot_flow_runs")
+    .select("context")
+    .eq("id", runId)
+    .maybeSingle();
+  const context = { ...(existing?.context ?? {}), ...contextPatch };
+
+  if (waiting) {
+    context.resume_at = outcome.wait.resume_at;
+    context.resume_on = outcome.wait.resume_on;
+    context.resume_node_id = outcome.wait.node_id;
+    context.timeout_handle = outcome.wait.timeout_handle;
+  } else {
+    delete context.resume_at;
+    delete context.resume_on;
+    delete context.resume_node_id;
+    delete context.timeout_handle;
+  }
+
+  await supabase
+    .from("chat_bot_flow_runs")
+    .update({
+      status: waiting ? "waiting" : outcome.status,
+      node_logs: outcome.logs,
+      error_message: outcome.error ?? null,
+      current_node_id: outcome.lastNodeId,
+      context,
+      finished_at: waiting ? null : new Date().toISOString(),
+      last_step_at: new Date().toISOString(),
+    })
+    .eq("id", runId);
+
+  if (outcome.status === "completed") {
+    await supabase
+      .from("chat_bot_flows")
+      .update({ execution_count: (flow.execution_count ?? 0) + 1, last_executed_at: new Date().toISOString() })
+      .eq("id", flow.id);
+  }
+}
+
+/** Retoma uma execução pausada (timer estourado ou lead respondeu). */
+async function resumeRun(runId: string, handle: string) {
+  const { data: run } = await supabase
+    .from("chat_bot_flow_runs")
+    .select("id, flow_id, client_id, conversation_id, contact_id, context, node_logs, trigger_event, status")
+    .eq("id", runId)
+    .maybeSingle();
+  if (!run) return { run_id: runId, status: "failed", error: "execução não encontrada" };
+  if (run.status !== "waiting") return { run_id: runId, status: run.status, skipped: true };
+
+  const flows = await loadFlows(String(run.client_id), run.flow_id);
+  const flow = flows[0];
+  if (!flow) return { run_id: runId, status: "failed", error: "fluxo não encontrado" };
+
+  const ctxRaw = (run.context ?? {}) as Record<string, any>;
+  const ctx = await buildRunContext(supabase, {
+    event: String(run.trigger_event ?? "resume"),
+    simulate: false,
+    client_id: String(run.client_id),
+    conversation_id: run.conversation_id,
+    contact_id: run.contact_id,
+    message_text: ctxRaw.message_text ?? "",
+    message_type: ctxRaw.message_type ?? "text",
+    variables: { ...(flow.variables ?? {}), ...(ctxRaw.variables ?? {}) },
+  });
+
+  const outcome = await runFlow(supabase, flow, ctx, {
+    resumeFromNodeId: ctxRaw.resume_node_id ?? run.current_node_id ?? null,
+    resumeHandle: handle,
+    previousLogs: Array.isArray(run.node_logs) ? run.node_logs : [],
+  });
+
+  await persistOutcome(run.id, flow, outcome);
+  return { run_id: run.id, flow_id: flow.id, ...outcome };
+}
+
+/** Quando o lead responde, retoma execuções paradas em "aguardar resposta". */
+async function resumeOnLeadReply(conversationId: string) {
+  const { data: runs } = await supabase
+    .from("chat_bot_flow_runs")
+    .select("id, context")
+    .eq("conversation_id", conversationId)
+    .eq("status", "waiting");
+  const pending = (runs ?? []).filter((r: any) => (r.context ?? {}).resume_on === "lead_reply");
+  const results = [];
+  for (const run of pending) results.push(await resumeRun(run.id, "replied"));
+  return results;
+}
+
 async function executeOne(flow: FlowRow, input: FlowEventInput, simulate: boolean) {
   const clientId = String(input.client_id ?? flow.client_id);
   const ctx = await buildRunContext(supabase, {
@@ -69,24 +160,11 @@ async function executeOne(flow: FlowRow, input: FlowEventInput, simulate: boolea
   const outcome = await runFlow(supabase, flow, ctx);
 
   if (!simulate && runId) {
-    await supabase
-      .from("chat_bot_flow_runs")
-      .update({
-        status: outcome.status,
-        node_logs: outcome.logs,
-        error_message: outcome.error ?? null,
-        current_node_id: outcome.lastNodeId,
-        finished_at: new Date().toISOString(),
-        last_step_at: new Date().toISOString(),
-      })
-      .eq("id", runId);
-
-    if (outcome.status === "completed") {
-      await supabase
-        .from("chat_bot_flows")
-        .update({ execution_count: (flow.execution_count ?? 0) + 1, last_executed_at: new Date().toISOString() })
-        .eq("id", flow.id);
-    }
+    await persistOutcome(runId, flow, outcome, {
+      message_text: ctx.messageText,
+      message_type: ctx.messageType,
+      variables: ctx.variables,
+    });
   }
 
   return { flow_id: flow.id, flow_name: flow.name, run_id: runId, ...outcome };
@@ -99,6 +177,13 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action: string = body.action ?? "run";
     const input: FlowEventInput = body.data ?? body;
+
+    if (action === "resume") {
+      const runId = (body.data ?? body).run_id;
+      if (!runId) return json({ error: "campo 'run_id' é obrigatório" }, 400);
+      const handle = (body.data ?? body).handle ?? "out";
+      return json({ resumed: await resumeRun(String(runId), String(handle)) });
+    }
 
     if (!input?.event) return json({ error: "campo 'event' é obrigatório" }, 400);
 
@@ -148,6 +233,17 @@ Deno.serve(async (req) => {
     });
 
     const results = [];
+
+    // Lead respondeu: retoma execuções paradas em "aguardar resposta"
+    if (!simulate && input.event === "message_received" && input.conversation_id) {
+      try {
+        const resumed = await resumeOnLeadReply(String(input.conversation_id));
+        for (const r of resumed) results.push({ ...r, resumed: true });
+      } catch (err) {
+        console.error("[chat-flow-engine] resumeOnLeadReply", err);
+      }
+    }
+
     for (const flow of eligible) {
       try {
         results.push(await executeOne(flow, input, simulate));

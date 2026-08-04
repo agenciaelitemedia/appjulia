@@ -5,8 +5,12 @@ export type FlowNodeCategory = 'trigger' | 'logic' | 'chat' | 'julia' | 'crm' | 
 export type FlowNodeKind =
   // Disparo
   | 'trigger_message_received'
+  | 'trigger_lead_inactive'
+  | 'trigger_agent_inactive'
   // Lógica
   | 'logic_condition'
+  | 'logic_delay'
+  | 'logic_wait_reply'
   // Chat
   | 'chat_send_text'
   | 'chat_tag'

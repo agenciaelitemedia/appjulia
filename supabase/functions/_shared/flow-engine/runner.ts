@@ -6,6 +6,28 @@ import { actionEnd, actionHandoff, actionSendText, actionTag } from "./actions.t
 import type { FlowEdge, FlowNode, FlowRow, FlowRunContext, NodeLogEntry } from "./types.ts";
 
 const MAX_STEPS = 60;
+/** Atrasos curtos são aguardados dentro da própria execução. */
+const INLINE_DELAY_LIMIT_MS = 15_000;
+
+function toMs(amount: number, unit: string): number {
+  const n = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+  switch (unit) {
+    case "hours":
+      return n * 3_600_000;
+    case "days":
+      return n * 86_400_000;
+    case "minutes":
+      return n * 60_000;
+    default:
+      return n * 1000;
+  }
+}
+
+function unitLabel(amount: number, unit: string): string {
+  const map: Record<string, string> = { seconds: "segundo", minutes: "minuto", hours: "hora", days: "dia" };
+  const base = map[unit] ?? "segundo";
+  return `${amount} ${base}${amount === 1 ? "" : "s"}`;
+}
 
 export function findTriggerNode(flow: FlowRow): FlowNode | null {
   const nodes = Array.isArray(flow.nodes) ? flow.nodes : [];
@@ -33,6 +55,14 @@ export function triggerMatches(
   const kind = String(trigger.data?.kind ?? "");
   const config = (trigger.data?.config ?? {}) as Record<string, any>;
 
+  // Disparos por tempo/inatividade são avaliados pelo agendador (chat-flow-scheduler)
+  if (kind === "trigger_lead_inactive" || kind === "trigger_agent_inactive") {
+    const expected = kind === "trigger_lead_inactive" ? "lead_inactive" : "agent_inactive";
+    if (ctx.event !== expected) return false;
+    if (config.queue_id && ctx.queueId && String(config.queue_id) !== String(ctx.queueId)) return false;
+    return true;
+  }
+
   if (kind !== "trigger_message_received") return false;
   if (ctx.event !== "message_received") return false;
 
@@ -55,38 +85,76 @@ export function triggerMatches(
 }
 
 export interface RunOutcome {
-  status: "completed" | "failed";
+  status: "completed" | "failed" | "waiting";
   logs: NodeLogEntry[];
   error?: string;
   lastNodeId: string | null;
+  wait?: {
+    node_id: string;
+    resume_at: string;
+    resume_on: "timer" | "lead_reply";
+    /** Handle usado quando o tempo estoura sem resposta. */
+    timeout_handle: string;
+  };
+}
+
+export interface RunFlowOptions {
+  /** Retomada: continua a partir da saída deste nó. */
+  resumeFromNodeId?: string | null;
+  resumeHandle?: string | null;
+  /** Logs já registrados na execução original. */
+  previousLogs?: NodeLogEntry[];
 }
 
 export async function runFlow(
   supabase: any,
   flow: FlowRow,
   ctx: FlowRunContext,
+  options: RunFlowOptions = {},
 ): Promise<RunOutcome> {
   const nodes = Array.isArray(flow.nodes) ? flow.nodes : [];
   const edges = Array.isArray(flow.edges) ? flow.edges : [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const logs: NodeLogEntry[] = [];
+  const logs: NodeLogEntry[] = Array.isArray(options.previousLogs) ? [...options.previousLogs] : [];
 
-  const trigger = findTriggerNode(flow);
-  if (!trigger) {
-    return { status: "failed", logs, error: "fluxo sem nó de disparo", lastNodeId: null };
+  let currentId: string | null;
+  let lastNodeId: string | null;
+
+  if (options.resumeFromNodeId) {
+    const resumeNode = byId.get(options.resumeFromNodeId);
+    if (!resumeNode) {
+      return { status: "failed", logs, error: "nó de retomada não existe mais no fluxo", lastNodeId: null };
+    }
+    logs.push({
+      node_id: resumeNode.id,
+      kind: String(resumeNode.data?.kind),
+      label: resumeNode.data?.label ?? "Espera",
+      status: "ok",
+      detail: options.resumeHandle === "timeout" ? "Tempo esgotado sem resposta" : "Espera concluída",
+      branch: options.resumeHandle ?? undefined,
+      at: new Date().toISOString(),
+    });
+    lastNodeId = resumeNode.id;
+    currentId = nextNodeId(edges, resumeNode.id, options.resumeHandle ?? "out");
+  } else {
+    const trigger = findTriggerNode(flow);
+    if (!trigger) {
+      return { status: "failed", logs, error: "fluxo sem nó de disparo", lastNodeId: null };
+    }
+
+    logs.push({
+      node_id: trigger.id,
+      kind: String(trigger.data?.kind),
+      label: trigger.data?.label ?? "Disparo",
+      status: "ok",
+      detail: "Fluxo iniciado",
+      at: new Date().toISOString(),
+    });
+
+    currentId = nextNodeId(edges, trigger.id, "out");
+    lastNodeId = trigger.id;
   }
 
-  logs.push({
-    node_id: trigger.id,
-    kind: String(trigger.data?.kind),
-    label: trigger.data?.label ?? "Disparo",
-    status: "ok",
-    detail: "Fluxo iniciado",
-    at: new Date().toISOString(),
-  });
-
-  let currentId: string | null = nextNodeId(edges, trigger.id, "out");
-  let lastNodeId: string | null = trigger.id;
   let steps = 0;
 
   while (currentId && steps < MAX_STEPS) {
@@ -115,6 +183,68 @@ export async function runFlow(
         case "chat_send_text":
           detail = await actionSendText(supabase, config, ctx);
           break;
+        case "logic_delay": {
+          const amount = Number(config.amount ?? 0);
+          const unit = String(config.unit ?? "seconds");
+          const ms = toMs(amount, unit);
+          if (ctx.simulate) {
+            detail = `Aguardaria ${unitLabel(amount, unit)} (ignorado na simulação)`;
+            break;
+          }
+          if (ms <= INLINE_DELAY_LIMIT_MS) {
+            await new Promise((r) => setTimeout(r, ms));
+            detail = `Aguardou ${unitLabel(amount, unit)}`;
+            break;
+          }
+          logs.push({
+            node_id: node.id,
+            kind,
+            label,
+            status: "ok",
+            detail: `Aguardando ${unitLabel(amount, unit)}`,
+            at: new Date().toISOString(),
+          });
+          return {
+            status: "waiting",
+            logs,
+            lastNodeId: node.id,
+            wait: {
+              node_id: node.id,
+              resume_at: new Date(Date.now() + ms).toISOString(),
+              resume_on: "timer",
+              timeout_handle: "out",
+            },
+          };
+        }
+        case "logic_wait_reply": {
+          const amount = Number(config.amount ?? 10);
+          const unit = String(config.unit ?? "minutes");
+          const ms = toMs(amount, unit) || 60_000;
+          if (ctx.simulate) {
+            detail = `Aguardaria resposta do lead por até ${unitLabel(amount, unit)} (simulação segue por "Respondeu")`;
+            handle = "replied";
+            break;
+          }
+          logs.push({
+            node_id: node.id,
+            kind,
+            label,
+            status: "ok",
+            detail: `Aguardando resposta do lead por até ${unitLabel(amount, unit)}`,
+            at: new Date().toISOString(),
+          });
+          return {
+            status: "waiting",
+            logs,
+            lastNodeId: node.id,
+            wait: {
+              node_id: node.id,
+              resume_at: new Date(Date.now() + ms).toISOString(),
+              resume_on: "lead_reply",
+              timeout_handle: "timeout",
+            },
+          };
+        }
         case "chat_tag":
           detail = await actionTag(supabase, config, ctx);
           break;
