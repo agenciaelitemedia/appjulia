@@ -13,9 +13,8 @@ export async function actionSendText(
 ): Promise<string> {
   const text = interpolate(String(config.text ?? ""), ctx).trim();
   if (!text) throw new Error("mensagem vazia");
-  if (!ctx.contact?.phone) throw new Error("contato sem telefone");
-
   if (ctx.simulate) return `Enviaria: "${text.slice(0, 80)}"`;
+  if (!ctx.contact?.phone) throw new Error("contato sem telefone");
 
   const delay = Number(config.delay_seconds ?? 0);
   if (delay > 0) await new Promise((r) => setTimeout(r, Math.min(delay, 30) * 1000));
@@ -58,13 +57,12 @@ export async function actionTag(
 ): Promise<string> {
   const tagName = String(config.tag_name ?? "").trim();
   if (!tagName) throw new Error("etiqueta não configurada");
+  const remove = config.action === "remove";
+  if (ctx.simulate) return remove ? `Removeria "${tagName}"` : `Adicionaria "${tagName}"`;
   if (!ctx.conversation?.id) throw new Error("sem conversa para etiquetar");
 
   const current: string[] = Array.isArray(ctx.conversation.tags) ? [...ctx.conversation.tags] : [];
-  const remove = config.action === "remove";
   const next = remove ? current.filter((t) => t !== tagName) : Array.from(new Set([...current, tagName]));
-
-  if (ctx.simulate) return remove ? `Removeria "${tagName}"` : `Adicionaria "${tagName}"`;
 
   await supabase.from("chat_conversations").update({ tags: next }).eq("id", ctx.conversation.id);
   ctx.conversation.tags = next;
@@ -76,6 +74,9 @@ export async function actionHandoff(
   config: Record<string, any>,
   ctx: FlowRunContext,
 ): Promise<string> {
+  if (ctx.simulate) {
+    return `Encaminharia para humano${config.queue_id ? " (troca de fila)" : ""}`;
+  }
   if (!ctx.conversation?.id) throw new Error("sem conversa para encaminhar");
 
   const update: Record<string, unknown> = {
@@ -85,10 +86,6 @@ export async function actionHandoff(
     priority: config.priority ?? ctx.conversation.priority ?? "normal",
   };
   if (config.queue_id) update.queue_id = config.queue_id;
-
-  if (ctx.simulate) {
-    return `Encaminharia para humano${config.queue_id ? " (troca de fila)" : ""}`;
-  }
 
   await supabase.from("chat_conversations").update(update).eq("id", ctx.conversation.id);
   Object.assign(ctx.conversation, update);
