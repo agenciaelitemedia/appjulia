@@ -1234,6 +1234,13 @@ Deno.serve(async (req) => {
     const skipped: Record<string, number> = { group: 0, no_id: 0, no_phone: 0 };
     const backfillTriggered = new Set<string>();
     const audioMessageIdsToTranscribe: string[] = [];
+    // Eventos para o motor de fluxos visuais (Automações) — apenas mensagens recebidas
+    const flowEvents: Array<{
+      conversation_id: string | null;
+      contact_id: string | null;
+      message_text: string;
+      message_type: string;
+    }> = [];
     for (const msg of messages) {
       try {
         const chatId = msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender || '';
@@ -1760,6 +1767,16 @@ Deno.serve(async (req) => {
           audioMessageIdsToTranscribe.push(insertedMsg.id);
         }
 
+        // Enfileira evento para o motor de fluxos (somente mensagens do lead)
+        if (insertedMsg?.id && !fromMe) {
+          flowEvents.push({
+            conversation_id: conversationId ?? null,
+            contact_id: contact.id,
+            message_text: toSafeString(text) || '',
+            message_type: type === 'ptt' ? 'audio' : type,
+          });
+        }
+
         processed++;
       } catch (msgErr) {
         console.error('[uazapi-chat-webhook] Error processing message:', msgErr);
@@ -1800,6 +1817,37 @@ Deno.serve(async (req) => {
     }
 
     // Move n8n fan-out to background so webhook responds immediately.
+    // Dispara o motor de fluxos visuais em background (não bloqueia o webhook).
+    if (flowEvents.length > 0) {
+      const flowPromise = (async () => {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        for (const ev of flowEvents) {
+          try {
+            await fetch(`${supabaseUrl}/functions/v1/chat-flow-engine`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${serviceKey}`,
+                apikey: serviceKey,
+              },
+              body: JSON.stringify({
+                action: 'run',
+                data: {
+                  event: 'message_received',
+                  client_id: queue.client_id,
+                  ...ev,
+                },
+              }),
+            });
+          } catch (e) {
+            console.warn('[uazapi-chat-webhook] flow-engine invoke err:', String(e));
+          }
+        }
+      })();
+      EdgeRuntime.waitUntil(flowPromise);
+    }
+
     // EdgeRuntime.waitUntil keeps the isolate alive until the promise settles
     // without blocking the HTTP response — prevents duplicate deliveries caused
     // by provider retries when fan-out to many agents takes > 15s.

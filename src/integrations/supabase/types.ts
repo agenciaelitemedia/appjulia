@@ -770,12 +770,16 @@ export type Database = {
           context: Json
           conversation_id: string | null
           current_node_id: string | null
+          error_message: string | null
           finished_at: string | null
           flow_id: string
           id: string
+          is_simulation: boolean
           last_step_at: string
+          node_logs: Json
           started_at: string
           status: string
+          trigger_event: string | null
         }
         Insert: {
           client_id: string
@@ -783,12 +787,16 @@ export type Database = {
           context?: Json
           conversation_id?: string | null
           current_node_id?: string | null
+          error_message?: string | null
           finished_at?: string | null
           flow_id: string
           id?: string
+          is_simulation?: boolean
           last_step_at?: string
+          node_logs?: Json
           started_at?: string
           status?: string
+          trigger_event?: string | null
         }
         Update: {
           client_id?: string
@@ -796,12 +804,16 @@ export type Database = {
           context?: Json
           conversation_id?: string | null
           current_node_id?: string | null
+          error_message?: string | null
           finished_at?: string | null
           flow_id?: string
           id?: string
+          is_simulation?: boolean
           last_step_at?: string
+          node_logs?: Json
           started_at?: string
           status?: string
+          trigger_event?: string | null
         }
         Relationships: [
           {
@@ -830,9 +842,12 @@ export type Database = {
           only_business_hours: boolean
           position: number
           start_node_id: string | null
+          trigger_config: Json
           trigger_keywords: string[]
           trigger_type: string
           updated_at: string
+          variables: Json
+          version: number
         }
         Insert: {
           client_id: string
@@ -850,9 +865,12 @@ export type Database = {
           only_business_hours?: boolean
           position?: number
           start_node_id?: string | null
+          trigger_config?: Json
           trigger_keywords?: string[]
           trigger_type?: string
           updated_at?: string
+          variables?: Json
+          version?: number
         }
         Update: {
           client_id?: string
@@ -870,9 +888,12 @@ export type Database = {
           only_business_hours?: boolean
           position?: number
           start_node_id?: string | null
+          trigger_config?: Json
           trigger_keywords?: string[]
           trigger_type?: string
           updated_at?: string
+          variables?: Json
+          version?: number
         }
         Relationships: []
       }
