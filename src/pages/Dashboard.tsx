@@ -43,9 +43,21 @@ import { DashboardFunnelChart } from './dashboard/components/DashboardFunnelChar
 import { DashboardTripleFunnel } from './dashboard/components/DashboardTripleFunnel';
 import { useDashboardJuliaFunnel, useDashboardCampaignFunnel } from './dashboard/hooks/useDashboardFunnels';
 import { CRMLeadDetailsDialog } from './crm/components/CRMLeadDetailsDialog';
+import { Navigate } from 'react-router-dom';
+import { useOfficeByClient } from '@/modules/escritorios/hooks/useOffices';
+import { ESCRITORIOS_ROUTES } from '@/modules/escritorios/module';
 
 export default function Dashboard() {
   const { user } = useAuth();
+
+  // Escritórios (clientes sem agente da Julia) usam um painel de atendimento próprio.
+  const isAdmin = user?.role === 'admin';
+  const { data: office, isLoading: isLoadingOffice } = useOfficeByClient(
+    !isAdmin && user?.client_id ? Number(user.client_id) : null,
+  );
+  if (!isAdmin && user?.client_id && isLoadingOffice) return null;
+  if (office && !isAdmin) return <Navigate to={ESCRITORIOS_ROUTES.dashboard} replace />;
+
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasInitializedFilters = useRef(false);
