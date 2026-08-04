@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ReactFlowProvider } from '@xyflow/react';
 import {
@@ -63,6 +63,7 @@ export default function FlowEditorPage() {
   const [runsOpen, setRunsOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!flow) return;
@@ -162,6 +163,11 @@ export default function FlowEditorPage() {
       </div>
     );
   }
+
+  const editingNode = useMemo(
+    () => editor.nodes.find((n) => n.id === editingNodeId) ?? null,
+    [editor.nodes, editingNodeId],
+  );
 
   const deleteTarget = pendingDelete ? editor.nodes.find((n) => n.id === pendingDelete) : null;
   const deleteLabel = deleteTarget
@@ -355,14 +361,19 @@ export default function FlowEditorPage() {
               onDropNode={(kind, position) => editor.addNode(kind as FlowNodeKind, position)}
               readOnly={readOnly}
               highlightNodeId={highlightNodeId}
+              onNodeDoubleClick={(nodeId) => setEditingNodeId(nodeId)}
+              onPaneClick={() => setEditingNodeId(null)}
             />
           </ReactFlowProvider>
         </div>
         <NodeInspector
-          node={editor.selectedNode}
+          node={editingNode}
           onChangeLabel={editor.setNodeLabel}
           onChangeConfig={editor.setNodeConfig}
-          onRequestDelete={(id) => setPendingDelete(id)}
+          onRequestDelete={(id) => {
+            setPendingDelete(id);
+            setEditingNodeId(null);
+          }}
           readOnly={readOnly}
         />
       </div>
