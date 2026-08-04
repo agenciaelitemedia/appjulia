@@ -68,8 +68,10 @@ export function FlowCanvas({
 
   // Destaca a ligação quando o mouse passa pelo nó ou pela própria conexão.
   const decoratedEdges = useMemo(() => {
-    if (!focusNodeId && !hoveredEdgeId) return edges;
-    return edges.map((edge) => {
+    // Ligações antigas salvas como 'default' também recebem o tipo com botão de excluir.
+    const typed = edges.map((edge) => ({ ...edge, type: 'deletable' }));
+    if (!focusNodeId && !hoveredEdgeId) return typed;
+    return typed.map((edge) => {
       const active =
         edge.id === hoveredEdgeId ||
         (!!focusNodeId && (edge.source === focusNodeId || edge.target === focusNodeId));
