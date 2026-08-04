@@ -226,6 +226,131 @@ export const NODE_DEFINITIONS: Record<FlowNodeKind, FlowNodeDefinition> = {
     Form: HandoffForm,
   },
 
+  julia_toggle: {
+    kind: 'julia_toggle',
+    category: 'julia',
+    label: 'Ativar/desativar Julia',
+    description: 'Liga ou pausa a IA e o followup do lead',
+    icon: Bot,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: { mode: 'on' },
+    summary: (c) => (c.mode === 'off' ? 'Desativar Julia e parar followup' : 'Ativar Julia com followup'),
+    validate: () => [],
+    Form: JuliaToggleForm,
+  },
+
+  julia_followup_stop: {
+    kind: 'julia_followup_stop',
+    category: 'julia',
+    label: 'Parar followup',
+    description: 'Interrompe o followup mantendo a Julia ativa',
+    icon: BellOff,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: {},
+    summary: () => 'Parar followup do lead',
+    validate: () => [],
+    Form: FollowupStopForm,
+  },
+
+  crm_create_card: {
+    kind: 'crm_create_card',
+    category: 'crm',
+    label: 'Criar card',
+    description: 'Cria um card do lead no CRM',
+    icon: KanbanSquare,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: {
+      board_id: '',
+      pipeline_id: '',
+      title: '',
+      description: '',
+      value: '',
+      priority: 'medium',
+      assigned_to: '',
+      skip_if_exists: true,
+      link_conversation: true,
+    },
+    summary: (c) => {
+      const title = String(c.title ?? '').trim();
+      if (!c.board_id) return 'Quadro do CRM não escolhido';
+      return title ? `Criar card "${title}"` : 'Criar card com o nome do lead';
+    },
+    validate: (c) => (c.board_id ? [] : ['Escolha o quadro do CRM']),
+    Form: CrmCreateCardForm,
+  },
+
+  crm_move_card: {
+    kind: 'crm_move_card',
+    category: 'crm',
+    label: 'Mover card de fase',
+    description: 'Move o card do lead para outra fase',
+    icon: MoveRight,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: { board_id: '', pipeline_id: '' },
+    summary: (c) => (c.pipeline_id ? 'Mover card para a fase escolhida' : 'Fase de destino não escolhida'),
+    validate: (c) => {
+      const errors: string[] = [];
+      if (!c.board_id) errors.push('Escolha o quadro do CRM');
+      if (!c.pipeline_id) errors.push('Escolha a fase de destino');
+      return errors;
+    },
+    Form: CrmMoveCardForm,
+  },
+
+  crm_update_card: {
+    kind: 'crm_update_card',
+    category: 'crm',
+    label: 'Editar card',
+    description: 'Atualiza campos do card do lead',
+    icon: PencilLine,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: {
+      board_id: '',
+      title: '',
+      description: '',
+      priority: '',
+      status: '',
+      value: '',
+      assigned_to: '',
+    },
+    summary: (c) => {
+      const changes: string[] = [];
+      if (String(c.title ?? '').trim()) changes.push('título');
+      if (c.priority) changes.push('prioridade');
+      if (c.status) changes.push('situação');
+      if (String(c.value ?? '')) changes.push('valor');
+      if (String(c.assigned_to ?? '')) changes.push('responsável');
+      if (String(c.description ?? '').trim()) changes.push('observação');
+      return changes.length ? `Atualizar ${changes.join(', ')}` : 'Nenhum campo escolhido';
+    },
+    validate: (c) => {
+      const hasChange = [c.title, c.priority, c.status, c.value, c.assigned_to, c.description].some(
+        (v) => String(v ?? '').trim() !== '',
+      );
+      return hasChange ? [] : ['Escolha ao menos um campo para atualizar'];
+    },
+    Form: CrmUpdateCardForm,
+  },
+
+  crm_link_conversation: {
+    kind: 'crm_link_conversation',
+    category: 'crm',
+    label: 'Vincular conversa ao card',
+    description: 'Liga a conversa atual ao card do lead',
+    icon: Link2,
+    hasInput: true,
+    outputs: OUT,
+    defaultConfig: { board_id: '' },
+    summary: () => 'Vincular conversa ao card do lead',
+    validate: () => [],
+    Form: CrmLinkConversationForm,
+  },
+
   flow_end: {
     kind: 'flow_end',
     category: 'data',
