@@ -5,9 +5,12 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Plus, Trash2 } from 'lucide-react';
 import { useFlowQueues } from '../../extend/queues';
 import { useFlowTags, useFlowQuickMessages } from '../../extend/chat';
 import { useFlowBoards, useFlowStages } from '../../extend/crm';
+import { useFlowWebhooks } from '../../extend/webhooks';
 import type { FlowNodeConfig } from '../../types';
 
 export interface NodeFormProps {
