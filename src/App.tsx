@@ -31,6 +31,8 @@ const CRMMonitoringPage = lazy(() => import("./pages/crm/monitoring/CRMMonitorin
 const CRMBuilderPage = lazy(() => import("./pages/crm-builder/CRMBuilderPage"));
 const BoardPage = lazy(() => import("./pages/crm-builder/BoardPage"));
 const BoardSettingsPage = lazy(() => import("./pages/crm-builder/BoardSettingsPage"));
+const FlowListPage = lazy(() => import("./modules/flow-builder/pages/FlowListPage"));
+const FlowEditorPage = lazy(() => import("./modules/flow-builder/pages/FlowEditorPage"));
 const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
 const CreateAgentPage = lazy(() => import("./pages/agents/CreateAgentPage"));
 const AgentDetailsPage = lazy(() => import("./pages/agents/AgentDetailsPage"));
@@ -198,6 +200,8 @@ const App = () => (
                   <Route path="/crm-builder" element={<ProtectedRoute module="crm_painel"><CRMBuilderPage /></ProtectedRoute>} />
                   <Route path="/crm-builder/:boardId" element={<ProtectedRoute module="crm_painel"><BoardPage /></ProtectedRoute>} />
                   <Route path="/crm-builder/:boardId/configuracoes" element={<ProtectedRoute module="crm_painel"><BoardSettingsPage /></ProtectedRoute>} />
+                  <Route path="/automacoes" element={<ProtectedRoute module="flow_builder"><FlowListPage /></ProtectedRoute>} />
+                  <Route path="/automacoes/:flowId" element={<ProtectedRoute module="flow_builder"><FlowEditorPage /></ProtectedRoute>} />
                   <Route path="/datajud" element={<ProtectedRoute module="datajud"><DataJudSearchPage /></ProtectedRoute>} />
                   <Route path="/casos-juridicos" element={<ProtectedRoute module="legal_cases"><LegalCasesPage /></ProtectedRoute>} />
                   <Route path="/notificacoes-contrato" element={<ProtectedRoute module="contract_notifications"><ContractNotificationsPage /></ProtectedRoute>} />

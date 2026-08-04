@@ -64,6 +64,17 @@ All colors MUST be HSL.
     --chart-3: 47.9 95.8% 53.1%;
     --chart-4: 24.6 95% 53.1%;
     --chart-5: 262.1 83.3% 57.8%;
+
+    /* Flow Builder — categorias de nós */
+    --flow-trigger: 262.1 83.3% 57.8%;
+    --flow-logic: 24.6 95% 53.1%;
+    --flow-chat: 142.1 76.2% 36.3%;
+    --flow-julia: 38 92% 50%;
+    --flow-crm: 221.2 83.2% 53.3%;
+    --flow-data: 199 89% 48%;
+    --flow-canvas: 210 40% 98%;
+    --flow-grid: 214.3 31.8% 85%;
+    --flow-edge: 215.4 16.3% 60%;
   }
 
   .dark {
@@ -113,6 +124,17 @@ All colors MUST be HSL.
     --chart-3: 47.9 95.8% 53.1%;
     --chart-4: 27.8 87.1% 55.3%;
     --chart-5: 263.4 70% 50.4%;
+
+    /* Flow Builder — categorias de nós */
+    --flow-trigger: 263.4 70% 62%;
+    --flow-logic: 27.8 87.1% 60%;
+    --flow-chat: 142.1 70.6% 48%;
+    --flow-julia: 38 92% 58%;
+    --flow-crm: 217.2 91.2% 62%;
+    --flow-data: 199 89% 58%;
+    --flow-canvas: 222.2 60% 7%;
+    --flow-grid: 217.2 32.6% 24%;
+    --flow-edge: 215 20.2% 55%;
   }
 }
 
