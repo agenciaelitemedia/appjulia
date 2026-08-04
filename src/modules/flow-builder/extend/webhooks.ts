@@ -3,7 +3,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from './db';
-import { useFlowBuilderIdentity } from './auth';
+import { useFlowClientId } from './auth';
 
 export interface FlowWebhookOption {
   id: string;
@@ -12,14 +12,15 @@ export interface FlowWebhookOption {
 }
 
 export function useFlowWebhooks() {
-  const { clientId } = useFlowBuilderIdentity();
+  const { data: clientId } = useFlowClientId();
   return useQuery<FlowWebhookOption[]>({
     queryKey: ['flow-builder', 'webhooks', clientId],
+    enabled: !!clientId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('chat_webhooks')
         .select('id, name, url')
-        .eq('client_id', clientId)
+        .eq('client_id', String(clientId))
         .order('name');
       if (error) throw error;
       return (data || []) as unknown as FlowWebhookOption[];
