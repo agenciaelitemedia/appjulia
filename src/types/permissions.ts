@@ -8,6 +8,7 @@ export type ModuleCode =
   | 'dashboard'
   | 'crm_leads'
   | 'crm_painel'
+  | 'flow_builder'
   | 'crm_monitoring'
   | 'crm_statistics'
   | 'agent_management'
