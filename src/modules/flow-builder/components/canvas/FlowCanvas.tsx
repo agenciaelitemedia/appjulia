@@ -14,10 +14,11 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { BaseNode } from '../nodes/BaseNode';
+import { DeletableEdge, setEdgeCallbacks } from './edges/DeletableEdge';
 import type { FlowCanvasEdge, FlowCanvasNode } from '../../types';
 
 export const ANIMATED_EDGE = {
-  type: 'default' as const,
+  type: 'deletable' as const,
   animated: true,
   style: { stroke: 'hsl(var(--flow-edge))', strokeWidth: 2 },
   markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--flow-edge))' },
@@ -54,15 +55,23 @@ export function FlowCanvas({
   onPaneClick,
 }: FlowCanvasProps) {
   const nodeTypes = useMemo(() => ({ flowNode: BaseNode }), []);
+  const edgeTypes = useMemo(() => ({ deletable: DeletableEdge }), []);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+
+  setEdgeCallbacks({
+    readOnly,
+    onDelete: (edgeId) => setEdges((eds) => eds.filter((e) => e.id !== edgeId)),
+  });
 
   const focusNodeId = highlightNodeId ?? hoveredNodeId;
 
   // Destaca a ligação quando o mouse passa pelo nó ou pela própria conexão.
   const decoratedEdges = useMemo(() => {
-    if (!focusNodeId && !hoveredEdgeId) return edges;
-    return edges.map((edge) => {
+    // Ligações antigas salvas como 'default' também recebem o tipo com botão de excluir.
+    const typed = edges.map((edge) => ({ ...edge, type: 'deletable' }));
+    if (!focusNodeId && !hoveredEdgeId) return typed;
+    return typed.map((edge) => {
       const active =
         edge.id === hoveredEdgeId ||
         (!!focusNodeId && (edge.source === focusNodeId || edge.target === focusNodeId));
@@ -120,6 +129,7 @@ export function FlowCanvas({
       nodes={decoratedNodes}
       edges={decoratedEdges}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}
