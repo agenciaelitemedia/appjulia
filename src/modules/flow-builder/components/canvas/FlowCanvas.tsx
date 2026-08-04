@@ -17,7 +17,7 @@ import { BaseNode } from '../nodes/BaseNode';
 import type { FlowCanvasEdge, FlowCanvasNode } from '../../types';
 
 export const ANIMATED_EDGE = {
-  type: 'smoothstep' as const,
+  type: 'default' as const,
   animated: true,
   style: { stroke: 'hsl(var(--flow-edge))', strokeWidth: 2 },
   markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--flow-edge))' },
