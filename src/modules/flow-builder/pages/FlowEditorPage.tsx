@@ -164,6 +164,11 @@ export default function FlowEditorPage() {
     );
   }
 
+  const editingNode = useMemo(
+    () => editor.nodes.find((n) => n.id === editingNodeId) ?? null,
+    [editor.nodes, editingNodeId],
+  );
+
   const deleteTarget = pendingDelete ? editor.nodes.find((n) => n.id === pendingDelete) : null;
   const deleteLabel = deleteTarget
     ? deleteTarget.data.label || getNodeDefinition(deleteTarget.data.kind)?.label || 'bloco'
