@@ -104,6 +104,47 @@ export function useChatDealLink(
         if (deal) matchedStage = 3;
       }
 
+      // Stage 4 — links registered only in `chat_crm_links` (cards created by
+      // automations never wrote `custom_fields.links.chat`).
+      if (!deal && (conversationId || contactId)) {
+        const linkLookup = async (col: 'conversation_id' | 'contact_id', value: string) => {
+          const { data, error } = await supabase
+            .from('chat_crm_links')
+            .select('external_id')
+            .eq('client_id', clientId)
+            .eq('external_system', 'crm_builder')
+            .eq(col, value)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (error) {
+            console.warn('[useChatDealLink] chat_crm_links lookup error', error);
+            return null;
+          }
+          return (data as any)?.external_id ?? null;
+        };
+
+        let dealId: string | null = null;
+        if (contactId) dealId = await linkLookup('contact_id', contactId);
+        if (!dealId && conversationId) dealId = await linkLookup('conversation_id', conversationId);
+
+        if (dealId) {
+          const { data, error } = await supabase
+            .from('crm_deals')
+            .select(selectCols)
+            .eq('id', dealId)
+            .eq('client_id', clientId)
+            .neq('status', 'archived')
+            .maybeSingle();
+          if (error) {
+            console.warn('[useChatDealLink] deal by link id error', error);
+          } else if (data) {
+            deal = data as unknown as ChatLinkedDeal;
+            matchedStage = 4;
+          }
+        }
+      }
+
       if (!deal) return null;
 
       // Self-heal: if matched via legacy stage, backfill contact_id and refresh
