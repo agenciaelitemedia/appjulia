@@ -17,22 +17,34 @@ export interface OfficeDashboardStats {
   topAgents: { agent: string; count: number }[];
 }
 
-function startOfDaysAgo(days: number) {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - days);
-  return d;
+export interface OfficePeriod {
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
 }
 
-export function useOfficeDashboard(days = 30) {
+function eachDay(period: OfficePeriod): string[] {
+  const out: string[] = [];
+  const start = new Date(`${period.startDate}T00:00:00`);
+  const end = new Date(`${period.endDate}T00:00:00`);
+  for (let d = start; d <= end; d.setDate(d.getDate() + 1)) {
+    out.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+    );
+    if (out.length > 400) break;
+  }
+  return out;
+}
+
+export function useOfficeDashboard(period: OfficePeriod) {
   const { data: clientId } = useOfficeClientId();
 
   return useQuery<OfficeDashboardStats>({
-    queryKey: ['escritorios', 'dashboard', clientId, days],
+    queryKey: ['escritorios', 'dashboard', clientId, period.startDate, period.endDate],
     enabled: !!clientId,
     staleTime: 60_000,
     queryFn: async () => {
-      const since = startOfDaysAgo(days - 1).toISOString();
+      const since = new Date(`${period.startDate}T00:00:00`).toISOString();
+      const until = new Date(`${period.endDate}T23:59:59.999`).toISOString();
 
       const [convRes, msgRes, queueRes] = await Promise.all([
         supabase
@@ -40,12 +52,14 @@ export function useOfficeDashboard(days = 30) {
           .select('id, status, channel, queue_id, assigned_to, created_at, opened_at, first_response_at')
           .eq('client_id', clientId!)
           .gte('created_at', since)
+          .lte('created_at', until)
           .limit(5000),
         supabase
           .from('chat_messages')
           .select('id, from_me, timestamp')
           .eq('client_id', clientId!)
           .gte('timestamp', since)
+          .lte('timestamp', until)
           .limit(20000),
         supabase
           .from('queues')
@@ -83,10 +97,7 @@ export function useOfficeDashboard(days = 30) {
         .filter((v) => Number.isFinite(v) && v >= 0);
 
       const dayMap = new Map<string, number>();
-      for (let i = days - 1; i >= 0; i--) {
-        const d = startOfDaysAgo(i);
-        dayMap.set(d.toISOString().slice(0, 10), 0);
-      }
+      for (const day of eachDay(period)) dayMap.set(day, 0);
       for (const c of conversations) {
         const key = String(c.created_at).slice(0, 10);
         if (dayMap.has(key)) dayMap.set(key, (dayMap.get(key) || 0) + 1);
