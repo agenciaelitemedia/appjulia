@@ -1,4 +1,4 @@
-import { BarChart3, KanbanSquare, LayoutDashboard, Users } from 'lucide-react';
+import { KanbanSquare, LayoutDashboard, Users } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useOfficeClientId } from '../hooks/useOfficeClientId';
 import { useOfficeByClient } from '../hooks/useOffices';
