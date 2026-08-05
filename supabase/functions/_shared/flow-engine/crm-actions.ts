@@ -105,6 +105,15 @@ export async function actionCrmCreateCard(
     .maybeSingle();
   const codAgent = String(board?.cod_agent ?? ctx.clientId ?? "");
 
+  const chatLink: Record<string, unknown> = {
+    ...(ctx.conversation?.id ? { conversation_id: ctx.conversation.id } : {}),
+    ...(ctx.contact?.id ? { contact_id: ctx.contact.id } : {}),
+    ...(ctx.contact?.phone ? { contact_phone: ctx.contact.phone } : {}),
+    ...(ctx.contact?.name || ctx.contact?.push_name
+      ? { contact_name: ctx.contact?.name ?? ctx.contact?.push_name }
+      : {}),
+  };
+
   const { data, error } = await supabase
     .from("crm_deals")
     .insert({
@@ -123,6 +132,9 @@ export async function actionCrmCreateCard(
       assigned_to: String(config.assigned_to ?? "") || null,
       created_by: "Automação",
       stage_entered_at: new Date().toISOString(),
+      custom_fields: Object.keys(chatLink).length
+        ? { source: "automation", links: { chat: chatLink } }
+        : { source: "automation" },
     })
     .select("id, title")
     .maybeSingle();
