@@ -88,7 +88,7 @@ export function useChatDealLink(
 
       // Stage 1 — stable anchor by contact_id
       let deal: ChatLinkedDeal | null = null;
-      let matchedStage: 1 | 2 | 3 | null = null;
+      let matchedStage: 1 | 2 | 3 | 4 | null = null;
       if (contactId) {
         deal = await lookup({ contact_id: contactId });
         if (deal) matchedStage = 1;
