@@ -52,6 +52,10 @@ export const OFFICE_MODULE_PACKAGE: { code: string; label: string }[] = [
   { code: 'help_center', label: 'Central de Ajuda' },
   { code: 'flow_builder', label: 'Automações' },
   { code: 'contacts', label: 'Contatos' },
+  { code: 'library', label: 'Biblioteca' },
+  { code: 'tasks', label: 'Tarefas' },
+  { code: 'datajud', label: 'Busca Processual' },
+  { code: 'legal_cases', label: 'Casos Jurídicos' },
 ];
 
 export const OFFICE_MODULE_CODES = OFFICE_MODULE_PACKAGE.map((m) => m.code);
