@@ -49,27 +49,9 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
   const clientId = user?.client_id ? String(user.client_id) : '';
   const queryClient = useQueryClient();
 
-  // ---- Resolve effective cod_agent (prop → queue → user's first agent) ----
+  // ---- Resolve effective cod_agent (prop → quadro → fila → agente do usuário) ----
   const queueLink = useQueueAgentLink(!codAgent && open ? queueId ?? null : null);
   const myAgents = useMyAgents();
-
-  const effectiveCodAgent = useMemo<string | null>(() => {
-    if (codAgent) return String(codAgent);
-    if (queueLink.data?.codAgent) return String(queueLink.data.codAgent);
-    const first = myAgents.data?.myAgents?.[0]?.cod_agent;
-    if (first) return String(first);
-    return null;
-  }, [codAgent, queueLink.data?.codAgent, myAgents.data?.myAgents]);
-
-  const agentSource: 'conversation' | 'queue' | 'user' | 'none' = codAgent
-    ? 'conversation'
-    : queueLink.data?.codAgent
-      ? 'queue'
-      : myAgents.data?.myAgents?.[0]?.cod_agent
-        ? 'user'
-        : 'none';
-
-  const agentResolving = !codAgent && (queueLink.isLoading || myAgents.isLoading);
 
   const [boards, setBoards] = useState<Board[]>([]);
   const [pipelinesByBoard, setPipelinesByBoard] = useState<Record<string, Pipeline[]>>({});
@@ -87,6 +69,29 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
   const [saving, setSaving] = useState(false);
   const [forceCreate, setForceCreate] = useState(false);
   const [linking, setLinking] = useState(false);
+
+  const boardAgent = boards.find((b) => b.id === selectedBoard)?.cod_agent || '';
+
+  const effectiveCodAgent = useMemo<string | null>(() => {
+    if (codAgent) return String(codAgent);
+    if (boardAgent) return String(boardAgent);
+    if (queueLink.data?.codAgent) return String(queueLink.data.codAgent);
+    const first = myAgents.data?.myAgents?.[0]?.cod_agent;
+    if (first) return String(first);
+    return null;
+  }, [codAgent, boardAgent, queueLink.data?.codAgent, myAgents.data?.myAgents]);
+
+  const agentSource: 'conversation' | 'board' | 'queue' | 'user' | 'none' = codAgent
+    ? 'conversation'
+    : boardAgent
+      ? 'board'
+      : queueLink.data?.codAgent
+        ? 'queue'
+        : myAgents.data?.myAgents?.[0]?.cod_agent
+          ? 'user'
+          : 'none';
+
+  const agentResolving = !codAgent && (queueLink.isLoading || myAgents.isLoading);
 
   // ---- Detect existing deal for this contact (avoid duplicates) ----
   const existingDeal = useQuery({
@@ -228,10 +233,6 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
       toast.error('Selecione um quadro e uma etapa');
       return;
     }
-    if (!effectiveCodAgent) {
-      toast.error('Nenhum agente disponível na sua conta');
-      return;
-    }
     setSaving(true);
     try {
       const links: Record<string, unknown> = {
@@ -242,7 +243,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
           contact_name: contact.name ?? null,
         },
       };
-      if (linkJulia && juliaCard.data) {
+      if (linkJulia && juliaCard.data && effectiveCodAgent) {
         links.julia = {
           card_id: juliaCard.data.id,
           whatsapp_number: normalizedPhone,
@@ -256,7 +257,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
         board_id: selectedBoard,
         pipeline_id: selectedPipeline,
         client_id: clientId,
-        cod_agent: effectiveCodAgent,
+        cod_agent: effectiveCodAgent ?? '',
         title: title.trim() || contact.name || 'Novo card',
         description,
         contact_name: contact.name,
@@ -288,7 +289,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
         try {
           await supabase.from('chat_crm_links').insert({
             client_id: clientId,
-            cod_agent: effectiveCodAgent,
+            cod_agent: effectiveCodAgent ?? null,
             conversation_id: conversationId,
             external_system: 'crm_builder',
             external_id: selectedBoard,
@@ -336,11 +337,11 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
       if (error) throw error;
 
       // Best-effort chat_crm_links row for the new conversation
-      if (conversationId && effectiveCodAgent) {
+      if (conversationId) {
         try {
           await supabase.from('chat_crm_links').insert({
             client_id: clientId,
-            cod_agent: effectiveCodAgent,
+            cod_agent: effectiveCodAgent ?? null,
             conversation_id: conversationId,
             external_system: 'crm_builder',
             external_id: deal.board_id,
@@ -384,13 +385,14 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
             ) : effectiveCodAgent ? (
               <Badge variant="outline" className="text-[10px]">
                 Agente: #{effectiveCodAgent}
+                {agentSource === 'board' && ' (via quadro)'}
                 {agentSource === 'queue' && ' (via fila)'}
                 {agentSource === 'user' && ' (seu agente)'}
                 {agentSource === 'conversation' && ' (conversa)'}
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-[10px] text-destructive border-destructive/40">
-                Nenhum agente disponível
+              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                Sem agente da Júlia (vínculo apenas por fila)
               </Badge>
             )}
           </div>
@@ -587,13 +589,13 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
                     <Badge className="bg-blue-500/10 text-blue-700 border-blue-500/30 text-[10px]">Ativo</Badge>
                   </div>
 
-                  {juliaCard.isLoading && (
+                  {!!effectiveCodAgent && juliaCard.isLoading && (
                     <div className="flex items-center gap-2 p-3 rounded-lg border text-xs text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin" /> Procurando card no CRM da Julia...
                     </div>
                   )}
 
-                  {juliaCard.data && (
+                  {!!effectiveCodAgent && juliaCard.data && (
                     <div className="flex items-center gap-2 p-3 rounded-lg border bg-purple-500/5 border-purple-500/20">
                       <Scale className="h-4 w-4 text-purple-600" />
                       <div className="flex-1 min-w-0">
@@ -606,7 +608,7 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
                     </div>
                   )}
 
-                  {!juliaCard.isLoading && !juliaCard.data && (
+                  {!!effectiveCodAgent && !juliaCard.isLoading && !juliaCard.data && (
                     <div className="text-[11px] text-muted-foreground px-1">
                       Nenhum card da Julia encontrado para este contato.
                     </div>
