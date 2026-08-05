@@ -14,7 +14,7 @@ export default function OfficeDashboardPage() {
     <div className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-6">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold">
-          <LayoutDashboard className="h-6 w-6 text-primary" /> Painel de Atendimento
+          <LayoutDashboard className="h-6 w-6 text-primary" /> Painel Principal
         </h1>
         <p className="text-sm text-muted-foreground">
           {office?.office_name ? `${office.office_name} · ` : ''}Indicadores de chat, equipe e CRM
