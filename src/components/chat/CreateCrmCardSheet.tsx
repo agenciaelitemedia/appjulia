@@ -49,32 +49,9 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
   const clientId = user?.client_id ? String(user.client_id) : '';
   const queryClient = useQueryClient();
 
-  // ---- Resolve effective cod_agent (prop → queue → user's first agent) ----
+  // ---- Resolve effective cod_agent (prop → quadro → fila → agente do usuário) ----
   const queueLink = useQueueAgentLink(!codAgent && open ? queueId ?? null : null);
   const myAgents = useMyAgents();
-
-  const effectiveCodAgent = useMemo<string | null>(() => {
-    if (codAgent) return String(codAgent);
-    const boardAgent = boards.find((b) => b.id === selectedBoard)?.cod_agent;
-    if (boardAgent) return String(boardAgent);
-    if (queueLink.data?.codAgent) return String(queueLink.data.codAgent);
-    const first = myAgents.data?.myAgents?.[0]?.cod_agent;
-    if (first) return String(first);
-    return null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [codAgent, queueLink.data?.codAgent, myAgents.data?.myAgents, boards, selectedBoard]);
-
-  const agentSource: 'conversation' | 'board' | 'queue' | 'user' | 'none' = codAgent
-    ? 'conversation'
-    : boards.find((b) => b.id === selectedBoard)?.cod_agent
-      ? 'board'
-      : queueLink.data?.codAgent
-        ? 'queue'
-        : myAgents.data?.myAgents?.[0]?.cod_agent
-          ? 'user'
-          : 'none';
-
-  const agentResolving = !codAgent && (queueLink.isLoading || myAgents.isLoading);
 
   const [boards, setBoards] = useState<Board[]>([]);
   const [pipelinesByBoard, setPipelinesByBoard] = useState<Record<string, Pipeline[]>>({});
@@ -92,6 +69,29 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
   const [saving, setSaving] = useState(false);
   const [forceCreate, setForceCreate] = useState(false);
   const [linking, setLinking] = useState(false);
+
+  const boardAgent = boards.find((b) => b.id === selectedBoard)?.cod_agent || '';
+
+  const effectiveCodAgent = useMemo<string | null>(() => {
+    if (codAgent) return String(codAgent);
+    if (boardAgent) return String(boardAgent);
+    if (queueLink.data?.codAgent) return String(queueLink.data.codAgent);
+    const first = myAgents.data?.myAgents?.[0]?.cod_agent;
+    if (first) return String(first);
+    return null;
+  }, [codAgent, boardAgent, queueLink.data?.codAgent, myAgents.data?.myAgents]);
+
+  const agentSource: 'conversation' | 'board' | 'queue' | 'user' | 'none' = codAgent
+    ? 'conversation'
+    : boardAgent
+      ? 'board'
+      : queueLink.data?.codAgent
+        ? 'queue'
+        : myAgents.data?.myAgents?.[0]?.cod_agent
+          ? 'user'
+          : 'none';
+
+  const agentResolving = !codAgent && (queueLink.isLoading || myAgents.isLoading);
 
   // ---- Detect existing deal for this contact (avoid duplicates) ----
   const existingDeal = useQuery({
