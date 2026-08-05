@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Activity,
   CheckCircle2,
@@ -11,14 +11,53 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { useOfficeDashboard } from '../hooks/useOfficeDashboard';
+import { useOfficeDashboard, type OfficePeriod } from '../hooks/useOfficeDashboard';
 
-const RANGES = [
-  { label: '7 dias', value: 7 },
-  { label: '15 dias', value: 15 },
-  { label: '30 dias', value: 30 },
+type PeriodKey = 'today' | 'yesterday' | '7d' | 'month' | 'last_month' | 'custom';
+
+const PERIOD_OPTIONS: { key: PeriodKey; label: string }[] = [
+  { key: 'today', label: 'Hoje' },
+  { key: 'yesterday', label: 'Ontem' },
+  { key: '7d', label: '7 dias' },
+  { key: 'month', label: 'Mês atual' },
+  { key: 'last_month', label: 'Mês anterior' },
+  { key: 'custom', label: 'Personalizado' },
 ];
+
+function toDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function computePeriod(key: PeriodKey, custom?: OfficePeriod): OfficePeriod {
+  const now = new Date();
+  const today = toDateStr(now);
+  switch (key) {
+    case 'today':
+      return { startDate: today, endDate: today };
+    case 'yesterday': {
+      const y = new Date(now);
+      y.setDate(now.getDate() - 1);
+      const s = toDateStr(y);
+      return { startDate: s, endDate: s };
+    }
+    case '7d': {
+      const s = new Date(now);
+      s.setDate(now.getDate() - 6);
+      return { startDate: toDateStr(s), endDate: today };
+    }
+    case 'month':
+      return { startDate: toDateStr(new Date(now.getFullYear(), now.getMonth(), 1)), endDate: today };
+    case 'last_month': {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { startDate: toDateStr(first), endDate: toDateStr(last) };
+    }
+    case 'custom':
+      return custom || { startDate: today, endDate: today };
+  }
+}
 
 function StatCard({
   title,
@@ -46,26 +85,50 @@ function StatCard({
 }
 
 export function OfficeAtendimentosTab() {
-  const [days, setDays] = useState(30);
-  const { data: stats, isLoading } = useOfficeDashboard(days);
+  const [periodKey, setPeriodKey] = useState<PeriodKey>('7d');
+  const [customPeriod, setCustomPeriod] = useState<OfficePeriod>(() => computePeriod('7d'));
+
+  const period = useMemo(() => computePeriod(periodKey, customPeriod), [periodKey, customPeriod]);
+  const { data: stats, isLoading } = useOfficeDashboard(period);
 
   const maxDay = Math.max(1, ...(stats?.byDay || []).map((d) => d.count));
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap justify-end gap-2">
-        {RANGES.map((range) => (
-          <Button
-            key={range.value}
-            size="sm"
-            variant={days === range.value ? 'default' : 'outline'}
-            className="rounded-full"
-            onClick={() => setDays(range.value)}
-          >
-            {range.label}
-          </Button>
-        ))}
-      </div>
+      <Card className="space-y-3 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          {PERIOD_OPTIONS.map((opt) => (
+            <Button
+              key={opt.key}
+              size="sm"
+              variant={periodKey === opt.key ? 'default' : 'outline'}
+              onClick={() => setPeriodKey(opt.key)}
+            >
+              {opt.label}
+            </Button>
+          ))}
+          {periodKey === 'custom' && (
+            <div className="ml-2 flex items-center gap-2">
+              <Input
+                type="date"
+                value={customPeriod.startDate}
+                onChange={(e) => setCustomPeriod({ ...customPeriod, startDate: e.target.value })}
+                className="w-40"
+              />
+              <span className="text-sm text-muted-foreground">até</span>
+              <Input
+                type="date"
+                value={customPeriod.endDate}
+                onChange={(e) => setCustomPeriod({ ...customPeriod, endDate: e.target.value })}
+                className="w-40"
+              />
+            </div>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Período: {period.startDate} → {period.endDate}
+        </div>
+      </Card>
 
       {isLoading || !stats ? (
         <div className="flex justify-center py-20">
@@ -74,7 +137,12 @@ export function OfficeAtendimentosTab() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard title="Atendimentos" value={stats.total} icon={Inbox} hint={`Últimos ${days} dias`} />
+            <StatCard
+              title="Atendimentos"
+              value={stats.total}
+              icon={Inbox}
+              hint={`${period.startDate} → ${period.endDate}`}
+            />
             <StatCard title="Em aberto" value={stats.open} icon={Activity} hint={`${stats.unassigned} sem responsável`} />
             <StatCard title="Aguardando" value={stats.pending} icon={Clock} />
             <StatCard title="Concluídos" value={stats.resolved} icon={CheckCircle2} />
