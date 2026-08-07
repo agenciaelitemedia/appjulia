@@ -223,6 +223,18 @@ export default function XJAgentEditorPage() {
           />
         </TabsContent>
 
+        <TabsContent value="ativacao" className="mt-4">
+          <XJActivationTab
+            canEdit={canEdit}
+            activation={form.activation ?? {}}
+            onActivationChange={(patch) => set('activation', { ...(form.activation ?? {}), ...patch })}
+            businessHours={form.business_hours}
+            onBusinessHoursChange={(value: XJBusinessHours) => set('business_hours', value)}
+            voiceEnabled={!!form.voice_enabled}
+            onVoiceEnabledChange={(v) => set('voice_enabled', v)}
+          />
+        </TabsContent>
+
         <TabsContent value="llm" className="mt-4 space-y-4">
           <Card>
             <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
