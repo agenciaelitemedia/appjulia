@@ -61,6 +61,7 @@ export function useMenuModules() {
 export const menuGroupOrder = [
   'PRINCIPAL',
   'AGENTES DA JULIA',
+  'AGENTE X-JULIA',
   'CRM',
   'SISTEMA',
   'COMERCIAL',

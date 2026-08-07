@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
-import { useXJClientId, useXJIdentity } from '../extend/auth';
+import { useXJIdentity } from '../extend/auth';
+import { useXJEffectiveClientId } from '../context/XJScopeContext';
 import type { XJCaseKnowledge, XJCaseQuestion, XJLegalCase } from '../types';
 
 const KEY = ['x-julia', 'cases'];
 
 export function useXJCases() {
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   return useQuery<XJLegalCase[]>({
     queryKey: [...KEY, clientId],
     enabled: !!clientId,
@@ -26,7 +27,7 @@ export function useXJCases() {
 
 export function useXJCaseMutations() {
   const queryClient = useQueryClient();
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   const { userName } = useXJIdentity();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: KEY });
 
@@ -83,7 +84,7 @@ export function useXJCaseMutations() {
 
 export function useXJCaseQuestions(caseId?: string) {
   const queryClient = useQueryClient();
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
 
   const query = useQuery<XJCaseQuestion[]>({
     queryKey: ['x-julia', 'case-questions', caseId],
@@ -140,7 +141,7 @@ export function useXJCaseQuestions(caseId?: string) {
 
 export function useXJCaseKnowledge(caseId?: string) {
   const queryClient = useQueryClient();
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   const { userName } = useXJIdentity();
 
   const query = useQuery<XJCaseKnowledge[]>({
@@ -194,7 +195,7 @@ export function useXJCaseKnowledge(caseId?: string) {
 
 export function useXJCtaTriggers() {
   const queryClient = useQueryClient();
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
 
   const query = useQuery({
     queryKey: ['x-julia', 'cta-triggers', clientId],

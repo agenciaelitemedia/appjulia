@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
-import { useXJClientId } from '../extend/auth';
+import { useXJEffectiveClientId } from '../context/XJScopeContext';
 import type { XJFollowupCadence, XJFollowupStep } from '../types';
 
 export function useXJCadences(agentId?: string) {
   const queryClient = useQueryClient();
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
 
   const query = useQuery<XJFollowupCadence[]>({
     queryKey: ['x-julia', 'cadences', agentId],
@@ -111,7 +111,7 @@ export function useXJCadences(agentId?: string) {
 
 /** Followups agendados/enviados (monitoramento). */
 export function useXJFollowupQueue(limit = 100) {
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   return useQuery({
     queryKey: ['x-julia', 'followup-queue', clientId, limit],
     enabled: !!clientId,

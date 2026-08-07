@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
-import { useXJClientId } from '../extend/auth';
+import { useXJEffectiveClientId } from '../context/XJScopeContext';
 import type { XJSession, XJSessionEvent } from '../types';
 
 export interface XJSessionFilters {
@@ -12,7 +12,7 @@ export interface XJSessionFilters {
 }
 
 export function useXJSessions(filters: XJSessionFilters = {}) {
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   return useQuery<XJSession[]>({
     queryKey: ['x-julia', 'sessions', clientId, filters],
     enabled: !!clientId,

@@ -10,10 +10,77 @@ export const X_JULIA_MODULE = {
   description: 'Agente jurídico autônomo: recepção, triagem, qualificação, contrato e agenda',
   icon: 'Sparkles',
   route: '/x-julia',
-  menuGroup: 'INTELIGÊNCIA',
+  menuGroup: 'AGENTE X-JULIA',
   category: 'admin',
   displayOrder: 40,
 } as const;
+
+/** Grupo próprio no menu lateral. */
+export const X_JULIA_MENU_GROUP = 'AGENTE X-JULIA';
+
+/**
+ * Itens do menu do módulo — cada um vira uma linha na matriz de permissões.
+ */
+export const X_JULIA_MENU_ITEMS = [
+  {
+    code: 'x_julia',
+    name: 'Painel X-Julia',
+    description: 'Visão geral dos atendimentos do agente autônomo',
+    icon: 'Sparkles',
+    route: '/x-julia',
+    displayOrder: 1,
+  },
+  {
+    code: 'x_julia_sessions',
+    name: 'Atendimentos X-Julia',
+    description: 'Sessões conduzidas pelo agente autônomo',
+    icon: 'MessagesSquare',
+    route: '/x-julia/atendimentos',
+    displayOrder: 2,
+  },
+  {
+    code: 'x_julia_crm',
+    name: 'CRM X-Julia',
+    description: 'CRM próprio do agente autônomo',
+    icon: 'KanbanSquare',
+    route: '/x-julia/crm',
+    displayOrder: 3,
+  },
+  {
+    code: 'x_julia_agents',
+    name: 'Agentes X-Julia',
+    description: 'Configuração de prompt, LLM, voz, filas e followups',
+    icon: 'Bot',
+    route: '/x-julia/agentes',
+    displayOrder: 4,
+  },
+  {
+    code: 'x_julia_cases',
+    name: 'Casos X-Julia',
+    description: 'Biblioteca de casos jurídicos exclusiva do módulo',
+    icon: 'Scale',
+    route: '/x-julia/casos',
+    displayOrder: 5,
+  },
+  {
+    code: 'x_julia_contracts',
+    name: 'Contratos X-Julia',
+    description: 'Contratos gerados e assinaturas',
+    icon: 'FileSignature',
+    route: '/x-julia/contratos',
+    displayOrder: 6,
+  },
+  {
+    code: 'x_julia_agenda',
+    name: 'Agenda X-Julia',
+    description: 'Disponibilidade e agendamentos criados pelo agente',
+    icon: 'CalendarClock',
+    route: '/x-julia/agenda',
+    displayOrder: 7,
+  },
+] as const;
+
+export type XJModuleCode = (typeof X_JULIA_MENU_ITEMS)[number]['code'];
 
 export const X_JULIA_ROUTES = {
   dashboard: '/x-julia',

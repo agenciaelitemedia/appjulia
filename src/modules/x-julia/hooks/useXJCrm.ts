@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
-import { useXJClientId } from '../extend/auth';
+import { useXJEffectiveClientId } from '../context/XJScopeContext';
 import type { XJDeal, XJPipeline } from '../types';
 
 export function useXJPipelines() {
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   return useQuery<XJPipeline[]>({
     queryKey: ['x-julia', 'pipelines', clientId],
     enabled: !!clientId,
@@ -23,7 +23,7 @@ export function useXJPipelines() {
 }
 
 export function useXJDeals() {
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   return useQuery<XJDeal[]>({
     queryKey: ['x-julia', 'deals', clientId],
     enabled: !!clientId,
@@ -43,7 +43,7 @@ export function useXJDeals() {
 
 export function useXJDealActions() {
   const queryClient = useQueryClient();
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
 
   const move = useMutation({
     mutationFn: async ({ dealId, pipelineId, fromPipelineId }: { dealId: string; pipelineId: string; fromPipelineId: string | null }) => {

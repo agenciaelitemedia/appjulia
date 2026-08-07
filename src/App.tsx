@@ -12,6 +12,7 @@ import { DebugProvider } from "@/contexts/DebugContext";
 import { MainLayout } from "@/components/layout/MainLayout";
 
 import { ProtectedRoute } from "@/components/guards/ProtectedRoute";
+import { XJScopeProvider } from "@/modules/x-julia/context/XJScopeContext";
 import { HelpStudioGuard } from "@/components/guards/HelpStudioGuard";
 import { DebugBar } from "@/components/debug/DebugBar";
 
@@ -47,6 +48,15 @@ const CampanhasPage = lazy(() => import("./pages/estrategico/campanhas/Campanhas
 const FollowupPage = lazy(() => import("./pages/agente/followup/FollowupPage"));
 const MyAgentsPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentsPage"));
 const MyAgentEditPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentEditPage"));
+const XJDashboardPage = lazy(() => import("./modules/x-julia/pages/DashboardPage"));
+const XJSessionsPage = lazy(() => import("./modules/x-julia/pages/SessionsPage"));
+const XJSessionDetailPage = lazy(() => import("./modules/x-julia/pages/SessionDetailPage"));
+const XJAgentsPage = lazy(() => import("./modules/x-julia/pages/AgentsPage"));
+const XJAgentEditorPage = lazy(() => import("./modules/x-julia/pages/AgentEditorPage"));
+const XJCasesPage = lazy(() => import("./modules/x-julia/pages/CasesPage"));
+const XJCrmPage = lazy(() => import("./modules/x-julia/pages/CrmPage"));
+const XJContractsPage = lazy(() => import("./modules/x-julia/pages/ContractsPage"));
+const XJAgendaPage = lazy(() => import("./modules/x-julia/pages/AgendaPage"));
 const CriativosPage = lazy(() => import("./pages/criativos/CriativosPage"));
 const EquipePage = lazy(() => import("./pages/equipe/EquipePage"));
 const ProfileSettingsPage = lazy(() => import("./pages/profile/ProfileSettingsPage"));
@@ -206,6 +216,16 @@ const App = () => (
                   <Route path="/crm-builder/:boardId/configuracoes" element={<ProtectedRoute module="crm_painel"><BoardSettingsPage /></ProtectedRoute>} />
                   <Route path="/automacoes" element={<ProtectedRoute module="flow_builder"><FlowListPage /></ProtectedRoute>} />
                   <Route path="/automacoes/:flowId" element={<ProtectedRoute module="flow_builder"><FlowEditorPage /></ProtectedRoute>} />
+                  {/* Agente X-Julia — módulo independente */}
+                  <Route path="/x-julia" element={<ProtectedRoute module="x_julia"><XJScopeProvider><XJDashboardPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/atendimentos" element={<ProtectedRoute module="x_julia_sessions"><XJScopeProvider><XJSessionsPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/atendimentos/:sessionId" element={<ProtectedRoute module="x_julia_sessions"><XJScopeProvider><XJSessionDetailPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/crm" element={<ProtectedRoute module="x_julia_crm"><XJScopeProvider><XJCrmPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/agentes" element={<ProtectedRoute module="x_julia_agents"><XJScopeProvider><XJAgentsPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/agentes/:agentId" element={<ProtectedRoute module="x_julia_agents"><XJScopeProvider><XJAgentEditorPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/casos" element={<ProtectedRoute module="x_julia_cases"><XJScopeProvider><XJCasesPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/contratos" element={<ProtectedRoute module="x_julia_contracts"><XJScopeProvider><XJContractsPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/agenda" element={<ProtectedRoute module="x_julia_agenda"><XJScopeProvider><XJAgendaPage /></XJScopeProvider></ProtectedRoute>} />
                   {/* Escritórios — módulo independente (clientes sem agente da Julia) */}
                   <Route path="/escritorios" element={<ProtectedRoute module="escritorios"><OfficesListPage /></ProtectedRoute>} />
                   <Route path="/escritorios/novo" element={<ProtectedRoute module="escritorios"><CreateOfficePage /></ProtectedRoute>} />
