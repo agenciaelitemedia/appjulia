@@ -67,11 +67,11 @@ export default function XJCrmPage() {
                     <div key={deal.id} className="rounded-md border bg-background p-2.5">
                       <p className="truncate text-sm font-medium">{deal.title || deal.contact_name || 'Sem título'}</p>
                       <p className="text-xs text-muted-foreground">
-                        {deal.phone ?? '—'} · {currency(deal.value)}
+                        {deal.contact_phone ?? '—'} · {currency(deal.value)}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        {deal.case_type && <Badge variant="outline" className="text-[10px]">{deal.case_type}</Badge>}
-                        {deal.stage && <XJStageBadge stage={deal.stage as any} />}
+                        {deal.origin && <Badge variant="outline" className="text-[10px]">{deal.origin}</Badge>}
+                        {deal.priority && <Badge variant="secondary" className="text-[10px]">{deal.priority}</Badge>}
                       </div>
                       {deal.session_id && (
                         <Link
