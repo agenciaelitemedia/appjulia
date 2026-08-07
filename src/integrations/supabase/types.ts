@@ -8843,6 +8843,1282 @@ export type Database = {
         }
         Relationships: []
       }
+      xj_agent_queue_links: {
+        Row: {
+          agent_id: string
+          client_id: string
+          created_at: string
+          id: string
+          is_primary: boolean
+          queue_id: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          client_id: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          queue_id: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          queue_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_agent_queue_links_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_agents: {
+        Row: {
+          business_hours: Json
+          client_id: string
+          contract_provider: string
+          contract_template: string | null
+          created_at: string
+          created_by: string | null
+          handoff_policy: Json
+          id: string
+          is_active: boolean
+          llm_fallback_enabled: boolean
+          llm_model: string
+          llm_provider: string
+          max_turns: number
+          mirror_to_crm_builder: boolean
+          name: string
+          persona: string | null
+          stage_prompts: Json
+          system_prompt: string
+          tone: string | null
+          updated_at: string
+          voice_enabled: boolean
+          voice_id: string | null
+          voice_provider: string | null
+          voice_settings: Json
+        }
+        Insert: {
+          business_hours?: Json
+          client_id: string
+          contract_provider?: string
+          contract_template?: string | null
+          created_at?: string
+          created_by?: string | null
+          handoff_policy?: Json
+          id?: string
+          is_active?: boolean
+          llm_fallback_enabled?: boolean
+          llm_model?: string
+          llm_provider?: string
+          max_turns?: number
+          mirror_to_crm_builder?: boolean
+          name: string
+          persona?: string | null
+          stage_prompts?: Json
+          system_prompt?: string
+          tone?: string | null
+          updated_at?: string
+          voice_enabled?: boolean
+          voice_id?: string | null
+          voice_provider?: string | null
+          voice_settings?: Json
+        }
+        Update: {
+          business_hours?: Json
+          client_id?: string
+          contract_provider?: string
+          contract_template?: string | null
+          created_at?: string
+          created_by?: string | null
+          handoff_policy?: Json
+          id?: string
+          is_active?: boolean
+          llm_fallback_enabled?: boolean
+          llm_model?: string
+          llm_provider?: string
+          max_turns?: number
+          mirror_to_crm_builder?: boolean
+          name?: string
+          persona?: string | null
+          stage_prompts?: Json
+          system_prompt?: string
+          tone?: string | null
+          updated_at?: string
+          voice_enabled?: boolean
+          voice_id?: string | null
+          voice_provider?: string | null
+          voice_settings?: Json
+        }
+        Relationships: []
+      }
+      xj_appointments: {
+        Row: {
+          agent_id: string | null
+          client_id: string
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          deal_id: string | null
+          ends_at: string
+          external_id: string | null
+          id: string
+          notes: string | null
+          owner_name: string | null
+          owner_user_id: string | null
+          provider: string
+          session_id: string | null
+          starts_at: string
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          client_id: string
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          ends_at: string
+          external_id?: string | null
+          id?: string
+          notes?: string | null
+          owner_name?: string | null
+          owner_user_id?: string | null
+          provider?: string
+          session_id?: string | null
+          starts_at: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          client_id?: string
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          ends_at?: string
+          external_id?: string | null
+          id?: string
+          notes?: string | null
+          owner_name?: string | null
+          owner_user_id?: string | null
+          provider?: string
+          session_id?: string | null
+          starts_at?: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_appointments_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_appointments_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "xj_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_appointments_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "xj_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_availability: {
+        Row: {
+          agent_id: string | null
+          client_id: string
+          created_at: string
+          end_time: string
+          id: string
+          is_active: boolean
+          owner_name: string | null
+          owner_user_id: string | null
+          slot_minutes: number
+          start_time: string
+          timezone: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          agent_id?: string | null
+          client_id: string
+          created_at?: string
+          end_time: string
+          id?: string
+          is_active?: boolean
+          owner_name?: string | null
+          owner_user_id?: string | null
+          slot_minutes?: number
+          start_time: string
+          timezone?: string
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          agent_id?: string | null
+          client_id?: string
+          created_at?: string
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          owner_name?: string | null
+          owner_user_id?: string | null
+          slot_minutes?: number
+          start_time?: string
+          timezone?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_availability_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_case_knowledge: {
+        Row: {
+          case_id: string
+          client_id: string
+          content: string | null
+          created_at: string
+          created_by: string | null
+          file_name: string | null
+          file_url: string | null
+          id: string
+          is_active: boolean
+          mime_type: string | null
+          source_type: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          client_id: string
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_active?: boolean
+          mime_type?: string | null
+          source_type?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          client_id?: string
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_active?: boolean
+          mime_type?: string | null
+          source_type?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_case_knowledge_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "xj_legal_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_case_questions: {
+        Row: {
+          answer_type: string
+          case_id: string
+          client_id: string
+          created_at: string
+          help_text: string | null
+          id: string
+          is_required: boolean
+          position: number
+          question: string
+          slot_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          answer_type?: string
+          case_id: string
+          client_id: string
+          created_at?: string
+          help_text?: string | null
+          id?: string
+          is_required?: boolean
+          position?: number
+          question: string
+          slot_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          answer_type?: string
+          case_id?: string
+          client_id?: string
+          created_at?: string
+          help_text?: string | null
+          id?: string
+          is_required?: boolean
+          position?: number
+          question?: string
+          slot_key?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_case_questions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "xj_legal_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_contracts: {
+        Row: {
+          case_id: string | null
+          client_id: string
+          created_at: string
+          deal_id: string | null
+          document_url: string | null
+          expires_at: string | null
+          external_id: string | null
+          id: string
+          metadata: Json
+          provider: string
+          rendered_content: string | null
+          sent_at: string | null
+          session_id: string | null
+          sign_url: string | null
+          signed_at: string | null
+          signer_document: string | null
+          signer_name: string | null
+          signer_phone: string | null
+          status: string
+          template: string | null
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          case_id?: string | null
+          client_id: string
+          created_at?: string
+          deal_id?: string | null
+          document_url?: string | null
+          expires_at?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json
+          provider?: string
+          rendered_content?: string | null
+          sent_at?: string | null
+          session_id?: string | null
+          sign_url?: string | null
+          signed_at?: string | null
+          signer_document?: string | null
+          signer_name?: string | null
+          signer_phone?: string | null
+          status?: string
+          template?: string | null
+          updated_at?: string
+          value?: number | null
+        }
+        Update: {
+          case_id?: string | null
+          client_id?: string
+          created_at?: string
+          deal_id?: string | null
+          document_url?: string | null
+          expires_at?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json
+          provider?: string
+          rendered_content?: string | null
+          sent_at?: string | null
+          session_id?: string | null
+          sign_url?: string | null
+          signed_at?: string | null
+          signer_document?: string | null
+          signer_name?: string | null
+          signer_phone?: string | null
+          status?: string
+          template?: string | null
+          updated_at?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_contracts_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "xj_legal_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_contracts_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "xj_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_contracts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "xj_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_cta_triggers: {
+        Row: {
+          agent_id: string | null
+          campaign_id: string | null
+          campaign_title: string | null
+          case_id: string | null
+          client_id: string
+          created_at: string
+          extra_prompt: string | null
+          id: string
+          is_active: boolean
+          match_type: string
+          match_value: string
+          name: string
+          opening_message: string | null
+          platform: string | null
+          priority: number
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          campaign_title?: string | null
+          case_id?: string | null
+          client_id: string
+          created_at?: string
+          extra_prompt?: string | null
+          id?: string
+          is_active?: boolean
+          match_type?: string
+          match_value: string
+          name: string
+          opening_message?: string | null
+          platform?: string | null
+          priority?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          campaign_title?: string | null
+          case_id?: string | null
+          client_id?: string
+          created_at?: string
+          extra_prompt?: string | null
+          id?: string
+          is_active?: boolean
+          match_type?: string
+          match_value?: string
+          name?: string
+          opening_message?: string | null
+          platform?: string | null
+          priority?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_cta_triggers_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_cta_triggers_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "xj_legal_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_deal_history: {
+        Row: {
+          action: string
+          actor: string | null
+          client_id: string
+          created_at: string
+          deal_id: string
+          from_pipeline_id: string | null
+          id: string
+          notes: string | null
+          to_pipeline_id: string | null
+        }
+        Insert: {
+          action?: string
+          actor?: string | null
+          client_id: string
+          created_at?: string
+          deal_id: string
+          from_pipeline_id?: string | null
+          id?: string
+          notes?: string | null
+          to_pipeline_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          client_id?: string
+          created_at?: string
+          deal_id?: string
+          from_pipeline_id?: string | null
+          id?: string
+          notes?: string | null
+          to_pipeline_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_deal_history_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "xj_deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_deal_history_from_pipeline_id_fkey"
+            columns: ["from_pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "xj_pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_deal_history_to_pipeline_id_fkey"
+            columns: ["to_pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "xj_pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_deals: {
+        Row: {
+          agent_id: string | null
+          assigned_to: string | null
+          campaign_id: string | null
+          case_id: string | null
+          client_id: string
+          contact_id: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          conversation_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          mirrored_deal_id: string | null
+          origin: string | null
+          pipeline_id: string | null
+          position: number
+          priority: string
+          session_id: string | null
+          stage_entered_at: string
+          status: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+          value: number | null
+        }
+        Insert: {
+          agent_id?: string | null
+          assigned_to?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          client_id: string
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          mirrored_deal_id?: string | null
+          origin?: string | null
+          pipeline_id?: string | null
+          position?: number
+          priority?: string
+          session_id?: string | null
+          stage_entered_at?: string
+          status?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: number | null
+        }
+        Update: {
+          agent_id?: string | null
+          assigned_to?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          client_id?: string
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          mirrored_deal_id?: string | null
+          origin?: string | null
+          pipeline_id?: string | null
+          position?: number
+          priority?: string
+          session_id?: string | null
+          stage_entered_at?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_deals_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_deals_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "xj_legal_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_deals_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "xj_pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_deals_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "xj_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_followup_cadences: {
+        Row: {
+          agent_id: string
+          case_id: string | null
+          client_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          on_exhausted_action: string
+          stage: string | null
+          stop_on_reply: boolean
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          case_id?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          on_exhausted_action?: string
+          stage?: string | null
+          stop_on_reply?: boolean
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          case_id?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          on_exhausted_action?: string
+          stage?: string | null
+          stop_on_reply?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_followup_cadences_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_followup_cadences_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "xj_legal_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_followup_steps: {
+        Row: {
+          cadence_id: string
+          client_id: string
+          content_mode: string
+          content_type: string
+          created_at: string
+          delay_minutes: number
+          generation_prompt: string | null
+          id: string
+          is_active: boolean
+          link_url: string | null
+          media_name: string | null
+          media_url: string | null
+          mime_type: string | null
+          position: number
+          text_content: string | null
+          updated_at: string
+        }
+        Insert: {
+          cadence_id: string
+          client_id: string
+          content_mode?: string
+          content_type?: string
+          created_at?: string
+          delay_minutes?: number
+          generation_prompt?: string | null
+          id?: string
+          is_active?: boolean
+          link_url?: string | null
+          media_name?: string | null
+          media_url?: string | null
+          mime_type?: string | null
+          position?: number
+          text_content?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cadence_id?: string
+          client_id?: string
+          content_mode?: string
+          content_type?: string
+          created_at?: string
+          delay_minutes?: number
+          generation_prompt?: string | null
+          id?: string
+          is_active?: boolean
+          link_url?: string | null
+          media_name?: string | null
+          media_url?: string | null
+          mime_type?: string | null
+          position?: number
+          text_content?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_followup_steps_cadence_id_fkey"
+            columns: ["cadence_id"]
+            isOneToOne: false
+            referencedRelation: "xj_followup_cadences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_followups: {
+        Row: {
+          attempt: number
+          cadence_id: string | null
+          client_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          resolved_content: Json | null
+          run_at: string
+          sent_at: string | null
+          session_id: string
+          status: string
+          step_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          cadence_id?: string | null
+          client_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          resolved_content?: Json | null
+          run_at: string
+          sent_at?: string | null
+          session_id: string
+          status?: string
+          step_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          cadence_id?: string | null
+          client_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          resolved_content?: Json | null
+          run_at?: string
+          sent_at?: string | null
+          session_id?: string
+          status?: string
+          step_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_followups_cadence_id_fkey"
+            columns: ["cadence_id"]
+            isOneToOne: false
+            referencedRelation: "xj_followup_cadences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_followups_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "xj_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_followups_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "xj_followup_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_legal_cases: {
+        Row: {
+          category: string
+          client_id: string
+          contract_provider: string | null
+          contract_template: string | null
+          created_at: string
+          created_by: string | null
+          disqualification_criteria: string | null
+          fee_description: string | null
+          id: string
+          is_active: boolean
+          min_ticket: number | null
+          name: string
+          position: number
+          qualification_criteria: string | null
+          required_documents: Json
+          slug: string | null
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          client_id: string
+          contract_provider?: string | null
+          contract_template?: string | null
+          created_at?: string
+          created_by?: string | null
+          disqualification_criteria?: string | null
+          fee_description?: string | null
+          id?: string
+          is_active?: boolean
+          min_ticket?: number | null
+          name: string
+          position?: number
+          qualification_criteria?: string | null
+          required_documents?: Json
+          slug?: string | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          client_id?: string
+          contract_provider?: string | null
+          contract_template?: string | null
+          created_at?: string
+          created_by?: string | null
+          disqualification_criteria?: string | null
+          fee_description?: string | null
+          id?: string
+          is_active?: boolean
+          min_ticket?: number | null
+          name?: string
+          position?: number
+          qualification_criteria?: string | null
+          required_documents?: Json
+          slug?: string | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      xj_pipelines: {
+        Row: {
+          agent_id: string | null
+          client_id: string
+          color: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          stage_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          client_id: string
+          color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+          stage_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          client_id?: string
+          color?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          stage_key?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_pipelines_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_prompt_versions: {
+        Row: {
+          agent_id: string
+          client_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          stage_prompts: Json
+          system_prompt: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          agent_id: string
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          stage_prompts?: Json
+          system_prompt?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          agent_id?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          stage_prompts?: Json
+          system_prompt?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_prompt_versions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_session_events: {
+        Row: {
+          client_id: string
+          completion_tokens: number | null
+          cost: number | null
+          created_at: string
+          detail: string | null
+          duration_ms: number | null
+          id: string
+          kind: string
+          model: string | null
+          payload: Json
+          prompt_tokens: number | null
+          provider: string | null
+          session_id: string
+          skill: string | null
+          stage: string | null
+          status: string
+        }
+        Insert: {
+          client_id: string
+          completion_tokens?: number | null
+          cost?: number | null
+          created_at?: string
+          detail?: string | null
+          duration_ms?: number | null
+          id?: string
+          kind: string
+          model?: string | null
+          payload?: Json
+          prompt_tokens?: number | null
+          provider?: string | null
+          session_id: string
+          skill?: string | null
+          stage?: string | null
+          status?: string
+        }
+        Update: {
+          client_id?: string
+          completion_tokens?: number | null
+          cost?: number | null
+          created_at?: string
+          detail?: string | null
+          duration_ms?: number | null
+          id?: string
+          kind?: string
+          model?: string | null
+          payload?: Json
+          prompt_tokens?: number | null
+          provider?: string | null
+          session_id?: string
+          skill?: string | null
+          stage?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_session_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "xj_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_sessions: {
+        Row: {
+          agent_id: string | null
+          campaign_id: string | null
+          case_id: string | null
+          case_type: string | null
+          channel: string | null
+          client_id: string
+          contact_id: string | null
+          contact_name: string | null
+          conversation_id: string | null
+          created_at: string
+          cta_trigger_id: string | null
+          handoff_at: string | null
+          id: string
+          is_active: boolean
+          last_agent_message_at: string | null
+          last_customer_message_at: string | null
+          origin: string | null
+          paused_reason: string | null
+          phone: string | null
+          qualification: string | null
+          qualification_reason: string | null
+          queue_id: string | null
+          score: number | null
+          slots: Json
+          stage: string
+          turns: number
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          case_type?: string | null
+          channel?: string | null
+          client_id: string
+          contact_id?: string | null
+          contact_name?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          cta_trigger_id?: string | null
+          handoff_at?: string | null
+          id?: string
+          is_active?: boolean
+          last_agent_message_at?: string | null
+          last_customer_message_at?: string | null
+          origin?: string | null
+          paused_reason?: string | null
+          phone?: string | null
+          qualification?: string | null
+          qualification_reason?: string | null
+          queue_id?: string | null
+          score?: number | null
+          slots?: Json
+          stage?: string
+          turns?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          case_type?: string | null
+          channel?: string | null
+          client_id?: string
+          contact_id?: string | null
+          contact_name?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          cta_trigger_id?: string | null
+          handoff_at?: string | null
+          id?: string
+          is_active?: boolean
+          last_agent_message_at?: string | null
+          last_customer_message_at?: string | null
+          origin?: string | null
+          paused_reason?: string | null
+          phone?: string | null
+          qualification?: string | null
+          qualification_reason?: string | null
+          queue_id?: string | null
+          score?: number | null
+          slots?: Json
+          stage?: string
+          turns?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_sessions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_sessions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "xj_legal_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_sessions_cta_trigger_id_fkey"
+            columns: ["cta_trigger_id"]
+            isOneToOne: false
+            referencedRelation: "xj_cta_triggers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xj_skill_configs: {
+        Row: {
+          agent_id: string
+          client_id: string
+          config: Json
+          created_at: string
+          id: string
+          is_enabled: boolean
+          skill: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          client_id: string
+          config?: Json
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          skill: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          client_id?: string
+          config?: Json
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          skill?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xj_skill_configs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       active_queues: {
