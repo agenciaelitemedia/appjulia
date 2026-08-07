@@ -44,10 +44,10 @@ export function useXJOffices() {
       await Promise.all(
         rows.map(async (row) => {
           try {
-            const found = await externalDb.raw<any>(
-              'SELECT id, name, business_name FROM clients WHERE id = $1 LIMIT 1',
-              [Number(row.clientId)],
-            );
+            const found = await externalDb.raw<any>({
+              query: 'SELECT id, name, business_name FROM clients WHERE id = $1 LIMIT 1',
+              params: [Number(row.clientId)],
+            });
             const client = Array.isArray(found) ? found[0] : null;
             if (client) {
               row.name = client.name || row.name;
