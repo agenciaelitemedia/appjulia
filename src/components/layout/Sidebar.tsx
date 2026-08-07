@@ -33,6 +33,7 @@ import { useEnsureNotifyModule } from "@/hooks/useEnsureNotifyModule";
 import { useEnsureTicketsModule } from "@/hooks/useEnsureTicketsModule";
 import { useEnsureHelpCenterModule } from "@/hooks/useEnsureHelpCenterModule";
 import { useEnsureEscritoriosModule } from "@/modules/escritorios/extend/useEnsureEscritoriosModule";
+import { useEnsureXJuliaModule } from "@/modules/x-julia/extend/useEnsureXJuliaModule";
 import {
   Tooltip,
   TooltipContent,
@@ -78,6 +79,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
   useEnsureTicketsModule();
   useEnsureHelpCenterModule();
   useEnsureEscritoriosModule();
+  useEnsureXJuliaModule();
 
   // Get sorted groups — a visibilidade do módulo é decidida pelas
   // permissões carregadas em `useMenuModules`, sem bloqueios por role
