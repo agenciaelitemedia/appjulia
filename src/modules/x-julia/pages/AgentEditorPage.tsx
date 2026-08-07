@@ -16,6 +16,7 @@ import { useXJAgent, useXJAgentMutations, useXJAgentQueueLinks, useXJPromptVersi
 import { useXJCadences } from '../hooks/useXJFollowups';
 import { useXJQueues } from '../extend/queues';
 import { useXJPermissions } from '../extend/auth';
+import { useXJProviderConfig, useXJProviderConfigMutations } from '../hooks/useXJProviderConfig';
 import {
   XJ_CONTRACT_PROVIDERS,
   XJ_FOLLOWUP_CONTENT_TYPES,
@@ -48,6 +49,8 @@ export default function XJAgentEditorPage() {
       voice_enabled: agent.voice_enabled,
       voice_provider: agent.voice_provider ?? 'elevenlabs',
       voice_id: agent.voice_id ?? '',
+      llm_key_mode: agent.llm_key_mode ?? 'default',
+      voice_key_mode: agent.voice_key_mode ?? 'default',
       contract_provider: agent.contract_provider ?? 'internal',
       contract_template: agent.contract_template ?? '',
       mirror_to_crm_builder: agent.mirror_to_crm_builder,
