@@ -81,6 +81,8 @@ Deno.serve(async (req) => {
         provider: agent.llm_provider,
         model: agent.llm_model,
         fallbackEnabled: agent.llm_fallback_enabled,
+        clientId: agent.client_id,
+        keyMode: (agent as any).llm_key_mode ?? "default",
         messages,
         tools: XJ_TOOLS,
         temperature: 0.5,
@@ -103,6 +105,7 @@ Deno.serve(async (req) => {
         provider: String(data.provider ?? "elevenlabs"),
         voiceId: data.voice_id ?? null,
         settings: data.settings ?? {},
+        keyMode: String(data.key_mode ?? "default"),
       });
       return "url" in result ? json({ ok: true, url: result.url }) : json({ error: result.error }, 400);
     }
