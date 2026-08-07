@@ -22,6 +22,12 @@ export interface XJAgent {
   contract_provider: string;
   contract_template: string | null;
   business_hours: Record<string, any>;
+  activation?: {
+    session_start?: string;
+    only_campaign?: boolean;
+    start_campaign?: string;
+    check_specialized?: string;
+  };
   handoff_policy: Record<string, any>;
   mirror_to_crm_builder: boolean;
   max_turns: number;

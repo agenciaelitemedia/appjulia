@@ -12,6 +12,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { XJLayout } from '../components/XJLayout';
+import { XJActivationTab } from '../components/XJActivationTab';
+import { normalizeXJBusinessHours, type XJBusinessHours } from '../lib/xjBusinessHours';
 import { useXJAgent, useXJAgentMutations, useXJAgentQueueLinks, useXJPromptVersions } from '../hooks/useXJAgents';
 import { useXJCadences } from '../hooks/useXJFollowups';
 import { useXJQueues } from '../extend/queues';
@@ -56,6 +58,8 @@ export default function XJAgentEditorPage() {
       mirror_to_crm_builder: agent.mirror_to_crm_builder,
       max_turns: agent.max_turns ?? 40,
       is_active: agent.is_active,
+      activation: (agent as any).activation ?? {},
+      business_hours: normalizeXJBusinessHours((agent as any).business_hours),
     });
     setStagePrompts(agent.stage_prompts ?? {});
   }, [agent]);
@@ -101,6 +105,8 @@ export default function XJAgentEditorPage() {
         voice_id: form.voice_id || null,
         contract_template: form.contract_template || null,
         max_turns: Number(form.max_turns) || 40,
+        activation: form.activation ?? {},
+        business_hours: normalizeXJBusinessHours(form.business_hours),
       } as any,
     });
   };
@@ -130,6 +136,7 @@ export default function XJAgentEditorPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="geral">Geral</TabsTrigger>
           <TabsTrigger value="prompt">Prompt</TabsTrigger>
+          <TabsTrigger value="ativacao">Ativação</TabsTrigger>
           <TabsTrigger value="llm">LLM & Voz</TabsTrigger>
           <TabsTrigger value="filas">Filas</TabsTrigger>
           <TabsTrigger value="followups">Followups</TabsTrigger>
@@ -213,6 +220,18 @@ export default function XJAgentEditorPage() {
               })
             }
             saving={savePromptVersion.isPending}
+          />
+        </TabsContent>
+
+        <TabsContent value="ativacao" className="mt-4">
+          <XJActivationTab
+            canEdit={canEdit}
+            activation={form.activation ?? {}}
+            onActivationChange={(patch) => set('activation', { ...(form.activation ?? {}), ...patch })}
+            businessHours={form.business_hours}
+            onBusinessHoursChange={(value: XJBusinessHours) => set('business_hours', value)}
+            voiceEnabled={!!form.voice_enabled}
+            onVoiceEnabledChange={(v) => set('voice_enabled', v)}
           />
         </TabsContent>
 
