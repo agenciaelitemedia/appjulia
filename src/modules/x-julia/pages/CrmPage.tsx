@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { XJLayout } from '../components/XJLayout';
-import { XJStageBadge } from '../components/XJStageBadge';
 import { useXJDealActions, useXJDeals, useXJPipelines } from '../hooks/useXJCrm';
 import { useXJPermissions } from '../extend/auth';
 import { X_JULIA_ROUTES } from '../module';
