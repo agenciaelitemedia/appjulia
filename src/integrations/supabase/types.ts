@@ -8883,6 +8883,7 @@ export type Database = {
       }
       xj_agents: {
         Row: {
+          activation: Json
           business_hours: Json
           client_id: string
           contract_provider: string
@@ -8911,6 +8912,7 @@ export type Database = {
           voice_settings: Json
         }
         Insert: {
+          activation?: Json
           business_hours?: Json
           client_id: string
           contract_provider?: string
@@ -8939,6 +8941,7 @@ export type Database = {
           voice_settings?: Json
         }
         Update: {
+          activation?: Json
           business_hours?: Json
           client_id?: string
           contract_provider?: string
