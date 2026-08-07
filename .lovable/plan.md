@@ -89,8 +89,8 @@ Uma tela com abas para o agente:
 
 ## Detalhes técnicos
 
-- Toda a pasta `src/modules/x-julia/` permanece independente: qualquer recurso de outro módulo entra por um arquivo em `extend/`.
-- Permissões via `useXJPermissions` (admin e dono do escritório passam sempre); exclusões críticas usam o padrão de dupla confirmação.
-- `client_id` sempre pelo `useXJClientId` (herança de titular já tratada).
+- Toda a pasta `src/modules/x-julia/` permanece independente: qualquer recurso de outro módulo entra por um arquivo em `extend/`. A exceção controlada é a lista Meus Agentes, que passa a importar um adaptador exposto pelo próprio módulo.
+- Permissões por item de menu via `useXJPermissions` (admin e dono do escritório passam sempre); exclusões críticas usam o padrão de dupla confirmação.
+- `client_id` do `useXJClientId`, com sobreposição opcional do escritório escolhido pelo admin (mantida em contexto do módulo e propagada a todos os hooks).
 - Uploads de mídia de followup e base de conhecimento vão para o bucket `chat-media` em `x-julia/<client_id>/`.
 - Nenhuma migração nova é prevista; se aparecer necessidade (ex.: coluna de auditoria da assinatura interna), ela é apresentada para aprovação antes.
