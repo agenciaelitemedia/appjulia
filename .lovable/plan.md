@@ -16,9 +16,9 @@ recepcao → triagem_caso → qualificacao → (desqualificado)
                      (agendamento | atendimento_humano)
 ```
 
-- **Entrada por CTA de campanha**: o atendimento começa por gatilho de CTA (anúncio/campanha ads). O CTA identifica campanha, caso jurídico provável e roteiro inicial; sem CTA reconhecido o agente faz a triagem aberta.
-- **Recepção**: saudação personalizada pela campanha de origem, coleta de nome e confirmação do interesse.
-- **Triagem do caso**: usa a **lista de casos jurídicos própria do módulo** (`xj_legal_cases`, independente do módulo atual) com roteiro de perguntas, fluxo de qualificação e base de conhecimento por caso.
+- **Entrada**: o atendimento inicia com **qualquer mensagem recebida** na fila vinculada ao agente. Quando a mensagem traz gatilho de CTA (campanha ads), o CTA apenas enriquece o contexto — campanha de origem, caso jurídico provável e abertura específica.
+- **Recepção (sempre acontece, com ou sem CTA)**: saudação, coleta/confirmação do nome, registro do canal e da origem (campanha, orgânico, indicação). Com CTA, a saudação é personalizada pela campanha, mas os mesmos dados são coletados.
+- **Triagem do caso (sempre acontece)**: usa a **lista de casos jurídicos própria do módulo** (`xj_legal_cases`, independente do módulo atual) com roteiro de perguntas, fluxo de qualificação e base de conhecimento por caso. Quando há CTA, o caso sugerido entra como hipótese e é **confirmado com o lead** antes de seguir; sem CTA, a triagem é aberta a partir do relato.
 - **Qualificação**: aplica critérios configuráveis (documentos, prazo, viabilidade, ticket mínimo) apoiado na base de conhecimento do caso. Resultado: qualificado, falta dado, ou desqualificado com motivo.
 - **Negociação**: apresenta honorários/plano configurados, trata objeções, registra valor acordado.
 - **Contrato**: gera o contrato pelo **template do caso** (cada caso jurídico tem o seu, com fallback no template do escritório) e envia o link de assinatura.
