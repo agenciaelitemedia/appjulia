@@ -78,12 +78,30 @@ export const X_JULIA_MENU_ITEMS = [
     route: '/x-julia/agenda',
     displayOrder: 7,
   },
+  {
+    code: 'x_julia_offices',
+    name: 'Escritórios X-Julia',
+    description: 'Selecionar ou cadastrar o escritório (ClientID) e seus agentes',
+    icon: 'Building2',
+    route: '/x-julia/escritorios',
+    displayOrder: 8,
+  },
+  {
+    code: 'x_julia_settings',
+    name: 'Configuração X-Julia',
+    description: 'Provedores de LLM/voz ativos e chaves padrão',
+    icon: 'Settings2',
+    route: '/x-julia/configuracoes',
+    displayOrder: 9,
+  },
 ] as const;
 
 export type XJModuleCode = (typeof X_JULIA_MENU_ITEMS)[number]['code'];
 
 export const X_JULIA_ROUTES = {
   dashboard: '/x-julia',
+  offices: '/x-julia/escritorios',
+  settings: '/x-julia/configuracoes',
   agents: '/x-julia/agentes',
   agent: (id: string) => `/x-julia/agentes/${id}`,
   agentPattern: '/x-julia/agentes/:agentId',
