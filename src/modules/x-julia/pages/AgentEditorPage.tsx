@@ -224,7 +224,6 @@ export default function XJAgentEditorPage() {
         </TabsContent>
 
         <TabsContent value="llm" className="mt-4 space-y-4">
-          {null}
           <Card>
             <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
               <div className="space-y-1.5">
