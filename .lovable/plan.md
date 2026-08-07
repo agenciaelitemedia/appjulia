@@ -8,13 +8,36 @@ O motor (backend) e a base de dados estão prontos. Falta a maior parte do paine
 - Motor: `x-julia-engine` (turno completo com skills), `x-julia-followup-runner`, `x-julia-admin`, e o gancho no webhook de mensagens.
 - Frontend: pontes `extend/`, hooks de dados dos 5 domínios, e as telas Painel, Atendimentos, Detalhe do atendimento e Agentes.
 
-## Etapa 1 — Ligar o módulo no aplicativo
+## Etapa 1 — Nova seção de menu "Agente X-Julia" e permissões
 
 Hoje nada disso aparece no menu nem responde nas URLs.
 
-- Registrar as rotas do X-Julia no app (painel, atendimentos, detalhe, agentes, editor do agente, casos, CRM, contratos, agenda e a página pública de assinatura), protegidas pelo módulo `x_julia`.
-- Chamar o auto-registro do módulo no menu lateral (grupo INTELIGÊNCIA), como já é feito nos outros módulos.
-- Incluir `x_julia` no pacote de módulos liberados para Escritórios.
+- Criar a seção de menu **AGENTE X-JULIA** e colocar todas as telas do módulo dentro dela (nenhum item do X-Julia fica em outros grupos).
+- Registrar automaticamente os itens dessa seção na lista de módulos, cada um com sua própria linha na matriz de permissões (ver/criar/editar/excluir):
+  - Painel X-Julia
+  - Atendimentos
+  - CRM X-Julia
+  - Agentes X-Julia
+  - Casos jurídicos X-Julia
+  - Contratos
+  - Agenda
+- **Admin sempre com acesso total**, independente de permissão marcada; dono do escritório idem. Demais perfis e usuários seguem a permissão configurada por item.
+- Registrar as rotas no app protegidas por esses módulos (incluindo detalhe do atendimento, editor do agente e a página pública de assinatura, esta última sem exigir permissão).
+- Incluir os itens do X-Julia no pacote de módulos liberados para Escritórios.
+
+## Etapa 1b — Gestão dos agentes por clientID
+
+- Na tela de Agentes X-Julia, admin pode escolher **para qual clientID** criar e gerenciar o agente (busca por nome/e-mail do escritório, igual ao seletor de cliente do assistente de agentes).
+- Usuários não-admin continuam vendo e gerenciando somente o clientID efetivo deles (comportamento atual).
+- Todos os dados do módulo (sessões, casos, CRM, contratos, followups) passam a respeitar o clientID selecionado quando o admin troca de escritório.
+
+## Etapa 1c — X-Julia na lista "Meus Agentes"
+
+- A lista de Meus Agentes passa a exibir também os agentes X-Julia do clientID, junto dos agentes Julia atuais.
+- Diferenciação visual clara: selo/etiqueta "X-Julia" (cor e ícone próprios) versus "Julia", e cartão com os dados pertinentes de cada tipo (X-Julia mostra provedor/modelo, estágio de voz e filas vinculadas; Julia mantém o que já mostra hoje).
+- Filtro/segmentação por tipo de agente na lista.
+- Cada cartão leva para a tela de edição correta: agente Julia para a edição atual, agente X-Julia para o editor do X-Julia.
+- A leitura dos agentes X-Julia nessa tela entra por um arquivo de extensão do módulo, mantendo a independência da pasta `src/modules/x-julia/`.
 
 ## Etapa 2 — Editor do agente (tela central que falta)
 
@@ -66,8 +89,8 @@ Uma tela com abas para o agente:
 
 ## Detalhes técnicos
 
-- Toda a pasta `src/modules/x-julia/` permanece independente: qualquer recurso de outro módulo entra por um arquivo em `extend/`.
-- Permissões via `useXJPermissions` (admin e dono do escritório passam sempre); exclusões críticas usam o padrão de dupla confirmação.
-- `client_id` sempre pelo `useXJClientId` (herança de titular já tratada).
+- Toda a pasta `src/modules/x-julia/` permanece independente: qualquer recurso de outro módulo entra por um arquivo em `extend/`. A exceção controlada é a lista Meus Agentes, que passa a importar um adaptador exposto pelo próprio módulo.
+- Permissões por item de menu via `useXJPermissions` (admin e dono do escritório passam sempre); exclusões críticas usam o padrão de dupla confirmação.
+- `client_id` do `useXJClientId`, com sobreposição opcional do escritório escolhido pelo admin (mantida em contexto do módulo e propagada a todos os hooks).
 - Uploads de mídia de followup e base de conhecimento vão para o bucket `chat-media` em `x-julia/<client_id>/`.
 - Nenhuma migração nova é prevista; se aparecer necessidade (ex.: coluna de auditoria da assinatura interna), ela é apresentada para aprovação antes.
