@@ -90,6 +90,8 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
       provider: agent.llm_provider,
       model: agent.llm_model,
       fallbackEnabled: agent.llm_fallback_enabled,
+      clientId: agent.client_id,
+      keyMode: (agent as any).llm_key_mode ?? "default",
       messages,
       tools: XJ_TOOLS,
       temperature: 0.5,
@@ -157,6 +159,7 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
       provider: agent.voice_provider ?? "elevenlabs",
       voiceId: agent.voice_id,
       settings: agent.voice_settings,
+      keyMode: (agent as any).voice_key_mode ?? "default",
     });
     if ("url" in voice) {
       const sent = await xjSend(supabase, ctx.queue, session, finalText, {

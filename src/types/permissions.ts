@@ -53,6 +53,8 @@ export type ModuleCode =
   | 'x_julia_cases'
   | 'x_julia_contracts'
   | 'x_julia_agenda'
+  | 'x_julia_offices'
+  | 'x_julia_settings'
   | string; // permite codes dinâmicos para embeds (ex: 'embed_bi_dashboard')
 
 export interface Module {

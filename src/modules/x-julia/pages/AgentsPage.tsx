@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Settings2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Building2, Plus, Settings2, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,12 +29,14 @@ import {
 import { XJLayout } from '../components/XJLayout';
 import { useXJAgentMutations, useXJAgents } from '../hooks/useXJAgents';
 import { useXJPermissions } from '../extend/auth';
+import { useXJScope } from '../context/XJScopeContext';
 import { X_JULIA_ROUTES } from '../module';
 
 export default function XJAgentsPage() {
   const { data: agents = [], isLoading } = useXJAgents();
   const { create, update, remove } = useXJAgentMutations();
   const permissions = useXJPermissions();
+  const { clientId, clientLabel, canSwitch } = useXJScope();
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('X-Julia');
@@ -48,18 +50,42 @@ export default function XJAgentsPage() {
     if (agent?.id) window.location.assign(X_JULIA_ROUTES.agent(agent.id));
   };
 
+  const canCreate = permissions.canCreate && !!clientId;
+
   return (
     <XJLayout
       title="Agentes X-Julia"
       description="Cada agente tem prompt, LLM, voz, casos e followups próprios"
       actions={
-        permissions.canCreate && (
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> Novo agente
-          </Button>
-        )
+        <div className="flex items-center gap-2">
+          {canSwitch && (
+            <Button asChild size="sm" variant="outline">
+              <Link to={X_JULIA_ROUTES.offices}>
+                <ArrowLeft className="mr-1.5 h-4 w-4" /> Escritórios
+              </Link>
+            </Button>
+          )}
+          {permissions.canCreate && (
+            <Button size="sm" onClick={() => setCreating(true)} disabled={!canCreate}>
+              <Plus className="mr-1.5 h-4 w-4" /> Novo agente
+            </Button>
+          )}
+        </div>
       }
     >
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+        <Building2 className="h-4 w-4 text-muted-foreground" />
+        <span className="text-muted-foreground">Escritório:</span>
+        <Badge variant={clientId ? 'default' : 'secondary'}>
+          {clientLabel || (clientId ? `ClientID ${clientId}` : 'nenhum selecionado')}
+        </Badge>
+        {!clientId && canSwitch && (
+          <Link to={X_JULIA_ROUTES.offices} className="text-xs underline">
+            selecionar escritório
+          </Link>
+        )}
+      </div>
+
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -69,9 +95,13 @@ export default function XJAgentsPage() {
       ) : agents.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <p className="text-sm text-muted-foreground">Nenhum agente criado ainda.</p>
+            <p className="text-sm text-muted-foreground">
+              {clientId
+                ? 'Nenhum agente criado ainda para este escritório.'
+                : 'Selecione um escritório para criar agentes.'}
+            </p>
             {permissions.canCreate && (
-              <Button size="sm" onClick={() => setCreating(true)}>
+              <Button size="sm" onClick={() => setCreating(true)} disabled={!canCreate}>
                 <Plus className="mr-1.5 h-4 w-4" /> Criar agente
               </Button>
             )}

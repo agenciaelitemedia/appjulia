@@ -13,6 +13,8 @@ export interface XJAgent {
   llm_provider: string;
   llm_model: string;
   llm_fallback_enabled: boolean;
+  llm_key_mode?: string;
+  voice_key_mode?: string;
   voice_enabled: boolean;
   voice_provider: string | null;
   voice_id: string | null;

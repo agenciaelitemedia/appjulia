@@ -99,8 +99,37 @@ export function getProvider(id: string): XJProviderDef {
 }
 
 // deno-lint-ignore no-explicit-any
-async function resolveKey(supabase: any, provider: XJProviderDef): Promise<string> {
+async function resolveKey(
+  supabase: any,
+  provider: XJProviderDef,
+  opts?: { clientId?: string | null; keyMode?: string | null },
+): Promise<string> {
   if (!provider.keyName) return Deno.env.get("LOVABLE_API_KEY") ?? "";
+
+  // 1. Chave personalizada do escritório (quando o agente está em modo custom).
+  if (opts?.keyMode === "custom" && opts?.clientId) {
+    const { data } = await supabase
+      .from("xj_client_provider_keys")
+      .select("api_key")
+      .eq("client_id", String(opts.clientId))
+      .eq("provider", provider.id)
+      .eq("kind", "llm")
+      .maybeSingle();
+    const custom = (data?.api_key ?? "").toString().trim();
+    if (custom) return custom;
+  }
+
+  // 2. Chave padrão configurada em Configuração do X-Julia.
+  const { data: settings } = await supabase
+    .from("xj_provider_settings")
+    .select("api_key:default_key")
+    .eq("provider", provider.id)
+    .eq("kind", "llm")
+    .maybeSingle();
+  const std = (settings?.api_key ?? "").toString().trim();
+  if (std) return std;
+
+  // 3. Legado: ai_provider_keys.
   const { data } = await supabase
     .from("ai_provider_keys")
     .select("api_key")
@@ -135,6 +164,10 @@ export interface XJCompleteInput {
   tools?: XJToolDef[];
   fallbackEnabled?: boolean;
   temperature?: number;
+  /** Escritório (client_id) dono do agente — usado para chave personalizada. */
+  clientId?: string | null;
+  /** 'default' | 'custom' — origem da chave de API do provedor. */
+  keyMode?: string | null;
 }
 
 /** Chamada única com fallback automático para o gateway Lovable. */
@@ -154,7 +187,11 @@ async function callProvider(
   model: string,
 ): Promise<XJCompletion> {
   const provider = getProvider(providerId);
-  const apiKey = await resolveKey(input.supabase, provider);
+  const apiKey = await resolveKey(
+    input.supabase,
+    provider,
+    providerId === input.provider ? { clientId: input.clientId, keyMode: input.keyMode } : undefined,
+  );
   if (!apiKey) throw new Error(`chave do provedor ${provider.label} não configurada`);
   const started = Date.now();
 

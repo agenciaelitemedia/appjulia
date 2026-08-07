@@ -16,6 +16,7 @@ import { useXJAgent, useXJAgentMutations, useXJAgentQueueLinks, useXJPromptVersi
 import { useXJCadences } from '../hooks/useXJFollowups';
 import { useXJQueues } from '../extend/queues';
 import { useXJPermissions } from '../extend/auth';
+import { useXJProviderConfig, useXJProviderConfigMutations } from '../hooks/useXJProviderConfig';
 import {
   XJ_CONTRACT_PROVIDERS,
   XJ_FOLLOWUP_CONTENT_TYPES,
@@ -48,6 +49,8 @@ export default function XJAgentEditorPage() {
       voice_enabled: agent.voice_enabled,
       voice_provider: agent.voice_provider ?? 'elevenlabs',
       voice_id: agent.voice_id ?? '',
+      llm_key_mode: agent.llm_key_mode ?? 'default',
+      voice_key_mode: agent.voice_key_mode ?? 'default',
       contract_provider: agent.contract_provider ?? 'internal',
       contract_template: agent.contract_template ?? '',
       mirror_to_crm_builder: agent.mirror_to_crm_builder,
@@ -57,10 +60,35 @@ export default function XJAgentEditorPage() {
     setStagePrompts(agent.stage_prompts ?? {});
   }, [agent]);
 
-  const models = useMemo(
-    () => XJ_LLM_PROVIDERS.find((p) => p.id === form.llm_provider)?.models ?? [],
-    [form.llm_provider],
-  );
+  const { data: providerConfig } = useXJProviderConfig(agent?.client_id);
+  const { saveClientKey } = useXJProviderConfigMutations();
+  const [clientKeyInput, setClientKeyInput] = useState('');
+  const [voiceKeyInput, setVoiceKeyInput] = useState('');
+
+  // Só aparecem provedores ativados em Configuração do X-Julia (fallback: todos).
+  const llmProviders = useMemo(() => {
+    const enabled = (providerConfig?.providers ?? []).filter((p) => p.kind === 'llm' && p.is_enabled);
+    if (!enabled.length) return XJ_LLM_PROVIDERS;
+    return XJ_LLM_PROVIDERS.filter((p) => enabled.some((e) => e.provider === p.id));
+  }, [providerConfig]);
+
+  const voiceProviders = useMemo(() => {
+    const enabled = (providerConfig?.providers ?? []).filter((p) => p.kind === 'voice' && p.is_enabled);
+    if (!enabled.length) return XJ_VOICE_PROVIDERS;
+    return XJ_VOICE_PROVIDERS.filter((p) => enabled.some((e) => e.provider === p.id));
+  }, [providerConfig]);
+
+  const models = useMemo(() => {
+    const all = XJ_LLM_PROVIDERS.find((p) => p.id === form.llm_provider)?.models ?? [];
+    const setting = (providerConfig?.providers ?? []).find(
+      (p) => p.kind === 'llm' && p.provider === form.llm_provider,
+    );
+    const allowed = setting?.enabled_models ?? [];
+    return allowed.length ? all.filter((m) => allowed.includes(m)) : all;
+  }, [form.llm_provider, providerConfig]);
+
+  const clientKeyStatus = (kind: 'llm' | 'voice', provider?: string) =>
+    (providerConfig?.client_keys ?? []).find((k) => k.kind === kind && k.provider === provider)?.masked ?? null;
 
   const set = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -204,7 +232,7 @@ export default function XJAgentEditorPage() {
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {XJ_LLM_PROVIDERS.map((p) => (
+                    {llmProviders.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -233,6 +261,59 @@ export default function XJAgentEditorPage() {
                 />
               </div>
 
+              <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
+                <div className="space-y-1.5 md:max-w-xs">
+                  <Label>Chave da API do LLM</Label>
+                  <Select
+                    value={form.llm_key_mode ?? 'default'}
+                    onValueChange={(v) => set('llm_key_mode', v)}
+                    disabled={!canEdit}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Padrão do sistema</SelectItem>
+                      <SelectItem value="custom">Personalizada do escritório</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.llm_key_mode === 'custom' && (
+                  <div className="space-y-1.5 md:max-w-md">
+                    <Label className="flex items-center gap-2">
+                      Chave de {form.llm_provider}
+                      {clientKeyStatus('llm', form.llm_provider) && (
+                        <Badge variant="outline">{clientKeyStatus('llm', form.llm_provider)}</Badge>
+                      )}
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        autoComplete="off"
+                        placeholder="Cole a chave deste escritório"
+                        value={clientKeyInput}
+                        onChange={(e) => setClientKeyInput(e.target.value)}
+                        disabled={!canEdit}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!canEdit || !clientKeyInput.trim() || saveClientKey.isPending}
+                        onClick={() => {
+                          saveClientKey.mutate({
+                            client_id: String(agent.client_id),
+                            provider: form.llm_provider,
+                            kind: 'llm',
+                            api_key: clientKeyInput.trim(),
+                          });
+                          setClientKeyInput('');
+                        }}
+                      >
+                        Salvar chave
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
                 <div>
                   <p className="text-sm font-medium">Respostas em áudio</p>
@@ -251,7 +332,7 @@ export default function XJAgentEditorPage() {
                     <Select value={form.voice_provider} onValueChange={(v) => set('voice_provider', v)} disabled={!canEdit}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {XJ_VOICE_PROVIDERS.map((p) => (
+                        {voiceProviders.map((p) => (
                           <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
                         ))}
                       </SelectContent>
@@ -260,6 +341,58 @@ export default function XJAgentEditorPage() {
                   <div className="space-y-1.5">
                     <Label>Voice ID</Label>
                     <Input value={form.voice_id ?? ''} onChange={(e) => set('voice_id', e.target.value)} disabled={!canEdit} />
+                  </div>
+                  <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
+                    <div className="space-y-1.5 md:max-w-xs">
+                      <Label>Chave da API de voz</Label>
+                      <Select
+                        value={form.voice_key_mode ?? 'default'}
+                        onValueChange={(v) => set('voice_key_mode', v)}
+                        disabled={!canEdit}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Padrão do sistema</SelectItem>
+                          <SelectItem value="custom">Personalizada do escritório</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.voice_key_mode === 'custom' && (
+                      <div className="space-y-1.5 md:max-w-md">
+                        <Label className="flex items-center gap-2">
+                          Chave de {form.voice_provider}
+                          {clientKeyStatus('voice', form.voice_provider) && (
+                            <Badge variant="outline">{clientKeyStatus('voice', form.voice_provider)}</Badge>
+                          )}
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="password"
+                            autoComplete="off"
+                            placeholder="Cole a chave deste escritório"
+                            value={voiceKeyInput}
+                            onChange={(e) => setVoiceKeyInput(e.target.value)}
+                            disabled={!canEdit}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!canEdit || !voiceKeyInput.trim() || saveClientKey.isPending}
+                            onClick={() => {
+                              saveClientKey.mutate({
+                                client_id: String(agent.client_id),
+                                provider: form.voice_provider,
+                                kind: 'voice',
+                                api_key: voiceKeyInput.trim(),
+                              });
+                              setVoiceKeyInput('');
+                            }}
+                          >
+                            Salvar chave
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}

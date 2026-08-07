@@ -107,6 +107,8 @@ export async function resolveStepContent(
       provider: agent.llm_provider,
       model: agent.llm_model,
       fallbackEnabled: agent.llm_fallback_enabled,
+      clientId: agent.client_id,
+      keyMode: (agent as any).llm_key_mode ?? "default",
       messages: [
         {
           role: "system",

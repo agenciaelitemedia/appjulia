@@ -4,7 +4,32 @@
 // ============================================
 
 // deno-lint-ignore no-explicit-any
-async function providerKey(supabase: any, provider: string): Promise<string> {
+async function providerKey(
+  supabase: any,
+  provider: string,
+  opts?: { clientId?: string | null; keyMode?: string | null },
+): Promise<string> {
+  if (opts?.keyMode === "custom" && opts?.clientId) {
+    const { data } = await supabase
+      .from("xj_client_provider_keys")
+      .select("api_key")
+      .eq("client_id", String(opts.clientId))
+      .eq("provider", provider)
+      .eq("kind", "voice")
+      .maybeSingle();
+    const custom = (data?.api_key ?? "").toString().trim();
+    if (custom) return custom;
+  }
+
+  const { data: settings } = await supabase
+    .from("xj_provider_settings")
+    .select("api_key:default_key")
+    .eq("provider", provider)
+    .eq("kind", "voice")
+    .maybeSingle();
+  const std = (settings?.api_key ?? "").toString().trim();
+  if (std) return std;
+
   const { data } = await supabase
     .from("ai_provider_keys")
     .select("api_key")
@@ -22,12 +47,17 @@ export async function xjSynthesize(
     provider: string;
     voiceId: string | null;
     settings?: Record<string, unknown>;
+    /** 'default' | 'custom' — origem da chave de voz. */
+    keyMode?: string | null;
   },
 ): Promise<{ url: string } | { error: string }> {
   const text = params.text.trim();
   if (!text) return { error: "texto vazio" };
 
-  const key = await providerKey(supabase, params.provider);
+  const key = await providerKey(supabase, params.provider, {
+    clientId: params.clientId,
+    keyMode: params.keyMode,
+  });
   if (!key) return { error: `chave de voz (${params.provider}) não configurada` };
 
   try {
