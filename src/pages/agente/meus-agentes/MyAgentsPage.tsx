@@ -3,9 +3,11 @@ import { Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMyAgents } from './hooks/useMyAgents';
 import { AgentCard } from './components/AgentCard';
+import { XJAgentsSection, useXJAgentsCount } from '@/modules/x-julia/public/XJAgentsSection';
 
 export default function MyAgentsPage() {
   const { data, isLoading, error } = useMyAgents();
+  const xjCount = useXJAgentsCount();
   const [activeTab, setActiveTab] = useState('my');
 
   if (isLoading) {
@@ -53,26 +55,26 @@ export default function MyAgentsPage() {
         </p>
       </div>
 
-      {hasMonitored ? (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="my">
-              Meus Agentes ({myAgents.length})
-            </TabsTrigger>
-            <TabsTrigger value="monitored">
-              Agentes Monitorados ({monitoredAgents.length})
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="my" className="mt-4">
-            {agentGrid(myAgents)}
-          </TabsContent>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="my">Agentes Julia ({myAgents.length})</TabsTrigger>
+          {hasMonitored && (
+            <TabsTrigger value="monitored">Agentes Monitorados ({monitoredAgents.length})</TabsTrigger>
+          )}
+          <TabsTrigger value="x-julia">Agentes X-Julia ({xjCount})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="my" className="mt-4">
+          {agentGrid(myAgents)}
+        </TabsContent>
+        {hasMonitored && (
           <TabsContent value="monitored" className="mt-4">
             {agentGrid(monitoredAgents, true)}
           </TabsContent>
-        </Tabs>
-      ) : (
-        agentGrid(myAgents)
-      )}
+        )}
+        <TabsContent value="x-julia" className="mt-4">
+          <XJAgentsSection />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
