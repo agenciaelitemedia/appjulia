@@ -7,6 +7,13 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { runXJTurn } from "../_shared/x-julia/runner.ts";
 import { findAgentForQueue, getOrCreateSession, logXJEvent, updateSession } from "../_shared/x-julia/session.ts";
 import { ensurePipelines } from "../_shared/x-julia/crm.ts";
+import { xjSend } from "../_shared/x-julia/messaging.ts";
+import {
+  isWithinBusinessHours,
+  matchesPhrase,
+  offHoursMessage,
+  type XJActivation,
+} from "../_shared/x-julia/activation.ts";
 import type { XJInboundMessage, XJQueueCreds } from "../_shared/x-julia/types.ts";
 
 const corsHeaders = {
@@ -68,6 +75,33 @@ Deno.serve(async (req) => {
 
     const agent = await findAgentForQueue(supabase, clientId, queueId);
     if (!agent) return json({ ok: true, skipped: "nenhum agente X-Julia ativo nesta fila" });
+
+    const activation: XJActivation = ((agent as any).activation ?? {}) as XJActivation;
+
+    // Sessão já existente para esta conversa? Define se os gatilhos de início se aplicam.
+    let existingSession: any = null;
+    if (conversationId) {
+      const { data: found } = await supabase
+        .from("xj_sessions")
+        .select("id, stage, is_active, slots")
+        .eq("conversation_id", conversationId)
+        .maybeSingle();
+      existingSession = found ?? null;
+    }
+
+    const inboundText = String(data.message_text ?? data.text ?? "");
+    const isCampaign = !!(data.campaign_id ?? data.campaign_title) ||
+      matchesPhrase(activation.start_campaign, inboundText);
+
+    // Gatilhos de início só valem para conversas ainda sem sessão X-Julia.
+    if (!existingSession) {
+      if (matchesPhrase(activation.session_start, inboundText) === false && (activation.session_start ?? "").trim()) {
+        if (!isCampaign) return json({ ok: true, skipped: "sem frase de início de sessão" });
+      }
+      if (activation.only_campaign && !isCampaign) {
+        return json({ ok: true, skipped: "agente configurado apenas para campanha" });
+      }
+    }
 
     if (contactId && (!phone || !contactName)) {
       const { data: contact } = await supabase
