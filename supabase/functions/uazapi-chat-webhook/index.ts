@@ -1241,6 +1241,8 @@ Deno.serve(async (req) => {
       message_text: string;
       message_type: string;
     }> = [];
+    // Eventos para o motor X-Julia (módulo independente) — apenas mensagens recebidas
+    const xjEvents: Array<Record<string, unknown>> = [];
     for (const msg of messages) {
       try {
         const chatId = msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender || '';
@@ -1775,6 +1777,28 @@ Deno.serve(async (req) => {
             message_text: toSafeString(text) || '',
             message_type: type === 'ptt' ? 'audio' : type,
           });
+          xjEvents.push({
+            message_id: insertedMsg.id,
+            conversation_id: conversationId ?? null,
+            contact_id: contact.id,
+            queue_id: queue.id,
+            client_id: queue.client_id,
+            channel: 'whatsapp_uazapi',
+            phone: senderPhone || null,
+            contact_name: contact?.name || pushName || null,
+            message_text: toSafeString(text) || '',
+            message_type: type === 'ptt' ? 'audio' : type,
+            media_url: mediaUrl || null,
+            mime_type: msg.message?.audioMessage?.mimetype
+              || msg.message?.imageMessage?.mimetype
+              || msg.message?.videoMessage?.mimetype
+              || msg.message?.documentMessage?.mimetype
+              || null,
+            file_name: msg.message?.documentMessage?.fileName || msg.fileName || null,
+            cta_payload: toSafeString(ctxInfo?.externalAdReply?.body || ctxInfo?.externalAdReply?.title) || null,
+            campaign_id: ctxInfo?.externalAdReply?.sourceId || null,
+            campaign_title: ctxInfo?.externalAdReply?.title || null,
+          });
         }
 
         processed++;
@@ -1846,6 +1870,30 @@ Deno.serve(async (req) => {
         }
       })();
       EdgeRuntime.waitUntil(flowPromise);
+    }
+
+    // Motor X-Julia (agente autônomo) em background — não bloqueia o webhook.
+    if (xjEvents.length > 0) {
+      const xjPromise = (async () => {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        for (const ev of xjEvents) {
+          try {
+            await fetch(`${supabaseUrl}/functions/v1/x-julia-engine`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${serviceKey}`,
+                apikey: serviceKey,
+              },
+              body: JSON.stringify({ action: 'run', data: ev }),
+            });
+          } catch (e) {
+            console.warn('[uazapi-chat-webhook] x-julia invoke err:', String(e));
+          }
+        }
+      })();
+      EdgeRuntime.waitUntil(xjPromise);
     }
 
     // EdgeRuntime.waitUntil keeps the isolate alive until the promise settles
