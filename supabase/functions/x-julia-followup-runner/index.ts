@@ -79,6 +79,7 @@ Deno.serve(async (req) => {
             provider: agent.voice_provider ?? "elevenlabs",
             voiceId: agent.voice_id,
             settings: agent.voice_settings ?? {},
+            keyMode: (agent as any).voice_key_mode ?? "default",
           });
           if ("url" in voice) mediaUrl = voice.url;
           else type = "text";
