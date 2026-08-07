@@ -232,7 +232,7 @@ export default function XJAgentEditorPage() {
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {XJ_LLM_PROVIDERS.map((p) => (
+                    {llmProviders.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -261,6 +261,59 @@ export default function XJAgentEditorPage() {
                 />
               </div>
 
+              <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
+                <div className="space-y-1.5 md:max-w-xs">
+                  <Label>Chave da API do LLM</Label>
+                  <Select
+                    value={form.llm_key_mode ?? 'default'}
+                    onValueChange={(v) => set('llm_key_mode', v)}
+                    disabled={!canEdit}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Padrão do sistema</SelectItem>
+                      <SelectItem value="custom">Personalizada do escritório</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.llm_key_mode === 'custom' && (
+                  <div className="space-y-1.5 md:max-w-md">
+                    <Label className="flex items-center gap-2">
+                      Chave de {form.llm_provider}
+                      {clientKeyStatus('llm', form.llm_provider) && (
+                        <Badge variant="outline">{clientKeyStatus('llm', form.llm_provider)}</Badge>
+                      )}
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        autoComplete="off"
+                        placeholder="Cole a chave deste escritório"
+                        value={clientKeyInput}
+                        onChange={(e) => setClientKeyInput(e.target.value)}
+                        disabled={!canEdit}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!canEdit || !clientKeyInput.trim() || saveClientKey.isPending}
+                        onClick={() => {
+                          saveClientKey.mutate({
+                            client_id: String(agent.client_id),
+                            provider: form.llm_provider,
+                            kind: 'llm',
+                            api_key: clientKeyInput.trim(),
+                          });
+                          setClientKeyInput('');
+                        }}
+                      >
+                        Salvar chave
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
                 <div>
                   <p className="text-sm font-medium">Respostas em áudio</p>
@@ -279,7 +332,7 @@ export default function XJAgentEditorPage() {
                     <Select value={form.voice_provider} onValueChange={(v) => set('voice_provider', v)} disabled={!canEdit}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {XJ_VOICE_PROVIDERS.map((p) => (
+                        {voiceProviders.map((p) => (
                           <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
                         ))}
                       </SelectContent>
@@ -288,6 +341,58 @@ export default function XJAgentEditorPage() {
                   <div className="space-y-1.5">
                     <Label>Voice ID</Label>
                     <Input value={form.voice_id ?? ''} onChange={(e) => set('voice_id', e.target.value)} disabled={!canEdit} />
+                  </div>
+                  <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
+                    <div className="space-y-1.5 md:max-w-xs">
+                      <Label>Chave da API de voz</Label>
+                      <Select
+                        value={form.voice_key_mode ?? 'default'}
+                        onValueChange={(v) => set('voice_key_mode', v)}
+                        disabled={!canEdit}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">Padrão do sistema</SelectItem>
+                          <SelectItem value="custom">Personalizada do escritório</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {form.voice_key_mode === 'custom' && (
+                      <div className="space-y-1.5 md:max-w-md">
+                        <Label className="flex items-center gap-2">
+                          Chave de {form.voice_provider}
+                          {clientKeyStatus('voice', form.voice_provider) && (
+                            <Badge variant="outline">{clientKeyStatus('voice', form.voice_provider)}</Badge>
+                          )}
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="password"
+                            autoComplete="off"
+                            placeholder="Cole a chave deste escritório"
+                            value={voiceKeyInput}
+                            onChange={(e) => setVoiceKeyInput(e.target.value)}
+                            disabled={!canEdit}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!canEdit || !voiceKeyInput.trim() || saveClientKey.isPending}
+                            onClick={() => {
+                              saveClientKey.mutate({
+                                client_id: String(agent.client_id),
+                                provider: form.voice_provider,
+                                kind: 'voice',
+                                api_key: voiceKeyInput.trim(),
+                              });
+                              setVoiceKeyInput('');
+                            }}
+                          >
+                            Salvar chave
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
