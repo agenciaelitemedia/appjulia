@@ -157,6 +157,39 @@ Deno.serve(async (req) => {
       await updateSession(supabase, session, { is_active: true, paused_reason: null, stage: "recepcao" });
     }
 
+    // Pedido explícito de atendimento especializado → transfere para humano.
+    if (matchesPhrase(activation.check_specialized, inbound.text)) {
+      await updateSession(supabase, session, {
+        stage: "humano",
+        is_active: false,
+        paused_reason: "atendimento especializado solicitado",
+        handoff_at: new Date().toISOString(),
+      });
+      await logXJEvent(supabase, session, {
+        kind: "handoff",
+        detail: "frase de atendimento especializado",
+      }).catch(() => {});
+      return json({ ok: true, skipped: "transferido para atendimento especializado" });
+    }
+
+    // Fora do horário de atuação: não processa o turno (avisa uma vez por sessão).
+    if (!isWithinBusinessHours((agent as any).business_hours)) {
+      const slots = (session.slots ?? {}) as Record<string, any>;
+      const message = offHoursMessage((agent as any).business_hours);
+      if (message && !slots.__off_hours_notified) {
+        await xjSend(supabase, queue, session, message).catch(() => {});
+        await updateSession(supabase, session, { slots: { ...slots, __off_hours_notified: true } });
+      }
+      return json({ ok: true, skipped: "fora do horário de atuação" });
+    }
+
+    // Volta ao horário: libera novo aviso na próxima ausência.
+    if ((session.slots as Record<string, any>)?.__off_hours_notified) {
+      const slots = { ...(session.slots as Record<string, any>) };
+      delete slots.__off_hours_notified;
+      await updateSession(supabase, session, { slots });
+    }
+
     const result = await runXJTurn({
       supabase,
       agent,
