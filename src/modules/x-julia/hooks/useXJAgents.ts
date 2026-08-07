@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
-import { useXJClientId, useXJIdentity } from '../extend/auth';
+import { useXJIdentity } from '../extend/auth';
+import { useXJEffectiveClientId } from '../context/XJScopeContext';
 import type { XJAgent } from '../types';
 
 const KEY = ['x-julia', 'agents'];
 
 export function useXJAgents() {
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   return useQuery<XJAgent[]>({
     queryKey: [...KEY, clientId],
     enabled: !!clientId,
@@ -37,7 +38,7 @@ export function useXJAgent(agentId?: string) {
 
 export function useXJAgentMutations() {
   const queryClient = useQueryClient();
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   const { userName } = useXJIdentity();
 
   const invalidate = () => {
@@ -167,7 +168,7 @@ export function useXJPromptVersions(agentId?: string) {
 /** Vínculo do agente com filas de atendimento. */
 export function useXJAgentQueueLinks(agentId?: string) {
   const queryClient = useQueryClient();
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
 
   const query = useQuery({
     queryKey: ['x-julia', 'agent-queues', agentId],

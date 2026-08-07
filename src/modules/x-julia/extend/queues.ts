@@ -3,7 +3,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from './db';
-import { useXJClientId } from './auth';
+import { useXJEffectiveClientId } from '../context/XJScopeContext';
 
 export interface XJQueueOption {
   id: string;
@@ -14,7 +14,7 @@ export interface XJQueueOption {
 }
 
 export function useXJQueues() {
-  const { data: clientId } = useXJClientId();
+  const { clientId } = useXJEffectiveClientId();
   return useQuery<XJQueueOption[]>({
     queryKey: ['x-julia', 'queues', clientId],
     enabled: !!clientId,

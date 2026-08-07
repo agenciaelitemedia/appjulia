@@ -35,14 +35,17 @@ export function useXJClientId() {
   });
 }
 
-export function useXJPermissions(): XJPermissions {
+/**
+ * Permissões por item de menu do X-Julia.
+ * Admin e dono do escritório sempre têm acesso total.
+ */
+export function useXJPermissions(moduleCode: string = X_JULIA_MODULE.code): XJPermissions {
   const { user, hasPermission } = useAuth();
   const privileged = user?.role === 'admin' || isOwnerUser(user);
-  const code = X_JULIA_MODULE.code as any;
   return {
-    canView: privileged || hasPermission(code, 'view'),
-    canCreate: privileged || hasPermission(code, 'create'),
-    canEdit: privileged || hasPermission(code, 'edit'),
-    canDelete: privileged || hasPermission(code, 'delete'),
+    canView: privileged || hasPermission(moduleCode as any, 'view'),
+    canCreate: privileged || hasPermission(moduleCode as any, 'create'),
+    canEdit: privileged || hasPermission(moduleCode as any, 'edit'),
+    canDelete: privileged || hasPermission(moduleCode as any, 'delete'),
   };
 }

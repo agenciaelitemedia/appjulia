@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { X_JULIA_ROUTES } from '../module';
+import { XJScopeBar } from './XJScopeBar';
 
 const TABS = [
   { label: 'Painel', to: X_JULIA_ROUTES.dashboard },
@@ -57,6 +58,8 @@ export function XJLayout({ title, description, actions, children }: XJLayoutProp
           );
         })}
       </nav>
+
+      <XJScopeBar />
 
       {children}
     </div>

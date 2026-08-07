@@ -46,6 +46,13 @@ export type ModuleCode =
   | 'chat_admin'
   | 'notify_customers'
   | 'support_tickets'
+  | 'x_julia'
+  | 'x_julia_sessions'
+  | 'x_julia_crm'
+  | 'x_julia_agents'
+  | 'x_julia_cases'
+  | 'x_julia_contracts'
+  | 'x_julia_agenda'
   | string; // permite codes dinâmicos para embeds (ex: 'embed_bi_dashboard')
 
 export interface Module {
