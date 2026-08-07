@@ -8893,6 +8893,7 @@ export type Database = {
           id: string
           is_active: boolean
           llm_fallback_enabled: boolean
+          llm_key_mode: string
           llm_model: string
           llm_provider: string
           max_turns: number
@@ -8905,6 +8906,7 @@ export type Database = {
           updated_at: string
           voice_enabled: boolean
           voice_id: string | null
+          voice_key_mode: string
           voice_provider: string | null
           voice_settings: Json
         }
@@ -8919,6 +8921,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           llm_fallback_enabled?: boolean
+          llm_key_mode?: string
           llm_model?: string
           llm_provider?: string
           max_turns?: number
@@ -8931,6 +8934,7 @@ export type Database = {
           updated_at?: string
           voice_enabled?: boolean
           voice_id?: string | null
+          voice_key_mode?: string
           voice_provider?: string | null
           voice_settings?: Json
         }
@@ -8945,6 +8949,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           llm_fallback_enabled?: boolean
+          llm_key_mode?: string
           llm_model?: string
           llm_provider?: string
           max_turns?: number
@@ -8957,6 +8962,7 @@ export type Database = {
           updated_at?: string
           voice_enabled?: boolean
           voice_id?: string | null
+          voice_key_mode?: string
           voice_provider?: string | null
           voice_settings?: Json
         }
@@ -9211,6 +9217,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      xj_client_provider_keys: {
+        Row: {
+          api_key: string
+          client_id: string
+          created_at: string
+          id: string
+          kind: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          client_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       xj_contracts: {
         Row: {
@@ -9900,6 +9936,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      xj_provider_settings: {
+        Row: {
+          created_at: string
+          default_key: string | null
+          enabled_models: Json
+          id: string
+          is_enabled: boolean
+          kind: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_key?: string | null
+          enabled_models?: Json
+          id?: string
+          is_enabled?: boolean
+          kind: string
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_key?: string | null
+          enabled_models?: Json
+          id?: string
+          is_enabled?: boolean
+          kind?: string
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       xj_session_events: {
         Row: {
