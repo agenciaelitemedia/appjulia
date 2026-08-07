@@ -60,10 +60,35 @@ export default function XJAgentEditorPage() {
     setStagePrompts(agent.stage_prompts ?? {});
   }, [agent]);
 
-  const models = useMemo(
-    () => XJ_LLM_PROVIDERS.find((p) => p.id === form.llm_provider)?.models ?? [],
-    [form.llm_provider],
-  );
+  const { data: providerConfig } = useXJProviderConfig(agent?.client_id);
+  const { saveClientKey } = useXJProviderConfigMutations();
+  const [clientKeyInput, setClientKeyInput] = useState('');
+  const [voiceKeyInput, setVoiceKeyInput] = useState('');
+
+  // Só aparecem provedores ativados em Configuração do X-Julia (fallback: todos).
+  const llmProviders = useMemo(() => {
+    const enabled = (providerConfig?.providers ?? []).filter((p) => p.kind === 'llm' && p.is_enabled);
+    if (!enabled.length) return XJ_LLM_PROVIDERS;
+    return XJ_LLM_PROVIDERS.filter((p) => enabled.some((e) => e.provider === p.id));
+  }, [providerConfig]);
+
+  const voiceProviders = useMemo(() => {
+    const enabled = (providerConfig?.providers ?? []).filter((p) => p.kind === 'voice' && p.is_enabled);
+    if (!enabled.length) return XJ_VOICE_PROVIDERS;
+    return XJ_VOICE_PROVIDERS.filter((p) => enabled.some((e) => e.provider === p.id));
+  }, [providerConfig]);
+
+  const models = useMemo(() => {
+    const all = XJ_LLM_PROVIDERS.find((p) => p.id === form.llm_provider)?.models ?? [];
+    const setting = (providerConfig?.providers ?? []).find(
+      (p) => p.kind === 'llm' && p.provider === form.llm_provider,
+    );
+    const allowed = setting?.enabled_models ?? [];
+    return allowed.length ? all.filter((m) => allowed.includes(m)) : all;
+  }, [form.llm_provider, providerConfig]);
+
+  const clientKeyStatus = (kind: 'llm' | 'voice', provider?: string) =>
+    (providerConfig?.client_keys ?? []).find((k) => k.kind === kind && k.provider === provider)?.masked ?? null;
 
   const set = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
 
