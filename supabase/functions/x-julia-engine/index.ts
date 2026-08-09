@@ -112,6 +112,16 @@ Deno.serve(async (req) => {
         .maybeSingle();
       const restartQueue = (queueRowForRestart ?? null) as XJQueueCreds | null;
 
+      // Telefone é necessário para confirmar o reset ao lead.
+      if (contactId && !phone) {
+        const { data: contact } = await supabase
+          .from("chat_contacts")
+          .select("phone")
+          .eq("id", contactId)
+          .maybeSingle();
+        phone = phone ?? contact?.phone ?? null;
+      }
+
       // Sessões do lead (por conversa e, quando houver, por contato) são removidas.
       const idsToDelete = new Set<string>();
       if (existingSession?.id) idsToDelete.add(existingSession.id);
@@ -124,14 +134,10 @@ Deno.serve(async (req) => {
         for (const row of byContact ?? []) idsToDelete.add(row.id);
       }
       const ids = [...idsToDelete];
-      if (ids.length) {
-        await supabase.from("xj_session_events").delete().in("session_id", ids);
-        await supabase.from("xj_followups").delete().in("session_id", ids).catch(() => {});
-        await supabase.from("xj_sessions").delete().in("id", ids);
-      }
 
+      // Confirma antes de apagar (o envio registra na sessão atual, se existir).
       const stub = {
-        id: null,
+        id: ids[0] ?? null,
         client_id: String(clientId),
         conversation_id: conversationId,
         contact_id: contactId,
@@ -140,6 +146,17 @@ Deno.serve(async (req) => {
         stage: "recepcao",
       } as any;
       await xjSend(supabase, restartQueue, stub, restartMessage(activation)).catch(() => {});
+
+      if (ids.length) {
+        try {
+          await supabase.from("xj_session_events").delete().in("session_id", ids);
+        } catch { /* trilha opcional */ }
+        try {
+          await supabase.from("xj_followups").delete().in("session_id", ids);
+        } catch { /* followups opcionais */ }
+        await supabase.from("xj_sessions").delete().in("id", ids);
+      }
+
       return json({ ok: true, deleted_sessions: ids.length, reset: true });
     }
 
