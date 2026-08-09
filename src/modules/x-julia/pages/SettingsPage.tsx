@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { XJLayout } from '../components/XJLayout';
 import { useXJProviderConfig, useXJProviderConfigMutations } from '../hooks/useXJProviderConfig';
 import { XJ_LLM_PROVIDERS, XJ_VOICE_PROVIDERS } from '../module';
+import { formatContext, formatUsd, getXJModelInfo } from '../modelCatalog';
 
 interface ProviderDef {
   id: string;
