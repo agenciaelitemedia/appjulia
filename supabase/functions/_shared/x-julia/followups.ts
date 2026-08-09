@@ -117,7 +117,7 @@ Máximo 2 frases, sem saudação repetida, sem emoji excessivo, sem prometer res
 Estágio atual do atendimento: ${session.stage}. Dados coletados: ${JSON.stringify(session.slots ?? {})}.
 Instrução do escritório: ${instruction}`,
         },
-        ...history,
+        ...historyMessages,
         { role: "user", content: "Gere agora a mensagem de follow-up." },
       ],
     });
