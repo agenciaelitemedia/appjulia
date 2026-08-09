@@ -44,6 +44,96 @@ Deno.serve(async (req) => {
 
     if (action === "ping") return json({ ok: true, module: "x-julia" });
 
+    // Intervenção manual: muda a etapa da sessão e o agente conduz aquela etapa agora.
+    if (action === "advance_stage") {
+      const sessionId: string | null = data.session_id ?? null;
+      const nextStage: string = String(data.stage ?? "").trim();
+      if (!sessionId || !nextStage) return json({ error: "session_id e stage são obrigatórios" }, 400);
+
+      const { data: sessionRow } = await supabase
+        .from("xj_sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .maybeSingle();
+      if (!sessionRow) return json({ error: "sessão não encontrada" }, 404);
+
+      const session = { ...sessionRow, slots: (sessionRow.slots ?? {}) as Record<string, unknown> } as any;
+      const noSendStages = ["humano", "encerrado"];
+      const patch: Record<string, unknown> = { stage: nextStage };
+      if (!noSendStages.includes(nextStage)) {
+        patch.is_active = true;
+        patch.paused_reason = null;
+      }
+      await updateSession(supabase, session, patch);
+      await logXJEvent(supabase, session, {
+        kind: "stage_forced",
+        detail: `etapa alterada manualmente para ${nextStage}`,
+      }).catch(() => {});
+
+      if (noSendStages.includes(nextStage)) {
+        return json({ ok: true, stage: nextStage, replied: false, skipped: "etapa sem ação do agente" });
+      }
+
+      const stageAgent = session.agent_id
+        ? await supabase.from("xj_agents").select("*").eq("id", session.agent_id).maybeSingle()
+            .then((r: any) => r.data)
+        : null;
+      if (!stageAgent || !stageAgent.is_active) {
+        return json({ ok: true, stage: nextStage, replied: false, skipped: "agente inativo ou ausente" });
+      }
+      if (!session.phone) {
+        return json({ ok: true, stage: nextStage, replied: false, skipped: "sessão sem telefone" });
+      }
+      if (!isWithinBusinessHours(stageAgent.business_hours)) {
+        return json({ ok: true, stage: nextStage, replied: false, skipped: "fora do horário de atuação" });
+      }
+
+      const { data: stageQueueRow } = await supabase
+        .from("queues")
+        .select("id, name, hub, evo_url, evo_apikey, waba_token, waba_number_id, channel_type")
+        .eq("id", session.queue_id)
+        .maybeSingle();
+      if (!stageQueueRow) {
+        return json({ ok: true, stage: nextStage, replied: false, skipped: "fila sem credenciais" });
+      }
+
+      const stageInbound: XJInboundMessage = {
+        message_id: null,
+        text:
+          `[INSTRUÇÃO INTERNA DO SUPERVISOR — não é mensagem do lead] ` +
+          `O atendimento foi movido manualmente para a etapa "${nextStage}". ` +
+          `Continue a conversa a partir do que já foi coletado e conduza esta etapa agora, ` +
+          `com uma única mensagem natural para o lead, sem repetir perguntas já respondidas ` +
+          `e sem mencionar esta instrução.`,
+        type: "text",
+        media_url: null,
+        mime_type: null,
+        file_name: null,
+        campaign_id: null,
+        campaign_title: null,
+        cta_payload: null,
+      };
+
+      const forced = await runXJTurn({
+        supabase,
+        agent: {
+          ...stageAgent,
+          stage_prompts: stageAgent.stage_prompts ?? {},
+          voice_settings: stageAgent.voice_settings ?? {},
+          business_hours: stageAgent.business_hours ?? {},
+          handoff_policy: stageAgent.handoff_policy ?? {},
+        },
+        session,
+        queue: stageQueueRow as XJQueueCreds,
+        legalCase: null,
+        inbound: stageInbound,
+        replies: [],
+        events: [],
+      });
+
+      return json({ ok: true, stage: forced.stage, replied: !!forced.reply });
+    }
+
     if (action !== "run") return json({ error: `ação desconhecida: ${action}` }, 400);
 
     const conversationId: string | null = data.conversation_id ?? null;
