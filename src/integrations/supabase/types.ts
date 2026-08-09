@@ -9801,6 +9801,7 @@ export type Database = {
         Row: {
           category: string
           client_id: string
+          contract_fields: Json
           contract_provider: string | null
           contract_template: string | null
           created_at: string
@@ -9821,6 +9822,7 @@ export type Database = {
         Insert: {
           category?: string
           client_id: string
+          contract_fields?: Json
           contract_provider?: string | null
           contract_template?: string | null
           created_at?: string
@@ -9841,6 +9843,7 @@ export type Database = {
         Update: {
           category?: string
           client_id?: string
+          contract_fields?: Json
           contract_provider?: string | null
           contract_template?: string | null
           created_at?: string
