@@ -97,7 +97,16 @@ export async function xjSynthesize(
           },
         }),
       });
-      if (!res.ok) return { error: `elevenlabs ${res.status}: ${(await res.text()).slice(0, 200)}` };
+      if (!res.ok) {
+        const body = (await res.text()).slice(0, 300);
+        if (res.status === 401 && body.includes("missing_permissions")) {
+          return {
+            error:
+              "elevenlabs 401: a chave de API não tem a permissão text_to_speech. Gere uma nova chave no ElevenLabs (Profile > API Keys) marcando Text to Speech e atualize nas configurações.",
+          };
+        }
+        return { error: `elevenlabs ${res.status}: ${body}` };
+      }
       bytes = new Uint8Array(await res.arrayBuffer());
     }
 
