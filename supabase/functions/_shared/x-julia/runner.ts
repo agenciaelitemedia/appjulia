@@ -96,6 +96,7 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
   // 4) Laço de decisão com skills.
   let finalText = "";
   let switchHandled = false;
+  let contractStageHandled = false;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const activeAgent = ctx.agent;
     const completion = await xjComplete({
@@ -198,6 +199,28 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
         legalCase: ctx.legalCase,
         questions: newQuestions,
         knowledge: newKnowledge,
+        caseCatalog: [],
+        ctaExtraPrompt: cta?.extra_prompt ?? null,
+        history: history.messages,
+        historySummary: history.summary,
+        currentInput: userInput,
+      });
+      messages.length = 0;
+      messages.push(...rebuilt);
+      finalText = "";
+      continue;
+    }
+
+    // Entrou na etapa de contrato neste turno: refaz o contexto já com o guia do
+    // estágio contrato e a lista de campos obrigatórios antes da próxima rodada.
+    if (ctx.stageChangedToContract && !contractStageHandled) {
+      contractStageHandled = true;
+      const rebuilt = buildXJMessages({
+        agent: ctx.agent,
+        session,
+        legalCase: ctx.legalCase,
+        questions,
+        knowledge,
         caseCatalog: [],
         ctaExtraPrompt: cta?.extra_prompt ?? null,
         history: history.messages,
