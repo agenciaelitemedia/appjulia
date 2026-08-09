@@ -44,11 +44,15 @@ Deno.serve(async (req) => {
 
     if (action === "ping") return json({ ok: true, module: "x-julia" });
 
-    // Intervenção manual: muda a etapa da sessão e o agente conduz aquela etapa agora.
-    if (action === "advance_stage") {
+    // Intervenção manual: muda a etapa (advance_stage) ou apenas força um turno
+    // na etapa atual (continue_now). Em ambos o agente age agora.
+    if (action === "advance_stage" || action === "continue_now") {
+      const keepStage = action === "continue_now";
       const sessionId: string | null = data.session_id ?? null;
-      const nextStage: string = String(data.stage ?? "").trim();
-      if (!sessionId || !nextStage) return json({ error: "session_id e stage são obrigatórios" }, 400);
+      const requestedStage: string = String(data.stage ?? "").trim();
+      if (!sessionId || (!keepStage && !requestedStage)) {
+        return json({ error: "session_id e stage são obrigatórios" }, 400);
+      }
 
       const { data: sessionRow } = await supabase
         .from("xj_sessions")
@@ -57,6 +61,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!sessionRow) return json({ error: "sessão não encontrada" }, 404);
 
+      const nextStage: string = keepStage ? String(sessionRow.stage ?? "recepcao") : requestedStage;
       const session = { ...sessionRow, slots: (sessionRow.slots ?? {}) as Record<string, unknown> } as any;
       const noSendStages = ["humano", "encerrado"];
       const patch: Record<string, unknown> = { stage: nextStage };
@@ -66,8 +71,10 @@ Deno.serve(async (req) => {
       }
       await updateSession(supabase, session, patch);
       await logXJEvent(supabase, session, {
-        kind: "stage_forced",
-        detail: `etapa alterada manualmente para ${nextStage}`,
+        kind: keepStage ? "turn_forced" : "stage_forced",
+        detail: keepStage
+          ? `continuação manual do atendimento na etapa ${nextStage}`
+          : `etapa alterada manualmente para ${nextStage}`,
       }).catch(() => {});
 
       if (noSendStages.includes(nextStage)) {
@@ -99,7 +106,12 @@ Deno.serve(async (req) => {
 
       const stageInbound: XJInboundMessage = {
         message_id: null,
-        text:
+        text: keepStage
+          ? `[INSTRUÇÃO INTERNA DO SUPERVISOR — não é mensagem do lead] ` +
+            `Continue o atendimento agora na etapa "${nextStage}", a partir do que já foi coletado, ` +
+            `com uma única mensagem natural para o lead, sem repetir perguntas já respondidas ` +
+            `e sem mencionar esta instrução.`
+          :
           `[INSTRUÇÃO INTERNA DO SUPERVISOR — não é mensagem do lead] ` +
           `O atendimento foi movido manualmente para a etapa "${nextStage}". ` +
           `Continue a conversa a partir do que já foi coletado e conduza esta etapa agora, ` +
