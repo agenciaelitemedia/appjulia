@@ -13,8 +13,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { XJLayout } from '../components/XJLayout';
 import { XJActivationTab } from '../components/XJActivationTab';
+import { XJRoleBanner } from '../components/XJRoleBanner';
+import {
+  XJ_ROLE_STAGES,
+  XJ_ROLE_TABS,
+  getXJRolePreset,
+  type XJAgentRole,
+} from '../lib/agentRolePresets';
 import { normalizeXJBusinessHours, type XJBusinessHours } from '../lib/xjBusinessHours';
-import { useXJAgent, useXJAgentMutations, useXJAgentQueueLinks, useXJPromptVersions } from '../hooks/useXJAgents';
+import { useXJAgent, useXJAgentMutations, useXJAgentQueueLinks, useXJAgents, useXJPromptVersions } from '../hooks/useXJAgents';
 import { useXJCadences } from '../hooks/useXJFollowups';
 import { useXJCases } from '../hooks/useXJCases';
 import { useXJQueues } from '../extend/queues';
@@ -35,12 +42,21 @@ function SpecialistCaseSelect({
   value,
   onChange,
   disabled,
+  agentId,
 }: {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  agentId?: string;
 }) {
   const { data: cases = [], isLoading } = useXJCases();
+  const { data: agents = [] } = useXJAgents();
+  const taken = new Set(
+    agents
+      .filter((a) => (a.role ?? 'reception') === 'specialist' && a.id !== agentId && a.case_id)
+      .map((a) => a.case_id as string),
+  );
+  const available = cases.filter((c) => !taken.has(c.id) || c.id === value);
   return (
     <div className="space-y-1.5">
       <Label>Caso jurídico atendido</Label>
@@ -49,7 +65,7 @@ function SpecialistCaseSelect({
           <SelectValue placeholder={isLoading ? 'Carregando casos...' : 'Selecione o caso'} />
         </SelectTrigger>
         <SelectContent>
-          {cases.map((c) => (
+          {available.map((c) => (
             <SelectItem key={c.id} value={c.id}>
               {c.category} · {c.name}
             </SelectItem>
@@ -57,7 +73,7 @@ function SpecialistCaseSelect({
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        Cada caso pode ter apenas um agente especialista ativo.
+        Cada caso pode ter apenas um agente especialista — casos já atendidos por outro agente não aparecem aqui.
       </p>
     </div>
   );
@@ -145,6 +161,28 @@ export default function XJAgentEditorPage() {
 
   const set = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const role = ((form.role ?? 'reception') as XJAgentRole);
+  const { data: allCases = [] } = useXJCases();
+  const { data: queueLinks = [] } = useXJAgentQueueLinks(agentId);
+  const currentCase = allCases.find((c) => c.id === form.case_id) ?? null;
+  const visibleTabs = XJ_ROLE_TABS[role] ?? XJ_ROLE_TABS.reception;
+  const roleStages = XJ_ROLE_STAGES[role] ?? XJ_ROLE_STAGES.reception;
+  const roleWarning =
+    role === 'specialist' && !form.case_id
+      ? 'Este especialista ainda não tem caso jurídico vinculado — sem isso ele nunca recebe atendimentos.'
+      : role === 'reception' && queueLinks.length === 0
+        ? 'Este recepcionista não está vinculado a nenhuma fila — vincule na aba Filas para começar a atender.'
+        : null;
+
+  /** Aplica o modelo de prompt do papel (recepcionista/especialista). */
+  const applyRolePreset = () => {
+    const preset = getXJRolePreset(role, currentCase?.name);
+    set('system_prompt', preset.system_prompt);
+    set('persona', preset.persona);
+    set('tone', preset.tone);
+    setStagePrompts(preset.stage_prompts);
+  };
+
   const handleSave = () => {
     if (!agentId) return;
     update.mutate({
@@ -183,15 +221,17 @@ export default function XJAgentEditorPage() {
         )
       }
     >
+      <XJRoleBanner role={role} caseName={currentCase?.name} warning={roleWarning} />
+
       <Tabs defaultValue="geral">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="geral">Geral</TabsTrigger>
-          <TabsTrigger value="prompt">Prompt</TabsTrigger>
-          <TabsTrigger value="ativacao">Ativação</TabsTrigger>
-          <TabsTrigger value="llm">LLM & Voz</TabsTrigger>
-          <TabsTrigger value="filas">Filas</TabsTrigger>
-          <TabsTrigger value="followups">Followups</TabsTrigger>
-          <TabsTrigger value="contrato">Contrato</TabsTrigger>
+          {visibleTabs.includes('geral') && <TabsTrigger value="geral">Geral</TabsTrigger>}
+          {visibleTabs.includes('prompt') && <TabsTrigger value="prompt">Prompt</TabsTrigger>}
+          {visibleTabs.includes('ativacao') && <TabsTrigger value="ativacao">Ativação</TabsTrigger>}
+          {visibleTabs.includes('llm') && <TabsTrigger value="llm">LLM & Voz</TabsTrigger>}
+          {visibleTabs.includes('filas') && <TabsTrigger value="filas">Filas</TabsTrigger>}
+          {visibleTabs.includes('followups') && <TabsTrigger value="followups">Followups</TabsTrigger>}
+          {visibleTabs.includes('contrato') && <TabsTrigger value="contrato">Contrato</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="geral" className="mt-4 space-y-4">
@@ -251,7 +291,14 @@ export default function XJAgentEditorPage() {
                   automaticamente para o especialista daquele caso.
                 </p>
               </div>
-              {form.role === 'specialist' && <SpecialistCaseSelect value={form.case_id ?? ''} onChange={(v) => set('case_id', v)} disabled={!canEdit} />}
+              {role === 'specialist' && (
+                <SpecialistCaseSelect
+                  agentId={agentId}
+                  value={form.case_id ?? ''}
+                  onChange={(v) => set('case_id', v)}
+                  disabled={!canEdit}
+                />
+              )}
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
                   <p className="text-sm font-medium">Agente ativo</p>
@@ -282,6 +329,8 @@ export default function XJAgentEditorPage() {
           <PromptTab
             agentId={agentId!}
             canEdit={canEdit}
+            stages={roleStages as string[]}
+            onApplyPreset={applyRolePreset}
             systemPrompt={form.system_prompt ?? ''}
             onSystemPromptChange={(v) => set('system_prompt', v)}
             stagePrompts={stagePrompts}
@@ -562,6 +611,8 @@ export default function XJAgentEditorPage() {
 function PromptTab({
   agentId,
   canEdit,
+  stages,
+  onApplyPreset,
   systemPrompt,
   onSystemPromptChange,
   stagePrompts,
@@ -571,6 +622,8 @@ function PromptTab({
 }: {
   agentId: string;
   canEdit: boolean;
+  stages: string[];
+  onApplyPreset: () => void;
   systemPrompt: string;
   onSystemPromptChange: (v: string) => void;
   stagePrompts: Record<string, string>;
@@ -588,6 +641,16 @@ function PromptTab({
           <CardTitle className="text-base">Prompt do sistema</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {canEdit && (
+            <div className="flex items-center justify-between rounded-lg border bg-muted/40 p-2.5">
+              <p className="text-xs text-muted-foreground">
+                Preencher com o modelo pronto deste papel (substitui o prompt atual).
+              </p>
+              <Button size="sm" variant="outline" onClick={onApplyPreset}>
+                Usar modelo do papel
+              </Button>
+            </div>
+          )}
           <Textarea
             rows={12}
             className="font-mono text-xs"
@@ -597,9 +660,9 @@ function PromptTab({
           />
           <div className="space-y-3">
             <p className="text-sm font-medium">Instruções por etapa</p>
-            {XJ_STAGES.map((stage) => (
+            {(stages.length ? stages : (XJ_STAGES as unknown as string[])).map((stage) => (
               <div key={stage} className="space-y-1.5">
-                <Label className="text-xs">{XJ_STAGE_LABELS[stage]}</Label>
+                <Label className="text-xs">{(XJ_STAGE_LABELS as any)[stage] ?? stage}</Label>
                 <Textarea
                   rows={2}
                   className="text-xs"

@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '../extend/db';
 import { useXJIdentity } from '../extend/auth';
 import { useXJEffectiveClientId } from '../context/XJScopeContext';
+import { getXJRolePreset, type XJAgentRole } from '../lib/agentRolePresets';
 import type { XJAgent } from '../types';
 
 const KEY = ['x-julia', 'agents'];
@@ -46,21 +47,26 @@ export function useXJAgentMutations() {
   };
 
   const create = useMutation({
-    mutationFn: async (input: Partial<XJAgent>) => {
+    mutationFn: async (input: Partial<XJAgent> & { case_name?: string | null }) => {
       if (!clientId) throw new Error('Escritório não identificado');
+      const role = ((input.role ?? 'reception') as XJAgentRole);
+      const preset = getXJRolePreset(role, input.case_name ?? null);
       const { data, error } = await supabase
         .from('xj_agents')
         .insert({
           client_id: String(clientId),
           name: input.name || 'X-Julia',
-          role: input.role ?? 'reception',
-          case_id: input.role === 'specialist' ? input.case_id ?? null : null,
-          persona: input.persona ?? null,
-          tone: input.tone ?? null,
-          system_prompt: input.system_prompt ?? '',
+          role,
+          case_id: role === 'specialist' ? input.case_id ?? null : null,
+          persona: input.persona ?? preset.persona,
+          tone: input.tone ?? preset.tone,
+          system_prompt: input.system_prompt ?? preset.system_prompt,
+          stage_prompts: (input.stage_prompts ?? preset.stage_prompts) as any,
+          activation: preset.activation as any,
+          mirror_to_crm_builder: preset.mirror_to_crm_builder,
           llm_provider: input.llm_provider ?? 'lovable',
           llm_model: input.llm_model ?? 'google/gemini-3.6-flash',
-          contract_provider: input.contract_provider ?? 'internal',
+          contract_provider: input.contract_provider ?? preset.contract_provider,
           created_by: userName,
         } as any)
         .select('*')
