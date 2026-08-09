@@ -4,7 +4,7 @@
 // As chaves nunca são devolvidas em texto puro; apenas mascaradas.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { XJ_MODEL_CATALOG } from "../_shared/x-julia/pricing.ts";
-import { XJ_PROVIDERS, getProvider } from "../_shared/x-julia/llm.ts";
+import { getProvider } from "../_shared/x-julia/llm.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
