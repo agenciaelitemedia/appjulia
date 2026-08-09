@@ -35,7 +35,7 @@ const STAGE_GUIDE: Record<string, string> = {
   negociacao:
     "Explique de forma simples o serviço e os honorários do caso, trate objeções e busque o aceite para gerar o contrato.",
   contrato:
-    "Colete nome completo, CPF e confirmação dos dados e gere o contrato com gerar_contrato. Envie o link de assinatura.",
+    "Siga exatamente a lista de campos do contrato definida nas instruções do escritório: peça UM campo por mensagem, na ordem, registre cada resposta com registrar_dados, depois liste TODOS os campos preenchidos para conferência e pergunte se está correto. Só chame gerar_contrato depois de um 'sim' explícito e com todos os campos obrigatórios preenchidos. Nunca preencha um campo por conta própria.",
   assinatura:
     "Acompanhe a assinatura, tire dúvidas e reforce com gentileza. Não recomece a negociação.",
   agendamento:
