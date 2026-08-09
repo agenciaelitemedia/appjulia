@@ -114,9 +114,17 @@ function CaseEditor({
     fee_description: legalCase.fee_description ?? '',
     min_ticket: legalCase.min_ticket ?? '',
     contract_template: legalCase.contract_template ?? '',
+    contract_fields: Array.isArray(legalCase.contract_fields) ? legalCase.contract_fields : [],
     is_active: legalCase.is_active,
   });
   const set = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const fields: Array<{ key: string; label?: string; validation?: string }> = form.contract_fields ?? [];
+  const setField = (index: number, patch: Record<string, string>) =>
+    set(
+      'contract_fields',
+      fields.map((f, i) => (i === index ? { ...f, ...patch } : f)),
+    );
 
   const questions = useXJCaseQuestions(legalCase.id);
   const knowledge = useXJCaseKnowledge(legalCase.id);
@@ -153,6 +161,7 @@ function CaseEditor({
           <TabsList>
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="perguntas">Perguntas</TabsTrigger>
+            <TabsTrigger value="contrato">Contrato</TabsTrigger>
             <TabsTrigger value="base">Base de conhecimento</TabsTrigger>
           </TabsList>
 
