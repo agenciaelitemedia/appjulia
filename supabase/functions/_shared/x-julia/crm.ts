@@ -72,11 +72,38 @@ export async function upsertDeal(
 ) {
   const pipelineId = await pipelineForStage(supabase, session.client_id, agent.id, session.stage);
 
-  const { data: existing } = await supabase
+  // 1 card por lead (telefone) dentro do escritório — sessões novas reaproveitam o card.
+  let existing: { id: string; pipeline_id: string | null } | null = null;
+  const { data: bySession } = await supabase
     .from("xj_deals")
     .select("id, pipeline_id")
     .eq("session_id", session.id)
     .maybeSingle();
+  existing = bySession ?? null;
+
+  if (!existing && session.phone) {
+    const { data: byPhone } = await supabase
+      .from("xj_deals")
+      .select("id, pipeline_id")
+      .eq("client_id", session.client_id)
+      .eq("contact_phone", session.phone)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (byPhone) {
+      existing = byPhone;
+      await supabase
+        .from("xj_deals")
+        .update({
+          session_id: session.id,
+          agent_id: agent.id,
+          case_id: session.case_id,
+          conversation_id: session.conversation_id,
+          contact_id: session.contact_id,
+        })
+        .eq("id", byPhone.id);
+    }
+  }
 
   if (existing) {
     const update: Record<string, unknown> = { updated_by: "x-julia" };
