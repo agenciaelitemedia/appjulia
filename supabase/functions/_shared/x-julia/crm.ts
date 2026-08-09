@@ -19,30 +19,45 @@ const DEFAULT_PIPELINES: Array<{ name: string; stage_key: XJStage; color: string
   { name: "Encerrado", stage_key: "encerrado", color: "#ef4444" },
 ];
 
+/**
+ * Etapas do CRM X-Julia são únicas por escritório (client_id) e compartilhadas
+ * por todos os agentes — nunca por agente, para não duplicar colunas.
+ */
 // deno-lint-ignore no-explicit-any
-export async function ensurePipelines(supabase: any, clientId: string, agentId: string) {
+export async function ensurePipelines(supabase: any, clientId: string, _agentId?: string) {
+  const client = String(clientId);
   const { data: existing } = await supabase
     .from("xj_pipelines")
     .select("id, stage_key")
-    .eq("client_id", String(clientId))
-    .eq("agent_id", agentId);
-  if ((existing ?? []).length > 0) return existing;
+    .eq("client_id", client)
+    .order("position");
 
-  const rows = DEFAULT_PIPELINES.map((p, i) => ({
-    client_id: String(clientId),
-    agent_id: agentId,
+  const existingKeys = new Set((existing ?? []).map((p: any) => p.stage_key).filter(Boolean));
+  const missing = DEFAULT_PIPELINES.filter((p) => !existingKeys.has(p.stage_key));
+  if (missing.length === 0) return existing ?? [];
+
+  const rows = missing.map((p) => ({
+    client_id: client,
+    agent_id: null,
     name: p.name,
     stage_key: p.stage_key,
     color: p.color,
-    position: i,
+    position: DEFAULT_PIPELINES.findIndex((d) => d.stage_key === p.stage_key),
   }));
-  const { data } = await supabase.from("xj_pipelines").insert(rows).select("id, stage_key");
-  return data ?? [];
+  // Índice único (client_id, stage_key) garante idempotência em concorrência.
+  await supabase.from("xj_pipelines").upsert(rows, { onConflict: "client_id,stage_key", ignoreDuplicates: true });
+
+  const { data: after } = await supabase
+    .from("xj_pipelines")
+    .select("id, stage_key")
+    .eq("client_id", client)
+    .order("position");
+  return after ?? [];
 }
 
 // deno-lint-ignore no-explicit-any
-async function pipelineForStage(supabase: any, clientId: string, agentId: string, stage: XJStage) {
-  const pipelines = await ensurePipelines(supabase, clientId, agentId);
+async function pipelineForStage(supabase: any, clientId: string, _agentId: string, stage: XJStage) {
+  const pipelines = await ensurePipelines(supabase, clientId);
   const found = (pipelines ?? []).find((p: any) => p.stage_key === stage);
   return found?.id ?? (pipelines ?? [])[0]?.id ?? null;
 }
