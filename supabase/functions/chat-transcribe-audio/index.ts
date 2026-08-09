@@ -11,6 +11,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveAI, providerHeaders, OPENROUTER_TRANSCRIBE_ENDPOINT } from "../_shared/aiGateway.ts";
 import { logAIUsage } from "../_shared/aiUsageLogger.ts";
+import { fetchEffectiveQueueFlags } from "../_shared/agentSettings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,6 +68,9 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const messageId: string | undefined = body?.message_id;
     const force: boolean = body?.force === true;
+    // Uso interno (ex.: X-Julia): transcreve mesmo sem a feature liberada, mas
+    // grava em chave separada para não exibir no chat até que seja permitido.
+    const internal: boolean = body?.internal === true;
     if (!messageId) {
       return ok({ ok: false, error: "message_id required", reason: "bad_request" });
     }
@@ -91,8 +95,13 @@ Deno.serve(async (req) => {
       return ok({ ok: true, skipped: "not_audio" });
     }
 
-    if (!force && msg.metadata?.transcription?.text && msg.metadata?.transcription?.status === 'ok') {
-      return ok({ ok: true, skipped: "already_transcribed" });
+    const existing = msg.metadata?.transcription?.status === 'ok' && msg.metadata?.transcription?.text
+      ? msg.metadata.transcription
+      : (msg.metadata?.transcription_internal?.status === 'ok' && msg.metadata?.transcription_internal?.text
+          ? msg.metadata.transcription_internal
+          : null);
+    if (!force && existing) {
+      return ok({ ok: true, skipped: "already_transcribed", text: existing.text });
     }
 
     // 2) Load queue credentials via conversation
@@ -103,7 +112,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!conv?.queue_id) {
-      await markFailed(supabase, msg, "queue_not_found");
+      await markFailed(supabase, msg, "queue_not_found", internal);
       return ok({ ok: false, error: "queue not found", reason: "queue_not_found" });
     }
 
@@ -114,6 +123,17 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const wabaMode = isWabaChannel(msg, queue);
+
+    // Chave de metadata: interna quando a feature não está liberada no client+fila.
+    let metaKey = "transcription";
+    if (internal) {
+      try {
+        const flags = await fetchEffectiveQueueFlags(msg.client_id, conv.queue_id);
+        metaKey = flags.autoTranscribeAudio ? "transcription" : "transcription_internal";
+      } catch (_e) {
+        metaKey = "transcription_internal";
+      }
+    }
 
     // 3) Download audio (channel-aware)
     let base64Data: string | null = null;
@@ -134,13 +154,13 @@ Deno.serve(async (req) => {
       if (persisted) {
         const res = await fetch(persisted);
         if (!res.ok) {
-          await markFailed(supabase, msg, "download_failed");
+          await markFailed(supabase, msg, "download_failed", internal);
           return ok({ ok: false, error: "download failed", reason: "download_failed", status: res.status });
         }
         mimetype = res.headers.get("content-type") || "audio/ogg";
         const bytes = new Uint8Array(await res.arrayBuffer());
         if (bytes.length > MAX_BASE64_BYTES) {
-          await markFailed(supabase, msg, "audio_too_large");
+          await markFailed(supabase, msg, "audio_too_large", internal);
           return ok({ ok: false, error: "audio too large", reason: "audio_too_large" });
         }
         base64Data = await bytesToBase64(bytes);
@@ -160,7 +180,7 @@ Deno.serve(async (req) => {
           if (data) wabaQueue = data as any;
         }
         if (!wabaQueue) {
-          await markFailed(supabase, msg, "waba_credentials_missing");
+          await markFailed(supabase, msg, "waba_credentials_missing", internal);
           return ok({ ok: false, error: "waba credentials missing", reason: "waba_credentials_missing" });
         }
 
@@ -168,10 +188,10 @@ Deno.serve(async (req) => {
         if (!mediaId) {
           // Outbound/API-logged audio with no stored media: nothing to transcribe.
           if (!msg.media_url && !msg.raw_payload) {
-            await markFailed(supabase, msg, "no_media");
+            await markFailed(supabase, msg, "no_media", internal);
             return ok({ ok: false, error: "no media stored", reason: "no_media" });
           }
-          await markFailed(supabase, msg, "waba_media_id_missing");
+          await markFailed(supabase, msg, "waba_media_id_missing", internal);
           return ok({ ok: false, error: "waba media id missing", reason: "waba_media_id_missing" });
         }
         extId = extId || mediaId;
@@ -181,7 +201,7 @@ Deno.serve(async (req) => {
         });
         if (dlErr || !dlData?.base64) {
           console.warn("[chat-transcribe-audio] waba download failed:", dlErr?.message || dlData?.error);
-          await markFailed(supabase, msg, "download_failed");
+          await markFailed(supabase, msg, "download_failed", internal);
           return ok({ ok: false, error: "download failed", reason: "download_failed" });
         }
         base64Data = dlData.base64;
@@ -190,11 +210,11 @@ Deno.serve(async (req) => {
     } else {
       // 3b) UaZapi: decrypt via /message/download
       if (!queue?.evo_url || !queue?.evo_apikey) {
-        await markFailed(supabase, msg, "queue_credentials_missing");
+        await markFailed(supabase, msg, "queue_credentials_missing", internal);
         return ok({ ok: false, error: "queue uazapi credentials missing", reason: "queue_credentials_missing" });
       }
       if (!extId) {
-        await markFailed(supabase, msg, "external_id_missing");
+        await markFailed(supabase, msg, "external_id_missing", internal);
         return ok({ ok: false, error: "external_id missing", reason: "external_id_missing" });
       }
 
@@ -208,7 +228,7 @@ Deno.serve(async (req) => {
       if (!downloadResp.ok) {
         const errTxt = await downloadResp.text();
         console.warn(`[chat-transcribe-audio] download failed ${downloadResp.status}: ${errTxt}`);
-        await markFailed(supabase, msg, "download_failed");
+        await markFailed(supabase, msg, "download_failed", internal);
         return ok({ ok: false, error: "download failed", reason: "download_failed", status: downloadResp.status });
       }
 
@@ -220,12 +240,12 @@ Deno.serve(async (req) => {
     }
 
     if (!base64Data) {
-      await markFailed(supabase, msg, "no_base64");
+      await markFailed(supabase, msg, "no_base64", internal);
       return ok({ ok: false, error: "no base64 in download response", reason: "no_base64" });
     }
 
     if (typeof base64Data === "string" && base64Data.length > MAX_BASE64_BYTES) {
-      await markFailed(supabase, msg, "audio_too_large");
+      await markFailed(supabase, msg, "audio_too_large", internal);
       return ok({ ok: false, error: "audio too large", reason: "audio_too_large" });
     }
 
@@ -233,7 +253,7 @@ Deno.serve(async (req) => {
     const ai = await resolveAI(supabase, "chat_transcription");
     const prompt = ai.prompt ?? DEFAULT_PROMPT;
     if (!ai.apiKey) {
-      await markFailed(supabase, msg, "no_api_key");
+      await markFailed(supabase, msg, "no_api_key", internal);
       return ok({ ok: false, error: "IA não configurada (sem chave)", reason: "no_api_key" });
     }
     const format = mimetype.includes("mp4") || mimetype.includes("m4a") ? "mp4"
@@ -296,7 +316,7 @@ Deno.serve(async (req) => {
     if (!aiResp.ok) {
       const errTxt = await aiResp.text();
       console.warn(`[chat-transcribe-audio] AI error ${aiResp.status} (provider=${ai.provider} model=${ai.model}): ${errTxt}`);
-      await markFailed(supabase, msg, `ai_${aiResp.status}`);
+      await markFailed(supabase, msg, `ai_${aiResp.status}`, internal);
       await logAIUsage(supabase, {
         client_id: msg.client_id,
         feature: "chat_transcription",
@@ -320,7 +340,7 @@ Deno.serve(async (req) => {
 
     const newMeta = {
       ...(msg.metadata || {}),
-      transcription: {
+      [metaKey]: {
         text,
         model: usedModel,
         generated_at: new Date().toISOString(),
@@ -345,18 +365,19 @@ Deno.serve(async (req) => {
       context: { ...contextBase, text_length: text.length },
     });
 
-    return ok({ ok: true, message_id: msg.id, length: text.length, model: usedModel, status: "ok" });
+    return ok({ ok: true, message_id: msg.id, length: text.length, model: usedModel, status: "ok", text, internal: metaKey === "transcription_internal" });
   } catch (err) {
     console.error("[chat-transcribe-audio] error:", err);
     return ok({ ok: false, error: String(err), reason: "exception" });
   }
 });
 
-async function markFailed(supabase: any, msg: any, reason: string) {
+async function markFailed(supabase: any, msg: any, reason: string, internal = false) {
   try {
+    const key = internal ? "transcription_internal" : "transcription";
     const newMeta = {
       ...(msg.metadata || {}),
-      transcription: {
+      [key]: {
         text: null,
         status: "failed",
         reason,
