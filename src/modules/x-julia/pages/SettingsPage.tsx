@@ -137,18 +137,30 @@ function ProviderCard({
           <div className="space-y-2">
             <Label>Modelos liberados para os agentes</Label>
             <div className="flex flex-wrap gap-1.5">
-              {def.models.map((model) => (
-                <button
-                  key={model}
-                  type="button"
-                  onClick={() => toggleModel(model)}
-                  className="rounded-full border px-2.5 py-1 text-xs transition data-[on=true]:border-primary data-[on=true]:bg-primary/10"
-                  data-on={models.includes(model)}
-                >
-                  {model}
-                </button>
-              ))}
+              {def.models.map((model) => {
+                const info = getXJModelInfo(def.id, model);
+                return (
+                  <button
+                    key={model}
+                    type="button"
+                    onClick={() => toggleModel(model)}
+                    title={info?.note}
+                    className="rounded-full border px-2.5 py-1 text-left text-xs transition data-[on=true]:border-primary data-[on=true]:bg-primary/10"
+                    data-on={models.includes(model)}
+                  >
+                    <span className="font-medium">{model}</span>
+                    {info && (
+                      <span className="ml-1.5 text-muted-foreground">
+                        in {formatUsd(info.inputPer1M)} · out {formatUsd(info.outputPer1M)} · {formatContext(info.context)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Preços de referência do provedor em dólar por 1 milhão de tokens (entrada/saída); ctx = janela de contexto.
+            </p>
           </div>
         )}
 
