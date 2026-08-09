@@ -92,6 +92,13 @@ export function XJActivationTab({
             />
           </div>
 
+          {activation.only_campaign && (
+            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              Com esta opção ligada, o agente <strong>não responde</strong> leads que chegarem
+              fora de campanha (sem anúncio/CTA) e que não enviarem uma das frases de início de campanha.
+            </p>
+          )}
+
           <Separator />
 
           <div className="space-y-2">

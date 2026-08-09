@@ -1879,7 +1879,7 @@ Deno.serve(async (req) => {
         const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
         for (const ev of xjEvents) {
           try {
-            await fetch(`${supabaseUrl}/functions/v1/x-julia-engine`, {
+            const xjRes = await fetch(`${supabaseUrl}/functions/v1/x-julia-engine`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -1888,6 +1888,15 @@ Deno.serve(async (req) => {
               },
               body: JSON.stringify({ action: 'run', data: ev }),
             });
+            const xjBody = await xjRes.text().catch(() => '');
+            if (!xjRes.ok) {
+              console.error(
+                `[uazapi-chat-webhook] x-julia-engine HTTP ${xjRes.status}:`,
+                xjBody.slice(0, 400),
+              );
+            } else {
+              console.log('[uazapi-chat-webhook] x-julia-engine ok:', xjBody.slice(0, 300));
+            }
           } catch (e) {
             console.warn('[uazapi-chat-webhook] x-julia invoke err:', String(e));
           }
