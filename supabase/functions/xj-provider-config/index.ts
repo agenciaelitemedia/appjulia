@@ -338,6 +338,47 @@ Deno.serve(async (req) => {
         return json({ ok: true, inserted: rows.length });
       }
 
+      // Lista modelos direto na API do provedor de LLM.
+      if (action === "list_provider_models") {
+        const provider = String(body?.provider ?? "").trim();
+        if (!provider) return json({ error: "provider é obrigatório" }, 400);
+        const clientId = body?.client_id ? String(body.client_id) : null;
+        try {
+          const key = await resolveProviderKey(provider, clientId);
+          const models = await fetchProviderModels(provider, key);
+          models.sort((a, b) => a.model.localeCompare(b.model));
+          return json({ ok: true, provider, models });
+        } catch (err) {
+          return json({ error: String((err as Error)?.message ?? err) }, 400);
+        }
+      }
+
+      // Importa modelos vindos do provedor para o catálogo de preços.
+      if (action === "import_provider_models") {
+        const provider = String(body?.provider ?? "").trim();
+        const models = Array.isArray(body?.models) ? body.models : [];
+        if (!provider || !models.length) return json({ error: "provider e models são obrigatórios" }, 400);
+
+        const rows = models
+          .map((m: any) => ({
+            provider,
+            model: String(m?.model ?? "").trim(),
+            input_per_1m: Number(m?.input_per_1m ?? 0) || 0,
+            output_per_1m: Number(m?.output_per_1m ?? 0) || 0,
+            context_tokens: Math.round(Number(m?.context_tokens ?? 0) || 0),
+            note: m?.note ? String(m.note).slice(0, 300) : null,
+            is_active: true,
+          }))
+          .filter((r: any) => r.model);
+        if (!rows.length) return json({ error: "nenhum modelo válido" }, 400);
+
+        const { error } = await supabase
+          .from("xj_model_pricing")
+          .upsert(rows, { onConflict: "provider,model" });
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true, imported: rows.length });
+      }
+
       return json({ error: `ação desconhecida: ${action}` }, 400);
     }
 
