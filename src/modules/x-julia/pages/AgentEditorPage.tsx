@@ -161,6 +161,28 @@ export default function XJAgentEditorPage() {
 
   const set = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const role = ((form.role ?? 'reception') as XJAgentRole);
+  const { data: allCases = [] } = useXJCases();
+  const { data: queueLinks = [] } = useXJAgentQueueLinks(agentId);
+  const currentCase = allCases.find((c) => c.id === form.case_id) ?? null;
+  const visibleTabs = XJ_ROLE_TABS[role] ?? XJ_ROLE_TABS.reception;
+  const roleStages = XJ_ROLE_STAGES[role] ?? XJ_ROLE_STAGES.reception;
+  const roleWarning =
+    role === 'specialist' && !form.case_id
+      ? 'Este especialista ainda não tem caso jurídico vinculado — sem isso ele nunca recebe atendimentos.'
+      : role === 'reception' && queueLinks.length === 0
+        ? 'Este recepcionista não está vinculado a nenhuma fila — vincule na aba Filas para começar a atender.'
+        : null;
+
+  /** Aplica o modelo de prompt do papel (recepcionista/especialista). */
+  const applyRolePreset = () => {
+    const preset = getXJRolePreset(role, currentCase?.name);
+    set('system_prompt', preset.system_prompt);
+    set('persona', preset.persona);
+    set('tone', preset.tone);
+    setStagePrompts(preset.stage_prompts);
+  };
+
   const handleSave = () => {
     if (!agentId) return;
     update.mutate({
@@ -199,15 +221,17 @@ export default function XJAgentEditorPage() {
         )
       }
     >
+      <XJRoleBanner role={role} caseName={currentCase?.name} warning={roleWarning} />
+
       <Tabs defaultValue="geral">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="geral">Geral</TabsTrigger>
-          <TabsTrigger value="prompt">Prompt</TabsTrigger>
-          <TabsTrigger value="ativacao">Ativação</TabsTrigger>
-          <TabsTrigger value="llm">LLM & Voz</TabsTrigger>
-          <TabsTrigger value="filas">Filas</TabsTrigger>
-          <TabsTrigger value="followups">Followups</TabsTrigger>
-          <TabsTrigger value="contrato">Contrato</TabsTrigger>
+          {visibleTabs.includes('geral') && <TabsTrigger value="geral">Geral</TabsTrigger>}
+          {visibleTabs.includes('prompt') && <TabsTrigger value="prompt">Prompt</TabsTrigger>}
+          {visibleTabs.includes('ativacao') && <TabsTrigger value="ativacao">Ativação</TabsTrigger>}
+          {visibleTabs.includes('llm') && <TabsTrigger value="llm">LLM & Voz</TabsTrigger>}
+          {visibleTabs.includes('filas') && <TabsTrigger value="filas">Filas</TabsTrigger>}
+          {visibleTabs.includes('followups') && <TabsTrigger value="followups">Followups</TabsTrigger>}
+          {visibleTabs.includes('contrato') && <TabsTrigger value="contrato">Contrato</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="geral" className="mt-4 space-y-4">
@@ -267,7 +291,14 @@ export default function XJAgentEditorPage() {
                   automaticamente para o especialista daquele caso.
                 </p>
               </div>
-              {form.role === 'specialist' && <SpecialistCaseSelect value={form.case_id ?? ''} onChange={(v) => set('case_id', v)} disabled={!canEdit} />}
+              {role === 'specialist' && (
+                <SpecialistCaseSelect
+                  agentId={agentId}
+                  value={form.case_id ?? ''}
+                  onChange={(v) => set('case_id', v)}
+                  disabled={!canEdit}
+                />
+              )}
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
                   <p className="text-sm font-medium">Agente ativo</p>
@@ -298,6 +329,8 @@ export default function XJAgentEditorPage() {
           <PromptTab
             agentId={agentId!}
             canEdit={canEdit}
+            stages={roleStages as string[]}
+            onApplyPreset={applyRolePreset}
             systemPrompt={form.system_prompt ?? ''}
             onSystemPromptChange={(v) => set('system_prompt', v)}
             stagePrompts={stagePrompts}
