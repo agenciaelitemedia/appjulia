@@ -60,6 +60,7 @@ export function PipelineColumn({
     isDragging,
   } = useSortable({
     id: `pipeline-${pipeline.id}`,
+    disabled: !!pipeline.is_system,
     data: {
       type: 'pipeline',
       pipeline,
@@ -131,7 +132,8 @@ export function PipelineColumn({
             {...listeners}
             className={cn(
               'cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted transition-opacity',
-              isHovering ? 'opacity-100' : 'opacity-0'
+              isHovering && !pipeline.is_system ? 'opacity-100' : 'opacity-0',
+              pipeline.is_system && 'pointer-events-none'
             )}
           >
             <GripVertical className="h-4 w-4 text-muted-foreground" />
