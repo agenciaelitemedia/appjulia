@@ -272,12 +272,51 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
     case "consultar_agenda": {
       const slots = await listFreeSlots(supabase, session, Number(args?.dias ?? 5));
       if (!slots.length) return "Nenhum horário livre configurado. Ofereça encaminhar para a equipe.";
-      return `Horários livres: ${slots.slice(0, 8).map((s) => formatBR(s.start)).join(", ")}`;
+      return (
+        `Agora: ${formatFullBRT(nowBRT())}. Horários livres (fuso -03:00):\n` +
+        slots
+          .slice(0, 8)
+          .map((s) => `- ${weekdayBRT(s.start)}, ${formatBRT(s.start)} (ISO ${isoBRT(s.start)})`)
+          .join("\n")
+      );
+    }
+
+    case "data_hora": {
+      const now = nowBRT();
+      const resolved = resolveExpression(args?.expressao, now);
+      const formato = String(args?.formato ?? "data_hora").toLowerCase();
+      const value = formato === "data"
+        ? formatDateBRT(resolved.date)
+        : formato === "iso"
+        ? isoBRT(resolved.date)
+        : formatBRT(resolved.date);
+      const days = diffCalendarDaysBRT(resolved.date, now);
+      const relative = days === 0 ? "hoje" : days === 1 ? "amanhã" : days === -1 ? "ontem" : days > 0 ? `em ${days} dias` : `há ${Math.abs(days)} dias`;
+      const inHours = isWithinBusinessHours((agent as any).business_hours, resolved.date);
+      const warn = resolved.matched
+        ? ""
+        : ` (não entendi a expressão "${resolved.expression}" — usei o momento atual; confirme a data com o lead)`;
+      return (
+        `Agora em Brasília: ${formatFullBRT(now)}.\n` +
+        `Resultado: ${weekdayBRT(resolved.date)}, ${value} — ${relative}. ` +
+        `ISO com fuso: ${isoBRT(resolved.date)}. ` +
+        `${inHours ? "Dentro" : "Fora"} do horário de atendimento do escritório.${warn}`
+      );
     }
 
     case "agendar": {
-      const start = new Date(String(args?.inicio));
-      if (Number.isNaN(start.getTime())) return "Data inválida: peça o horário novamente.";
+      const resolvedStart = resolveExpression(String(args?.inicio ?? ""), nowBRT());
+      const start = resolvedStart.date;
+      if (!resolvedStart.matched || Number.isNaN(start.getTime())) {
+        return "Data inválida: chame data_hora para resolver a data e peça o horário ao lead novamente.";
+      }
+      const now = nowBRT();
+      if (start.getTime() < now.getTime() - 60_000) {
+        return `Data no passado (${formatBRT(start)}). Agora é ${formatFullBRT(now)}. Confirme uma data futura com o lead.`;
+      }
+      if (start.getTime() > now.getTime() + 90 * 86_400_000) {
+        return `Data muito distante (${formatBRT(start)}, mais de 90 dias). Confirme a data correta com o lead.`;
+      }
       const minutes = Number(args?.duracao_minutos ?? 30);
       const end = new Date(start.getTime() + minutes * 60_000);
       const { data: deal } = await supabase.from("xj_deals").select("id").eq("session_id", session.id).maybeSingle();
@@ -296,7 +335,7 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
       if (error) return `Falha ao agendar: ${error.message}`;
       await updateSession(supabase, session, { stage: "agendamento" });
       await upsertDeal(supabase, agent, session, {});
-      return `Agendado para ${formatBR(start)}. Confirme com o lead.`;
+      return `Agendado para ${formatFullBRT(start)}. Confirme com o lead.`;
     }
 
     case "encaminhar_humano": {
