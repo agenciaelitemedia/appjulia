@@ -402,11 +402,6 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
       return `Agendado para ${formatFullBRT(start)}. Confirme com o lead.`;
     }
 
-    case "encaminhar_humano": {
-      // (handler original abaixo)
-      break;
-    }
-
     default:
       break;
   }
