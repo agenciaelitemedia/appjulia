@@ -7,6 +7,16 @@ import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
 import { findSpecialistForCase, logXJEvent, updateSession } from "./session.ts";
 import { isWithinBusinessHours } from "./activation.ts";
 import {
+  evaluateExpression,
+  formatBRL,
+  parcelamento,
+  parseNumber,
+  percentual,
+  rendaPerCapita,
+  round2,
+  XJ_SALARIO_MINIMO_PADRAO,
+} from "./calc.ts";
+import {
   diffCalendarDaysBRT,
   formatBRT,
   formatDateBRT,
