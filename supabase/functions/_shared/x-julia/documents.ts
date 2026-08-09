@@ -5,9 +5,13 @@
 import { xjComplete } from "./llm.ts";
 import type { XJAgent, XJInboundMessage } from "./types.ts";
 
-const MEDIA_PROMPT = `Você recebe uma mídia enviada por um lead de um escritório de advocacia.
-Descreva objetivamente o conteúdo relevante para triagem jurídica (valores, datas, nomes, empresa, tipo de documento).
-Se for áudio, transcreva fielmente. Responda em português, sem comentários extras.`;
+const MEDIA_PROMPT = `Você recebe uma mídia/arquivo enviado por um lead de um escritório de advocacia.
+Sua tarefa: identificar de que arquivo se trata e extrair só o que é útil para a triagem jurídica em andamento.
+Responda em português, em no máximo 5 linhas, no formato:
+- Tipo do documento: (ex.: laudo médico, CNIS, carteira de trabalho, print de conversa, planilha de valores, comprovante)
+- Dados relevantes: (nomes, CPF, datas, valores, CID/diagnóstico, empresa, período)
+- Serve para o caso? (sim/não e por quê, em uma frase)
+Se for áudio, transcreva fielmente. Sem comentários extras.`;
 
 /** Converte a mídia recebida em texto que o motor pode usar como entrada. */
 // deno-lint-ignore no-explicit-any
