@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, MessageSquare, Pause, Pencil, Play, Trash2 } from 'lucide-react';
+import { Clock, Eye, MessageSquare, Pause, Pencil, Play, SendHorizonal, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,13 @@ function fmt(value?: string | null) {
   return new Date(value).toLocaleString('pt-BR');
 }
 
+/** Verdadeiro quando a última fala é do agente/escritório: o agente aguarda o lead. */
+function isWaitingCustomer(session: XJSession) {
+  const lead = session.last_customer_message_at ? new Date(session.last_customer_message_at).getTime() : 0;
+  const agentAt = session.last_agent_message_at ? new Date(session.last_agent_message_at).getTime() : 0;
+  return agentAt > 0 && agentAt >= lead;
+}
+
 export default function XJSessionsManagePage() {
   const [search, setSearch] = useState('');
   const [stage, setStage] = useState('all');
@@ -46,7 +53,7 @@ export default function XJSessionsManagePage() {
     qualification: qualification === 'all' ? undefined : qualification,
   });
   const { data: cases = [] } = useXJCases();
-  const { pause, resume, updateFields, remove, advanceStage } = useXJSessionAdmin();
+  const { pause, resume, updateFields, remove, advanceStage, continueNow } = useXJSessionAdmin();
   const openChat = useOpenChatConversation();
 
   const sessions = useMemo(
@@ -223,9 +230,32 @@ export default function XJSessionsManagePage() {
                     <TableCell className="text-xs text-muted-foreground">
                       <div>Lead: {fmt(session.last_customer_message_at)}</div>
                       <div>Agente: {fmt(session.last_agent_message_at)}</div>
+                      {isWaitingCustomer(session) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="mt-1 gap-1 font-normal text-amber-600">
+                              <Clock className="h-3 w-3" /> Aguardando lead
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            A última mensagem foi do agente ou do escritório. O agente só responde quando o lead
+                            escrever de novo — use "Continuar agora" para forçar um turno.
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 rounded-full text-blue-600"
+                          title="Continuar agora (força um turno do agente)"
+                          disabled={continueNow.isPending}
+                          onClick={() => continueNow.mutate(session.id)}
+                        >
+                          <SendHorizonal className="h-4 w-4" />
+                        </Button>
                         {session.is_active ? (
                           <Button
                             variant="outline"
