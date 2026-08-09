@@ -208,6 +208,19 @@ export const XJ_TOOLS: XJToolDef[] = [
     description: "Encerra a sessão do agente (lead desqualificado, sem interesse ou atendimento concluído).",
     parameters: { type: "object", properties: { motivo: { type: "string" } } },
   },
+  {
+    name: "modo_audio",
+    description:
+      "Liga ou desliga o modo áudio da conversa. Ligue quando o lead pedir para conversar por áudio/voz, disser que não pode ou tem dificuldade para ler, ou vier respondendo por áudio. Desligue quando o lead pedir mensagens escritas.",
+    parameters: {
+      type: "object",
+      properties: {
+        ativar: { type: "boolean", description: "true para responder por áudio, false para voltar a texto" },
+        motivo: { type: "string", description: "por que o modo foi ligado/desligado (ex.: 'lead pediu áudio')" },
+      },
+      required: ["ativar"],
+    },
+  },
 ];
 
 // deno-lint-ignore no-explicit-any
@@ -538,6 +551,26 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
       await upsertDeal(supabase, agent, session, {});
       ctx.stop = true;
       return "Sessão encerrada.";
+    }
+
+    case "modo_audio": {
+      const ativar = args?.ativar !== false;
+      const motivo = String(args?.motivo ?? (ativar ? "lead prefere áudio" : "lead prefere texto")).slice(0, 300);
+      await updateSession(supabase, session, {
+        audio_mode: ativar,
+        audio_mode_reason: motivo,
+      });
+      await logXJEvent(supabase, session, {
+        kind: "audio_mode",
+        status: "ok",
+        detail: `${ativar ? "ligado" : "desligado"} — ${motivo}`,
+      });
+      if (ativar && !agent.voice_enabled) {
+        return "Modo áudio solicitado, mas a voz deste agente está desativada: continue respondendo em texto e avise o lead com naturalidade.";
+      }
+      return ativar
+        ? "Modo áudio ligado: as próximas respostas serão enviadas como nota de voz."
+        : "Modo áudio desligado: volte a responder em texto.";
     }
 
     default:

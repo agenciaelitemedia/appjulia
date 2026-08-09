@@ -124,6 +124,14 @@ export default function XJSessionDetailPage() {
               <span className="text-muted-foreground">Canal / origem</span>
               <span>{[session.channel, session.origin].filter(Boolean).join(' · ') || '—'}</span>
             </div>
+            {(session as any).audio_mode && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Modo áudio</span>
+                <Badge variant="default" title={(session as any).audio_mode_reason || undefined}>
+                  Respondendo por voz
+                </Badge>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Turnos</span>
               <span>{session.turns}</span>
@@ -217,7 +225,11 @@ export default function XJSessionDetailPage() {
               <div key={event.id} className="rounded-lg border p-2.5 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">
-                    {event.kind === 'voice' ? 'voz (áudio)' : event.skill || event.kind}
+                    {event.kind === 'voice'
+                      ? 'voz (áudio)'
+                      : event.kind === 'audio_mode'
+                        ? 'modo áudio'
+                        : event.skill || event.kind}
                   </span>
                   <Badge variant={event.status === 'error' ? 'destructive' : 'secondary'} className="text-[10px]">
                     {event.status}

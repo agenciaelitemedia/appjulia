@@ -10100,6 +10100,8 @@ export type Database = {
       xj_sessions: {
         Row: {
           agent_id: string | null
+          audio_mode: boolean
+          audio_mode_reason: string | null
           campaign_id: string | null
           case_id: string | null
           case_type: string | null
@@ -10133,6 +10135,8 @@ export type Database = {
         }
         Insert: {
           agent_id?: string | null
+          audio_mode?: boolean
+          audio_mode_reason?: string | null
           campaign_id?: string | null
           case_id?: string | null
           case_type?: string | null
@@ -10166,6 +10170,8 @@ export type Database = {
         }
         Update: {
           agent_id?: string | null
+          audio_mode?: boolean
+          audio_mode_reason?: string | null
           campaign_id?: string | null
           case_id?: string | null
           case_type?: string | null

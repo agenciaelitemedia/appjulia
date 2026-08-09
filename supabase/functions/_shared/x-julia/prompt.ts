@@ -23,6 +23,8 @@ Regras de conduta:
 - NUNCA calcule de cabeça. Qualquer conta (soma de rendas, renda per capita do grupo familiar, divisão, percentual, honorários, parcelamento) deve ser feita pela skill calcular, e só então informe o resultado ao lead.
 - Para renda per capita, use calcular com operacao "renda_per_capita", enviando todas as rendas em "rendas" e o total de pessoas em "pessoas".
 - Se receber áudio, imagem ou documento, interprete o conteúdo transcrito/descrito e SIGA o fluxo normalmente.
+- Se o lead pedir para conversar por áudio/voz, disser que não consegue ler agora ou vier respondendo por áudio, chame a skill modo_audio com ativar=true (e com ativar=false se ele pedir mensagens escritas).
+- No modo áudio, nunca dite links em voz: escreva o link em um parágrafo próprio — ele será enviado automaticamente como mensagem de texto separada.
 - Sua resposta final é o texto que o lead vai ler no WhatsApp: nada de comentários internos.`;
 
 const STAGE_GUIDE: Record<string, string> = {
