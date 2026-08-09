@@ -74,7 +74,11 @@ export default function XJAgentEditorPage() {
   const llmProviders = useMemo(() => {
     const enabled = (providerConfig?.providers ?? []).filter((p) => p.kind === 'llm' && p.is_enabled);
     if (!enabled.length) return XJ_LLM_PROVIDERS;
-    return XJ_LLM_PROVIDERS.filter((p) => enabled.some((e) => e.provider === p.id));
+    const known = XJ_LLM_PROVIDERS.filter((p) => enabled.some((e) => e.provider === p.id));
+    const extra = enabled
+      .filter((e) => !XJ_LLM_PROVIDERS.some((p) => p.id === e.provider))
+      .map((e) => ({ id: e.provider, label: e.provider, models: [] as string[] }));
+    return [...known, ...extra];
   }, [providerConfig]);
 
   const voiceProviders = useMemo(() => {
@@ -83,14 +87,28 @@ export default function XJAgentEditorPage() {
     return XJ_VOICE_PROVIDERS.filter((p) => enabled.some((e) => e.provider === p.id));
   }, [providerConfig]);
 
+  // Modelos: catálogo carregado (xj_model_pricing ativos) + modelos habilitados no provedor,
+  // com fallback para a lista estática. Sempre inclui o modelo atual do agente.
   const models = useMemo(() => {
-    const all = XJ_LLM_PROVIDERS.find((p) => p.id === form.llm_provider)?.models ?? [];
-    const setting = (providerConfig?.providers ?? []).find(
-      (p) => p.kind === 'llm' && p.provider === form.llm_provider,
-    );
+    const provider = form.llm_provider;
+    const staticModels = XJ_LLM_PROVIDERS.find((p) => p.id === provider)?.models ?? [];
+    const catalogModels = (providerConfig?.model_pricing ?? [])
+      .filter((r) => r.provider === provider && r.is_active !== false)
+      .map((r) => r.model);
+    const setting = (providerConfig?.providers ?? []).find((p) => p.kind === 'llm' && p.provider === provider);
     const allowed = setting?.enabled_models ?? [];
-    return allowed.length ? all.filter((m) => allowed.includes(m)) : all;
-  }, [form.llm_provider, providerConfig]);
+
+    let list: string[];
+    if (allowed.length) {
+      list = allowed;
+    } else if (catalogModels.length) {
+      list = catalogModels;
+    } else {
+      list = staticModels;
+    }
+    if (form.llm_model && !list.includes(form.llm_model)) list = [form.llm_model, ...list];
+    return Array.from(new Set(list));
+  }, [form.llm_provider, form.llm_model, providerConfig]);
 
   const clientKeyStatus = (kind: 'llm' | 'voice', provider?: string) =>
     (providerConfig?.client_keys ?? []).find((k) => k.kind === kind && k.provider === provider)?.masked ?? null;
