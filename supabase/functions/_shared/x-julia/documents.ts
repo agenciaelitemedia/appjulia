@@ -18,16 +18,21 @@ export async function xjReadInbound(
 ): Promise<string> {
   const text = (inbound.text ?? "").trim();
   const type = (inbound.type ?? "text").toLowerCase();
-  if (type === "text" || !inbound.media_url) return text;
+  if (type === "text") return text;
+  const isAudio = type === "audio" || type === "ptt";
+  if (!inbound.media_url && !isAudio) return text;
 
-  const label = type === "audio" || type === "ptt" ? "áudio" : type === "image" ? "imagem" : type === "video" ? "vídeo" : "documento";
+  const label = isAudio ? "áudio" : type === "image" ? "imagem" : type === "video" ? "vídeo" : "documento";
 
   // Áudio: usa a transcrição do próprio sistema (decripta .enc / WABA e respeita
   // a permissão de exibição no chat). Se falhar, cai na leitura inline abaixo.
-  if (type === "audio" || type === "ptt") {
+  if (isAudio) {
     const transcript = await transcribeViaChatFunction(supabase, inbound.message_id);
     if (transcript) {
       return [text, `[áudio recebido — transcrição: ${transcript}]`].filter(Boolean).join("\n");
+    }
+    if (!inbound.media_url) {
+      return text || `[${label} recebido, conteúdo não legível — peça ao lead que descreva]`;
     }
   }
 
