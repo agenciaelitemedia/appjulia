@@ -262,9 +262,17 @@ export default function XJAgentEditorPage() {
                 <Select
                   value={form.llm_provider}
                   onValueChange={(v) => {
-                    const provider = XJ_LLM_PROVIDERS.find((p) => p.id === v);
                     set('llm_provider', v);
-                    if (provider?.models?.length) set('llm_model', provider.models[0]);
+                    const setting = (providerConfig?.providers ?? []).find(
+                      (p) => p.kind === 'llm' && p.provider === v,
+                    );
+                    const first =
+                      setting?.enabled_models?.[0] ??
+                      (providerConfig?.model_pricing ?? []).find(
+                        (r) => r.provider === v && r.is_active !== false,
+                      )?.model ??
+                      XJ_LLM_PROVIDERS.find((p) => p.id === v)?.models?.[0];
+                    if (first) set('llm_model', first);
                   }}
                   disabled={!canEdit}
                 >
