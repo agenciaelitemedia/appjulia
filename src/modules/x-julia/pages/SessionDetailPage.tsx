@@ -226,6 +226,7 @@ export default function XJSessionDetailPage() {
                   {new Date(event.created_at).toLocaleString('pt-BR')}
                   {event.model ? ` · ${event.model}` : ''}
                   {event.duration_ms ? ` · ${event.duration_ms}ms` : ''}
+                  {(event as any).cost_usd ? ` · ${formatUsd(Number((event as any).cost_usd), 4)}` : ''}
                 </p>
               </div>
             ))}
