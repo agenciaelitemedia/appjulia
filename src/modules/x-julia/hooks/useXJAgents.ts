@@ -53,6 +53,8 @@ export function useXJAgentMutations() {
         .insert({
           client_id: String(clientId),
           name: input.name || 'X-Julia',
+          role: input.role ?? 'reception',
+          case_id: input.role === 'specialist' ? input.case_id ?? null : null,
           persona: input.persona ?? null,
           tone: input.tone ?? null,
           system_prompt: input.system_prompt ?? '',
