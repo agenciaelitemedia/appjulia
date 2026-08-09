@@ -132,6 +132,14 @@ Deno.serve(async (req) => {
       return json({ ok: true, ...contract });
     }
 
+    // Sincronização manual do CRM X-Julia com o quadro "CRM da Julia" no CRM Builder.
+    if (action === "crm_sync_builder") {
+      const clientId = String(data?.client_id ?? "");
+      if (!clientId) return json({ error: "client_id obrigatório" }, 400);
+      const result = await syncAllDealsToBuilder(supabase, clientId);
+      return json({ ok: true, ...result });
+    }
+
     return json({ error: `ação desconhecida: ${action}` }, 400);
   } catch (error) {
     console.error("[x-julia-admin] erro:", error);
