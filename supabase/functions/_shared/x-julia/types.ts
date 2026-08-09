@@ -143,6 +143,8 @@ export interface XJLegalCase {
   fee_description: string | null;
   contract_template: string | null;
   contract_provider: string | null;
+  /** Campos obrigatórios para gerar o contrato deste caso. */
+  contract_fields?: Array<{ key: string; label?: string; validation?: string }> | null;
 }
 
 export interface XJChatMessage {
