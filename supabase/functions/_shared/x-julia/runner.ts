@@ -246,23 +246,63 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
     finalAgent.voice_enabled && ["audio", "ptt"].includes(String(inbound.type ?? "").toLowerCase());
 
   if (wantsAudio) {
+    // Blocos com link de mídia não vão para a voz (a URL não deve ser narrada):
+    // o áudio leva só o texto e os blocos de mídia seguem em mensagens próprias.
+    const blocks = splitMessageBlocks(finalText);
+    const spokenBlocks = blocks.filter((b) => !detectMediaInBlock(b));
+    const mediaBlocks = blocks.filter((b) => !!detectMediaInBlock(b));
+    const spokenText = spokenBlocks.join("\n\n").trim() || finalText;
+
+    const voiceProvider = finalAgent.voice_provider ?? "elevenlabs";
+    const voiceStarted = Date.now();
     const voice = await xjSynthesize(supabase, {
       clientId: session.client_id,
-      text: finalText,
-      provider: finalAgent.voice_provider ?? "elevenlabs",
+      text: spokenText,
+      provider: voiceProvider,
       voiceId: finalAgent.voice_id,
       settings: finalAgent.voice_settings,
       keyMode: (finalAgent as any).voice_key_mode ?? "default",
     });
+
     if ("url" in voice) {
-      const sent = await xjSend(supabase, ctx.queue, session, finalText, {
+      await logXJEvent(supabase, session, {
+        kind: "voice",
+        status: "ok",
+        provider: voiceProvider,
+        detail: `voz ${finalAgent.voice_id ?? "padrão"} — ${spokenText.length} caracteres`,
+        duration_ms: Date.now() - voiceStarted,
+      });
+      // Áudio na UaZapi não aceita legenda: envia sem caption e grava como nota de voz.
+      const sent = await xjSend(supabase, ctx.queue, session, spokenText, {
         type: "audio",
         mediaUrl: voice.url,
-        caption: finalText,
+        caption: "",
+        persistAs: "ptt",
       });
-      if (!sent.ok) await xjSendComposed(supabase, ctx.queue, session, finalText);
+      if (!sent.ok) {
+        console.warn("[x-julia/tts] falha ao enviar áudio:", sent.error);
+        await logXJEvent(supabase, session, {
+          kind: "send",
+          status: "error",
+          detail: `áudio: ${sent.error ?? "falha"}`,
+        });
+        await xjSendComposed(supabase, ctx.queue, session, finalText);
+      } else if (mediaBlocks.length > 0) {
+        await xjSendComposed(supabase, ctx.queue, session, mediaBlocks.join("\n\n"));
+      }
     } else {
-      await xjSendComposed(supabase, ctx.queue, session, finalText);
+      console.warn(`[x-julia/tts] síntese falhou (${voiceProvider}):`, voice.error);
+      await logXJEvent(supabase, session, {
+        kind: "voice",
+        status: "error",
+        provider: voiceProvider,
+        detail: String(voice.error).slice(0, 500),
+        duration_ms: Date.now() - voiceStarted,
+      });
+      const sent = await xjSendComposed(supabase, ctx.queue, session, finalText);
+      if (!sent.ok) {
+        await logXJEvent(supabase, session, { kind: "send", status: "error", detail: sent.error ?? "falha" });
+      }
     }
   } else {
     const sent = await xjSendComposed(supabase, ctx.queue, session, finalText);
