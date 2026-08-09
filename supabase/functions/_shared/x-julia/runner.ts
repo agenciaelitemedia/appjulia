@@ -4,7 +4,7 @@
 import { xjReadInbound } from "./documents.ts";
 import { xjComplete } from "./llm.ts";
 import { estimateCost, loadPricingOverrides } from "./pricing.ts";
-import { detectMediaInBlock, splitMessageBlocks, xjSend, xjSendComposed } from "./messaging.ts";
+import { detectMediaInBlock, extractLinks, splitMessageBlocks, xjSend, xjSendComposed } from "./messaging.ts";
 import { buildXJMessages, loadHistory } from "./prompt.ts";
 import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
 import { runXJSkill, XJ_TOOLS } from "./skills.ts";
@@ -263,9 +263,7 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
       if (!sent.ok) {
         await logXJEvent(supabase, session, { kind: "send", status: "error", detail: sent.error ?? "falha" });
       }
-      return await finishTurn();
-    }
-
+    } else {
     const voiceProvider = finalAgent.voice_provider ?? "elevenlabs";
     const voiceStarted = Date.now();
     const voice = await xjSynthesize(supabase, {
@@ -316,6 +314,7 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
       if (!sent.ok) {
         await logXJEvent(supabase, session, { kind: "send", status: "error", detail: sent.error ?? "falha" });
       }
+    }
     }
   } else {
     const sent = await xjSendComposed(supabase, ctx.queue, session, finalText);
