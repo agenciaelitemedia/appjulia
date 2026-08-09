@@ -3,7 +3,7 @@
 // ============================================
 import { xjReadInbound } from "./documents.ts";
 import { xjComplete } from "./llm.ts";
-import { xjSend } from "./messaging.ts";
+import { xjSend, xjSendComposed } from "./messaging.ts";
 import { buildXJMessages, loadHistory } from "./prompt.ts";
 import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
 import { runXJSkill, XJ_TOOLS } from "./skills.ts";
@@ -167,12 +167,12 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
         mediaUrl: voice.url,
         caption: finalText,
       });
-      if (!sent.ok) await xjSend(supabase, ctx.queue, session, finalText);
+      if (!sent.ok) await xjSendComposed(supabase, ctx.queue, session, finalText);
     } else {
-      await xjSend(supabase, ctx.queue, session, finalText);
+      await xjSendComposed(supabase, ctx.queue, session, finalText);
     }
   } else {
-    const sent = await xjSend(supabase, ctx.queue, session, finalText);
+    const sent = await xjSendComposed(supabase, ctx.queue, session, finalText);
     if (!sent.ok) {
       await logXJEvent(supabase, session, { kind: "send", status: "error", detail: sent.error ?? "falha" });
     }
