@@ -1801,6 +1801,19 @@ Deno.serve(async (req) => {
           });
         }
 
+        // Resposta manual do escritório (digitada no WhatsApp/Web, não enviada pela API):
+        // avisa o motor X-Julia só para registrar que a sessão está aguardando o lead.
+        if (insertedMsg?.id && fromMe && msg?.wasSentByApi !== true) {
+          xjEvents.push({
+            manual_outbound: true,
+            conversation_id: conversationId ?? null,
+            contact_id: contact.id,
+            queue_id: queue.id,
+            client_id: queue.client_id,
+            message_text: toSafeString(text) || '',
+          });
+        }
+
         processed++;
       } catch (msgErr) {
         console.error('[uazapi-chat-webhook] Error processing message:', msgErr);
