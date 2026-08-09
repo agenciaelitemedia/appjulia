@@ -3,6 +3,7 @@
 // O agente nunca para: se não conseguir ler, devolve descrição neutra.
 // ============================================
 import { xjComplete } from "./llm.ts";
+import { xjResolveMediaBytes } from "./media.ts";
 import type { XJAgent, XJInboundMessage } from "./types.ts";
 
 const MEDIA_PROMPT = `Você recebe uma mídia/arquivo enviado por um lead de um escritório de advocacia.
@@ -24,7 +25,7 @@ export async function xjReadInbound(
   const type = (inbound.type ?? "text").toLowerCase();
   if (type === "text") return text;
   const isAudio = type === "audio" || type === "ptt";
-  if (!inbound.media_url && !isAudio) return text;
+  if (!inbound.media_url && !inbound.message_id && !isAudio) return text;
 
   const label = isAudio ? "áudio" : type === "image" ? "imagem" : type === "video" ? "vídeo" : "documento";
 
@@ -35,25 +36,40 @@ export async function xjReadInbound(
     if (transcript) {
       return [text, `[áudio recebido — transcrição: ${transcript}]`].filter(Boolean).join("\n");
     }
-    if (!inbound.media_url) {
+    if (!inbound.media_url && !inbound.message_id) {
       return text || `[${label} recebido, conteúdo não legível — peça ao lead que descreva]`;
     }
   }
 
   try {
     const content: any[] = [{ type: "text", text: MEDIA_PROMPT }];
+
+    // Resolve o conteúdo real (decriptado) — UaZapi entrega .enc, WABA entrega id.
+    const resolved = await xjResolveMediaBytes(
+      supabase,
+      inbound.message_id,
+      inbound.media_url,
+      inbound.mime_type,
+    );
+    if (!resolved) {
+      console.warn(`[x-julia/documents] mídia não resolvida (type=${type}, msg=${inbound.message_id ?? "?"})`);
+      return text || `[${label} recebido, conteúdo não legível — peça ao lead que descreva]`;
+    }
+
+    const bytes = base64ToBytes(resolved.base64);
+    const mime = (resolved.mimeType || inbound.mime_type || "application/octet-stream").toLowerCase();
+
     if (type === "image" || type === "sticker") {
-      content.push({ type: "image_url", image_url: { url: inbound.media_url } });
+      const imgMime = mime.startsWith("image/") ? mime : "image/jpeg";
+      content.push({
+        type: "image_url",
+        image_url: { url: `data:${imgMime};base64,${resolved.base64}` },
+      });
     } else if (type === "audio" || type === "ptt") {
-      const audio = await fetch(inbound.media_url);
-      const base64 = toBase64(new Uint8Array(await audio.arrayBuffer()));
-      const format = guessAudioFormat(inbound.mime_type);
-      content.push({ type: "input_audio", input_audio: { data: base64, format } });
+      const format = guessAudioFormat(mime);
+      content.push({ type: "input_audio", input_audio: { data: resolved.base64, format } });
     } else {
-      const file = await fetch(inbound.media_url);
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const mime = (inbound.mime_type || "application/pdf").toLowerCase();
-      const name = inbound.file_name ?? "documento";
+      const name = resolved.fileName ?? inbound.file_name ?? "documento";
 
       const extracted = await extractTextFromFile(bytes, mime, name);
       if (extracted) {
@@ -62,11 +78,13 @@ export async function xjReadInbound(
           type: "text",
           text: `Conteúdo extraído do arquivo "${name}":\n\n${extracted.slice(0, 20000)}`,
         });
-      } else if (mime.includes("pdf") || mime.startsWith("image/")) {
+      } else if (mime.includes("pdf")) {
         content.push({
           type: "file",
-          file: { filename: name, file_data: `data:${mime};base64,${toBase64(bytes)}` },
+          file: { filename: name, file_data: `data:${mime};base64,${resolved.base64}` },
         });
+      } else if (mime.startsWith("image/")) {
+        content.push({ type: "image_url", image_url: { url: `data:${mime};base64,${resolved.base64}` } });
       } else {
         return text || `[${label} recebido: ${name} — não foi possível ler o conteúdo, peça ao lead que descreva]`;
       }
@@ -157,11 +175,10 @@ async function transcribeViaChatFunction(supabase: any, messageId?: string | nul
   }
 }
 
-function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
+function base64ToBytes(base64: string): Uint8Array {
+  const clean = base64.replace(/^data:[^;]+;base64,/, "");
+  const binary = atob(clean);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
 }
