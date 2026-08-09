@@ -36,7 +36,7 @@ export async function xjReadInbound(
     if (transcript) {
       return [text, `[áudio recebido — transcrição: ${transcript}]`].filter(Boolean).join("\n");
     }
-    if (!inbound.media_url) {
+    if (!inbound.media_url && !inbound.message_id) {
       return text || `[${label} recebido, conteúdo não legível — peça ao lead que descreva]`;
     }
   }
