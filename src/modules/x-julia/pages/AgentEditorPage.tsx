@@ -13,8 +13,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { XJLayout } from '../components/XJLayout';
 import { XJActivationTab } from '../components/XJActivationTab';
+import { XJRoleBanner } from '../components/XJRoleBanner';
+import {
+  XJ_ROLE_STAGES,
+  XJ_ROLE_TABS,
+  getXJRolePreset,
+  type XJAgentRole,
+} from '../lib/agentRolePresets';
 import { normalizeXJBusinessHours, type XJBusinessHours } from '../lib/xjBusinessHours';
-import { useXJAgent, useXJAgentMutations, useXJAgentQueueLinks, useXJPromptVersions } from '../hooks/useXJAgents';
+import { useXJAgent, useXJAgentMutations, useXJAgentQueueLinks, useXJAgents, useXJPromptVersions } from '../hooks/useXJAgents';
 import { useXJCadences } from '../hooks/useXJFollowups';
 import { useXJCases } from '../hooks/useXJCases';
 import { useXJQueues } from '../extend/queues';
@@ -35,12 +42,21 @@ function SpecialistCaseSelect({
   value,
   onChange,
   disabled,
+  agentId,
 }: {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  agentId?: string;
 }) {
   const { data: cases = [], isLoading } = useXJCases();
+  const { data: agents = [] } = useXJAgents();
+  const taken = new Set(
+    agents
+      .filter((a) => (a.role ?? 'reception') === 'specialist' && a.id !== agentId && a.case_id)
+      .map((a) => a.case_id as string),
+  );
+  const available = cases.filter((c) => !taken.has(c.id) || c.id === value);
   return (
     <div className="space-y-1.5">
       <Label>Caso jurídico atendido</Label>
@@ -49,7 +65,7 @@ function SpecialistCaseSelect({
           <SelectValue placeholder={isLoading ? 'Carregando casos...' : 'Selecione o caso'} />
         </SelectTrigger>
         <SelectContent>
-          {cases.map((c) => (
+          {available.map((c) => (
             <SelectItem key={c.id} value={c.id}>
               {c.category} · {c.name}
             </SelectItem>
@@ -57,7 +73,7 @@ function SpecialistCaseSelect({
         </SelectContent>
       </Select>
       <p className="text-xs text-muted-foreground">
-        Cada caso pode ter apenas um agente especialista ativo.
+        Cada caso pode ter apenas um agente especialista — casos já atendidos por outro agente não aparecem aqui.
       </p>
     </div>
   );
