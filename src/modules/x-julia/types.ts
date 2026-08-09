@@ -118,6 +118,10 @@ export interface XJSession {
   last_customer_message_at: string | null;
   last_agent_message_at: string | null;
   turns: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+  cost_usd?: number;
   created_at: string;
   updated_at: string;
 }
