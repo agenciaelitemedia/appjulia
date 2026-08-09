@@ -105,6 +105,91 @@ export function useXJAgentMutations() {
     onError: (e: any) => toast.error(`Falha ao remover: ${e.message}`),
   });
 
+  /**
+   * Duplica um agente mantendo prompts, roteiro e configurações.
+   * Se o papel mudar, o prompt/roteiro do novo papel (preset) é aplicado.
+   */
+  const duplicate = useMutation({
+    mutationFn: async ({
+      source,
+      name,
+      role,
+      caseId,
+      caseName,
+      copyQueues = true,
+    }: {
+      source: XJAgent;
+      name: string;
+      role: XJAgentRole;
+      caseId?: string | null;
+      caseName?: string | null;
+      copyQueues?: boolean;
+    }) => {
+      if (!clientId) throw new Error('Escritório não identificado');
+      const sourceRole = (source.role ?? 'reception') as XJAgentRole;
+      const roleChanged = sourceRole !== role;
+      const preset = getXJRolePreset(role, caseName ?? null);
+
+      const { data, error } = await supabase
+        .from('xj_agents')
+        .insert({
+          client_id: String(clientId),
+          name,
+          role,
+          case_id: role === 'specialist' ? caseId ?? null : null,
+          is_active: false,
+          persona: roleChanged ? preset.persona : source.persona,
+          tone: roleChanged ? preset.tone : source.tone,
+          system_prompt: roleChanged ? preset.system_prompt : source.system_prompt,
+          stage_prompts: (roleChanged ? preset.stage_prompts : source.stage_prompts ?? {}) as any,
+          activation: (role === 'specialist' ? preset.activation : source.activation ?? {}) as any,
+          business_hours: (source.business_hours ?? {}) as any,
+          handoff_policy: (source.handoff_policy ?? {}) as any,
+          mirror_to_crm_builder: source.mirror_to_crm_builder,
+          max_turns: source.max_turns,
+          llm_provider: source.llm_provider,
+          llm_model: source.llm_model,
+          llm_fallback_enabled: source.llm_fallback_enabled,
+          llm_key_mode: source.llm_key_mode,
+          voice_key_mode: source.voice_key_mode,
+          voice_enabled: source.voice_enabled,
+          voice_provider: source.voice_provider,
+          voice_id: source.voice_id,
+          voice_settings: (source.voice_settings ?? {}) as any,
+          contract_provider: source.contract_provider,
+          contract_template: source.contract_template,
+          created_by: userName,
+        } as any)
+        .select('*')
+        .single();
+      if (error) throw error;
+      const created = data as unknown as XJAgent;
+
+      if (copyQueues && role === 'reception') {
+        const { data: links } = await supabase
+          .from('xj_agent_queue_links')
+          .select('queue_id')
+          .eq('agent_id', source.id);
+        if (links?.length) {
+          await supabase.from('xj_agent_queue_links').insert(
+            links.map((l: any) => ({
+              client_id: String(clientId),
+              agent_id: created.id,
+              queue_id: l.queue_id,
+            })) as any,
+          );
+        }
+      }
+
+      return created;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success('Agente duplicado (inativo) — revise e ative');
+    },
+    onError: (e: any) => toast.error(`Falha ao duplicar: ${e.message}`),
+  });
+
   /** Salva o prompt atual como versão e aplica no agente. */
   const savePromptVersion = useMutation({
     mutationFn: async ({
@@ -154,7 +239,7 @@ export function useXJAgentMutations() {
     onError: (e: any) => toast.error(`Falha ao salvar prompt: ${e.message}`),
   });
 
-  return { create, update, remove, savePromptVersion };
+  return { create, update, remove, duplicate, savePromptVersion };
 }
 
 export function useXJPromptVersions(agentId?: string) {

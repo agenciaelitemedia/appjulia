@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Building2, Plus, Settings2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Building2, Copy, Plus, Settings2, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,13 +36,14 @@ import {
   suggestXJAgentName,
   type XJAgentRole,
 } from '../lib/agentRolePresets';
+import type { XJAgent } from '../types';
 import { useXJPermissions } from '../extend/auth';
 import { useXJScope } from '../context/XJScopeContext';
 import { X_JULIA_ROUTES } from '../module';
 
 export default function XJAgentsPage() {
   const { data: agents = [], isLoading } = useXJAgents();
-  const { create, update, remove } = useXJAgentMutations();
+  const { create, update, remove, duplicate } = useXJAgentMutations();
   const permissions = useXJPermissions();
   const { clientId, clientLabel, canSwitch } = useXJScope();
 
@@ -55,11 +56,38 @@ export default function XJAgentsPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmChecked, setConfirmChecked] = useState(false);
 
+  const [dupSource, setDupSource] = useState<XJAgent | null>(null);
+  const [dupName, setDupName] = useState('');
+  const [dupRole, setDupRole] = useState<XJAgentRole>('reception');
+  const [dupCaseId, setDupCaseId] = useState('');
+
   const takenCaseIds = new Set(
     agents.filter((a) => (a.role ?? 'reception') === 'specialist' && a.case_id).map((a) => a.case_id as string),
   );
   const availableCases = cases.filter((c) => !takenCaseIds.has(c.id));
   const selectedCase = cases.find((c) => c.id === caseId) ?? null;
+  const dupSelectedCase = cases.find((c) => c.id === dupCaseId) ?? null;
+
+  const openDuplicate = (agent: XJAgent) => {
+    const r = (agent.role ?? 'reception') as XJAgentRole;
+    setDupSource(agent);
+    setDupRole(r);
+    setDupCaseId('');
+    setDupName(`${agent.name} (cópia)`);
+  };
+
+  const handleDuplicate = async () => {
+    if (!dupSource) return;
+    const agent = await duplicate.mutateAsync({
+      source: dupSource,
+      name: dupName,
+      role: dupRole,
+      caseId: dupRole === 'specialist' ? dupCaseId : null,
+      caseName: dupSelectedCase?.name ?? null,
+    });
+    setDupSource(null);
+    if (agent?.id) window.location.assign(X_JULIA_ROUTES.agent(agent.id));
+  };
 
   const openCreate = () => {
     setStep(1);
@@ -194,6 +222,18 @@ export default function XJAgentsPage() {
                         <Settings2 className="mr-1.5 h-3.5 w-3.5" /> Configurar
                       </Link>
                     </Button>
+                    {permissions.canCreate && (
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="rounded-full"
+                        title="Duplicar agente"
+                        disabled={!clientId}
+                        onClick={() => openDuplicate(agent)}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     {permissions.canDelete && (
                       <Button
                         size="icon"
@@ -292,6 +332,86 @@ export default function XJAgentsPage() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!dupSource} onOpenChange={(open) => !open && setDupSource(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicar agente</DialogTitle>
+            <DialogDescription>
+              A cópia mantém prompt, roteiro por etapa, LLM, voz, contrato e horários do agente original. Se você mudar
+              a função, o prompt e o roteiro do novo papel (preset) são aplicados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Função da cópia</Label>
+              <Select
+                value={dupRole}
+                onValueChange={(v) => {
+                  const r = v as XJAgentRole;
+                  setDupRole(r);
+                  setDupCaseId('');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(['reception', 'specialist'] as XJAgentRole[]).map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {XJ_ROLE_LABELS[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{XJ_ROLE_DESCRIPTIONS[dupRole]}</p>
+            </div>
+
+            {dupRole === 'specialist' && (
+              <div className="space-y-2">
+                <Label>Caso jurídico da cópia</Label>
+                <Select value={dupCaseId || undefined} onValueChange={setDupCaseId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={availableCases.length ? 'Selecione o caso' : 'Nenhum caso livre'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableCases.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.category} · {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Cada caso tem um único especialista, então escolha um caso ainda livre.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Nome da cópia</Label>
+              <Input value={dupName} onChange={(e) => setDupName(e.target.value)} />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              A cópia é criada inativa
+              {dupRole === 'reception' ? ' e já herda os vínculos de fila do original.' : '.'}
+            </p>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDupSource(null)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleDuplicate}
+                disabled={!dupName.trim() || duplicate.isPending || (dupRole === 'specialist' && !dupCaseId)}
+              >
+                Duplicar
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
