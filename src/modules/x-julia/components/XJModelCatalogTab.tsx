@@ -4,7 +4,7 @@
  * usados pelo motor no cálculo de custo das sessões.
  */
 import { useMemo, useState } from 'react';
-import { Download, Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { CloudDownload, Download, Loader2, Plus, RefreshCw, Save, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,10 +22,21 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   useXJModelPricingMutations,
   useXJProviderConfig,
   type XJModelPricingRow,
+  type XJRemoteModel,
 } from '../hooks/useXJProviderConfig';
 import { XJ_LLM_PROVIDERS } from '../module';
 import { XJ_MODEL_CATALOG } from '../modelCatalog';
@@ -64,12 +75,38 @@ function toDraft(row: XJModelPricingRow): Draft {
 
 export function XJModelCatalogTab() {
   const { data, isLoading } = useXJProviderConfig();
-  const { savePricing, deletePricing, seedPricing } = useXJModelPricingMutations();
+  const { savePricing, deletePricing, seedPricing, fetchProviderModels, importProviderModels } =
+    useXJModelPricingMutations();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [newRow, setNewRow] = useState<Draft>(EMPTY);
+  const [remoteProvider, setRemoteProvider] = useState<string>(XJ_LLM_PROVIDERS[0]?.id ?? 'lovable');
+  const [remoteModels, setRemoteModels] = useState<XJRemoteModel[] | null>(null);
+  const [remoteFilter, setRemoteFilter] = useState('');
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
 
   const rows = useMemo(() => data?.model_pricing ?? [], [data]);
   const defaultCount = Object.keys(XJ_MODEL_CATALOG).length;
+
+  const filteredRemote = useMemo(() => {
+    const list = remoteModels ?? [];
+    const q = remoteFilter.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((m) => m.model.toLowerCase().includes(q) || (m.note ?? '').toLowerCase().includes(q));
+  }, [remoteModels, remoteFilter]);
+
+  const selectedModels = useMemo(
+    () => (remoteModels ?? []).filter((m) => selected[m.model]),
+    [remoteModels, selected],
+  );
+
+  const loadRemote = () => {
+    setRemoteModels(null);
+    setSelected({});
+    fetchProviderModels.mutate(
+      { provider: remoteProvider },
+      { onSuccess: (list) => setRemoteModels(list) },
+    );
+  };
 
   const draftFor = (row: XJModelPricingRow) =>
     drafts[`${row.provider}/${row.model}`] ?? toDraft(row);
@@ -200,6 +237,136 @@ export function XJModelCatalogTab() {
               </Button>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CloudDownload className="h-4 w-4" /> Buscar modelos no provedor
+          </CardTitle>
+          <CardDescription>
+            Consulta a lista de modelos direto na API do provedor de LLM (usa a chave configurada). O OpenRouter
+            também devolve preços e contexto automaticamente; nos demais, revise os valores depois de importar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[220px] space-y-1.5">
+              <Label>Provedor</Label>
+              <Select value={remoteProvider} onValueChange={setRemoteProvider}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {XJ_LLM_PROVIDERS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button size="sm" onClick={loadRemote} disabled={fetchProviderModels.isPending}>
+              {fetchProviderModels.isPending ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1.5 h-4 w-4" />
+              )}
+              Buscar modelos
+            </Button>
+            {remoteModels && (
+              <div className="relative min-w-[200px] flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-8"
+                  placeholder="Filtrar modelos…"
+                  value={remoteFilter}
+                  onChange={(e) => setRemoteFilter(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          {remoteModels && (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {remoteModels.length} modelo(s) encontrados · {selectedModels.length} selecionado(s)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setSelected(
+                        Object.fromEntries(filteredRemote.map((m) => [m.model, true])) as Record<string, boolean>,
+                      )
+                    }
+                  >
+                    Selecionar visíveis
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setSelected({})}>
+                    Limpar
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!selectedModels.length || importProviderModels.isPending}
+                    onClick={() =>
+                      importProviderModels.mutate(
+                        { provider: remoteProvider, models: selectedModels },
+                        { onSuccess: () => setSelected({}) },
+                      )
+                    }
+                  >
+                    {importProviderModels.isPending ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-1.5 h-4 w-4" />
+                    )}
+                    Importar selecionados
+                  </Button>
+                </div>
+              </div>
+              <ScrollArea className="h-64 rounded-lg border">
+                <div className="divide-y">
+                  {filteredRemote.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">Nenhum modelo para este filtro.</p>
+                  ) : (
+                    filteredRemote.map((m) => (
+                      <label
+                        key={m.model}
+                        className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          checked={!!selected[m.model]}
+                          onCheckedChange={(v) =>
+                            setSelected((prev) => ({ ...prev, [m.model]: !!v }))
+                          }
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{m.model}</p>
+                          {m.note && <p className="truncate text-xs text-muted-foreground">{m.note}</p>}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {m.input_per_1m != null && m.output_per_1m != null && (
+                            <Badge variant="secondary" className="text-[11px]">
+                              ${m.input_per_1m} / ${m.output_per_1m} por 1M
+                            </Badge>
+                          )}
+                          {!!m.context_tokens && (
+                            <Badge variant="outline" className="text-[11px]">
+                              {Number(m.context_tokens).toLocaleString('pt-BR')} ctx
+                            </Badge>
+                          )}
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </>
+          )}
         </CardContent>
       </Card>
 
