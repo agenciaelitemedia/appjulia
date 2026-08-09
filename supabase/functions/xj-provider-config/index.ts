@@ -4,6 +4,7 @@
 // As chaves nunca são devolvidas em texto puro; apenas mascaradas.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { XJ_MODEL_CATALOG } from "../_shared/x-julia/pricing.ts";
+import { XJ_PROVIDERS, getProvider } from "../_shared/x-julia/llm.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,145 @@ function mask(key?: string | null): string | null {
   if (!k) return null;
   if (k.length <= 8) return "••••";
   return `${k.slice(0, 4)}…${k.slice(-4)}`;
+}
+
+export interface RemoteModel {
+  model: string;
+  input_per_1m?: number | null;
+  output_per_1m?: number | null;
+  context_tokens?: number | null;
+  note?: string | null;
+}
+
+// Resolve a chave utilizável para consultar o provedor: chave do escritório
+// (quando client_id informado) -> chave padrão -> legado ai_provider_keys.
+async function resolveProviderKey(providerId: string, clientId?: string | null): Promise<string> {
+  const def = getProvider(providerId);
+  if (!def.keyName) return Deno.env.get("LOVABLE_API_KEY") ?? "";
+
+  if (clientId) {
+    const { data } = await supabase
+      .from("xj_client_provider_keys")
+      .select("api_key")
+      .eq("client_id", String(clientId))
+      .eq("provider", providerId)
+      .eq("kind", "llm")
+      .maybeSingle();
+    const k = (data?.api_key ?? "").toString().trim();
+    if (k) return k;
+  }
+
+  const { data: settings } = await supabase
+    .from("xj_provider_settings")
+    .select("default_key")
+    .eq("provider", providerId)
+    .eq("kind", "llm")
+    .maybeSingle();
+  const std = (settings?.default_key ?? "").toString().trim();
+  if (std) return std;
+
+  const { data: legacy } = await supabase
+    .from("ai_provider_keys")
+    .select("api_key")
+    .eq("provider", def.keyName)
+    .maybeSingle();
+  return (legacy?.api_key ?? "").toString().trim();
+}
+
+function num(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Busca a lista de modelos direto na API do provedor.
+async function fetchProviderModels(providerId: string, apiKey: string): Promise<RemoteModel[]> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+
+  if (providerId === "lovable") {
+    // O gateway não expõe /models: devolve o catálogo conhecido do sistema.
+    return Object.entries(XJ_MODEL_CATALOG)
+      .filter(([key]) => key.startsWith("lovable/"))
+      .map(([key, info]) => ({
+        model: key.split("/").slice(1).join("/"),
+        input_per_1m: info.inputPer1M,
+        output_per_1m: info.outputPer1M,
+        context_tokens: info.context,
+        note: info.note,
+      }));
+  }
+
+  if (providerId === "openrouter") {
+    const res = await fetch("https://openrouter.ai/api/v1/models", { headers });
+    const raw = await res.text();
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${raw.slice(0, 300)}`);
+    const parsed = JSON.parse(raw);
+    return (parsed?.data ?? []).map((m: any) => {
+      const inPrice = num(m?.pricing?.prompt);
+      const outPrice = num(m?.pricing?.completion);
+      return {
+        model: String(m?.id ?? ""),
+        // OpenRouter devolve preço por token; convertemos para 1M.
+        input_per_1m: inPrice === null ? null : Number((inPrice * 1_000_000).toFixed(4)),
+        output_per_1m: outPrice === null ? null : Number((outPrice * 1_000_000).toFixed(4)),
+        context_tokens: num(m?.context_length),
+        note: m?.name ? String(m.name) : null,
+      };
+    }).filter((m: RemoteModel) => m.model);
+  }
+
+  if (providerId === "anthropic") {
+    if (!apiKey) throw new Error("chave da Anthropic não configurada");
+    const res = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+      headers: { ...headers, "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    });
+    const raw = await res.text();
+    if (!res.ok) throw new Error(`Anthropic ${res.status}: ${raw.slice(0, 300)}`);
+    const parsed = JSON.parse(raw);
+    return (parsed?.data ?? [])
+      .map((m: any) => ({ model: String(m?.id ?? ""), note: m?.display_name ? String(m.display_name) : null }))
+      .filter((m: RemoteModel) => m.model);
+  }
+
+  if (providerId === "gemini") {
+    if (!apiKey) throw new Error("chave do Google Gemini não configurada");
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}&pageSize=200`,
+    );
+    const raw = await res.text();
+    if (!res.ok) throw new Error(`Gemini ${res.status}: ${raw.slice(0, 300)}`);
+    const parsed = JSON.parse(raw);
+    return (parsed?.models ?? [])
+      .filter((m: any) => (m?.supportedGenerationMethods ?? []).includes("generateContent"))
+      .map((m: any) => ({
+        model: String(m?.name ?? "").replace(/^models\//, ""),
+        context_tokens: num(m?.inputTokenLimit),
+        note: m?.displayName ? String(m.displayName) : null,
+      }))
+      .filter((m: RemoteModel) => m.model);
+  }
+
+  // Demais provedores falam o padrão OpenAI: GET /models.
+  const endpoints: Record<string, string> = {
+    openai: "https://api.openai.com/v1/models",
+    deepseek: "https://api.deepseek.com/v1/models",
+    grok: "https://api.x.ai/v1/models",
+    llmapi: "https://api.llmapi.com/models",
+  };
+  const url = endpoints[providerId];
+  if (!url) throw new Error(`provedor ${providerId} não suporta listagem automática de modelos`);
+  if (!apiKey) throw new Error("chave do provedor não configurada");
+
+  const res = await fetch(url, { headers: { ...headers, Authorization: `Bearer ${apiKey}` } });
+  const raw = await res.text();
+  if (!res.ok) throw new Error(`${providerId} ${res.status}: ${raw.slice(0, 300)}`);
+  const parsed = JSON.parse(raw);
+  const list = Array.isArray(parsed) ? parsed : (parsed?.data ?? parsed?.models ?? []);
+  return (list ?? [])
+    .map((m: any) => ({
+      model: String(typeof m === "string" ? m : (m?.id ?? m?.model ?? "")),
+      context_tokens: num(m?.context_window ?? m?.context_length ?? null),
+    }))
+    .filter((m: RemoteModel) => m.model);
 }
 
 Deno.serve(async (req) => {
