@@ -208,7 +208,8 @@ Deno.serve(async (req) => {
         .from("xj_model_pricing")
         .select("id, provider, model, input_per_1m, output_per_1m, context_tokens, note, is_active, updated_at")
         .order("provider")
-        .order("model");
+        .order("model")
+        .limit(5000);
 
       return json({ providers, client_keys: clientKeys, model_pricing: pricing ?? [] });
     }
