@@ -87,8 +87,9 @@ export default function XJAgentEditorPage() {
     return XJ_VOICE_PROVIDERS.filter((p) => enabled.some((e) => e.provider === p.id));
   }, [providerConfig]);
 
-  // Modelos: catálogo carregado (xj_model_pricing ativos) + modelos habilitados no provedor,
-  // com fallback para a lista estática. Sempre inclui o modelo atual do agente.
+  // Modelos: apenas os liberados no provedor (Configuração do X-Julia). Se nenhum foi
+  // liberado, cai para o catálogo ativo e, por último, para a lista estática.
+  // Sempre inclui o modelo atual do agente.
   const models = useMemo(() => {
     const provider = form.llm_provider;
     const staticModels = XJ_LLM_PROVIDERS.find((p) => p.id === provider)?.models ?? [];
@@ -98,9 +99,7 @@ export default function XJAgentEditorPage() {
     const setting = (providerConfig?.providers ?? []).find((p) => p.kind === 'llm' && p.provider === provider);
     const allowed = setting?.enabled_models ?? [];
 
-    // Prioriza catálogo carregado/ativo, somando os modelos marcados no provedor.
-    let list: string[] = [...allowed, ...catalogModels];
-    if (!list.length) list = staticModels;
+    let list: string[] = allowed.length ? [...allowed] : catalogModels.length ? [...catalogModels] : [...staticModels];
     if (form.llm_model && !list.includes(form.llm_model)) list = [form.llm_model, ...list];
     return Array.from(new Set(list));
   }, [form.llm_provider, form.llm_model, providerConfig]);
