@@ -43,6 +43,9 @@ export interface XJAgent {
   client_id: string;
   name: string;
   is_active: boolean;
+  /** reception = recepcionista/roteador | specialist = especialista de um caso */
+  role?: string;
+  case_id?: string | null;
   persona: string | null;
   tone: string | null;
   system_prompt: string;
@@ -121,6 +124,8 @@ export interface XJRunContext {
   replies: string[];
   events: Array<Record<string, unknown>>;
   stop?: boolean;
+  /** Marcado quando a sessão passa do recepcionista para o especialista do caso. */
+  agentSwitched?: boolean;
 }
 
 export interface XJLegalCase {
