@@ -59,6 +59,8 @@ export default function XJAgentEditorPage() {
       mirror_to_crm_builder: agent.mirror_to_crm_builder,
       max_turns: agent.max_turns ?? 40,
       is_active: agent.is_active,
+      role: (agent as any).role ?? 'reception',
+      case_id: (agent as any).case_id ?? '',
       activation: (agent as any).activation ?? {},
       business_hours: normalizeXJBusinessHours((agent as any).business_hours),
     });
@@ -118,6 +120,8 @@ export default function XJAgentEditorPage() {
         voice_id: form.voice_id || null,
         contract_template: form.contract_template || null,
         max_turns: Number(form.max_turns) || 40,
+        role: form.role ?? 'reception',
+        case_id: form.role === 'specialist' ? form.case_id || null : null,
         activation: form.activation ?? {},
         business_hours: normalizeXJBusinessHours(form.business_hours),
       } as any,
@@ -190,6 +194,30 @@ export default function XJAgentEditorPage() {
                   disabled={!canEdit}
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>Função do agente</Label>
+                <Select
+                  value={form.role ?? 'reception'}
+                  onValueChange={(v) => {
+                    set('role', v);
+                    if (v !== 'specialist') set('case_id', '');
+                  }}
+                  disabled={!canEdit}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="reception">Recepcionista (triagem)</SelectItem>
+                    <SelectItem value="specialist">Especialista de caso</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  O recepcionista atende as filas e identifica o caso; ao identificar, o atendimento passa
+                  automaticamente para o especialista daquele caso.
+                </p>
+              </div>
+              {form.role === 'specialist' && <SpecialistCaseSelect value={form.case_id ?? ''} onChange={(v) => set('case_id', v)} disabled={!canEdit} />}
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
                   <p className="text-sm font-medium">Agente ativo</p>
