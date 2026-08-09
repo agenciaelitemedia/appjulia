@@ -163,5 +163,38 @@ export function useXJModelPricingMutations() {
     onError: (e: any) => toast.error(e?.message || 'Erro ao importar catálogo'),
   });
 
-  return { savePricing, deletePricing, seedPricing };
+  const fetchProviderModels = useMutation<XJRemoteModel[], any, { provider: string; client_id?: string | null }>({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.functions.invoke('xj-provider-config', {
+        method: 'POST',
+        body: { action: 'list_provider_models', ...input },
+      });
+      if (error) {
+        const detail = await (error as any)?.context?.json?.().catch(() => null);
+        throw new Error(detail?.error || error.message);
+      }
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return ((data as any)?.models ?? []) as XJRemoteModel[];
+    },
+    onError: (e: any) => toast.error(e?.message || 'Erro ao buscar modelos do provedor'),
+  });
+
+  const importProviderModels = useMutation({
+    mutationFn: async (input: { provider: string; models: XJRemoteModel[] }) => {
+      const { data, error } = await supabase.functions.invoke('xj-provider-config', {
+        method: 'POST',
+        body: { action: 'import_provider_models', ...input },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return (data as any)?.imported ?? 0;
+    },
+    onSuccess: (count) => {
+      invalidate();
+      toast.success(`${count} modelo(s) importado(s) do provedor`);
+    },
+    onError: (e: any) => toast.error(e?.message || 'Erro ao importar modelos'),
+  });
+
+  return { savePricing, deletePricing, seedPricing, fetchProviderModels, importProviderModels };
 }
