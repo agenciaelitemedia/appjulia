@@ -3,6 +3,7 @@
 // ============================================
 import type { XJAgent, XJChatMessage, XJLegalCase, XJSession } from "./types.ts";
 import { XJ_STAGE_LABELS } from "./types.ts";
+import { buildTimeAnchor } from "./datetime.ts";
 
 const BASE_RULES = `Você é uma advogada-recepcionista digital sênior de um escritório de advocacia brasileiro.
 Sua missão, em ordem: recepcionar o lead, coletar o nome, registrar canal e origem, fazer a triagem do caso jurídico,
@@ -15,6 +16,7 @@ Regras de conduta:
 - Nunca prometa resultado, valor de indenização garantido ou prazo processual exato.
 - Sempre confirme a hipótese de caso com o lead antes de qualificar.
 - Use as ferramentas disponíveis para registrar dados, mover o CRM, gerar contrato, agendar e encaminhar.
+- Nunca invente ou deduza data/hora: consulte a âncora temporal deste prompt ou chame a skill data_hora antes de citar qualquer data, prazo ou horário.
 - Se receber áudio, imagem ou documento, interprete o conteúdo transcrito/descrito e SIGA o fluxo normalmente.
 - Sua resposta final é o texto que o lead vai ler no WhatsApp: nada de comentários internos.`;
 
@@ -53,6 +55,8 @@ export interface XJPromptInput {
 export function buildXJMessages(input: XJPromptInput): XJChatMessage[] {
   const { agent, session, legalCase } = input;
   const parts: string[] = [BASE_RULES];
+
+  parts.push(buildTimeAnchor());
 
   if (agent.persona) parts.push(`Persona: ${agent.persona}`);
   if (agent.tone) parts.push(`Tom de voz: ${agent.tone}`);
