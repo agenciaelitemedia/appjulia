@@ -33,3 +33,15 @@ O agente só recebe as **24 últimas mensagens da conversa atual** (`loadHistory
 - Corte de tamanho: limite de caracteres por mensagem (ex. 1200) e limite total do histórico, para não estourar o contexto do modelo nem o custo por turno.
 - Deploy das funções `x-julia-engine` e `x-julia-followup-runner` após a alteração (compartilham `_shared/x-julia`).
 - Sem mudança de schema; nada do fluxo da Julia clássica é tocado.
+
+## Correção: ativação "apenas por campanha"
+
+Hoje, com **Apenas Campanha** ligado, a sessão abre sempre que a mensagem chega com qualquer marcador de campanha (`campaign_id`/`campaign_title`), mesmo sem nenhuma das frases configuradas — e o campo `campaign_id` chega preenchido em muitos anúncios genéricos.
+
+Novo comportamento (em `supabase/functions/x-julia-engine/index.ts` + `_shared/x-julia/activation.ts`):
+
+- Com **Apenas Campanha** ligado, a sessão só abre quando o **texto da mensagem contém** uma das frases de "Início por campanha" (`start_campaign`). Não precisa ser igual — basta conter a frase em qualquer parte do texto.
+- Se não houver frase configurada nesse modo, mantém-se o comportamento atual (marcador de campanha basta), para não travar agentes já em uso.
+- A comparação passa a ignorar acentuação, maiúsculas/minúsculas, pontuação e espaços extras (hoje só ignora caixa e espaços nas pontas), então "Olá, vi o anúncio!" casa com "vi o anuncio".
+- Mensagens que não casarem continuam apenas ignoradas pelo X-Julia (a conversa segue normal no chat, sem sessão aberta).
+- A mesma normalização vale para as frases de início de sessão e de atendimento especializado.
