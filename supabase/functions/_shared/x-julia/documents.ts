@@ -132,15 +132,6 @@ async function extractTextFromFile(
   return null;
 }
 
-function _unusedGuessAudioFormat(mime?: string | null): string {
-  const m = (mime ?? "").toLowerCase();
-  if (m.includes("mp4") || m.includes("m4a")) return "m4a";
-  if (m.includes("mpeg") || m.includes("mp3")) return "mp3";
-  if (m.includes("wav")) return "wav";
-  if (m.includes("ogg")) return "ogg";
-  return "webm";
-}
-
 /** Transcreve via edge function `chat-transcribe-audio` (uso interno do agente). */
 // deno-lint-ignore no-explicit-any
 async function transcribeViaChatFunction(supabase: any, messageId?: string | null): Promise<string | null> {
