@@ -225,7 +225,11 @@ export default function XJSessionDetailPage() {
               <div key={event.id} className="rounded-lg border p-2.5 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">
-                    {event.kind === 'voice' ? 'voz (áudio)' : event.skill || event.kind}
+                    {event.kind === 'voice'
+                      ? 'voz (áudio)'
+                      : event.kind === 'audio_mode'
+                        ? 'modo áudio'
+                        : event.skill || event.kind}
                   </span>
                   <Badge variant={event.status === 'error' ? 'destructive' : 'secondary'} className="text-[10px]">
                     {event.status}
