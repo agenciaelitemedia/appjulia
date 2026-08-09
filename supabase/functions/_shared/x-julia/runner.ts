@@ -243,7 +243,8 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
   // 5) Resposta: texto ou áudio (quando o lead falou por áudio e a voz está ligada).
   const finalAgent = ctx.agent;
   const wantsAudio =
-    finalAgent.voice_enabled && ["audio", "ptt"].includes(String(inbound.type ?? "").toLowerCase());
+    finalAgent.voice_enabled &&
+    (["audio", "ptt"].includes(String(inbound.type ?? "").toLowerCase()) || !!(session as any).audio_mode);
 
   if (wantsAudio) {
     // Blocos com link de mídia não vão para a voz (a URL não deve ser narrada):
@@ -251,7 +252,19 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
     const blocks = splitMessageBlocks(finalText);
     const spokenBlocks = blocks.filter((b) => !detectMediaInBlock(b));
     const mediaBlocks = blocks.filter((b) => !!detectMediaInBlock(b));
-    const spokenText = spokenBlocks.join("\n\n").trim() || finalText;
+    // Links simples (não-mídia) também saem do áudio e vão como mensagem de texto.
+    const { spoken, linkMessages } = extractLinks(spokenBlocks.join("\n\n").trim() || finalText);
+    const spokenText = spoken;
+    const extraTextBlocks = [...mediaBlocks, ...linkMessages];
+
+    if (!spokenText) {
+      // Nada para falar: envia só os links/mídias como texto.
+      const sent = await xjSendComposed(supabase, ctx.queue, session, extraTextBlocks.join("\n\n") || finalText);
+      if (!sent.ok) {
+        await logXJEvent(supabase, session, { kind: "send", status: "error", detail: sent.error ?? "falha" });
+      }
+      return await finishTurn();
+    }
 
     const voiceProvider = finalAgent.voice_provider ?? "elevenlabs";
     const voiceStarted = Date.now();
@@ -287,8 +300,8 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
           detail: `áudio: ${sent.error ?? "falha"}`,
         });
         await xjSendComposed(supabase, ctx.queue, session, finalText);
-      } else if (mediaBlocks.length > 0) {
-        await xjSendComposed(supabase, ctx.queue, session, mediaBlocks.join("\n\n"));
+      } else if (extraTextBlocks.length > 0) {
+        await xjSendComposed(supabase, ctx.queue, session, extraTextBlocks.join("\n\n"));
       }
     } else {
       console.warn(`[x-julia/tts] síntese falhou (${voiceProvider}):`, voice.error);
