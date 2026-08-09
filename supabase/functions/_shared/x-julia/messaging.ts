@@ -10,6 +10,8 @@ export interface XJSendOptions {
   mediaUrl?: string | null;
   caption?: string | null;
   senderName?: string;
+  /** Tipo gravado em chat_messages (ex.: "ptt" para nota de voz). */
+  persistAs?: string;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -46,7 +48,7 @@ export async function xjSend(
     client_id: session.client_id,
     text: type === "text" ? text : (options.caption ?? text ?? ""),
     from_me: true,
-    type,
+    type: options.persistAs ?? type,
     media_url: options.mediaUrl ?? null,
     status: "sent",
     sender_name: options.senderName ?? "X-Julia",

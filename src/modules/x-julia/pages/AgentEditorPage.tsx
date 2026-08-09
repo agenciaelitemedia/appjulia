@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Loader2, Plus, Save, Trash2, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -121,6 +122,33 @@ export default function XJAgentEditorPage() {
   const { saveClientKey } = useXJProviderConfigMutations();
   const [clientKeyInput, setClientKeyInput] = useState('');
   const [voiceKeyInput, setVoiceKeyInput] = useState('');
+  const [testingVoice, setTestingVoice] = useState(false);
+  const [voiceTest, setVoiceTest] = useState<{ url?: string; error?: string } | null>(null);
+
+  /** Sintetiza uma frase curta para validar chave e Voice ID do provedor. */
+  const testVoice = async () => {
+    if (!agent?.id) return;
+    setTestingVoice(true);
+    setVoiceTest(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('x-julia-engine', {
+        body: {
+          action: 'test_voice',
+          agent_id: agent.id,
+          provider: form.voice_provider,
+          voice_id: form.voice_id || null,
+          voice_key_mode: form.voice_key_mode ?? 'default',
+        },
+      });
+      if (error) throw error;
+      if (data?.ok && data?.url) setVoiceTest({ url: data.url });
+      else setVoiceTest({ error: data?.error || 'Não foi possível gerar o áudio.' });
+    } catch (err: any) {
+      setVoiceTest({ error: err?.message || String(err) });
+    } finally {
+      setTestingVoice(false);
+    }
+  };
 
   // Só aparecem provedores ativados em Configuração do X-Julia (fallback: todos).
   const llmProviders = useMemo(() => {
@@ -508,6 +536,23 @@ export default function XJAgentEditorPage() {
                   <div className="space-y-1.5">
                     <Label>Voice ID</Label>
                     <Input value={form.voice_id ?? ''} onChange={(e) => set('voice_id', e.target.value)} disabled={!canEdit} />
+                  </div>
+                  <div className="space-y-2 rounded-lg border p-3 md:col-span-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={testVoice} disabled={testingVoice}>
+                        {testingVoice ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Volume2 className="mr-2 h-4 w-4" />}
+                        Testar voz
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Gera uma frase curta com a chave e o Voice ID atuais.
+                      </p>
+                    </div>
+                    {voiceTest?.error && (
+                      <p className="text-xs text-destructive break-all">{voiceTest.error}</p>
+                    )}
+                    {voiceTest?.url && (
+                      <audio controls src={voiceTest.url} className="w-full max-w-sm" />
+                    )}
                   </div>
                   <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
                     <div className="space-y-1.5 md:max-w-xs">

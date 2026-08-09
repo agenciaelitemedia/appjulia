@@ -216,7 +216,9 @@ export default function XJSessionDetailPage() {
             {events.map((event) => (
               <div key={event.id} className="rounded-lg border p-2.5 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{event.skill || event.kind}</span>
+                  <span className="font-medium">
+                    {event.kind === 'voice' ? 'voz (áudio)' : event.skill || event.kind}
+                  </span>
                   <Badge variant={event.status === 'error' ? 'destructive' : 'secondary'} className="text-[10px]">
                     {event.status}
                   </Badge>
@@ -224,6 +226,7 @@ export default function XJSessionDetailPage() {
                 {event.detail && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{event.detail}</p>}
                 <p className="mt-1 text-[10px] text-muted-foreground">
                   {new Date(event.created_at).toLocaleString('pt-BR')}
+                  {(event as any).provider ? ` · ${(event as any).provider}` : ''}
                   {event.model ? ` · ${event.model}` : ''}
                   {event.duration_ms ? ` · ${event.duration_ms}ms` : ''}
                   {(event as any).cost_usd ? ` · ${formatUsd(Number((event as any).cost_usd), 4)}` : ''}
