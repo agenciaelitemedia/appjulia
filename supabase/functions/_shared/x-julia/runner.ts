@@ -58,7 +58,13 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
       .eq("is_active", true)
       .order("position")
       .then((r: any) => r.data ?? []),
-    loadHistory(supabase, session.conversation_id, session.contact_id),
+    loadHistory(
+      supabase,
+      session.conversation_id,
+      session.contact_id,
+      150,
+      ((session.slots ?? {}) as Record<string, any>).__restarted_at ?? null,
+    ),
     session.cta_trigger_id
       ? supabase.from("xj_cta_triggers").select("extra_prompt").eq("id", session.cta_trigger_id).maybeSingle()
           .then((r: any) => r.data)

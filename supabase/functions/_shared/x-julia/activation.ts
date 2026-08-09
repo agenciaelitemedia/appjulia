@@ -15,6 +15,16 @@ export interface XJActivation {
   only_campaign?: boolean;
   start_campaign?: string;
   check_specialized?: string;
+  restart_message?: string;
+}
+
+export const XJ_DEFAULT_RESTART_MESSAGE =
+  "Prontinho! Iniciei um novo atendimento para você. Pode me contar o que precisa?";
+
+/** Mensagem de confirmação de nova sessão (usa o padrão quando não configurada). */
+export function restartMessage(activation: XJActivation | null | undefined): string {
+  const custom = String(activation?.restart_message ?? "").trim();
+  return custom || XJ_DEFAULT_RESTART_MESSAGE;
 }
 
 export function parsePhrases(raw: string | null | undefined): string[] {

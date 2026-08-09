@@ -146,6 +146,7 @@ export async function loadHistory(
   conversationId: string | null,
   contactId: string | null,
   limit = 150,
+  since?: string | null,
 ): Promise<{ messages: XJChatMessage[]; summary: string | null; total: number }> {
   const select = "text, caption, from_me, type, created_at, metadata, internal_note, sender_name, conversation_id";
   let query = supabase
@@ -155,6 +156,8 @@ export async function loadHistory(
     .limit(limit);
   // Memória por contato: todas as conversas/tickets do mesmo lead.
   query = contactId ? query.eq("contact_id", contactId) : query.eq("conversation_id", conversationId);
+  // Sessão reiniciada: o atendimento recomeça do zero a partir do reinício.
+  if (since) query = query.gte("created_at", since);
 
   const { data, error } = await query;
   if (error) {
@@ -191,7 +194,7 @@ export async function loadHistory(
     chars -= (messages.shift()?.content ?? "").length;
   }
 
-  const summary = await loadContactSummary(supabase, contactId, rows.length >= limit);
+  const summary = since ? null : await loadContactSummary(supabase, contactId, rows.length >= limit);
   return { messages, summary, total: rows.length };
 }
 
