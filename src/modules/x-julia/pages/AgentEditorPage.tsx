@@ -611,6 +611,8 @@ export default function XJAgentEditorPage() {
 function PromptTab({
   agentId,
   canEdit,
+  stages,
+  onApplyPreset,
   systemPrompt,
   onSystemPromptChange,
   stagePrompts,
@@ -620,6 +622,8 @@ function PromptTab({
 }: {
   agentId: string;
   canEdit: boolean;
+  stages: string[];
+  onApplyPreset: () => void;
   systemPrompt: string;
   onSystemPromptChange: (v: string) => void;
   stagePrompts: Record<string, string>;
@@ -637,6 +641,16 @@ function PromptTab({
           <CardTitle className="text-base">Prompt do sistema</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {canEdit && (
+            <div className="flex items-center justify-between rounded-lg border bg-muted/40 p-2.5">
+              <p className="text-xs text-muted-foreground">
+                Preencher com o modelo pronto deste papel (substitui o prompt atual).
+              </p>
+              <Button size="sm" variant="outline" onClick={onApplyPreset}>
+                Usar modelo do papel
+              </Button>
+            </div>
+          )}
           <Textarea
             rows={12}
             className="font-mono text-xs"
@@ -646,9 +660,9 @@ function PromptTab({
           />
           <div className="space-y-3">
             <p className="text-sm font-medium">Instruções por etapa</p>
-            {XJ_STAGES.map((stage) => (
+            {(stages.length ? stages : (XJ_STAGES as unknown as string[])).map((stage) => (
               <div key={stage} className="space-y-1.5">
-                <Label className="text-xs">{XJ_STAGE_LABELS[stage]}</Label>
+                <Label className="text-xs">{(XJ_STAGE_LABELS as any)[stage] ?? stage}</Label>
                 <Textarea
                   rows={2}
                   className="text-xs"
