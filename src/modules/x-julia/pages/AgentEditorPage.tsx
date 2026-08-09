@@ -98,14 +98,9 @@ export default function XJAgentEditorPage() {
     const setting = (providerConfig?.providers ?? []).find((p) => p.kind === 'llm' && p.provider === provider);
     const allowed = setting?.enabled_models ?? [];
 
-    let list: string[];
-    if (allowed.length) {
-      list = allowed;
-    } else if (catalogModels.length) {
-      list = catalogModels;
-    } else {
-      list = staticModels;
-    }
+    // Prioriza catálogo carregado/ativo, somando os modelos marcados no provedor.
+    let list: string[] = [...allowed, ...catalogModels];
+    if (!list.length) list = staticModels;
     if (form.llm_model && !list.includes(form.llm_model)) list = [form.llm_model, ...list];
     return Array.from(new Set(list));
   }, [form.llm_provider, form.llm_model, providerConfig]);
