@@ -10,6 +10,21 @@ import { XJQualificationBadge, XJStageBadge } from '../components/XJStageBadge';
 import { useXJSession, useXJSessionActions, useXJSessionEvents } from '../hooks/useXJSessions';
 import { useOpenChatConversation } from '../extend/chat';
 import { XJ_STAGES, XJ_STAGE_LABELS, X_JULIA_ROUTES } from '../module';
+import { formatUsd } from '../modelCatalog';
+
+const SLOT_LABELS: Record<string, string> = {
+  nome: 'Nome',
+  nome_completo: 'Nome completo',
+  caso_juridico: 'Caso jurídico',
+  cpf: 'CPF',
+  email: 'E-mail',
+};
+
+const PRIORITY_SLOTS = ['nome', 'nome_completo', 'caso_juridico'];
+
+function slotLabel(key: string): string {
+  return SLOT_LABELS[key] ?? key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
 
 export default function XJSessionDetailPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -34,7 +49,19 @@ export default function XJSessionDetailPage() {
     );
   }
 
-  const slots = Object.entries(session.slots || {});
+  // Chaves internas (prefixo __) nunca aparecem; nome e caso jurídico vêm primeiro.
+  const slots = Object.entries(session.slots || {})
+    .filter(([key]) => !key.startsWith('__'))
+    .sort(([a], [b]) => {
+      const ia = PRIORITY_SLOTS.indexOf(a);
+      const ib = PRIORITY_SLOTS.indexOf(b);
+      if (ia !== ib) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      return a.localeCompare(b);
+    });
+
+  const nome = (session.slots?.nome as string) || (session.contact_name || '').split(' ')[0] || null;
+  const casoJuridico = (session.slots?.caso_juridico as string) || session.case_type || null;
+  const costUsd = Number(session.cost_usd ?? 0);
 
   return (
     <XJLayout
@@ -127,13 +154,56 @@ export default function XJSessionDetailPage() {
             <CardTitle className="text-base">Dados coletados</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {slots.length === 0 && <p className="text-muted-foreground">Nenhum dado coletado ainda.</p>}
+            <div className="mb-2 grid grid-cols-2 gap-2">
+              <div className="rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">Nome</p>
+                <p className="font-medium">{nome || '—'}</p>
+              </div>
+              <div className="rounded-md border p-2">
+                <p className="text-xs text-muted-foreground">Caso jurídico</p>
+                <p className="font-medium">{casoJuridico || '—'}</p>
+              </div>
+            </div>
+            {slots.length === 0 && <p className="text-muted-foreground">Nenhum outro dado coletado ainda.</p>}
             {slots.map(([key, value]) => (
               <div key={key} className="flex items-start justify-between gap-3 border-b pb-1 last:border-0">
-                <span className="text-muted-foreground">{key}</span>
-                <span className="text-right font-medium">{String(value)}</span>
+                <span className="text-muted-foreground">{slotLabel(key)}</span>
+                <span className="text-right font-medium">
+                  {typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value)}
+                </span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Consumo</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Turnos do agente</span>
+              <span className="font-medium">{session.turns ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Tokens de entrada</span>
+              <span className="font-medium">{(session.prompt_tokens ?? 0).toLocaleString('pt-BR')}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Tokens de saída</span>
+              <span className="font-medium">{(session.completion_tokens ?? 0).toLocaleString('pt-BR')}</span>
+            </div>
+            <div className="flex items-center justify-between border-t pt-2">
+              <span className="text-muted-foreground">Total de tokens</span>
+              <span className="font-medium">{(session.total_tokens ?? 0).toLocaleString('pt-BR')}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Custo acumulado</span>
+              <span className="font-semibold">{formatUsd(costUsd, 4)}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Estimativa pelos preços de referência do modelo usado em cada turno.
+            </p>
           </CardContent>
         </Card>
 
@@ -156,6 +226,7 @@ export default function XJSessionDetailPage() {
                   {new Date(event.created_at).toLocaleString('pt-BR')}
                   {event.model ? ` · ${event.model}` : ''}
                   {event.duration_ms ? ` · ${event.duration_ms}ms` : ''}
+                  {(event as any).cost_usd ? ` · ${formatUsd(Number((event as any).cost_usd), 4)}` : ''}
                 </p>
               </div>
             ))}

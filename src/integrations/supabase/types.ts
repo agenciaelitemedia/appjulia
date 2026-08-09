@@ -9978,6 +9978,7 @@ export type Database = {
           client_id: string
           completion_tokens: number | null
           cost: number | null
+          cost_usd: number | null
           created_at: string
           detail: string | null
           duration_ms: number | null
@@ -9996,6 +9997,7 @@ export type Database = {
           client_id: string
           completion_tokens?: number | null
           cost?: number | null
+          cost_usd?: number | null
           created_at?: string
           detail?: string | null
           duration_ms?: number | null
@@ -10014,6 +10016,7 @@ export type Database = {
           client_id?: string
           completion_tokens?: number | null
           cost?: number | null
+          cost_usd?: number | null
           created_at?: string
           detail?: string | null
           duration_ms?: number | null
@@ -10046,9 +10049,11 @@ export type Database = {
           case_type: string | null
           channel: string | null
           client_id: string
+          completion_tokens: number
           contact_id: string | null
           contact_name: string | null
           conversation_id: string | null
+          cost_usd: number
           created_at: string
           cta_trigger_id: string | null
           handoff_at: string | null
@@ -10059,12 +10064,14 @@ export type Database = {
           origin: string | null
           paused_reason: string | null
           phone: string | null
+          prompt_tokens: number
           qualification: string | null
           qualification_reason: string | null
           queue_id: string | null
           score: number | null
           slots: Json
           stage: string
+          total_tokens: number
           turns: number
           updated_at: string
         }
@@ -10075,9 +10082,11 @@ export type Database = {
           case_type?: string | null
           channel?: string | null
           client_id: string
+          completion_tokens?: number
           contact_id?: string | null
           contact_name?: string | null
           conversation_id?: string | null
+          cost_usd?: number
           created_at?: string
           cta_trigger_id?: string | null
           handoff_at?: string | null
@@ -10088,12 +10097,14 @@ export type Database = {
           origin?: string | null
           paused_reason?: string | null
           phone?: string | null
+          prompt_tokens?: number
           qualification?: string | null
           qualification_reason?: string | null
           queue_id?: string | null
           score?: number | null
           slots?: Json
           stage?: string
+          total_tokens?: number
           turns?: number
           updated_at?: string
         }
@@ -10104,9 +10115,11 @@ export type Database = {
           case_type?: string | null
           channel?: string | null
           client_id?: string
+          completion_tokens?: number
           contact_id?: string | null
           contact_name?: string | null
           conversation_id?: string | null
+          cost_usd?: number
           created_at?: string
           cta_trigger_id?: string | null
           handoff_at?: string | null
@@ -10117,12 +10130,14 @@ export type Database = {
           origin?: string | null
           paused_reason?: string | null
           phone?: string | null
+          prompt_tokens?: number
           qualification?: string | null
           qualification_reason?: string | null
           queue_id?: string | null
           score?: number | null
           slots?: Json
           stage?: string
+          total_tokens?: number
           turns?: number
           updated_at?: string
         }

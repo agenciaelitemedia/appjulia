@@ -10,6 +10,7 @@ import { XJLayout } from '../components/XJLayout';
 import { XJQualificationBadge, XJStageBadge } from '../components/XJStageBadge';
 import { useXJSessions } from '../hooks/useXJSessions';
 import { XJ_STAGES, XJ_STAGE_LABELS, X_JULIA_ROUTES } from '../module';
+import { formatUsd } from '../modelCatalog';
 
 export default function XJSessionsPage() {
   const [search, setSearch] = useState('');
@@ -83,6 +84,7 @@ export default function XJSessionsPage() {
                   <TableHead>Estágio</TableHead>
                   <TableHead>Qualificação</TableHead>
                   <TableHead className="text-center">Turnos</TableHead>
+                  <TableHead className="text-right">Custo</TableHead>
                   <TableHead>Atualizado</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -102,6 +104,9 @@ export default function XJSessionsPage() {
                       <XJQualificationBadge value={session.qualification} />
                     </TableCell>
                     <TableCell className="text-center text-sm">{session.turns}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums">
+                      {formatUsd(Number(session.cost_usd ?? 0), 4)}
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {new Date(session.updated_at).toLocaleString('pt-BR')}
                     </TableCell>

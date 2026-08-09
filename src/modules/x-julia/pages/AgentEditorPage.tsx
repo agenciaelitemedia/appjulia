@@ -27,6 +27,7 @@ import {
   XJ_STAGE_LABELS,
   XJ_VOICE_PROVIDERS,
 } from '../module';
+import { formatContext, formatModelPricing, formatUsd, getXJModelInfo } from '../modelCatalog';
 
 export default function XJAgentEditorPage() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -262,11 +263,27 @@ export default function XJAgentEditorPage() {
                 <Select value={form.llm_model} onValueChange={(v) => set('llm_model', v)} disabled={!canEdit}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {models.map((m) => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
+                    {models.map((m) => {
+                      const info = getXJModelInfo(form.llm_provider, m);
+                      return (
+                        <SelectItem key={m} value={m}>
+                          {m}
+                          {info ? ` — in ${formatUsd(info.inputPer1M)} / out ${formatUsd(info.outputPer1M)} por 1M · ${formatContext(info.context)}` : ''}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
+                {(() => {
+                  const info = getXJModelInfo(form.llm_provider, form.llm_model);
+                  const pricing = formatModelPricing(form.llm_provider, form.llm_model);
+                  if (!info) return <p className="text-xs text-muted-foreground">Custo deste modelo não catalogado.</p>;
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      {info.note} {pricing}
+                    </p>
+                  );
+                })()}
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3 md:col-span-2">
                 <div>

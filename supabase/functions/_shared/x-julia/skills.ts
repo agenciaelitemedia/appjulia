@@ -164,8 +164,15 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
   switch (name) {
     case "registrar_dados": {
       const patch: Record<string, unknown> = {};
-      if (args?.contact_name) patch.contact_name = String(args.contact_name).trim();
-      const slots = { ...(session.slots ?? {}), ...(args?.dados ?? {}) };
+      const slots: Record<string, unknown> = { ...(session.slots ?? {}), ...(args?.dados ?? {}) };
+      const rawName = String(args?.contact_name ?? slots.nome_completo ?? slots.nome ?? "").trim();
+      if (rawName) {
+        patch.contact_name = rawName;
+        // Primeiro nome sempre guardado em `nome`; nome completo quando houver sobrenome.
+        const parts = rawName.split(/\s+/).filter(Boolean);
+        slots.nome = parts[0];
+        if (parts.length > 1) slots.nome_completo = rawName;
+      }
       patch.slots = slots;
       await updateSession(supabase, session, patch);
       return `Dados registrados: ${Object.keys(args?.dados ?? {}).join(", ") || "nome"}`;
@@ -203,6 +210,7 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
       await updateSession(supabase, session, {
         case_id: caseId,
         case_type: caseName,
+        slots: { ...(session.slots ?? {}), ...(caseName ? { caso_juridico: caseName } : {}) },
         stage: session.stage === "recepcao" || session.stage === "triagem" ? "qualificacao" : session.stage,
       });
       await upsertDeal(supabase, agent, session, { title: session.contact_name || session.phone || "Lead" });
