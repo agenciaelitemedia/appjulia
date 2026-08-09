@@ -7,6 +7,16 @@ import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
 import { findSpecialistForCase, logXJEvent, updateSession } from "./session.ts";
 import { isWithinBusinessHours } from "./activation.ts";
 import {
+  evaluateExpression,
+  formatBRL,
+  parcelamento,
+  parseNumber,
+  percentual,
+  rendaPerCapita,
+  round2,
+  XJ_SALARIO_MINIMO_PADRAO,
+} from "./calc.ts";
+import {
   diffCalendarDaysBRT,
   formatBRT,
   formatDateBRT,
@@ -148,6 +158,35 @@ export const XJ_TOOLS: XJToolDef[] = [
     parameters: {
       type: "object",
       properties: { motivo: { type: "string" }, prioridade: { type: "string" } },
+    },
+  },
+  {
+    name: "calcular",
+    description:
+      "Faz QUALQUER cálculo numérico com precisão (renda per capita, soma de rendas, percentuais, honorários, parcelamento, contas livres). " +
+      "Use SEMPRE que a conversa envolver número, valor, soma, divisão, percentual ou renda familiar — nunca calcule de cabeça nem estime.",
+    parameters: {
+      type: "object",
+      properties: {
+        operacao: {
+          type: "string",
+          description:
+            "'renda_per_capita' | 'soma' | 'percentual' | 'parcelamento' | 'expressao' (padrão: expressao se vier 'expressao', senão soma)",
+        },
+        rendas: {
+          type: "array",
+          items: { type: "string" },
+          description: "valores das rendas/parcelas (aceita '1.234,56', 'R$ 900' ou número)",
+        },
+        pessoas: { type: "number", description: "nº de pessoas do grupo familiar (renda_per_capita)" },
+        salario_minimo: { type: "number", description: "opcional: salário mínimo vigente, se souber" },
+        valor: { type: "number", description: "valor base (percentual/parcelamento)" },
+        percentual: { type: "number", description: "percentual a aplicar, ex.: 30 para 30%" },
+        parcelas: { type: "number", description: "nº de parcelas" },
+        juros_mensal: { type: "number", description: "opcional: juros ao mês em %, ex.: 1.99" },
+        expressao: { type: "string", description: "conta livre, ex.: '(1200+800)/4' ou '2500*0,3'" },
+        descricao: { type: "string", description: "opcional: o que está sendo calculado" },
+      },
     },
   },
   {
@@ -363,6 +402,85 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
       return `Agendado para ${formatFullBRT(start)}. Confirme com o lead.`;
     }
 
+    default:
+      break;
+  }
+
+  if (name === "calcular") {
+    const rawOp = String(args?.operacao ?? "").toLowerCase().trim();
+    const rendas: unknown[] = Array.isArray(args?.rendas) ? args.rendas : [];
+    const op = rawOp ||
+      (args?.expressao
+        ? "expressao"
+        : args?.pessoas
+        ? "renda_per_capita"
+        : args?.parcelas
+        ? "parcelamento"
+        : args?.percentual != null
+        ? "percentual"
+        : "soma");
+    const label = args?.descricao ? `${args.descricao}: ` : "";
+
+    try {
+      if (op === "renda_per_capita") {
+        const r = rendaPerCapita(rendas, args?.pessoas, args?.salario_minimo);
+        await logXJEvent(supabase, session.id, {
+          kind: "skill",
+          skill: "calcular",
+          status: "ok",
+          detail: `renda_per_capita = ${r.perCapita}`,
+          payload: { operacao: op, ...r },
+        });
+        return (
+          `${label}Renda familiar total: ${formatBRL(r.total)} (${r.rendas.map(formatBRL).join(" + ") || "sem rendas informadas"}). ` +
+          `Pessoas no grupo familiar: ${r.pessoas}. ` +
+          `RENDA PER CAPITA = ${formatBRL(r.perCapita)}. ` +
+          `Referência: salário mínimo ${formatBRL(r.salarioMinimo)}; 1/4 = ${formatBRL(r.limiteUmQuarto)}; 1/2 = ${formatBRL(r.limiteMeio)}. ` +
+          `Critério de 1/4 do salário mínimo: ${r.dentroUmQuarto ? "ATENDIDO" : "NÃO atendido"}. ` +
+          `Critério de 1/2 salário mínimo: ${r.dentroMeio ? "atendido" : "não atendido"}. ` +
+          `Se o salário mínimo vigente for diferente de ${formatBRL(r.salarioMinimo)}, refaça o cálculo informando salario_minimo.`
+        );
+      }
+
+      if (op === "parcelamento") {
+        const p = parcelamento(args?.valor, args?.parcelas, args?.juros_mensal);
+        return (
+          `${label}${p.parcelas}x de ${formatBRL(p.parcela)}` +
+          (p.jurosMensal > 0 ? ` (juros ${p.jurosMensal}% a.m.)` : " (sem juros)") +
+          `. Valor base ${formatBRL(p.valor)}; total ${formatBRL(p.total)}.`
+        );
+      }
+
+      if (op === "percentual") {
+        const r = percentual(args?.valor, args?.percentual);
+        return `${label}${r.percentual}% de ${formatBRL(r.valor)} = ${formatBRL(r.parte)}. Restante: ${formatBRL(r.restante)}.`;
+      }
+
+      if (op === "soma") {
+        const valores = rendas.map(parseNumber).filter((n) => Number.isFinite(n));
+        if (!valores.length) return "Informe os valores em 'rendas' ou uma conta em 'expressao'.";
+        const total = valores.reduce((a, b) => a + b, 0);
+        return `${label}Soma: ${valores.map(formatBRL).join(" + ")} = ${formatBRL(total)} (média ${formatBRL(total / valores.length)}).`;
+      }
+
+      const expr = String(args?.expressao ?? "").trim();
+      if (!expr) return "Nada para calcular: envie 'expressao' ou use uma das operações (renda_per_capita, soma, percentual, parcelamento).";
+      const value = evaluateExpression(expr);
+      return `${label}${expr} = ${round2(value)} (em reais: ${formatBRL(value)}).`;
+    } catch (error) {
+      const msg = (error as Error).message;
+      await logXJEvent(supabase, session.id, {
+        kind: "skill",
+        skill: "calcular",
+        status: "error",
+        detail: msg,
+        payload: { args },
+      });
+      return `Não consegui calcular (${msg}). Confirme os números com o lead e chame calcular novamente. Salário mínimo de referência: ${formatBRL(XJ_SALARIO_MINIMO_PADRAO)}.`;
+    }
+  }
+
+  switch (name) {
     case "encaminhar_humano": {
       await updateSession(supabase, session, {
         stage: "humano",

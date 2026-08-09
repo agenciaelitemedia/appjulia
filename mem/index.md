@@ -8,3 +8,4 @@
 - [BlitzLeads Module](mem://features/blitzleads/module-architecture) — Fake-projeto isolado (src/blitzleads/, prefixo blitzleads_, subdomínio blitzleads.atendejulia.com.br, rotas /BlitzLead/*, sidebar dark + mix-blend-mode)
 - [n8n Execute Group](mem://features/n8n-execute/index) — Grupo de Edge Functions migradas do n8n (followup-stop, agent-and-followup-reactive); convenções e catálogo
 - [Audio Transcription Multicanal](mem://technical/chat/audio-transcription-channel-aware) — chat-transcribe-audio para UaZapi e WABA (API Oficial)
+- [X-Julia Calc Skill](mem://features/x-julia/calc-skill) — skill `calcular` obrigatória: renda per capita (BPC 1/4 SM), somas, %, parcelamento, expressões
