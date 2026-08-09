@@ -46,8 +46,41 @@ export const XJ_MODEL_CATALOG: Record<string, XJModelInfo> = {
   'llmapi/llama3.1-70b': { inputPer1M: 0.6, outputPer1M: 0.8, context: 128_000, note: 'Open source, custo baixo.' },
 };
 
+/** Preços mantidos pelo admin (tabela xj_model_pricing) — sobrepõem o catálogo estático. */
+let PRICING_OVERRIDES: Record<string, XJModelInfo> = {};
+
+export function applyXJPricingOverrides(
+  rows: Array<{
+    provider: string;
+    model: string;
+    input_per_1m: number | string;
+    output_per_1m: number | string;
+    context_tokens: number | string;
+    note?: string | null;
+    is_active?: boolean;
+  }> = [],
+) {
+  const map: Record<string, XJModelInfo> = {};
+  for (const row of rows) {
+    if (row.is_active === false) continue;
+    map[`${row.provider}/${row.model}`] = {
+      inputPer1M: Number(row.input_per_1m ?? 0),
+      outputPer1M: Number(row.output_per_1m ?? 0),
+      context: Number(row.context_tokens ?? 0),
+      note: row.note ?? '',
+    };
+  }
+  PRICING_OVERRIDES = map;
+}
+
 export function getXJModelInfo(provider: string, model: string): XJModelInfo | null {
-  return XJ_MODEL_CATALOG[`${provider}/${model}`] ?? XJ_MODEL_CATALOG[model] ?? null;
+  return (
+    PRICING_OVERRIDES[`${provider}/${model}`] ??
+    PRICING_OVERRIDES[model] ??
+    XJ_MODEL_CATALOG[`${provider}/${model}`] ??
+    XJ_MODEL_CATALOG[model] ??
+    null
+  );
 }
 
 export function formatUsd(value: number, digits = 2): string {
