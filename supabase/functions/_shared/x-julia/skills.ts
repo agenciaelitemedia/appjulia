@@ -29,6 +29,20 @@ import {
 import type { XJRunContext, XJStage } from "./types.ts";
 import type { XJToolDef } from "./llm.ts";
 
+/** Campos do contrato do caso que ainda não foram coletados nos dados da sessão. */
+export function xjMissingContractFields(
+  legalCase: { contract_fields?: unknown } | null,
+  slots: Record<string, unknown>,
+): Array<{ key: string; label?: string }> {
+  const fields = Array.isArray(legalCase?.contract_fields)
+    ? (legalCase!.contract_fields as Array<{ key: string; label?: string }>)
+    : [];
+  return fields.filter((f) => {
+    const v = slots?.[f.key];
+    return v === undefined || v === null || String(v).trim() === "";
+  });
+}
+
 export const XJ_TOOLS: XJToolDef[] = [
   {
     name: "registrar_dados",
