@@ -16,6 +16,7 @@ import { XJActivationTab } from '../components/XJActivationTab';
 import { normalizeXJBusinessHours, type XJBusinessHours } from '../lib/xjBusinessHours';
 import { useXJAgent, useXJAgentMutations, useXJAgentQueueLinks, useXJPromptVersions } from '../hooks/useXJAgents';
 import { useXJCadences } from '../hooks/useXJFollowups';
+import { useXJCases } from '../hooks/useXJCases';
 import { useXJQueues } from '../extend/queues';
 import { useXJPermissions } from '../extend/auth';
 import { useXJProviderConfig, useXJProviderConfigMutations } from '../hooks/useXJProviderConfig';
@@ -28,6 +29,39 @@ import {
   XJ_VOICE_PROVIDERS,
 } from '../module';
 import { formatContext, formatModelPricing, formatUsd, getXJModelInfo } from '../modelCatalog';
+
+/** Seleção do caso jurídico que o agente especialista atende (1 agente por caso). */
+function SpecialistCaseSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const { data: cases = [], isLoading } = useXJCases();
+  return (
+    <div className="space-y-1.5">
+      <Label>Caso jurídico atendido</Label>
+      <Select value={value || undefined} onValueChange={onChange} disabled={disabled || isLoading}>
+        <SelectTrigger>
+          <SelectValue placeholder={isLoading ? 'Carregando casos...' : 'Selecione o caso'} />
+        </SelectTrigger>
+        <SelectContent>
+          {cases.map((c) => (
+            <SelectItem key={c.id} value={c.id}>
+              {c.category} · {c.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        Cada caso pode ter apenas um agente especialista ativo.
+      </p>
+    </div>
+  );
+}
 
 export default function XJAgentEditorPage() {
   const { agentId } = useParams<{ agentId: string }>();
