@@ -34,6 +34,14 @@ export interface XJModelPricingRow {
   updated_at?: string;
 }
 
+export interface XJRemoteModel {
+  model: string;
+  input_per_1m?: number | null;
+  output_per_1m?: number | null;
+  context_tokens?: number | null;
+  note?: string | null;
+}
+
 interface XJProviderConfigResponse {
   providers: XJProviderSetting[];
   client_keys: XJClientKeyStatus[];
