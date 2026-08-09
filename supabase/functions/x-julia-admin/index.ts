@@ -7,6 +7,7 @@ import { xjComplete } from "../_shared/x-julia/llm.ts";
 import { buildXJMessages } from "../_shared/x-julia/prompt.ts";
 import { xjGenerateContract } from "../_shared/x-julia/contracts.ts";
 import { xjSynthesize } from "../_shared/x-julia/tts.ts";
+import { syncAllDealsToBuilder } from "../_shared/x-julia/crm.ts";
 import { XJ_TOOLS } from "../_shared/x-julia/skills.ts";
 
 const corsHeaders = {
@@ -129,6 +130,14 @@ Deno.serve(async (req) => {
         provider: data.provider ?? null,
       });
       return json({ ok: true, ...contract });
+    }
+
+    // Sincronização manual do CRM X-Julia com o quadro "CRM da Julia" no CRM Builder.
+    if (action === "crm_sync_builder") {
+      const clientId = String(data?.client_id ?? "");
+      if (!clientId) return json({ error: "client_id obrigatório" }, 400);
+      const result = await syncAllDealsToBuilder(supabase, clientId);
+      return json({ ok: true, ...result });
     }
 
     return json({ error: `ação desconhecida: ${action}` }, 400);

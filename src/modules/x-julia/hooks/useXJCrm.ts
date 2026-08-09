@@ -91,3 +91,37 @@ export function useXJDealActions() {
 
   return { move, update, remove };
 }
+/** Sincroniza (e cria, se necessário) o quadro "CRM da Julia" no CRM Builder. */
+export function useXJSyncCrmBuilder() {
+  const queryClient = useQueryClient();
+  const { clientId } = useXJEffectiveClientId();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!clientId) throw new Error('escritório não identificado');
+      const { data, error } = await supabase.functions.invoke('x-julia-admin', {
+        body: { action: 'crm_sync_builder', data: { client_id: String(clientId) } },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as {
+        board_id: string;
+        total: number;
+        created: number;
+        updated: number;
+        moved: number;
+        errors: string[];
+      };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['x-julia', 'deals'] });
+      queryClient.invalidateQueries({ queryKey: ['crm-boards'] });
+      queryClient.invalidateQueries({ queryKey: ['crm-deals'] });
+      toast.success(
+        `Sincronizado: ${result.created} criado(s), ${result.updated} atualizado(s), ${result.moved} movido(s)`,
+      );
+      if (result.errors?.length) toast.warning(`${result.errors.length} card(s) com falha`);
+    },
+    onError: (e: any) => toast.error(`Falha ao sincronizar: ${e.message}`),
+  });
+}
