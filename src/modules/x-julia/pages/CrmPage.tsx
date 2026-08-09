@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ExternalLink, RefreshCw } from 'lucide-react';
 import { XJLayout } from '../components/XJLayout';
-import { useXJDealActions, useXJDeals, useXJPipelines } from '../hooks/useXJCrm';
+import { useXJDealActions, useXJDeals, useXJPipelines, useXJSyncCrmBuilder } from '../hooks/useXJCrm';
 import { useXJPermissions } from '../extend/auth';
 import { X_JULIA_ROUTES } from '../module';
 
@@ -19,6 +21,8 @@ export default function XJCrmPage() {
   const { data: deals = [], isLoading: loadingDeals } = useXJDeals();
   const { move } = useXJDealActions();
   const permissions = useXJPermissions('x_julia_crm');
+  const syncBuilder = useXJSyncCrmBuilder();
+  const [boardId, setBoardId] = useState<string | null>(null);
 
   const grouped = useMemo(() => {
     const map = new Map<string, typeof deals>();
@@ -33,8 +37,33 @@ export default function XJCrmPage() {
 
   const isLoading = loadingPipelines || loadingDeals;
 
+  const actions = permissions.canEdit ? (
+    <div className="flex items-center gap-2">
+      {boardId && (
+        <Button asChild variant="outline" size="sm">
+          <Link to={`/crm-builder/${boardId}`}>
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Abrir quadro no CRM Builder
+          </Link>
+        </Button>
+      )}
+      <Button
+        size="sm"
+        onClick={() => syncBuilder.mutate(undefined, { onSuccess: (r) => setBoardId(r.board_id) })}
+        disabled={syncBuilder.isPending}
+      >
+        <RefreshCw className={`mr-2 h-4 w-4 ${syncBuilder.isPending ? 'animate-spin' : ''}`} />
+        {syncBuilder.isPending ? 'Sincronizando...' : 'Sincronizar com CRM Builder'}
+      </Button>
+    </div>
+  ) : undefined;
+
   return (
-    <XJLayout title="CRM X-Julia" description="Cards criados e movimentados pelo agente autônomo">
+    <XJLayout
+      title="CRM X-Julia"
+      description="Cards criados e movimentados pelo agente autônomo"
+      actions={actions}
+    >
       {isLoading && <Skeleton className="h-72 w-full" />}
 
       {!isLoading && pipelines.length === 0 && (
