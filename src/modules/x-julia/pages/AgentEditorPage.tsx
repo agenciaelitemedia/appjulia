@@ -121,6 +121,33 @@ export default function XJAgentEditorPage() {
   const { saveClientKey } = useXJProviderConfigMutations();
   const [clientKeyInput, setClientKeyInput] = useState('');
   const [voiceKeyInput, setVoiceKeyInput] = useState('');
+  const [testingVoice, setTestingVoice] = useState(false);
+  const [voiceTest, setVoiceTest] = useState<{ url?: string; error?: string } | null>(null);
+
+  /** Sintetiza uma frase curta para validar chave e Voice ID do provedor. */
+  const testVoice = async () => {
+    if (!agent?.id) return;
+    setTestingVoice(true);
+    setVoiceTest(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('x-julia-engine', {
+        body: {
+          action: 'test_voice',
+          agent_id: agent.id,
+          provider: form.voice_provider,
+          voice_id: form.voice_id || null,
+          voice_key_mode: form.voice_key_mode ?? 'default',
+        },
+      });
+      if (error) throw error;
+      if (data?.ok && data?.url) setVoiceTest({ url: data.url });
+      else setVoiceTest({ error: data?.error || 'Não foi possível gerar o áudio.' });
+    } catch (err: any) {
+      setVoiceTest({ error: err?.message || String(err) });
+    } finally {
+      setTestingVoice(false);
+    }
+  };
 
   // Só aparecem provedores ativados em Configuração do X-Julia (fallback: todos).
   const llmProviders = useMemo(() => {
