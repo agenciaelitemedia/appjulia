@@ -4,7 +4,7 @@
 import { upsertDeal } from "./crm.ts";
 import { xjGenerateContract } from "./contracts.ts";
 import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
-import { updateSession } from "./session.ts";
+import { findSpecialistForCase, logXJEvent, updateSession } from "./session.ts";
 import { isWithinBusinessHours } from "./activation.ts";
 import {
   diffCalendarDaysBRT,
