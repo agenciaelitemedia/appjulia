@@ -102,7 +102,8 @@ Deno.serve(async (req) => {
     // Entrada restrita: toggle "apenas campanha" ou frases de campanha configuradas.
     const restrictedEntry = !!activation.only_campaign || hasCampaignPhrases;
 
-    // Frase de início com entrada restrita: reinicia (ou abre) a sessão do zero.
+    // Frase de início com entrada restrita: APAGA a sessão do lead (fica como se
+    // nunca tivesse entrado em contato). A nova sessão só nasce na mensagem de CTA/campanha.
     if (matchedStartPhrase && restrictedEntry) {
       const { data: queueRowForRestart } = await supabase
         .from("queues")
@@ -110,75 +111,53 @@ Deno.serve(async (req) => {
         .eq("id", queueId)
         .maybeSingle();
       const restartQueue = (queueRowForRestart ?? null) as XJQueueCreds | null;
-      const nowIso = new Date().toISOString();
 
-      if (existingSession) {
-        const { data: reset } = await supabase
-          .from("xj_sessions")
-          .update({
-            stage: "recepcao",
-            is_active: true,
-            paused_reason: null,
-            handoff_at: null,
-            qualification: null,
-            qualification_reason: null,
-            score: null,
-            case_id: null,
-            case_type: null,
-            turns: 0,
-            slots: { __restarted_at: nowIso },
-          })
-          .eq("id", existingSession.id)
-          .select("*")
-          .maybeSingle();
-        const restarted = (reset ?? { ...existingSession, client_id: clientId, stage: "recepcao", slots: {} }) as any;
-        await logXJEvent(supabase, restarted, {
-          kind: "session_restarted",
-          detail: "frase de início de sessão",
-        }).catch(() => {});
-        await xjSend(supabase, restartQueue, restarted, restartMessage(activation)).catch(() => {});
-        return json({ ok: true, session_id: restarted.id, restarted: true });
-      }
-
-      if (contactId && (!phone || !contactName)) {
+      // Telefone é necessário para confirmar o reset ao lead.
+      if (contactId && !phone) {
         const { data: contact } = await supabase
           .from("chat_contacts")
-          .select("phone, name, push_name")
+          .select("phone")
           .eq("id", contactId)
           .maybeSingle();
         phone = phone ?? contact?.phone ?? null;
-        contactName = contactName ?? contact?.name ?? contact?.push_name ?? null;
       }
 
-      const { session: fresh } = await getOrCreateSession(supabase, {
-        clientId,
-        agent,
-        conversationId,
-        contactId,
-        queue: restartQueue,
+      // Sessões do lead (por conversa e, quando houver, por contato) são removidas.
+      const idsToDelete = new Set<string>();
+      if (existingSession?.id) idsToDelete.add(existingSession.id);
+      if (contactId) {
+        const { data: byContact } = await supabase
+          .from("xj_sessions")
+          .select("id")
+          .eq("client_id", String(clientId))
+          .eq("contact_id", contactId);
+        for (const row of byContact ?? []) idsToDelete.add(row.id);
+      }
+      const ids = [...idsToDelete];
+
+      // Confirma antes de apagar (o envio registra na sessão atual, se existir).
+      const stub = {
+        id: ids[0] ?? null,
+        client_id: String(clientId),
+        conversation_id: conversationId,
+        contact_id: contactId,
         phone,
-        contactName,
         channel,
-        inbound: {
-          message_id: data.message_id ?? null,
-          text: inboundText,
-          type: String(data.message_type ?? data.type ?? "text"),
-          media_url: null,
-          mime_type: null,
-          file_name: null,
-          campaign_id: data.campaign_id ?? null,
-          campaign_title: data.campaign_title ?? null,
-          cta_payload: data.cta_payload ?? null,
-        },
-      });
-      await ensurePipelines(supabase, clientId, agent.id).catch(() => {});
-      await updateSession(supabase, fresh, { slots: { __restarted_at: nowIso } });
-      await logXJEvent(supabase, fresh, {
-        kind: "session_started",
-        detail: "frase de início de sessão",
-      }).catch(() => {});
-      await xjSend(supabase, restartQueue, fresh, restartMessage(activation)).catch(() => {});
-      return json({ ok: true, session_id: fresh.id, restarted: true });
+        stage: "recepcao",
+      } as any;
+      await xjSend(supabase, restartQueue, stub, restartMessage(activation)).catch(() => {});
+
+      if (ids.length) {
+        try {
+          await supabase.from("xj_session_events").delete().in("session_id", ids);
+        } catch { /* trilha opcional */ }
+        try {
+          await supabase.from("xj_followups").delete().in("session_id", ids);
+        } catch { /* followups opcionais */ }
+        await supabase.from("xj_sessions").delete().in("id", ids);
+      }
+
+      return json({ ok: true, deleted_sessions: ids.length, reset: true });
     }
 
     // Gatilhos de início só valem para conversas ainda sem sessão X-Julia.
@@ -246,6 +225,10 @@ Deno.serve(async (req) => {
 
     if (created) {
       await ensurePipelines(supabase, clientId, agent.id).catch(() => {});
+      // Sessão nova = atendimento do zero: histórico do prompt conta a partir daqui.
+      await updateSession(supabase, session, {
+        slots: { ...(session.slots ?? {}), __restarted_at: new Date().toISOString() },
+      });
       await logXJEvent(supabase, session, { kind: "session_started", detail: `origem: ${session.origin ?? "-"}` });
     }
 
