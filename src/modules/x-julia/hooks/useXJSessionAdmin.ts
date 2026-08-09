@@ -103,5 +103,23 @@ export function useXJSessionAdmin() {
     onError: (e: any) => toast.error(`Falha ao mudar etapa: ${e.message}`),
   });
 
-  return { pause, resume, updateFields, remove, advanceStage };
+  /** Força um turno do agente mantendo a etapa atual (continuar agora). */
+  const continueNow = useMutation({
+    mutationFn: async (sessionId: string) => {
+      const { data, error } = await supabase.functions.invoke('x-julia-engine', {
+        body: { action: 'continue_now', data: { session_id: sessionId } },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { replied?: boolean; skipped?: string };
+    },
+    onSuccess: (result) => {
+      invalidate();
+      if (result?.replied) toast.success('Agente continuou o atendimento');
+      else toast.warning(`Sem envio${result?.skipped ? `: ${result.skipped}` : ''}`);
+    },
+    onError: (e: any) => toast.error(`Falha ao continuar: ${e.message}`),
+  });
+
+  return { pause, resume, updateFields, remove, advanceStage, continueNow };
 }
