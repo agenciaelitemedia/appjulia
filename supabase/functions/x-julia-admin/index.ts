@@ -7,6 +7,7 @@ import { xjComplete } from "../_shared/x-julia/llm.ts";
 import { buildXJMessages } from "../_shared/x-julia/prompt.ts";
 import { xjGenerateContract } from "../_shared/x-julia/contracts.ts";
 import { xjSynthesize } from "../_shared/x-julia/tts.ts";
+import { syncAllDealsToBuilder } from "../_shared/x-julia/crm.ts";
 import { XJ_TOOLS } from "../_shared/x-julia/skills.ts";
 
 const corsHeaders = {
