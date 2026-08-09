@@ -78,7 +78,8 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
     knowledge,
     caseCatalog,
     ctaExtraPrompt: cta?.extra_prompt ?? null,
-    history,
+    history: history.messages,
+    historySummary: history.summary,
     currentInput: userInput,
   });
 
