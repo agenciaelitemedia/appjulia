@@ -31,6 +31,7 @@ export interface XJActivationConfig {
   only_campaign?: boolean;
   start_campaign?: string;
   check_specialized?: string;
+  restart_message?: string;
 }
 
 interface Props {
@@ -75,6 +76,26 @@ export function XJActivationTab({
               value={activation.session_start ?? ''}
               onChange={(v) => onActivationChange({ session_start: v })}
               placeholder="Ex: #start"
+            />
+            <p className="text-xs text-muted-foreground">
+              Ao receber uma dessas frases, a sessão é reiniciada do zero (só funciona quando a entrada
+              está restrita a campanha).
+            </p>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <Label>Mensagem de Reinício de Sessão</Label>
+            <p className="text-xs text-muted-foreground">
+              Confirmação enviada ao lead quando uma nova sessão é iniciada pela frase
+            </p>
+            <Textarea
+              rows={2}
+              value={activation.restart_message ?? ''}
+              onChange={(e) => onActivationChange({ restart_message: e.target.value })}
+              disabled={!canEdit}
+              placeholder="Prontinho! Iniciei um novo atendimento para você. Pode me contar o que precisa?"
             />
           </div>
 
