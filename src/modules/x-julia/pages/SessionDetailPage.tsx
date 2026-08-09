@@ -33,6 +33,21 @@ export default function XJSessionDetailPage() {
   const { pause, resume, setStage } = useXJSessionActions();
   const openChat = useOpenChatConversation();
 
+  /** Último espelho bem-sucedido no CRM Builder (evento crm_mirror). */
+  const mirror = (() => {
+    const ok = events.filter(
+      (e: any) => e.kind === 'crm_mirror' && e.status !== 'error' && e.payload?.deal_id,
+    );
+    const last = ok[0] ?? null;
+    const withBoard = ok.find((e: any) => e.payload?.board_id);
+    if (!last) return null;
+    return {
+      dealId: (last as any).payload.deal_id as string,
+      boardId: (withBoard as any)?.payload?.board_id as string | undefined,
+      at: last.created_at as string,
+    };
+  })();
+
   if (isLoading) {
     return (
       <XJLayout title="Atendimento">
