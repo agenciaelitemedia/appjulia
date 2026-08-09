@@ -87,7 +87,7 @@ export const XJ_PROVIDERS: XJProviderDef[] = [
   {
     id: "llmapi",
     label: "LLM API",
-    endpoint: "https://api.llmapi.com/chat/completions",
+    endpoint: "https://api.llmapi.ai/v1/chat/completions",
     keyName: "llmapi",
     style: "openai",
     models: ["gpt-4o", "claude-3-5-sonnet", "llama3.1-70b"],
