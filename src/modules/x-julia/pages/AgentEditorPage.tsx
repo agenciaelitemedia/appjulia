@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -38,6 +39,12 @@ import {
 } from '../module';
 import { formatContext, formatModelPricing, formatUsd, getXJModelInfo } from '../modelCatalog';
 import { ensureJuliaBoard, JULIA_BOARD_NAME } from '../lib/juliaBoard';
+import {
+  XJ_CONTRACT_FIELD_CATALOG,
+  buildContractFields,
+  extraContractFields,
+  type XJContractField,
+} from '../lib/contractFieldCatalog';
 import { toast } from 'sonner';
 
 /** Seleção do caso jurídico que o agente especialista atende (1 agente por caso). */
@@ -195,6 +202,26 @@ export default function XJAgentEditorPage() {
   const { data: allCases = [] } = useXJCases();
   const { data: queueLinks = [] } = useXJAgentQueueLinks(agentId);
   const currentCase = allCases.find((c) => c.id === form.case_id) ?? null;
+  const savedContractFields: XJContractField[] = Array.isArray((currentCase as any)?.contract_fields)
+    ? ((currentCase as any).contract_fields as XJContractField[])
+    : [];
+  const [contractFieldKeys, setContractFieldKeys] = useState<string[] | null>(null);
+  const [contractFieldsCaseId, setContractFieldsCaseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentCase) return;
+    if (contractFieldsCaseId === currentCase.id) return;
+    setContractFieldsCaseId(currentCase.id);
+    setContractFieldKeys(savedContractFields.map((f) => f.key).filter(Boolean));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCase?.id, savedContractFields.length]);
+
+  const selectedContractKeys = contractFieldKeys ?? savedContractFields.map((f) => f.key).filter(Boolean);
+  const toggleContractField = (key: string, checked: boolean) =>
+    setContractFieldKeys((prev) => {
+      const base = prev ?? savedContractFields.map((f) => f.key).filter(Boolean);
+      return checked ? Array.from(new Set([...base, key])) : base.filter((k) => k !== key);
+    });
   const visibleTabs = XJ_ROLE_TABS[role] ?? XJ_ROLE_TABS.reception;
   const roleStages = XJ_ROLE_STAGES[role] ?? XJ_ROLE_STAGES.reception;
   const roleWarning =
@@ -215,6 +242,15 @@ export default function XJAgentEditorPage() {
 
   const handleSave = async () => {
     if (!agentId) return;
+    // Lista de campos do contrato pertence ao caso jurídico do especialista.
+    if (currentCase && contractFieldKeys) {
+      const next = buildContractFields(contractFieldKeys, savedContractFields);
+      const { error } = await supabase
+        .from('xj_legal_cases')
+        .update({ contract_fields: next as any })
+        .eq('id', currentCase.id);
+      if (error) toast.error(`Falha ao salvar campos do contrato: ${error.message}`);
+    }
     // Espelho ligado: garante o quadro único "CRM da Julia" antes de salvar.
     if (form.mirror_to_crm_builder && agent?.client_id) {
       try {
@@ -380,6 +416,10 @@ export default function XJAgentEditorPage() {
             onSystemPromptChange={(v) => set('system_prompt', v)}
             stagePrompts={stagePrompts}
             onStagePromptChange={(stage, v) => setStagePrompts((prev) => ({ ...prev, [stage]: v }))}
+            caseName={currentCase?.name ?? null}
+            contractFieldOptions={[...XJ_CONTRACT_FIELD_CATALOG, ...extraContractFields(savedContractFields)]}
+            selectedContractFields={selectedContractKeys}
+            onToggleContractField={toggleContractField}
             onSaveVersion={(label) =>
               savePromptVersion.mutate({
                 agentId: agentId!,
