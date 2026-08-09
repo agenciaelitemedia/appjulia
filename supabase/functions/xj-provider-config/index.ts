@@ -3,6 +3,7 @@
 // POST { action: 'save_provider' | 'save_client_key' }
 // As chaves nunca são devolvidas em texto puro; apenas mascaradas.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { XJ_MODEL_CATALOG } from "../_shared/x-julia/pricing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +64,13 @@ Deno.serve(async (req) => {
         }));
       }
 
-      return json({ providers, client_keys: clientKeys });
+      const { data: pricing } = await supabase
+        .from("xj_model_pricing")
+        .select("id, provider, model, input_per_1m, output_per_1m, context_tokens, note, is_active, updated_at")
+        .order("provider")
+        .order("model");
+
+      return json({ providers, client_keys: clientKeys, model_pricing: pricing ?? [] });
     }
 
     if (req.method === "POST") {
