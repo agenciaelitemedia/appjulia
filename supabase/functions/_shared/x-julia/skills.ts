@@ -403,6 +403,7 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
     }
 
     case "encaminhar_humano": {
+      // (handler original abaixo)
       await updateSession(supabase, session, {
         stage: "humano",
         is_active: false,
