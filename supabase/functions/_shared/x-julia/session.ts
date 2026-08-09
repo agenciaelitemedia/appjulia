@@ -26,17 +26,48 @@ export async function findAgentForQueue(supabase: any, clientId: string, queueId
     .select("agent_id, xj_agents!inner(*)")
     .eq("queue_id", queueId)
     .eq("client_id", String(clientId))
-    .limit(1)
-    .maybeSingle();
-  const agent = (data as any)?.xj_agents as XJAgent | undefined;
+    .limit(10);
+  const rows = (data ?? []) as any[];
+  const agents = rows.map((r) => r.xj_agents).filter(Boolean) as any[];
+  // Prioriza o recepcionista (roteador); mantém compatibilidade com setups antigos.
+  const agent = (agents.find((a) => a.is_active && (a.role ?? "reception") === "reception") ??
+    agents.find((a) => a.is_active) ??
+    agents[0]) as XJAgent | undefined;
   if (!agent || !agent.is_active) return null;
+  return normalizeAgent(agent);
+}
+
+/** Normaliza os campos jsonb do agente. */
+// deno-lint-ignore no-explicit-any
+export function normalizeAgent(agent: any): XJAgent {
   return {
     ...agent,
+    role: agent.role ?? "reception",
     stage_prompts: (agent.stage_prompts ?? {}) as Record<string, string>,
     voice_settings: (agent.voice_settings ?? {}) as Record<string, unknown>,
     business_hours: (agent.business_hours ?? {}) as Record<string, unknown>,
     handoff_policy: (agent.handoff_policy ?? {}) as Record<string, unknown>,
   } as XJAgent;
+}
+
+/** Agente especialista ativo responsável por um caso jurídico. */
+// deno-lint-ignore no-explicit-any
+export async function findSpecialistForCase(
+  supabase: any,
+  clientId: string,
+  caseId: string | null,
+): Promise<XJAgent | null> {
+  if (!caseId) return null;
+  const { data } = await supabase
+    .from("xj_agents")
+    .select("*")
+    .eq("client_id", String(clientId))
+    .eq("role", "specialist")
+    .eq("case_id", caseId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  return data ? normalizeAgent(data) : null;
 }
 
 /** Casa a mensagem/campanha de entrada com um gatilho de CTA configurado. */
