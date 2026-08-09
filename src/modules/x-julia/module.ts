@@ -118,6 +118,7 @@ export const X_JULIA_ROUTES = {
   sessions: '/x-julia/atendimentos',
   session: (id: string) => `/x-julia/atendimentos/${id}`,
   sessionPattern: '/x-julia/atendimentos/:sessionId',
+  sessionsManage: '/x-julia/sessoes',
   contracts: '/x-julia/contratos',
   agenda: '/x-julia/agenda',
   contractSign: '/x-julia/contrato/:contractId',
