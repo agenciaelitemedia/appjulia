@@ -19,6 +19,7 @@ Regras de conduta:
 - Sempre confirme a hipótese de caso com o lead antes de qualificar.
 - Use as ferramentas disponíveis para registrar dados, mover o CRM, gerar contrato, agendar e encaminhar.
 - Nunca invente ou deduza data/hora: consulte a âncora temporal deste prompt ou chame a skill data_hora antes de citar qualquer data, prazo ou horário.
+- Contrato: NUNCA chame gerar_contrato antes de ter coletado TODOS os campos obrigatórios do contrato (um por mensagem), listado todos eles para conferência e recebido um "sim" explícito do lead.
 - NUNCA calcule de cabeça. Qualquer conta (soma de rendas, renda per capita do grupo familiar, divisão, percentual, honorários, parcelamento) deve ser feita pela skill calcular, e só então informe o resultado ao lead.
 - Para renda per capita, use calcular com operacao "renda_per_capita", enviando todas as rendas em "rendas" e o total de pessoas em "pessoas".
 - Se receber áudio, imagem ou documento, interprete o conteúdo transcrito/descrito e SIGA o fluxo normalmente.
@@ -34,7 +35,7 @@ const STAGE_GUIDE: Record<string, string> = {
   negociacao:
     "Explique de forma simples o serviço e os honorários do caso, trate objeções e busque o aceite para gerar o contrato.",
   contrato:
-    "Colete nome completo, CPF e confirmação dos dados e gere o contrato com gerar_contrato. Envie o link de assinatura.",
+    "Siga exatamente a lista de campos do contrato definida nas instruções do escritório: peça UM campo por mensagem, na ordem, registre cada resposta com registrar_dados, depois liste TODOS os campos preenchidos para conferência e pergunte se está correto. Só chame gerar_contrato depois de um 'sim' explícito e com todos os campos obrigatórios preenchidos. Nunca preencha um campo por conta própria.",
   assinatura:
     "Acompanhe a assinatura, tire dúvidas e reforce com gentileza. Não recomece a negociação.",
   agendamento:
@@ -89,6 +90,34 @@ export function buildXJMessages(input: XJPromptInput): XJChatMessage[] {
   );
   const stagePrompt = agent.stage_prompts?.[stage];
   if (stagePrompt?.trim()) parts.push(`Instruções extras deste estágio:\n${stagePrompt.trim()}`);
+
+  const contractFields = Array.isArray((legalCase as any)?.contract_fields)
+    ? ((legalCase as any).contract_fields as Array<{ key: string; label?: string; validation?: string }>)
+    : [];
+  if (contractFields.length && (stage === "contrato" || stage === "negociacao")) {
+    const slotsNow = (session.slots ?? {}) as Record<string, unknown>;
+    const lines = contractFields.map((f, i) => {
+      const value = slotsNow[f.key];
+      const filled = value !== undefined && value !== null && String(value).trim() !== "";
+      return `${i + 1}. ${f.label ?? f.key} [campo: ${f.key}]${f.validation ? ` (${f.validation})` : ""} — ${
+        filled ? `já coletado: ${String(value)}` : "PENDENTE"
+      }`;
+    });
+    const pending = contractFields.filter((f) => {
+      const v = slotsNow[f.key];
+      return v === undefined || v === null || String(v).trim() === "";
+    });
+    parts.push(
+      `Campos obrigatórios do contrato (peça um por mensagem, nesta ordem, e registre com registrar_dados):\n${lines.join(
+        "\n",
+      )}\n${
+        pending.length
+          ? `Ainda faltam ${pending.length} campo(s): ${pending.map((f) => f.label ?? f.key).join(", ")}. NÃO chame gerar_contrato agora.`
+          : "Todos os campos estão preenchidos: liste-os para conferência e só gere o contrato após o 'sim' do lead."
+      }`,
+    );
+  }
+
   if (input.ctaExtraPrompt?.trim()) parts.push(`Contexto da campanha:\n${input.ctaExtraPrompt.trim()}`);
 
   if (legalCase) {

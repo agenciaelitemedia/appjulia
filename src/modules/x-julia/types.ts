@@ -51,6 +51,7 @@ export interface XJLegalCase {
   fee_description: string | null;
   contract_template: string | null;
   contract_provider: string | null;
+  contract_fields?: Array<{ key: string; label?: string; validation?: string }>;
   is_active: boolean;
   position: number;
   created_at: string;
