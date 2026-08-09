@@ -719,6 +719,10 @@ function PromptTab({
   onSystemPromptChange,
   stagePrompts,
   onStagePromptChange,
+  caseName,
+  contractFieldOptions,
+  selectedContractFields,
+  onToggleContractField,
   onSaveVersion,
   saving,
 }: {
@@ -730,6 +734,10 @@ function PromptTab({
   onSystemPromptChange: (v: string) => void;
   stagePrompts: Record<string, string>;
   onStagePromptChange: (stage: string, v: string) => void;
+  caseName?: string | null;
+  contractFieldOptions: XJContractField[];
+  selectedContractFields: string[];
+  onToggleContractField: (key: string, checked: boolean) => void;
   onSaveVersion: (label?: string) => void;
   saving: boolean;
 }) {
@@ -772,6 +780,48 @@ function PromptTab({
                   onChange={(e) => onStagePromptChange(stage, e.target.value)}
                   disabled={!canEdit}
                 />
+                {stage === 'contrato' && (
+                  <div className="rounded-lg border bg-muted/30 p-3">
+                    <p className="text-xs font-medium">Campos solicitados para o contrato</p>
+                    {caseName ? (
+                      <>
+                        <p className="mb-2 mt-0.5 text-[11px] text-muted-foreground">
+                          Marque o que o agente deve pedir (um por mensagem, nesta ordem) no caso {caseName}.
+                        </p>
+                        <div className="grid gap-1.5 sm:grid-cols-2">
+                          {contractFieldOptions.map((field) => {
+                            const checked = selectedContractFields.includes(field.key);
+                            return (
+                              <label
+                                key={field.key}
+                                className="flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1 hover:bg-muted/60"
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  disabled={!canEdit}
+                                  onCheckedChange={(v) => onToggleContractField(field.key, v === true)}
+                                  className="mt-0.5"
+                                />
+                                <span className="text-xs leading-tight">
+                                  {field.label ?? field.key}
+                                  <span className="ml-1 font-mono text-[10px] text-muted-foreground">{field.key}</span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-2 text-[11px] text-muted-foreground">
+                          {selectedContractFields.length} campo(s) marcado(s) · salvo junto com o agente.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        A lista de campos pertence ao caso jurídico do agente especialista. Vincule um caso para
+                        escolher os campos.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
