@@ -60,8 +60,46 @@ export const XJ_MODEL_CATALOG: Record<string, XJModelInfo> = {
   "llmapi/llama3.1-70b": { inputPer1M: 0.6, outputPer1M: 0.8, context: 128_000, note: "Open source, custo baixo." },
 };
 
+/** Overrides mantidos pelo admin na tabela xj_model_pricing (cache por instância). */
+let PRICING_OVERRIDES: Record<string, XJModelInfo> = {};
+let overridesLoadedAt = 0;
+
+export function setPricingOverrides(map: Record<string, XJModelInfo>) {
+  PRICING_OVERRIDES = map ?? {};
+  overridesLoadedAt = Date.now();
+}
+
+/** Carrega (com TTL) os preços editados pelo admin. Falha silenciosa: mantém o catálogo estático. */
+export async function loadPricingOverrides(supabase: any, ttlMs = 60_000): Promise<void> {
+  if (overridesLoadedAt && Date.now() - overridesLoadedAt < ttlMs) return;
+  try {
+    const { data } = await supabase
+      .from("xj_model_pricing")
+      .select("provider, model, input_per_1m, output_per_1m, context_tokens, note")
+      .eq("is_active", true);
+    const map: Record<string, XJModelInfo> = {};
+    for (const row of data ?? []) {
+      map[`${row.provider}/${row.model}`] = {
+        inputPer1M: Number(row.input_per_1m ?? 0),
+        outputPer1M: Number(row.output_per_1m ?? 0),
+        context: Number(row.context_tokens ?? 0),
+        note: String(row.note ?? ""),
+      };
+    }
+    setPricingOverrides(map);
+  } catch (_e) {
+    overridesLoadedAt = Date.now();
+  }
+}
+
 export function getModelInfo(provider: string, model: string): XJModelInfo | null {
-  return XJ_MODEL_CATALOG[`${provider}/${model}`] ?? XJ_MODEL_CATALOG[model] ?? null;
+  return (
+    PRICING_OVERRIDES[`${provider}/${model}`] ??
+    PRICING_OVERRIDES[model] ??
+    XJ_MODEL_CATALOG[`${provider}/${model}`] ??
+    XJ_MODEL_CATALOG[model] ??
+    null
+  );
 }
 
 /** Custo estimado em US$ de uma chamada. Retorna 0 quando o modelo é desconhecido. */
