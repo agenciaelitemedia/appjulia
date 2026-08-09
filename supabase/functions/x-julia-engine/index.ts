@@ -90,8 +90,11 @@ Deno.serve(async (req) => {
     }
 
     const inboundText = String(data.message_text ?? data.text ?? "");
-    const isCampaign = !!(data.campaign_id ?? data.campaign_title) ||
-      matchesPhrase(activation.start_campaign, inboundText);
+    const hasCampaignMarker = !!(data.campaign_id ?? data.campaign_title);
+    const hasCampaignPhrases = !!String(activation.start_campaign ?? "").trim();
+    const matchedCampaignPhrase = matchesPhrase(activation.start_campaign, inboundText);
+    // Com frases configuradas, a campanha só conta quando a mensagem contém uma delas.
+    const isCampaign = hasCampaignPhrases ? matchedCampaignPhrase : hasCampaignMarker;
 
     // Gatilhos de início só valem para conversas ainda sem sessão X-Julia.
     if (!existingSession) {
@@ -99,7 +102,12 @@ Deno.serve(async (req) => {
         if (!isCampaign) return json({ ok: true, skipped: "sem frase de início de sessão" });
       }
       if (activation.only_campaign && !isCampaign) {
-        return json({ ok: true, skipped: "agente configurado apenas para campanha" });
+        return json({
+          ok: true,
+          skipped: hasCampaignPhrases
+            ? "apenas campanha: mensagem não contém frase de início de campanha"
+            : "agente configurado apenas para campanha",
+        });
       }
     }
 

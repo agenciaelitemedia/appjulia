@@ -21,12 +21,18 @@ export function parsePhrases(raw: string | null | undefined): string[] {
   if (!raw) return [];
   return String(raw)
     .split("||")
-    .map((p) => p.trim().toLowerCase())
+    .map((p) => normalizeText(p))
     .filter(Boolean);
 }
 
 function normalizeText(text: string): string {
-  return String(text ?? "").trim().toLowerCase();
+  return String(text ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove acentuação
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ") // pontuação vira espaço
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** True quando o texto contém (ou é) uma das frases configuradas. */

@@ -97,7 +97,7 @@ export async function resolveStepContent(
     return { type, text: (step.text_content ?? "").trim(), mediaUrl };
   }
 
-  const history = await loadHistory(supabase, session.conversation_id, session.contact_id, 16);
+  const { messages: historyMessages } = await loadHistory(supabase, session.conversation_id, session.contact_id, 30);
   const instruction = (step.generation_prompt ?? "").trim() ||
     "Escreva um follow-up curto, gentil e específico para retomar a conversa deste lead.";
 
@@ -117,7 +117,7 @@ Máximo 2 frases, sem saudação repetida, sem emoji excessivo, sem prometer res
 Estágio atual do atendimento: ${session.stage}. Dados coletados: ${JSON.stringify(session.slots ?? {})}.
 Instrução do escritório: ${instruction}`,
         },
-        ...history,
+        ...historyMessages,
         { role: "user", content: "Gere agora a mensagem de follow-up." },
       ],
     });

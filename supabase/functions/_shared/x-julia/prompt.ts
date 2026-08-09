@@ -47,6 +47,7 @@ export interface XJPromptInput {
   caseCatalog: Array<{ id: string; name: string; category: string; summary: string | null }>;
   history: XJChatMessage[];
   currentInput: string;
+  historySummary?: string | null;
 }
 
 export function buildXJMessages(input: XJPromptInput): XJChatMessage[] {
@@ -105,34 +106,109 @@ export function buildXJMessages(input: XJPromptInput): XJChatMessage[] {
     }\nCanal: ${session.channel ?? "whatsapp"} | Origem: ${session.origin ?? "desconhecida"}`,
   );
 
+  if (input.historySummary?.trim()) {
+    parts.push(
+      `Resumo do histórico anterior com este lead (conversas mais antigas, use como memória):\n${input.historySummary.trim()}`,
+    );
+  }
+  parts.push(
+    `Sobre o histórico: mensagens marcadas como "[Atendente ...]" foram enviadas por um atendente humano do escritório ao lead — considere o que foi combinado, mas não repita. Mensagens "[Nota interna...]" são anotações da equipe, nunca foram vistas pelo lead.`,
+  );
+
   const messages: XJChatMessage[] = [{ role: "system", content: parts.join("\n\n") }];
   messages.push(...input.history);
   messages.push({ role: "user", content: input.currentInput });
   return messages;
 }
 
-/** Histórico recente da conversa no formato do LLM. */
+const MAX_MESSAGE_CHARS = 1200;
+const MAX_HISTORY_CHARS = 60_000;
+
+function messageBody(m: any): string {
+  const transcription = m.metadata?.transcription;
+  const raw = (typeof transcription === "string" ? transcription : "") ||
+    (m.text ?? "") ||
+    (m.caption ?? "");
+  let body = String(raw).trim();
+  if (!body && m.type && m.type !== "text") body = `[${m.type}]`;
+  if (body.length > MAX_MESSAGE_CHARS) body = `${body.slice(0, MAX_MESSAGE_CHARS)}…`;
+  return body;
+}
+
+/**
+ * Histórico completo do LEAD (todas as conversas do contato), em ordem cronológica.
+ * Diferencia agente, atendente humano e notas internas. Mensagens que ficam fora
+ * da janela viram um resumo (summary).
+ */
 // deno-lint-ignore no-explicit-any
 export async function loadHistory(
   supabase: any,
   conversationId: string | null,
   contactId: string | null,
-  limit = 24,
-): Promise<XJChatMessage[]> {
+  limit = 150,
+): Promise<{ messages: XJChatMessage[]; summary: string | null; total: number }> {
+  const select = "text, caption, from_me, type, created_at, metadata, internal_note, sender_name, conversation_id";
   let query = supabase
     .from("chat_messages")
-    .select("text, from_me, type, created_at, transcription")
+    .select(select)
     .order("created_at", { ascending: false })
     .limit(limit);
-  query = conversationId ? query.eq("conversation_id", conversationId) : query.eq("contact_id", contactId);
-  const { data } = await query;
+  // Memória por contato: todas as conversas/tickets do mesmo lead.
+  query = contactId ? query.eq("contact_id", contactId) : query.eq("conversation_id", conversationId);
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn("[x-julia/prompt] falha ao carregar histórico:", error.message);
+    return { messages: [], summary: null, total: 0 };
+  }
+
   const rows = (data ?? []).reverse();
-  return rows
-    .map((m: any) => {
-      const body = (m.transcription || m.text || "").toString().trim() ||
-        (m.type && m.type !== "text" ? `[${m.type}]` : "");
-      if (!body) return null;
-      return { role: m.from_me ? "assistant" : "user", content: body } as XJChatMessage;
-    })
-    .filter(Boolean) as XJChatMessage[];
+  const messages: XJChatMessage[] = [];
+  let chars = 0;
+
+  for (const m of rows) {
+    const body = messageBody(m);
+    if (!body) continue;
+
+    let role: XJChatMessage["role"] = m.from_me ? "assistant" : "user";
+    let content = body;
+
+    if (m.internal_note) {
+      role = "user";
+      content = `[Nota interna da equipe${m.sender_name ? ` — ${m.sender_name}` : ""}] ${body}`;
+    } else if (m.from_me && m.sender_name) {
+      // Enviada por atendente humano: contexto, não fala do agente.
+      role = "user";
+      content = `[Atendente ${m.sender_name}] ${body}`;
+    }
+
+    chars += content.length;
+    messages.push({ role, content });
+  }
+
+  // Garante que o contexto não estoure: descarta as mais antigas se preciso.
+  while (chars > MAX_HISTORY_CHARS && messages.length > 20) {
+    chars -= (messages.shift()?.content ?? "").length;
+  }
+
+  const summary = await loadContactSummary(supabase, contactId, rows.length >= limit);
+  return { messages, summary, total: rows.length };
+}
+
+/** Resumos já gerados para o contato (usado como memória de longo prazo). */
+// deno-lint-ignore no-explicit-any
+async function loadContactSummary(supabase: any, contactId: string | null, needed: boolean): Promise<string | null> {
+  if (!contactId || !needed) return null;
+  const { data } = await supabase
+    .from("chat_conversation_summaries")
+    .select("summary, atendimento, created_at")
+    .eq("contact_id", contactId)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const items = (data ?? [])
+    .map((s: any) => String(s.summary ?? s.atendimento ?? "").trim())
+    .filter(Boolean)
+    .reverse();
+  if (!items.length) return null;
+  return items.map((s: string) => `- ${s.slice(0, 1500)}`).join("\n");
 }
