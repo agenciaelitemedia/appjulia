@@ -98,16 +98,23 @@ Deno.serve(async (req) => {
 
     // Gatilhos de início só valem para conversas ainda sem sessão X-Julia.
     if (!existingSession) {
-      if (matchesPhrase(activation.session_start, inboundText) === false && (activation.session_start ?? "").trim()) {
-        if (!isCampaign) return json({ ok: true, skipped: "sem frase de início de sessão" });
-      }
-      if (activation.only_campaign && !isCampaign) {
-        return json({
-          ok: true,
-          skipped: hasCampaignPhrases
-            ? "apenas campanha: mensagem não contém frase de início de campanha"
-            : "agente configurado apenas para campanha",
-        });
+      const startPhrases = String(activation.session_start ?? "").trim();
+      const matchedStart = startPhrases ? matchesPhrase(activation.session_start, inboundText) : false;
+      // Frases de campanha configuradas já implicam entrada restrita, mesmo que o
+      // toggle "apenas campanha" não esteja marcado.
+      const campaignOnly = !!activation.only_campaign || hasCampaignPhrases;
+
+      if (campaignOnly) {
+        if (!isCampaign && !matchedStart) {
+          return json({
+            ok: true,
+            skipped: hasCampaignPhrases
+              ? "apenas campanha: mensagem não contém frase de início de campanha"
+              : "agente configurado apenas para campanha",
+          });
+        }
+      } else if (startPhrases && !matchedStart) {
+        return json({ ok: true, skipped: "sem frase de início de sessão" });
       }
     }
 
