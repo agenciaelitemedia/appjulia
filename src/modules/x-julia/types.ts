@@ -6,6 +6,9 @@ export interface XJAgent {
   client_id: string;
   name: string;
   is_active: boolean;
+  /** reception = recepciona e faz triagem; specialist = cuida de 1 caso jurídico. */
+  role?: 'reception' | 'specialist';
+  case_id?: string | null;
   persona: string | null;
   tone: string | null;
   system_prompt: string;
