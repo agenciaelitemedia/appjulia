@@ -37,6 +37,9 @@ export interface CRMBoard {
   position: number;
   is_archived: boolean;
   settings: CRMBoardSettings;
+  /** Quadro gerenciado pelo sistema (CRM da Julia): não pode ser renomeado, arquivado nem excluído. */
+  is_system?: boolean;
+  system_key?: string | null;
   created_at: string;
   updated_at: string;
   created_by?: string;
@@ -61,6 +64,9 @@ export interface CRMPipeline {
   position: number;
   is_active: boolean;
   win_probability: number;
+  /** Etapa padrão da Julia: não pode ser editada, movida nem excluída. */
+  is_system?: boolean;
+  stage_key?: string | null;
   created_at: string;
   updated_at: string;
   // Computed

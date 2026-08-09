@@ -2,6 +2,10 @@
 // X-Julia — CRM próprio (xj_pipelines / xj_deals) com espelhamento opcional
 // ============================================
 import type { XJAgent, XJSession, XJStage } from "./types.ts";
+import { logXJEvent } from "./session.ts";
+
+export const JULIA_BOARD_NAME = "CRM da Julia";
+export const JULIA_BOARD_SYSTEM_KEY = "julia";
 
 const DEFAULT_PIPELINES: Array<{ name: string; stage_key: XJStage; color: string }> = [
   { name: "Novo lead", stage_key: "recepcao", color: "#64748b" },
@@ -79,6 +83,11 @@ export async function upsertDeal(
       });
     }
     await supabase.from("xj_deals").update(update).eq("id", existing.id);
+    if (agent.mirror_to_crm_builder) {
+      await syncMirroredDeal(supabase, agent, session, existing.id, patch).catch((err) =>
+        console.warn("[x-julia/crm] sync do espelho falhou:", String(err)),
+      );
+    }
     return existing.id as string;
   }
 
@@ -122,33 +131,107 @@ export async function upsertDeal(
   return data.id as string;
 }
 
-/** Espelhamento opcional no CRM Builder (crm_deals), sem exigir cod_agent da Julia. */
+/**
+ * Garante o quadro único "CRM da Julia" no CRM Builder do escritório,
+ * com as 9 etapas padrão da Julia protegidas (is_system).
+ */
 // deno-lint-ignore no-explicit-any
-async function mirrorToCrmBuilder(supabase: any, agent: XJAgent, session: XJSession, xjDealId: string) {
-  const { data: board } = await supabase
+export async function ensureJuliaBoard(supabase: any, clientId: string, codAgent = "") {
+  const client = String(clientId);
+  let { data: board } = await supabase
     .from("crm_boards")
     .select("id, cod_agent")
-    .eq("client_id", String(session.client_id))
-    .order("created_at")
-    .limit(1)
+    .eq("client_id", client)
+    .eq("system_key", JULIA_BOARD_SYSTEM_KEY)
     .maybeSingle();
-  if (!board) return;
 
-  const { data: pipeline } = await supabase
+  if (!board) {
+    // Reaproveita um quadro homônimo criado antes desta versão.
+    const { data: legacy } = await supabase
+      .from("crm_boards")
+      .select("id, cod_agent")
+      .eq("client_id", client)
+      .eq("name", JULIA_BOARD_NAME)
+      .maybeSingle();
+    if (legacy) {
+      await supabase
+        .from("crm_boards")
+        .update({ is_system: true, system_key: JULIA_BOARD_SYSTEM_KEY, is_archived: false })
+        .eq("id", legacy.id);
+      board = legacy;
+    }
+  }
+
+  if (!board) {
+    const { data: created, error } = await supabase
+      .from("crm_boards")
+      .insert({
+        client_id: client,
+        cod_agent: codAgent ?? "",
+        name: JULIA_BOARD_NAME,
+        description: "Quadro gerenciado pela Julia (espelho das sessões do X-Julia)",
+        icon: "bot",
+        color: "#6366f1",
+        position: 0,
+        is_system: true,
+        system_key: JULIA_BOARD_SYSTEM_KEY,
+        created_by: "x-julia",
+      })
+      .select("id, cod_agent")
+      .single();
+    if (error) throw error;
+    board = created;
+  }
+
+  // Etapas padrão da Julia (idempotente por stage_key).
+  const { data: stages } = await supabase
     .from("crm_pipelines")
-    .select("id")
-    .eq("board_id", board.id)
-    .order("position")
-    .limit(1)
-    .maybeSingle();
+    .select("id, stage_key")
+    .eq("board_id", board.id);
+  const existingKeys = new Set((stages ?? []).map((s: any) => s.stage_key).filter(Boolean));
+  const missing = DEFAULT_PIPELINES.filter((p) => !existingKeys.has(p.stage_key));
+  if (missing.length > 0) {
+    await supabase.from("crm_pipelines").insert(
+      missing.map((p) => ({
+        board_id: board!.id,
+        client_id: client,
+        cod_agent: board!.cod_agent ?? "",
+        name: p.name,
+        color: p.color,
+        position: DEFAULT_PIPELINES.findIndex((d) => d.stage_key === p.stage_key),
+        is_system: true,
+        stage_key: p.stage_key,
+      })),
+    );
+  }
+  return board as { id: string; cod_agent: string | null };
+}
 
-  const { data: mirrored } = await supabase
+/** Fase do quadro "CRM da Julia" correspondente à etapa da sessão. */
+// deno-lint-ignore no-explicit-any
+async function juliaBoardPipeline(supabase: any, boardId: string, stage: XJStage) {
+  const { data } = await supabase
+    .from("crm_pipelines")
+    .select("id, stage_key, position")
+    .eq("board_id", boardId)
+    .order("position");
+  const rows = (data ?? []) as any[];
+  return rows.find((r) => r.stage_key === stage)?.id ?? rows[0]?.id ?? null;
+}
+
+/** Espelhamento no CRM Builder (crm_deals), sempre no quadro "CRM da Julia". */
+// deno-lint-ignore no-explicit-any
+async function mirrorToCrmBuilder(supabase: any, agent: XJAgent, session: XJSession, xjDealId: string) {
+  const board = await ensureJuliaBoard(supabase, session.client_id);
+  const pipelineId = await juliaBoardPipeline(supabase, board.id, session.stage);
+
+  const { data: mirrored, error } = await supabase
     .from("crm_deals")
     .insert({
       client_id: String(session.client_id),
       cod_agent: board.cod_agent ?? "",
       board_id: board.id,
-      pipeline_id: pipeline?.id ?? null,
+      pipeline_id: pipelineId,
       title: session.contact_name || session.phone || "Lead X-Julia",
       contact_name: session.contact_name,
       contact_phone: session.phone,
@@ -161,7 +244,89 @@ async function mirrorToCrmBuilder(supabase: any, agent: XJAgent, session: XJSess
     .select("id")
     .maybeSingle();
 
+  if (error) {
+    await logXJEvent(supabase, session, { kind: "crm_mirror", status: "error", detail: error.message });
+    throw error;
+  }
+
   if (mirrored?.id) {
     await supabase.from("xj_deals").update({ mirrored_deal_id: mirrored.id }).eq("id", xjDealId);
+    await logXJEvent(supabase, session, {
+      kind: "crm_mirror",
+      status: "created",
+      detail: `Card criado no quadro ${JULIA_BOARD_NAME}`,
+      payload: { board_id: board.id, deal_id: mirrored.id },
+    });
   }
+}
+
+/** Mantém o card espelhado em sincronia (dados + fase). */
+// deno-lint-ignore no-explicit-any
+async function syncMirroredDeal(
+  supabase: any,
+  agent: XJAgent,
+  session: XJSession,
+  xjDealId: string,
+  patch: { title?: string; value?: number | null; description?: string | null; priority?: string },
+) {
+  const { data: xjDeal } = await supabase
+    .from("xj_deals")
+    .select("mirrored_deal_id")
+    .eq("id", xjDealId)
+    .maybeSingle();
+
+  // Sem espelho ainda (toggle ligado depois da criação): cria agora.
+  if (!xjDeal?.mirrored_deal_id) {
+    await mirrorToCrmBuilder(supabase, agent, session, xjDealId);
+    return;
+  }
+
+  const { data: mirrored } = await supabase
+    .from("crm_deals")
+    .select("id, board_id, pipeline_id")
+    .eq("id", xjDeal.mirrored_deal_id)
+    .maybeSingle();
+  if (!mirrored) return;
+
+  const update: Record<string, unknown> = { updated_by: "x-julia" };
+  if (patch.title) update.title = patch.title;
+  if (patch.value !== undefined && patch.value !== null) update.value = patch.value;
+  if (patch.description !== undefined && patch.description !== null) update.description = patch.description;
+  if (patch.priority) update.priority = patch.priority;
+  if (session.contact_name) update.contact_name = session.contact_name;
+  if (session.phone) update.contact_phone = session.phone;
+
+  const targetPipeline = await juliaBoardPipeline(supabase, mirrored.board_id, session.stage);
+  const moved = !!targetPipeline && targetPipeline !== mirrored.pipeline_id;
+  if (moved) {
+    update.pipeline_id = targetPipeline;
+    update.stage_entered_at = new Date().toISOString();
+  }
+
+  const { error } = await supabase.from("crm_deals").update(update).eq("id", mirrored.id);
+  if (error) {
+    await logXJEvent(supabase, session, { kind: "crm_mirror", status: "error", detail: error.message });
+    return;
+  }
+
+  if (moved) {
+    await supabase
+      .from("crm_deal_history")
+      .insert({
+        deal_id: mirrored.id,
+        action: "moved",
+        from_pipeline_id: mirrored.pipeline_id,
+        to_pipeline_id: targetPipeline,
+        changed_by: "x-julia",
+        notes: `Etapa da Julia: ${session.stage}`,
+      })
+      .then(undefined, (err: unknown) => console.warn("[x-julia/crm] histórico do espelho falhou:", String(err)));
+  }
+
+  await logXJEvent(supabase, session, {
+    kind: "crm_mirror",
+    status: moved ? "moved" : "updated",
+    detail: moved ? `Card movido para a etapa ${session.stage}` : "Card espelhado atualizado",
+    payload: { deal_id: mirrored.id },
+  });
 }

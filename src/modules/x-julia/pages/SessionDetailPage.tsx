@@ -33,6 +33,21 @@ export default function XJSessionDetailPage() {
   const { pause, resume, setStage } = useXJSessionActions();
   const openChat = useOpenChatConversation();
 
+  /** Último espelho bem-sucedido no CRM Builder (evento crm_mirror). */
+  const mirror = (() => {
+    const ok = events.filter(
+      (e: any) => e.kind === 'crm_mirror' && e.status !== 'error' && e.payload?.deal_id,
+    );
+    const last = ok[0] ?? null;
+    const withBoard = ok.find((e: any) => e.payload?.board_id);
+    if (!last) return null;
+    return {
+      dealId: (last as any).payload.deal_id as string,
+      boardId: (withBoard as any)?.payload?.board_id as string | undefined,
+      at: last.created_at as string,
+    };
+  })();
+
   if (isLoading) {
     return (
       <XJLayout title="Atendimento">
@@ -212,6 +227,34 @@ export default function XJSessionDetailPage() {
             <p className="text-xs text-muted-foreground">
               Estimativa pelos preços de referência do modelo usado em cada turno.
             </p>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Espelho no CRM da Julia</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {mirror ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[10px]">Card criado</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(mirror.at).toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                {mirror.boardId && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/crm-builder/${mirror.boardId}`}>Abrir quadro CRM da Julia</Link>
+                  </Button>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Nenhum card espelhado ainda. O espelho acontece quando o agente cria/atualiza o lead com a
+                opção "Espelhar no CRM Builder" ativa.
+              </p>
+            )}
           </CardContent>
         </Card>
 

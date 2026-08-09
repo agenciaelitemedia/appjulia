@@ -37,6 +37,8 @@ import {
   XJ_VOICE_PROVIDERS,
 } from '../module';
 import { formatContext, formatModelPricing, formatUsd, getXJModelInfo } from '../modelCatalog';
+import { ensureJuliaBoard, JULIA_BOARD_NAME } from '../lib/juliaBoard';
+import { toast } from 'sonner';
 
 /** Seleção do caso jurídico que o agente especialista atende (1 agente por caso). */
 function SpecialistCaseSelect({
@@ -211,8 +213,16 @@ export default function XJAgentEditorPage() {
     setStagePrompts(preset.stage_prompts);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!agentId) return;
+    // Espelho ligado: garante o quadro único "CRM da Julia" antes de salvar.
+    if (form.mirror_to_crm_builder && agent?.client_id) {
+      try {
+        await ensureJuliaBoard(agent.client_id);
+      } catch (err: any) {
+        toast.error(`Não foi possível preparar o quadro ${JULIA_BOARD_NAME}: ${err?.message ?? err}`);
+      }
+    }
     update.mutate({
       id: agentId,
       patch: {
@@ -349,6 +359,13 @@ export default function XJAgentEditorPage() {
                   disabled={!canEdit}
                 />
               </div>
+              {!!form.mirror_to_crm_builder && (
+                <p className="text-xs text-muted-foreground md:col-span-2">
+                  O espelho usa sempre o quadro <strong>{JULIA_BOARD_NAME}</strong> no Construtor de CRM (criado
+                  automaticamente na primeira vez). As etapas padrão da Julia nesse quadro não podem ser
+                  renomeadas nem excluídas — você pode adicionar etapas próprias.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

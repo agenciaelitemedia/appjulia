@@ -3223,9 +3223,11 @@ export type Database = {
           icon: string | null
           id: string
           is_archived: boolean
+          is_system: boolean
           name: string
           position: number
           settings: Json | null
+          system_key: string | null
           updated_at: string
         }
         Insert: {
@@ -3238,9 +3240,11 @@ export type Database = {
           icon?: string | null
           id?: string
           is_archived?: boolean
+          is_system?: boolean
           name: string
           position?: number
           settings?: Json | null
+          system_key?: string | null
           updated_at?: string
         }
         Update: {
@@ -3253,9 +3257,11 @@ export type Database = {
           icon?: string | null
           id?: string
           is_archived?: boolean
+          is_system?: boolean
           name?: string
           position?: number
           settings?: Json | null
+          system_key?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -3877,8 +3883,10 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          is_system: boolean
           name: string
           position: number
+          stage_key: string | null
           updated_at: string
           win_probability: number | null
         }
@@ -3890,8 +3898,10 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_system?: boolean
           name: string
           position?: number
+          stage_key?: string | null
           updated_at?: string
           win_probability?: number | null
         }
@@ -3903,8 +3913,10 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_system?: boolean
           name?: string
           position?: number
+          stage_key?: string | null
           updated_at?: string
           win_probability?: number | null
         }

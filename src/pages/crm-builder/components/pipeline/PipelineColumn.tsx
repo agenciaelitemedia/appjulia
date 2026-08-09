@@ -60,6 +60,7 @@ export function PipelineColumn({
     isDragging,
   } = useSortable({
     id: `pipeline-${pipeline.id}`,
+    disabled: !!pipeline.is_system,
     data: {
       type: 'pipeline',
       pipeline,
@@ -131,7 +132,8 @@ export function PipelineColumn({
             {...listeners}
             className={cn(
               'cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted transition-opacity',
-              isHovering ? 'opacity-100' : 'opacity-0'
+              isHovering && !pipeline.is_system ? 'opacity-100' : 'opacity-0',
+              pipeline.is_system && 'pointer-events-none'
             )}
           >
             <GripVertical className="h-4 w-4 text-muted-foreground" />
@@ -145,6 +147,10 @@ export function PipelineColumn({
           <h3 className="font-medium text-sm truncate">
             {pipeline.name}
           </h3>
+
+          {pipeline.is_system && (
+            <Badge variant="outline" className="text-[10px] flex-shrink-0">Julia</Badge>
+          )}
           
           <Badge variant="secondary" className="text-xs">
             {stats.count}
@@ -167,15 +173,19 @@ export function PipelineColumn({
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem onClick={onEdit}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Editar Etapa
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onDelete} className="text-destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remover Etapa
-            </DropdownMenuItem>
+            {!pipeline.is_system && (
+              <>
+                <DropdownMenuItem onClick={onEdit}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar Etapa
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remover Etapa
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
