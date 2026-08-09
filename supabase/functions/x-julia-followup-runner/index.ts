@@ -4,7 +4,7 @@
 // ============================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveStepContent, scheduleNextFollowup } from "../_shared/x-julia/followups.ts";
-import { xjSend } from "../_shared/x-julia/messaging.ts";
+import { xjSend, xjSendComposed } from "../_shared/x-julia/messaging.ts";
 import { logXJEvent } from "../_shared/x-julia/session.ts";
 import { xjSynthesize } from "../_shared/x-julia/tts.ts";
 
@@ -85,12 +85,16 @@ Deno.serve(async (req) => {
           else type = "text";
         }
 
-        const sent = await xjSend(supabase, queue as any, session, content.text, {
-          type: mediaUrl ? type : "text",
-          mediaUrl,
-          caption: content.text,
-          senderName: "X-Julia (follow-up)",
-        });
+        const sent = mediaUrl
+          ? await xjSend(supabase, queue as any, session, content.text, {
+              type,
+              mediaUrl,
+              caption: content.text,
+              senderName: "X-Julia (follow-up)",
+            })
+          : await xjSendComposed(supabase, queue as any, session, content.text, {
+              senderName: "X-Julia (follow-up)",
+            });
 
         if (!sent.ok) throw new Error(sent.error ?? "falha no envio");
 
