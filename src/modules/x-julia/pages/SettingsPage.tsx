@@ -2,7 +2,7 @@
  * Configuração do X-Julia — provedores de LLM/voz ativos, modelos liberados
  * e chave padrão de cada provedor (write-only).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { KeyRound, Loader2, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
