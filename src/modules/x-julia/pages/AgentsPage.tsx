@@ -335,6 +335,86 @@ export default function XJAgentsPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!dupSource} onOpenChange={(open) => !open && setDupSource(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicar agente</DialogTitle>
+            <DialogDescription>
+              A cópia mantém prompt, roteiro por etapa, LLM, voz, contrato e horários do agente original. Se você mudar
+              a função, o prompt e o roteiro do novo papel (preset) são aplicados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Função da cópia</Label>
+              <Select
+                value={dupRole}
+                onValueChange={(v) => {
+                  const r = v as XJAgentRole;
+                  setDupRole(r);
+                  setDupCaseId('');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(['reception', 'specialist'] as XJAgentRole[]).map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {XJ_ROLE_LABELS[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{XJ_ROLE_DESCRIPTIONS[dupRole]}</p>
+            </div>
+
+            {dupRole === 'specialist' && (
+              <div className="space-y-2">
+                <Label>Caso jurídico da cópia</Label>
+                <Select value={dupCaseId || undefined} onValueChange={setDupCaseId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={availableCases.length ? 'Selecione o caso' : 'Nenhum caso livre'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableCases.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.category} · {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Cada caso tem um único especialista, então escolha um caso ainda livre.
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Nome da cópia</Label>
+              <Input value={dupName} onChange={(e) => setDupName(e.target.value)} />
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              A cópia é criada inativa
+              {dupRole === 'reception' ? ' e já herda os vínculos de fila do original.' : '.'}
+            </p>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDupSource(null)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleDuplicate}
+                disabled={!dupName.trim() || duplicate.isPending || (dupRole === 'specialist' && !dupCaseId)}
+              >
+                Duplicar
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
