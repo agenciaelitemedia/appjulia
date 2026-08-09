@@ -225,6 +225,10 @@ Deno.serve(async (req) => {
 
     if (created) {
       await ensurePipelines(supabase, clientId, agent.id).catch(() => {});
+      // Sessão nova = atendimento do zero: histórico do prompt conta a partir daqui.
+      await updateSession(supabase, session, {
+        slots: { ...(session.slots ?? {}), __restarted_at: new Date().toISOString() },
+      });
       await logXJEvent(supabase, session, { kind: "session_started", detail: `origem: ${session.origin ?? "-"}` });
     }
 
