@@ -3,7 +3,7 @@
 // ============================================
 import { xjReadInbound } from "./documents.ts";
 import { xjComplete } from "./llm.ts";
-import { estimateCost } from "./pricing.ts";
+import { estimateCost, loadPricingOverrides } from "./pricing.ts";
 import { xjSend, xjSendComposed } from "./messaging.ts";
 import { buildXJMessages, loadHistory } from "./prompt.ts";
 import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
@@ -17,6 +17,9 @@ const MAX_TOOL_ROUNDS = 6;
 export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | null; stage: string }> {
   const { supabase, agent, session, inbound } = ctx;
   const started = Date.now();
+
+  // Preços mantidos pelo admin (tabela xj_model_pricing) com cache curto.
+  await loadPricingOverrides(supabase);
 
   // 1) Lead respondeu: cancela followups pendentes.
   await cancelPendingFollowups(supabase, session.id);

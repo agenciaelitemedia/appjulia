@@ -9846,6 +9846,45 @@ export type Database = {
         }
         Relationships: []
       }
+      xj_model_pricing: {
+        Row: {
+          context_tokens: number
+          created_at: string
+          id: string
+          input_per_1m: number
+          is_active: boolean
+          model: string
+          note: string | null
+          output_per_1m: number
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          context_tokens?: number
+          created_at?: string
+          id?: string
+          input_per_1m?: number
+          is_active?: boolean
+          model: string
+          note?: string | null
+          output_per_1m?: number
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          context_tokens?: number
+          created_at?: string
+          id?: string
+          input_per_1m?: number
+          is_active?: boolean
+          model?: string
+          note?: string | null
+          output_per_1m?: number
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       xj_pipelines: {
         Row: {
           agent_id: string | null

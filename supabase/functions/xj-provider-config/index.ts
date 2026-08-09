@@ -3,6 +3,7 @@
 // POST { action: 'save_provider' | 'save_client_key' }
 // As chaves nunca são devolvidas em texto puro; apenas mascaradas.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { XJ_MODEL_CATALOG } from "../_shared/x-julia/pricing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +64,13 @@ Deno.serve(async (req) => {
         }));
       }
 
-      return json({ providers, client_keys: clientKeys });
+      const { data: pricing } = await supabase
+        .from("xj_model_pricing")
+        .select("id, provider, model, input_per_1m, output_per_1m, context_tokens, note, is_active, updated_at")
+        .order("provider")
+        .order("model");
+
+      return json({ providers, client_keys: clientKeys, model_pricing: pricing ?? [] });
     }
 
     if (req.method === "POST") {
@@ -122,6 +129,73 @@ Deno.serve(async (req) => {
           );
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true, masked: mask(apiKey) });
+      }
+
+      if (action === "save_model_pricing") {
+        const provider = String(body?.provider ?? "").trim();
+        const model = String(body?.model ?? "").trim();
+        if (!provider || !model) return json({ error: "provider e model são obrigatórios" }, 400);
+
+        const payload = {
+          provider,
+          model,
+          input_per_1m: Number(body?.input_per_1m ?? 0) || 0,
+          output_per_1m: Number(body?.output_per_1m ?? 0) || 0,
+          context_tokens: Math.round(Number(body?.context_tokens ?? 0) || 0),
+          note: body?.note ? String(body.note) : null,
+          is_active: body?.is_active === undefined ? true : !!body.is_active,
+        };
+        const { error } = await supabase
+          .from("xj_model_pricing")
+          .upsert(payload, { onConflict: "provider,model" });
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true });
+      }
+
+      if (action === "delete_model_pricing") {
+        const provider = String(body?.provider ?? "").trim();
+        const model = String(body?.model ?? "").trim();
+        if (!provider || !model) return json({ error: "provider e model são obrigatórios" }, 400);
+        const { error } = await supabase
+          .from("xj_model_pricing")
+          .delete()
+          .eq("provider", provider)
+          .eq("model", model);
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true });
+      }
+
+      // Popula a tabela com o catálogo padrão do código (não sobrescreve linhas existentes salvo force).
+      if (action === "seed_model_pricing") {
+        const force = !!body?.force;
+        const rows = Object.entries(XJ_MODEL_CATALOG).map(([key, info]) => {
+          const parts = key.split("/");
+          return {
+            provider: parts[0],
+            model: parts.slice(1).join("/"),
+            input_per_1m: info.inputPer1M,
+            output_per_1m: info.outputPer1M,
+            context_tokens: info.context,
+            note: info.note,
+            is_active: true,
+          };
+        });
+
+        if (!force) {
+          const { data: existing } = await supabase.from("xj_model_pricing").select("provider, model");
+          const has = new Set((existing ?? []).map((r: any) => `${r.provider}/${r.model}`));
+          const toInsert = rows.filter((r) => !has.has(`${r.provider}/${r.model}`));
+          if (!toInsert.length) return json({ ok: true, inserted: 0 });
+          const { error } = await supabase.from("xj_model_pricing").insert(toInsert);
+          if (error) return json({ error: error.message }, 500);
+          return json({ ok: true, inserted: toInsert.length });
+        }
+
+        const { error } = await supabase
+          .from("xj_model_pricing")
+          .upsert(rows, { onConflict: "provider,model" });
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true, inserted: rows.length });
       }
 
       return json({ error: `ação desconhecida: ${action}` }, 400);
