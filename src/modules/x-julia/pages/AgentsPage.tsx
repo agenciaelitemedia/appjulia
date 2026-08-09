@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { XJLayout } from '../components/XJLayout';
 import { useXJAgentMutations, useXJAgents } from '../hooks/useXJAgents';
+import { useXJCases } from '../hooks/useXJCases';
 import { useXJPermissions } from '../extend/auth';
 import { useXJScope } from '../context/XJScopeContext';
 import { X_JULIA_ROUTES } from '../module';
@@ -40,13 +42,18 @@ export default function XJAgentsPage() {
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('X-Julia');
+  const [role, setRole] = useState<'reception' | 'specialist'>('reception');
+  const [caseId, setCaseId] = useState('');
+  const { data: cases = [] } = useXJCases();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmChecked, setConfirmChecked] = useState(false);
 
   const handleCreate = async () => {
-    const agent = await create.mutateAsync({ name });
+    const agent = await create.mutateAsync({ name, role, case_id: role === 'specialist' ? caseId : null });
     setCreating(false);
     setName('X-Julia');
+    setRole('reception');
+    setCaseId('');
     if (agent?.id) window.location.assign(X_JULIA_ROUTES.agent(agent.id));
   };
 
@@ -129,6 +136,14 @@ export default function XJAgentsPage() {
                 </p>
 
                 <div className="flex flex-wrap gap-1.5 text-[11px]">
+                  <Badge variant={(agent.role ?? 'reception') === 'specialist' ? 'outline' : 'secondary'}>
+                    {(agent.role ?? 'reception') === 'specialist' ? 'Especialista' : 'Recepcionista'}
+                  </Badge>
+                  {(agent.role ?? 'reception') === 'specialist' && (
+                    <Badge variant="outline">
+                      {cases.find((c) => c.id === agent.case_id)?.name ?? 'sem caso vinculado'}
+                    </Badge>
+                  )}
                   {agent.voice_enabled && <Badge variant="outline">Voz: {agent.voice_provider}</Badge>}
                   <Badge variant="outline">Contrato: {agent.contract_provider}</Badge>
                   {agent.mirror_to_crm_builder && <Badge variant="outline">Espelha CRM</Badge>}
@@ -180,11 +195,43 @@ export default function XJAgentsPage() {
             <Label>Nome do agente</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="X-Julia" />
           </div>
+          <div className="space-y-2">
+            <Label>Função</Label>
+            <Select value={role} onValueChange={(v: any) => setRole(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="reception">Recepcionista (triagem)</SelectItem>
+                <SelectItem value="specialist">Especialista de caso</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {role === 'specialist' && (
+            <div className="space-y-2">
+              <Label>Caso jurídico</Label>
+              <Select value={caseId || undefined} onValueChange={setCaseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o caso" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cases.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.category} · {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>
+            <Button
+              onClick={handleCreate}
+              disabled={!name.trim() || create.isPending || (role === 'specialist' && !caseId)}
+            >
               Criar agente
             </Button>
           </DialogFooter>

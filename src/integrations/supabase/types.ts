@@ -8885,6 +8885,7 @@ export type Database = {
         Row: {
           activation: Json
           business_hours: Json
+          case_id: string | null
           client_id: string
           contract_provider: string
           contract_template: string | null
@@ -8901,6 +8902,7 @@ export type Database = {
           mirror_to_crm_builder: boolean
           name: string
           persona: string | null
+          role: string
           stage_prompts: Json
           system_prompt: string
           tone: string | null
@@ -8914,6 +8916,7 @@ export type Database = {
         Insert: {
           activation?: Json
           business_hours?: Json
+          case_id?: string | null
           client_id: string
           contract_provider?: string
           contract_template?: string | null
@@ -8930,6 +8933,7 @@ export type Database = {
           mirror_to_crm_builder?: boolean
           name: string
           persona?: string | null
+          role?: string
           stage_prompts?: Json
           system_prompt?: string
           tone?: string | null
@@ -8943,6 +8947,7 @@ export type Database = {
         Update: {
           activation?: Json
           business_hours?: Json
+          case_id?: string | null
           client_id?: string
           contract_provider?: string
           contract_template?: string | null
@@ -8959,6 +8964,7 @@ export type Database = {
           mirror_to_crm_builder?: boolean
           name?: string
           persona?: string | null
+          role?: string
           stage_prompts?: Json
           system_prompt?: string
           tone?: string | null
@@ -8969,7 +8975,15 @@ export type Database = {
           voice_provider?: string | null
           voice_settings?: Json
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "xj_agents_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "xj_legal_cases"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       xj_appointments: {
         Row: {

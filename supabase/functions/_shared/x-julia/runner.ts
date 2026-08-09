@@ -95,14 +95,16 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
 
   // 4) Laço de decisão com skills.
   let finalText = "";
+  let switchHandled = false;
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const activeAgent = ctx.agent;
     const completion = await xjComplete({
       supabase,
-      provider: agent.llm_provider,
-      model: agent.llm_model,
-      fallbackEnabled: agent.llm_fallback_enabled,
-      clientId: agent.client_id,
-      keyMode: (agent as any).llm_key_mode ?? "default",
+      provider: activeAgent.llm_provider,
+      model: activeAgent.llm_model,
+      fallbackEnabled: activeAgent.llm_fallback_enabled,
+      clientId: activeAgent.client_id,
+      keyMode: (activeAgent as any).llm_key_mode ?? "default",
       messages,
       tools: XJ_TOOLS,
       temperature: 0.5,
@@ -168,6 +170,46 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
       messages.push({ role: "tool", tool_call_id: call.id, name: call.name, content: result });
     }
 
+    // Passou para o agente especialista do caso: refaz o contexto com o prompt,
+    // o roteiro e a base de conhecimento do especialista antes da próxima rodada.
+    if (ctx.agentSwitched && !switchHandled) {
+      switchHandled = true;
+      const [newQuestions, newKnowledge] = await Promise.all([
+        session.case_id
+          ? supabase
+              .from("xj_case_questions")
+              .select("position, question, slot_key, is_required")
+              .eq("case_id", session.case_id)
+              .order("position")
+              .then((r: any) => r.data ?? [])
+          : Promise.resolve([]),
+        session.case_id
+          ? supabase
+              .from("xj_case_knowledge")
+              .select("title, content")
+              .eq("case_id", session.case_id)
+              .eq("is_active", true)
+              .then((r: any) => r.data ?? [])
+          : Promise.resolve([]),
+      ]);
+      const rebuilt = buildXJMessages({
+        agent: ctx.agent,
+        session,
+        legalCase: ctx.legalCase,
+        questions: newQuestions,
+        knowledge: newKnowledge,
+        caseCatalog: [],
+        ctaExtraPrompt: cta?.extra_prompt ?? null,
+        history: history.messages,
+        historySummary: history.summary,
+        currentInput: userInput,
+      });
+      messages.length = 0;
+      messages.push(...rebuilt);
+      finalText = "";
+      continue;
+    }
+
     if (completion.text.trim()) finalText = completion.text.trim();
   }
 
@@ -176,17 +218,18 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
   }
 
   // 5) Resposta: texto ou áudio (quando o lead falou por áudio e a voz está ligada).
+  const finalAgent = ctx.agent;
   const wantsAudio =
-    agent.voice_enabled && ["audio", "ptt"].includes(String(inbound.type ?? "").toLowerCase());
+    finalAgent.voice_enabled && ["audio", "ptt"].includes(String(inbound.type ?? "").toLowerCase());
 
   if (wantsAudio) {
     const voice = await xjSynthesize(supabase, {
       clientId: session.client_id,
       text: finalText,
-      provider: agent.voice_provider ?? "elevenlabs",
-      voiceId: agent.voice_id,
-      settings: agent.voice_settings,
-      keyMode: (agent as any).voice_key_mode ?? "default",
+      provider: finalAgent.voice_provider ?? "elevenlabs",
+      voiceId: finalAgent.voice_id,
+      settings: finalAgent.voice_settings,
+      keyMode: (finalAgent as any).voice_key_mode ?? "default",
     });
     if ("url" in voice) {
       const sent = await xjSend(supabase, ctx.queue, session, finalText, {

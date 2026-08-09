@@ -60,6 +60,23 @@ export function buildXJMessages(input: XJPromptInput): XJChatMessage[] {
 
   parts.push(buildTimeAnchor());
 
+  const role = String((agent as any).role ?? "reception");
+  if (role === "specialist") {
+    parts.push(
+      `Você é o agente ESPECIALISTA no caso já identificado deste atendimento. ` +
+        `O caso está definido: NÃO refaça a triagem, não pergunte de novo o que aconteceu ` +
+        `nem ofereça outros tipos de caso. Retome a conversa de onde parou, siga o roteiro ` +
+        `de qualificação do caso e conduza até a contratação, contrato ou agendamento. ` +
+        `Não mencione que houve troca de atendente.`,
+    );
+  } else {
+    parts.push(
+      `Você é o agente RECEPCIONISTA: sua função é acolher, coletar o primeiro nome e ` +
+        `identificar o caso jurídico. Assim que o caso estiver confirmado, chame ` +
+        `identificar_caso — o atendimento pode ser assumido pelo especialista do caso.`,
+    );
+  }
+
   if (agent.persona) parts.push(`Persona: ${agent.persona}`);
   if (agent.tone) parts.push(`Tom de voz: ${agent.tone}`);
   if (agent.system_prompt?.trim()) parts.push(`Instruções do escritório:\n${agent.system_prompt.trim()}`);

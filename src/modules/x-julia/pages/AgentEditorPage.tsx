@@ -16,6 +16,7 @@ import { XJActivationTab } from '../components/XJActivationTab';
 import { normalizeXJBusinessHours, type XJBusinessHours } from '../lib/xjBusinessHours';
 import { useXJAgent, useXJAgentMutations, useXJAgentQueueLinks, useXJPromptVersions } from '../hooks/useXJAgents';
 import { useXJCadences } from '../hooks/useXJFollowups';
+import { useXJCases } from '../hooks/useXJCases';
 import { useXJQueues } from '../extend/queues';
 import { useXJPermissions } from '../extend/auth';
 import { useXJProviderConfig, useXJProviderConfigMutations } from '../hooks/useXJProviderConfig';
@@ -28,6 +29,39 @@ import {
   XJ_VOICE_PROVIDERS,
 } from '../module';
 import { formatContext, formatModelPricing, formatUsd, getXJModelInfo } from '../modelCatalog';
+
+/** Seleção do caso jurídico que o agente especialista atende (1 agente por caso). */
+function SpecialistCaseSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const { data: cases = [], isLoading } = useXJCases();
+  return (
+    <div className="space-y-1.5">
+      <Label>Caso jurídico atendido</Label>
+      <Select value={value || undefined} onValueChange={onChange} disabled={disabled || isLoading}>
+        <SelectTrigger>
+          <SelectValue placeholder={isLoading ? 'Carregando casos...' : 'Selecione o caso'} />
+        </SelectTrigger>
+        <SelectContent>
+          {cases.map((c) => (
+            <SelectItem key={c.id} value={c.id}>
+              {c.category} · {c.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        Cada caso pode ter apenas um agente especialista ativo.
+      </p>
+    </div>
+  );
+}
 
 export default function XJAgentEditorPage() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -59,6 +93,8 @@ export default function XJAgentEditorPage() {
       mirror_to_crm_builder: agent.mirror_to_crm_builder,
       max_turns: agent.max_turns ?? 40,
       is_active: agent.is_active,
+      role: (agent as any).role ?? 'reception',
+      case_id: (agent as any).case_id ?? '',
       activation: (agent as any).activation ?? {},
       business_hours: normalizeXJBusinessHours((agent as any).business_hours),
     });
@@ -118,6 +154,8 @@ export default function XJAgentEditorPage() {
         voice_id: form.voice_id || null,
         contract_template: form.contract_template || null,
         max_turns: Number(form.max_turns) || 40,
+        role: form.role ?? 'reception',
+        case_id: form.role === 'specialist' ? form.case_id || null : null,
         activation: form.activation ?? {},
         business_hours: normalizeXJBusinessHours(form.business_hours),
       } as any,
@@ -190,6 +228,30 @@ export default function XJAgentEditorPage() {
                   disabled={!canEdit}
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>Função do agente</Label>
+                <Select
+                  value={form.role ?? 'reception'}
+                  onValueChange={(v) => {
+                    set('role', v);
+                    if (v !== 'specialist') set('case_id', '');
+                  }}
+                  disabled={!canEdit}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="reception">Recepcionista (triagem)</SelectItem>
+                    <SelectItem value="specialist">Especialista de caso</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  O recepcionista atende as filas e identifica o caso; ao identificar, o atendimento passa
+                  automaticamente para o especialista daquele caso.
+                </p>
+              </div>
+              {form.role === 'specialist' && <SpecialistCaseSelect value={form.case_id ?? ''} onChange={(v) => set('case_id', v)} disabled={!canEdit} />}
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
                   <p className="text-sm font-medium">Agente ativo</p>
