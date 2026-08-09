@@ -90,6 +90,34 @@ export function buildXJMessages(input: XJPromptInput): XJChatMessage[] {
   );
   const stagePrompt = agent.stage_prompts?.[stage];
   if (stagePrompt?.trim()) parts.push(`Instruções extras deste estágio:\n${stagePrompt.trim()}`);
+
+  const contractFields = Array.isArray((legalCase as any)?.contract_fields)
+    ? ((legalCase as any).contract_fields as Array<{ key: string; label?: string; validation?: string }>)
+    : [];
+  if (contractFields.length && (stage === "contrato" || stage === "negociacao")) {
+    const slotsNow = (session.slots ?? {}) as Record<string, unknown>;
+    const lines = contractFields.map((f, i) => {
+      const value = slotsNow[f.key];
+      const filled = value !== undefined && value !== null && String(value).trim() !== "";
+      return `${i + 1}. ${f.label ?? f.key} [campo: ${f.key}]${f.validation ? ` (${f.validation})` : ""} — ${
+        filled ? `já coletado: ${String(value)}` : "PENDENTE"
+      }`;
+    });
+    const pending = contractFields.filter((f) => {
+      const v = slotsNow[f.key];
+      return v === undefined || v === null || String(v).trim() === "";
+    });
+    parts.push(
+      `Campos obrigatórios do contrato (peça um por mensagem, nesta ordem, e registre com registrar_dados):\n${lines.join(
+        "\n",
+      )}\n${
+        pending.length
+          ? `Ainda faltam ${pending.length} campo(s): ${pending.map((f) => f.label ?? f.key).join(", ")}. NÃO chame gerar_contrato agora.`
+          : "Todos os campos estão preenchidos: liste-os para conferência e só gere o contrato após o 'sim' do lead."
+      }`,
+    );
+  }
+
   if (input.ctaExtraPrompt?.trim()) parts.push(`Contexto da campanha:\n${input.ctaExtraPrompt.trim()}`);
 
   if (legalCase) {
