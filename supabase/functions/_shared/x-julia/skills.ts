@@ -5,6 +5,17 @@ import { upsertDeal } from "./crm.ts";
 import { xjGenerateContract } from "./contracts.ts";
 import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
 import { updateSession } from "./session.ts";
+import { isWithinBusinessHours } from "./activation.ts";
+import {
+  diffCalendarDaysBRT,
+  formatBRT,
+  formatDateBRT,
+  formatFullBRT,
+  isoBRT,
+  nowBRT,
+  resolveExpression,
+  weekdayBRT,
+} from "./datetime.ts";
 import type { XJRunContext, XJStage } from "./types.ts";
 import type { XJToolDef } from "./llm.ts";
 
@@ -99,12 +110,32 @@ export const XJ_TOOLS: XJToolDef[] = [
     },
   },
   {
-    name: "agendar",
-    description: "Cria um agendamento interno de atendimento.",
+    name: "data_hora",
+    description:
+      "Retorna a data/hora atual de Brasília e resolve datas relativas com precisão. Use SEMPRE antes de citar qualquer data, prazo ou horário, e para montar a data de um agendamento.",
     parameters: {
       type: "object",
       properties: {
-        inicio: { type: "string", description: "data/hora ISO do início" },
+        expressao: {
+          type: "string",
+          description:
+            "opcional. Ex.: 'hoje', 'amanha', 'hoje+3d', '+2 semanas', 'proxima segunda', 'fim do mes', '15/09', '2026-09-15 14:00'",
+        },
+        formato: {
+          type: "string",
+          description: "opcional: 'data', 'data_hora' ou 'iso' (padrão data_hora)",
+        },
+      },
+    },
+  },
+  {
+    name: "agendar",
+    description:
+      "Cria um agendamento interno de atendimento. A data/hora deve vir de data_hora ou consultar_agenda, em ISO com fuso (ex.: 2026-09-15T14:00:00-03:00). Nunca deduza a data.",
+    parameters: {
+      type: "object",
+      properties: {
+        inicio: { type: "string", description: "data/hora ISO do início, com fuso -03:00" },
         duracao_minutos: { type: "number" },
         assunto: { type: "string" },
       },
