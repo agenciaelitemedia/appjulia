@@ -23,6 +23,7 @@ export interface XJClientKeyStatus {
 
 export interface XJModelPricingRow {
   id?: string;
+  id?: string;
   provider: string;
   model: string;
   input_per_1m: number;
