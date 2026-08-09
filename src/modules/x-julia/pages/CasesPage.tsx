@@ -225,6 +225,62 @@ function CaseEditor({
             </div>
           </TabsContent>
 
+          <TabsContent value="contrato" className="mt-4 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Campos obrigatórios para gerar o contrato deste caso. O agente pede um por mensagem, nesta ordem, confirma
+              tudo com o lead e só gera o contrato quando todos estiverem preenchidos.
+            </p>
+            {fields.map((f, i) => (
+              <div key={`${f.key}-${i}`} className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
+                <span className="w-6 text-center text-xs text-muted-foreground">{i + 1}</span>
+                <Input
+                  className="min-w-[220px] flex-1"
+                  placeholder="Rótulo mostrado ao lead"
+                  value={f.label ?? ''}
+                  onChange={(e) => setField(i, { label: e.target.value })}
+                  disabled={!canEdit}
+                />
+                <Input
+                  className="max-w-[180px]"
+                  placeholder="campo (slot)"
+                  value={f.key ?? ''}
+                  onChange={(e) => setField(i, { key: e.target.value })}
+                  disabled={!canEdit}
+                />
+                <Input
+                  className="max-w-[140px]"
+                  placeholder="validação"
+                  value={f.validation ?? ''}
+                  onChange={(e) => setField(i, { validation: e.target.value })}
+                  disabled={!canEdit}
+                />
+                {canEdit && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => set('contract_fields', fields.filter((_, idx) => idx !== i))}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            {!fields.length && (
+              <p className="text-sm text-muted-foreground">
+                Nenhum campo definido: o agente vai seguir apenas o que estiver escrito no prompt do escritório.
+              </p>
+            )}
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => set('contract_fields', [...fields, { key: '', label: '', validation: 'texto' }])}
+              >
+                Adicionar campo
+              </Button>
+            )}
+          </TabsContent>
+
           <TabsContent value="perguntas" className="mt-4 space-y-3">
             {(questions.data ?? []).map((q) => (
               <div key={q.id} className="flex items-center gap-2 rounded-lg border p-2">
