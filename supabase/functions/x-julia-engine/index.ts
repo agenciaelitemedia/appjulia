@@ -8,6 +8,7 @@ import { runXJTurn } from "../_shared/x-julia/runner.ts";
 import { findAgentForQueue, getOrCreateSession, logXJEvent, updateSession } from "../_shared/x-julia/session.ts";
 import { ensurePipelines } from "../_shared/x-julia/crm.ts";
 import { xjSend } from "../_shared/x-julia/messaging.ts";
+import { xjSynthesize } from "../_shared/x-julia/tts.ts";
 import {
   isWithinBusinessHours,
   matchesPhrase,
@@ -43,6 +44,33 @@ Deno.serve(async (req) => {
     const data = body.data ?? body;
 
     if (action === "ping") return json({ ok: true, module: "x-julia" });
+
+    // Teste de voz: valida chave/voice_id do provedor sem depender de um lead real.
+    if (action === "test_voice") {
+      const agentId: string | null = data.agent_id ?? null;
+      if (!agentId) return json({ error: "agent_id é obrigatório" }, 400);
+      const { data: agent } = await supabase
+        .from("xj_agents")
+        .select("id, client_id, voice_provider, voice_id, voice_settings, voice_key_mode")
+        .eq("id", agentId)
+        .maybeSingle();
+      if (!agent) return json({ error: "agente não encontrado" }, 404);
+
+      const text = String(data.text ?? "Olá! Aqui é a Julia, do atendimento do escritório.").slice(0, 300);
+      const result = await xjSynthesize(supabase, {
+        clientId: String(agent.client_id),
+        text,
+        provider: data.provider ?? agent.voice_provider ?? "elevenlabs",
+        voiceId: data.voice_id ?? agent.voice_id ?? null,
+        settings: (agent.voice_settings ?? {}) as Record<string, unknown>,
+        keyMode: data.voice_key_mode ?? agent.voice_key_mode ?? "default",
+      });
+      if ("error" in result) {
+        console.warn("[x-julia/test_voice] falha:", result.error);
+        return json({ ok: false, error: result.error }, 200);
+      }
+      return json({ ok: true, url: result.url });
+    }
 
     // Intervenção manual: muda a etapa (advance_stage) ou apenas força um turno
     // na etapa atual (continue_now). Em ambos o agente age agora.
