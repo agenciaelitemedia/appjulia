@@ -234,6 +234,7 @@ export default function XJSessionDetailPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Histórico do motor</CardTitle>
           </CardHeader>
+          <CardContent className="hidden" />
           <CardContent className="max-h-[520px] space-y-2 overflow-y-auto">
             {events.length === 0 && <p className="text-sm text-muted-foreground">Sem eventos registrados.</p>}
             {events.map((event) => (
