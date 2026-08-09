@@ -12,6 +12,7 @@ import {
   isWithinBusinessHours,
   matchesPhrase,
   offHoursMessage,
+  restartMessage,
   type XJActivation,
 } from "../_shared/x-julia/activation.ts";
 import type { XJInboundMessage, XJQueueCreds } from "../_shared/x-julia/types.ts";
@@ -96,13 +97,97 @@ Deno.serve(async (req) => {
     // Com frases configuradas, a campanha só conta quando a mensagem contém uma delas.
     const isCampaign = hasCampaignPhrases ? matchedCampaignPhrase : hasCampaignMarker;
 
+    const startPhrasesRaw = String(activation.session_start ?? "").trim();
+    const matchedStartPhrase = startPhrasesRaw ? matchesPhrase(activation.session_start, inboundText) : false;
+    // Entrada restrita: toggle "apenas campanha" ou frases de campanha configuradas.
+    const restrictedEntry = !!activation.only_campaign || hasCampaignPhrases;
+
+    // Frase de início com entrada restrita: reinicia (ou abre) a sessão do zero.
+    if (matchedStartPhrase && restrictedEntry) {
+      const { data: queueRowForRestart } = await supabase
+        .from("queues")
+        .select("id, name, hub, evo_url, evo_apikey, waba_token, waba_number_id, channel_type")
+        .eq("id", queueId)
+        .maybeSingle();
+      const restartQueue = (queueRowForRestart ?? null) as XJQueueCreds | null;
+      const nowIso = new Date().toISOString();
+
+      if (existingSession) {
+        const { data: reset } = await supabase
+          .from("xj_sessions")
+          .update({
+            stage: "recepcao",
+            is_active: true,
+            paused_reason: null,
+            handoff_at: null,
+            qualification: null,
+            qualification_reason: null,
+            score: null,
+            case_id: null,
+            case_type: null,
+            turns: 0,
+            slots: { __restarted_at: nowIso },
+          })
+          .eq("id", existingSession.id)
+          .select("*")
+          .maybeSingle();
+        const restarted = (reset ?? { ...existingSession, client_id: clientId, stage: "recepcao", slots: {} }) as any;
+        await logXJEvent(supabase, restarted, {
+          kind: "session_restarted",
+          detail: "frase de início de sessão",
+        }).catch(() => {});
+        await xjSend(supabase, restartQueue, restarted, restartMessage(activation)).catch(() => {});
+        return json({ ok: true, session_id: restarted.id, restarted: true });
+      }
+
+      if (contactId && (!phone || !contactName)) {
+        const { data: contact } = await supabase
+          .from("chat_contacts")
+          .select("phone, name, push_name")
+          .eq("id", contactId)
+          .maybeSingle();
+        phone = phone ?? contact?.phone ?? null;
+        contactName = contactName ?? contact?.name ?? contact?.push_name ?? null;
+      }
+
+      const { session: fresh } = await getOrCreateSession(supabase, {
+        clientId,
+        agent,
+        conversationId,
+        contactId,
+        queue: restartQueue,
+        phone,
+        contactName,
+        channel,
+        inbound: {
+          message_id: data.message_id ?? null,
+          text: inboundText,
+          type: String(data.message_type ?? data.type ?? "text"),
+          media_url: null,
+          mime_type: null,
+          file_name: null,
+          campaign_id: data.campaign_id ?? null,
+          campaign_title: data.campaign_title ?? null,
+          cta_payload: data.cta_payload ?? null,
+        },
+      });
+      await ensurePipelines(supabase, clientId, agent.id).catch(() => {});
+      await updateSession(supabase, fresh, { slots: { __restarted_at: nowIso } });
+      await logXJEvent(supabase, fresh, {
+        kind: "session_started",
+        detail: "frase de início de sessão",
+      }).catch(() => {});
+      await xjSend(supabase, restartQueue, fresh, restartMessage(activation)).catch(() => {});
+      return json({ ok: true, session_id: fresh.id, restarted: true });
+    }
+
     // Gatilhos de início só valem para conversas ainda sem sessão X-Julia.
     if (!existingSession) {
-      const startPhrases = String(activation.session_start ?? "").trim();
-      const matchedStart = startPhrases ? matchesPhrase(activation.session_start, inboundText) : false;
+      const startPhrases = startPhrasesRaw;
+      const matchedStart = matchedStartPhrase;
       // Frases de campanha configuradas já implicam entrada restrita, mesmo que o
       // toggle "apenas campanha" não esteja marcado.
-      const campaignOnly = !!activation.only_campaign || hasCampaignPhrases;
+      const campaignOnly = restrictedEntry;
 
       if (campaignOnly) {
         if (!isCampaign && !matchedStart) {
