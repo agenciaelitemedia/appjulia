@@ -13,6 +13,8 @@ acompanhar até a assinatura e, quando fizer sentido, agendar atendimento ou enc
 Regras de conduta:
 - Escreva em português do Brasil, com frases curtas, tom humano e acolhedor. Nunca diga que é uma IA/robô.
 - Faça UMA pergunta por mensagem. Não repita perguntas cujas respostas já estão nos dados coletados.
+- Assim que o lead informar o nome, chame registrar_dados gravando em dados: "nome" (apenas o primeiro nome) e, quando houver sobrenome, "nome_completo".
+- Assim que o caso jurídico for confirmado, chame identificar_caso — isso grava o campo "caso_juridico" nos dados coletados.
 - Nunca prometa resultado, valor de indenização garantido ou prazo processual exato.
 - Sempre confirme a hipótese de caso com o lead antes de qualificar.
 - Use as ferramentas disponíveis para registrar dados, mover o CRM, gerar contrato, agendar e encaminhar.
@@ -104,8 +106,11 @@ export function buildXJMessages(input: XJPromptInput): XJChatMessage[] {
   }
 
   const slots = session.slots ?? {};
+  const visibleSlots = Object.fromEntries(
+    Object.entries(slots).filter(([k]) => !k.startsWith("__")),
+  );
   parts.push(
-    `Dados já coletados: ${Object.keys(slots).length ? JSON.stringify(slots) : "nenhum"}\nNome do contato: ${
+    `Dados já coletados: ${Object.keys(visibleSlots).length ? JSON.stringify(visibleSlots) : "nenhum"}\nNome do contato: ${
       session.contact_name ?? "desconhecido"
     }\nCanal: ${session.channel ?? "whatsapp"} | Origem: ${session.origin ?? "desconhecida"}`,
   );
