@@ -5,6 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
+import { applyXJPricingOverrides } from '../modelCatalog';
 
 export interface XJProviderSetting {
   provider: string;
@@ -20,9 +21,22 @@ export interface XJClientKeyStatus {
   masked: string | null;
 }
 
+export interface XJModelPricingRow {
+  id?: string;
+  provider: string;
+  model: string;
+  input_per_1m: number;
+  output_per_1m: number;
+  context_tokens: number;
+  note: string | null;
+  is_active: boolean;
+  updated_at?: string;
+}
+
 interface XJProviderConfigResponse {
   providers: XJProviderSetting[];
   client_keys: XJClientKeyStatus[];
+  model_pricing?: XJModelPricingRow[];
 }
 
 const KEY = ['x-julia', 'provider-config'];
@@ -36,8 +50,10 @@ export function useXJProviderConfig(clientId?: string | null) {
         ? `xj-provider-config?client_id=${encodeURIComponent(String(clientId))}`
         : 'xj-provider-config';
       const { data, error } = await supabase.functions.invoke(path, { method: 'GET' });
-      if (error) return { providers: [], client_keys: [] };
-      return (data as XJProviderConfigResponse) ?? { providers: [], client_keys: [] };
+      if (error) return { providers: [], client_keys: [], model_pricing: [] };
+      const parsed = (data as XJProviderConfigResponse) ?? { providers: [], client_keys: [], model_pricing: [] };
+      applyXJPricingOverrides(parsed.model_pricing ?? []);
+      return parsed;
     },
   });
 }
@@ -88,4 +104,64 @@ export function useXJProviderConfigMutations() {
   });
 
   return { saveProvider, saveClientKey };
+}
+
+export function useXJModelPricingMutations() {
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: KEY });
+
+  const savePricing = useMutation({
+    mutationFn: async (input: {
+      provider: string;
+      model: string;
+      input_per_1m: number;
+      output_per_1m: number;
+      context_tokens: number;
+      note?: string | null;
+      is_active?: boolean;
+    }) => {
+      const { error } = await supabase.functions.invoke('xj-provider-config', {
+        method: 'POST',
+        body: { action: 'save_model_pricing', ...input },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success('Modelo salvo');
+    },
+    onError: (e: any) => toast.error(e?.message || 'Erro ao salvar modelo'),
+  });
+
+  const deletePricing = useMutation({
+    mutationFn: async (input: { provider: string; model: string }) => {
+      const { error } = await supabase.functions.invoke('xj-provider-config', {
+        method: 'POST',
+        body: { action: 'delete_model_pricing', ...input },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success('Modelo removido do catálogo');
+    },
+    onError: (e: any) => toast.error(e?.message || 'Erro ao remover modelo'),
+  });
+
+  const seedPricing = useMutation({
+    mutationFn: async (input?: { force?: boolean }) => {
+      const { error } = await supabase.functions.invoke('xj-provider-config', {
+        method: 'POST',
+        body: { action: 'seed_model_pricing', force: !!input?.force },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success('Catálogo padrão importado');
+    },
+    onError: (e: any) => toast.error(e?.message || 'Erro ao importar catálogo'),
+  });
+
+  return { savePricing, deletePricing, seedPricing };
 }
