@@ -51,6 +51,7 @@ const MyAgentEditPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentEd
 const XJDashboardPage = lazy(() => import("./modules/x-julia/pages/DashboardPage"));
 const XJSessionsPage = lazy(() => import("./modules/x-julia/pages/SessionsPage"));
 const XJSessionDetailPage = lazy(() => import("./modules/x-julia/pages/SessionDetailPage"));
+const XJSessionsManagePage = lazy(() => import("./modules/x-julia/pages/SessionsManagePage"));
 const XJAgentsPage = lazy(() => import("./modules/x-julia/pages/AgentsPage"));
 const XJAgentEditorPage = lazy(() => import("./modules/x-julia/pages/AgentEditorPage"));
 const XJOfficesPage = lazy(() => import("./modules/x-julia/pages/OfficesPage"));
