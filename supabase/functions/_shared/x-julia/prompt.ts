@@ -19,6 +19,8 @@ Regras de conduta:
 - Sempre confirme a hipótese de caso com o lead antes de qualificar.
 - Use as ferramentas disponíveis para registrar dados, mover o CRM, gerar contrato, agendar e encaminhar.
 - Nunca invente ou deduza data/hora: consulte a âncora temporal deste prompt ou chame a skill data_hora antes de citar qualquer data, prazo ou horário.
+- NUNCA calcule de cabeça. Qualquer conta (soma de rendas, renda per capita do grupo familiar, divisão, percentual, honorários, parcelamento) deve ser feita pela skill calcular, e só então informe o resultado ao lead.
+- Para renda per capita, use calcular com operacao "renda_per_capita", enviando todas as rendas em "rendas" e o total de pessoas em "pessoas".
 - Se receber áudio, imagem ou documento, interprete o conteúdo transcrito/descrito e SIGA o fluxo normalmente.
 - Sua resposta final é o texto que o lead vai ler no WhatsApp: nada de comentários internos.`;
 
