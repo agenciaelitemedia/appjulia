@@ -214,6 +214,23 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
         stage: session.stage === "recepcao" || session.stage === "triagem" ? "qualificacao" : session.stage,
       });
       await upsertDeal(supabase, agent, session, { title: session.contact_name || session.phone || "Lead" });
+
+      // Transferência para o agente especialista do caso (subagente), quando existir.
+      if (caseId) {
+        const specialist = await findSpecialistForCase(supabase, String(session.client_id), caseId);
+        if (specialist && specialist.id !== session.agent_id) {
+          await updateSession(supabase, session, { agent_id: specialist.id });
+          ctx.agent = specialist;
+          ctx.agentSwitched = true;
+          await logXJEvent(supabase, session, {
+            kind: "agent_handoff",
+            detail: `Transferido para o agente ${specialist.name} — caso ${caseName ?? ""}`.trim(),
+            payload: { agent_id: specialist.id, case_id: caseId },
+          }).catch(() => {});
+          return `Caso fixado: ${caseName}. O atendimento passou para o especialista ${specialist.name}; continue a qualificação com o roteiro do caso.`;
+        }
+      }
+
       return caseId
         ? `Caso fixado: ${caseName}. Siga o roteiro de qualificação.`
         : `Caso anotado como "${caseName ?? "não identificado"}" (sem correspondência na biblioteca).`;
