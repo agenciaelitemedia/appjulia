@@ -301,8 +301,13 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
 
     case "mover_estagio": {
       const stage = String(args?.estagio) as XJStage;
+      const wasContract = session.stage === "contrato";
       await updateSession(supabase, session, { stage });
       await upsertDeal(supabase, agent, session, { description: args?.observacao ?? null });
+      if (stage === "contrato" && !wasContract) {
+        ctx.stageChangedToContract = true;
+        return `Estágio atualizado para contrato. Agora inicie a coleta dos campos do contrato: envie o passo 1 e peça o PRIMEIRO campo. Não chame gerar_contrato neste turno.`;
+      }
       return `Estágio atualizado para ${stage}.`;
     }
 
@@ -317,6 +322,15 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
     }
 
     case "gerar_contrato": {
+      const missing = xjMissingContractFields(ctx.legalCase, session.slots ?? {});
+      if (missing.length) {
+        return `Não gerei o contrato: faltam os campos obrigatórios ${missing
+          .map((f) => f.label ?? f.key)
+          .join(", ")}. Peça um campo por mensagem, registre com registrar_dados e só depois gere o contrato.`;
+      }
+      if (ctx.stageChangedToContract) {
+        return `Não gerei o contrato: a etapa de contrato acabou de começar. Envie o passo 1 e colete os campos do contrato, um por mensagem, antes de gerar.`;
+      }
       try {
         const contract = await xjGenerateContract(supabase, agent, session, ctx.legalCase, {
           signer_name: String(args?.nome_completo ?? session.contact_name ?? ""),
