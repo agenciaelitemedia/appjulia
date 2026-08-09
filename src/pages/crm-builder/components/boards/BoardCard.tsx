@@ -1,5 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,7 +72,9 @@ interface BoardCardProps {
 
 export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canManage = true, canOpenSettings = canManage }: BoardCardProps) {
   const IconComponent = iconMap[board.icon] || LayoutDashboard;
-  const showMenu = canManage || canOpenSettings;
+  const isSystem = !!board.is_system;
+  const canModify = canManage && !isSystem;
+  const showMenu = canModify || canOpenSettings;
 
   return (
     <Card 
@@ -103,7 +106,7 @@ export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canMa
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {canManage && (
+              {canModify && (
                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
                   <Pencil className="h-4 w-4 mr-2" />
                   Editar
@@ -115,7 +118,7 @@ export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canMa
                   Configurações
                 </DropdownMenuItem>
               )}
-              {canManage && (
+              {canModify && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
@@ -132,9 +135,14 @@ export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canMa
           )}
         </div>
 
-        <h3 className="font-semibold text-lg text-foreground mb-1">
-          {board.name}
-        </h3>
+        <div className="flex items-center gap-2 mb-1">
+          <h3 className="font-semibold text-lg text-foreground">
+            {board.name}
+          </h3>
+          {isSystem && (
+            <Badge variant="outline" className="text-[10px]">Gerenciado pela Julia</Badge>
+          )}
+        </div>
         
         {board.description && (
           <p className="text-sm text-muted-foreground line-clamp-2">
