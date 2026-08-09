@@ -22,6 +22,15 @@ export async function xjReadInbound(
 
   const label = type === "audio" || type === "ptt" ? "áudio" : type === "image" ? "imagem" : type === "video" ? "vídeo" : "documento";
 
+  // Áudio: usa a transcrição do próprio sistema (decripta .enc / WABA e respeita
+  // a permissão de exibição no chat). Se falhar, cai na leitura inline abaixo.
+  if (type === "audio" || type === "ptt") {
+    const transcript = await transcribeViaChatFunction(supabase, inbound.message_id);
+    if (transcript) {
+      return [text, `[áudio recebido — transcrição: ${transcript}]`].filter(Boolean).join("\n");
+    }
+  }
+
   try {
     const content: any[] = [{ type: "text", text: MEDIA_PROMPT }];
     if (type === "image" || type === "sticker") {
@@ -68,6 +77,27 @@ function guessAudioFormat(mime?: string | null): string {
   if (m.includes("wav")) return "wav";
   if (m.includes("ogg")) return "ogg";
   return "webm";
+}
+
+/** Transcreve via edge function `chat-transcribe-audio` (uso interno do agente). */
+// deno-lint-ignore no-explicit-any
+async function transcribeViaChatFunction(supabase: any, messageId?: string | null): Promise<string | null> {
+  if (!messageId) return null;
+  try {
+    const { data, error } = await supabase.functions.invoke("chat-transcribe-audio", {
+      body: { message_id: messageId, internal: true },
+    });
+    if (error) {
+      console.warn("[x-julia/documents] transcrição falhou:", error.message ?? String(error));
+      return null;
+    }
+    const t = typeof data?.text === "string" ? data.text.trim() : "";
+    if (!t || /^\[(transcrição indisponível|áudio inaudível)\]$/i.test(t)) return null;
+    return t;
+  } catch (err) {
+    console.warn("[x-julia/documents] transcrição erro:", String(err));
+    return null;
+  }
 }
 
 function toBase64(bytes: Uint8Array): string {
