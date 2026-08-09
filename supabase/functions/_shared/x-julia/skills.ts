@@ -419,7 +419,3 @@ async function listFreeSlots(supabase: any, session: any, days: number) {
   }
   return slots.sort((a, b) => a.start.getTime() - b.start.getTime());
 }
-
-function formatBR(date: Date): string {
-  return date.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
-}
