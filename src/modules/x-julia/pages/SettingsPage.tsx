@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { XJLayout } from '../components/XJLayout';
+import { XJModelCatalogTab } from '../components/XJModelCatalogTab';
 import { useXJProviderConfig, useXJProviderConfigMutations } from '../hooks/useXJProviderConfig';
 import { XJ_LLM_PROVIDERS, XJ_VOICE_PROVIDERS } from '../module';
 import { formatContext, formatUsd, getXJModelInfo } from '../modelCatalog';
@@ -51,6 +52,7 @@ export default function XJSettingsPage() {
         <TabsList>
           <TabsTrigger value="llm">Provedores de LLM</TabsTrigger>
           <TabsTrigger value="voice">Provedores de voz</TabsTrigger>
+          <TabsTrigger value="catalog">Catálogo de modelos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="llm" className="mt-4 space-y-3">
@@ -85,6 +87,10 @@ export default function XJSettingsPage() {
               />
             ))
           )}
+        </TabsContent>
+
+        <TabsContent value="catalog" className="mt-4">
+          <XJModelCatalogTab />
         </TabsContent>
       </Tabs>
     </XJLayout>
