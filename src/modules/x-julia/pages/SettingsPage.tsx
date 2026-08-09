@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { XJLayout } from '../components/XJLayout';
 import { XJModelCatalogTab } from '../components/XJModelCatalogTab';
-import { useXJProviderConfig, useXJProviderConfigMutations } from '../hooks/useXJProviderConfig';
+import { useXJProviderConfig, useXJProviderConfigMutations, type XJModelPricingRow } from '../hooks/useXJProviderConfig';
 import { XJ_LLM_PROVIDERS, XJ_VOICE_PROVIDERS } from '../module';
 import { formatContext, formatUsd, getXJModelInfo } from '../modelCatalog';
 
@@ -65,6 +65,7 @@ export default function XJSettingsPage() {
                 def={def}
                 kind="llm"
                 setting={data?.providers.find((p) => p.provider === def.id && p.kind === 'llm')}
+                catalog={data?.model_pricing ?? []}
                 onSave={(payload) => saveProvider.mutate({ ...payload, provider: def.id, kind: 'llm' })}
                 saving={saveProvider.isPending}
               />
@@ -82,6 +83,7 @@ export default function XJSettingsPage() {
                 def={def}
                 kind="voice"
                 setting={data?.providers.find((p) => p.provider === def.id && p.kind === 'voice')}
+                catalog={data?.model_pricing ?? []}
                 onSave={(payload) => saveProvider.mutate({ ...payload, provider: def.id, kind: 'voice' })}
                 saving={saveProvider.isPending}
               />
@@ -101,12 +103,14 @@ function ProviderCard({
   def,
   kind,
   setting,
+  catalog,
   onSave,
   saving,
 }: {
   def: ProviderDef;
   kind: 'llm' | 'voice';
   setting?: { is_enabled: boolean; enabled_models: string[]; default_key_masked: string | null };
+  catalog: XJModelPricingRow[];
   onSave: (payload: { is_enabled: boolean; enabled_models: string[]; default_key?: string }) => void;
   saving: boolean;
 }) {
@@ -114,10 +118,30 @@ function ProviderCard({
   const [models, setModels] = useState<string[]>([]);
   const [keyInput, setKeyInput] = useState('');
 
+  // Lista de modelos exibida vem do catálogo (xj_model_pricing ativos) — assim,
+  // ao atualizar o catálogo, os provedores refletem os novos modelos.
+  const catalogModels = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          catalog
+            .filter((r) => r.provider === def.id && r.is_active !== false)
+            .map((r) => r.model),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [catalog, def.id],
+  );
+
+  const availableModels = useMemo(() => {
+    const base = catalogModels.length ? catalogModels : def.models;
+    // mantém visíveis modelos já liberados que saíram do catálogo
+    return Array.from(new Set([...base, ...(setting?.enabled_models ?? [])]));
+  }, [catalogModels, def.models, setting?.enabled_models]);
+
   useEffect(() => {
     setEnabled(!!setting?.is_enabled);
-    setModels(setting?.enabled_models?.length ? setting.enabled_models : def.models);
-  }, [setting, def.models]);
+    setModels(setting?.enabled_models ?? []);
+  }, [setting]);
 
   const toggleModel = (model: string) =>
     setModels((prev) => (prev.includes(model) ? prev.filter((m) => m !== model) : [...prev, model]));
@@ -140,11 +164,23 @@ function ProviderCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {def.models.length > 0 && (
+        {kind === 'llm' && (
           <div className="space-y-2">
-            <Label>Modelos liberados para os agentes</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label>Modelos liberados para os agentes</Label>
+              {availableModels.length > 0 && (
+                <div className="flex gap-1">
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setModels(availableModels)}>
+                    Liberar todos
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setModels([])}>
+                    Limpar
+                  </Button>
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {def.models.map((model) => {
+              {availableModels.map((model) => {
                 const info = getXJModelInfo(def.id, model);
                 return (
                   <button
@@ -164,9 +200,15 @@ function ProviderCard({
                   </button>
                 );
               })}
+              {availableModels.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Nenhum modelo no catálogo para este provedor — importe modelos na aba "Catálogo de modelos".
+                </p>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Preços de referência do provedor em dólar por 1 milhão de tokens (entrada/saída); ctx = janela de contexto.
+              A lista vem do catálogo de modelos ativos deste provedor. Apenas os modelos marcados aqui ficam
+              disponíveis para os agentes. Preços em dólar por 1 milhão de tokens (entrada/saída).
             </p>
           </div>
         )}
