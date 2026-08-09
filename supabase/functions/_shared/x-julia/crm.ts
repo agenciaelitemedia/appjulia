@@ -372,3 +372,138 @@ async function syncMirroredDeal(
     payload: { deal_id: mirrored.id },
   });
 }
+/**
+ * Sincronização manual (backfill) de todos os cards do CRM X-Julia para o
+ * quadro "CRM da Julia" no CRM Builder. Segue os mesmos critérios do
+ * espelhamento automático: 1 card por lead, etapa por stage_key, sem duplicar.
+ */
+// deno-lint-ignore no-explicit-any
+export async function syncAllDealsToBuilder(supabase: any, clientId: string) {
+  const client = String(clientId);
+  const board = await ensureJuliaBoard(supabase, client);
+
+  const { data: stageRows } = await supabase
+    .from("crm_pipelines")
+    .select("id, stage_key, position")
+    .eq("board_id", board.id)
+    .order("position");
+  const stages = (stageRows ?? []) as Array<{ id: string; stage_key: string | null }>;
+  const stageId = (key?: string | null) =>
+    stages.find((s) => s.stage_key === key)?.id ?? stages[0]?.id ?? null;
+
+  const { data: pipelines } = await supabase
+    .from("xj_pipelines")
+    .select("id, stage_key")
+    .eq("client_id", client);
+  const xjStageByPipeline = new Map<string, string>(
+    ((pipelines ?? []) as any[]).map((p) => [p.id, p.stage_key]),
+  );
+
+  const { data: deals } = await supabase
+    .from("xj_deals")
+    .select(
+      "id, pipeline_id, mirrored_deal_id, title, contact_name, contact_phone, value, description, priority, session_id, conversation_id, contact_id",
+    )
+    .eq("client_id", client)
+    .order("updated_at", { ascending: false });
+
+  let created = 0;
+  let updated = 0;
+  let moved = 0;
+  const errors: string[] = [];
+
+  for (const deal of (deals ?? []) as any[]) {
+    const target = stageId(xjStageByPipeline.get(deal.pipeline_id ?? ""));
+    try {
+      let mirrored: { id: string; pipeline_id: string | null } | null = null;
+      if (deal.mirrored_deal_id) {
+        const { data } = await supabase
+          .from("crm_deals")
+          .select("id, pipeline_id")
+          .eq("id", deal.mirrored_deal_id)
+          .maybeSingle();
+        mirrored = data ?? null;
+      }
+
+      // Reaproveita card já existente no quadro pelo telefone (evita duplicar).
+      if (!mirrored && deal.contact_phone) {
+        const { data } = await supabase
+          .from("crm_deals")
+          .select("id, pipeline_id")
+          .eq("board_id", board.id)
+          .eq("contact_phone", deal.contact_phone)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        mirrored = data ?? null;
+      }
+
+      if (mirrored) {
+        const update: Record<string, unknown> = {
+          updated_by: "x-julia",
+          title: deal.title || deal.contact_name || deal.contact_phone || "Lead X-Julia",
+        };
+        if (deal.contact_name) update.contact_name = deal.contact_name;
+        if (deal.contact_phone) update.contact_phone = deal.contact_phone;
+        if (deal.value !== null && deal.value !== undefined) update.value = deal.value;
+        if (deal.description) update.description = deal.description;
+        if (deal.priority) update.priority = deal.priority;
+        const didMove = !!target && target !== mirrored.pipeline_id;
+        if (didMove) {
+          update.pipeline_id = target;
+          update.stage_entered_at = new Date().toISOString();
+        }
+        const { error } = await supabase.from("crm_deals").update(update).eq("id", mirrored.id);
+        if (error) throw error;
+        if (didMove) {
+          moved++;
+          await supabase
+            .from("crm_deal_history")
+            .insert({
+              deal_id: mirrored.id,
+              action: "moved",
+              from_pipeline_id: mirrored.pipeline_id,
+              to_pipeline_id: target,
+              changed_by: "x-julia",
+              notes: "Sincronização manual do CRM da Julia",
+            })
+            .then(undefined, () => {});
+        }
+        if (deal.mirrored_deal_id !== mirrored.id) {
+          await supabase.from("xj_deals").update({ mirrored_deal_id: mirrored.id }).eq("id", deal.id);
+        }
+        updated++;
+        continue;
+      }
+
+      const { data: inserted, error } = await supabase
+        .from("crm_deals")
+        .insert({
+          client_id: client,
+          cod_agent: board.cod_agent ?? "",
+          board_id: board.id,
+          pipeline_id: target,
+          title: deal.title || deal.contact_name || deal.contact_phone || "Lead X-Julia",
+          contact_name: deal.contact_name,
+          contact_phone: deal.contact_phone,
+          value: deal.value ?? null,
+          description: deal.description ?? null,
+          priority: deal.priority ?? "medium",
+          created_by: "x-julia",
+          custom_fields: {
+            links: { chat: { conversation_id: deal.conversation_id, contact_id: deal.contact_id } },
+            x_julia: { session_id: deal.session_id, deal_id: deal.id },
+          },
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      await supabase.from("xj_deals").update({ mirrored_deal_id: inserted.id }).eq("id", deal.id);
+      created++;
+    } catch (err) {
+      errors.push(`${deal.contact_phone ?? deal.id}: ${String((err as Error)?.message ?? err)}`);
+    }
+  }
+
+  return { board_id: board.id, total: (deals ?? []).length, created, updated, moved, errors };
+}
