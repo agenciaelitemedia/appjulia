@@ -3,6 +3,7 @@
 // ============================================
 import { xjReadInbound } from "./documents.ts";
 import { xjComplete } from "./llm.ts";
+import { estimateCost } from "./pricing.ts";
 import { xjSend, xjSendComposed } from "./messaging.ts";
 import { buildXJMessages, loadHistory } from "./prompt.ts";
 import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
@@ -111,8 +112,24 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
       prompt_tokens: completion.promptTokens,
       completion_tokens: completion.completionTokens,
       duration_ms: completion.durationMs,
+      cost_usd: estimateCost(completion.provider, completion.model, completion.promptTokens, completion.completionTokens),
       detail: completion.toolCalls.length ? `skills: ${completion.toolCalls.map((t) => t.name).join(", ")}` : "resposta direta",
     });
+
+    // Consumo acumulado da sessão (tokens e custo).
+    {
+      const inTok = Number(completion.promptTokens ?? 0);
+      const outTok = Number(completion.completionTokens ?? 0);
+      const callCost = estimateCost(completion.provider, completion.model, completion.promptTokens, completion.completionTokens);
+      if (inTok || outTok || callCost) {
+        await updateSession(supabase, session, {
+          prompt_tokens: Number((session as any).prompt_tokens ?? 0) + inTok,
+          completion_tokens: Number((session as any).completion_tokens ?? 0) + outTok,
+          total_tokens: Number((session as any).total_tokens ?? 0) + inTok + outTok,
+          cost_usd: Math.round((Number((session as any).cost_usd ?? 0) + callCost) * 1_000_000) / 1_000_000,
+        });
+      }
+    }
 
     if (!completion.toolCalls.length) {
       finalText = completion.text.trim();
