@@ -7,6 +7,7 @@ import { XJScopeBar } from './XJScopeBar';
 const TABS = [
   { label: 'Painel', to: X_JULIA_ROUTES.dashboard },
   { label: 'Atendimentos', to: X_JULIA_ROUTES.sessions },
+  { label: 'Sessões', to: X_JULIA_ROUTES.sessionsManage },
   { label: 'CRM', to: X_JULIA_ROUTES.crm },
   { label: 'Agentes', to: X_JULIA_ROUTES.agents },
   { label: 'Casos jurídicos', to: X_JULIA_ROUTES.cases },

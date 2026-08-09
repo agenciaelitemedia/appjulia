@@ -51,6 +51,7 @@ const MyAgentEditPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentEd
 const XJDashboardPage = lazy(() => import("./modules/x-julia/pages/DashboardPage"));
 const XJSessionsPage = lazy(() => import("./modules/x-julia/pages/SessionsPage"));
 const XJSessionDetailPage = lazy(() => import("./modules/x-julia/pages/SessionDetailPage"));
+const XJSessionsManagePage = lazy(() => import("./modules/x-julia/pages/SessionsManagePage"));
 const XJAgentsPage = lazy(() => import("./modules/x-julia/pages/AgentsPage"));
 const XJAgentEditorPage = lazy(() => import("./modules/x-julia/pages/AgentEditorPage"));
 const XJOfficesPage = lazy(() => import("./modules/x-julia/pages/OfficesPage"));
@@ -222,6 +223,7 @@ const App = () => (
                   <Route path="/x-julia" element={<ProtectedRoute module="x_julia"><XJScopeProvider><XJDashboardPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/atendimentos" element={<ProtectedRoute module="x_julia_sessions"><XJScopeProvider><XJSessionsPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/atendimentos/:sessionId" element={<ProtectedRoute module="x_julia_sessions"><XJScopeProvider><XJSessionDetailPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/sessoes" element={<ProtectedRoute module="x_julia_sessions_manage"><XJScopeProvider><XJSessionsManagePage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/crm" element={<ProtectedRoute module="x_julia_crm"><XJScopeProvider><XJCrmPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/agentes" element={<ProtectedRoute module="x_julia_agents"><XJScopeProvider><XJAgentsPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/escritorios" element={<ProtectedRoute module="x_julia_offices"><XJScopeProvider><XJOfficesPage /></XJScopeProvider></ProtectedRoute>} />

@@ -47,6 +47,14 @@ export const X_JULIA_MENU_ITEMS = [
     displayOrder: 3,
   },
   {
+    code: 'x_julia_sessions_manage',
+    name: 'Sessões X-Julia',
+    description: 'Gestão das sessões: ativar, pausar, mudar etapa e excluir',
+    icon: 'ListChecks',
+    route: '/x-julia/sessoes',
+    displayOrder: 10,
+  },
+  {
     code: 'x_julia_agents',
     name: 'Agentes X-Julia',
     description: 'Configuração de prompt, LLM, voz, filas e followups',
@@ -110,6 +118,7 @@ export const X_JULIA_ROUTES = {
   sessions: '/x-julia/atendimentos',
   session: (id: string) => `/x-julia/atendimentos/${id}`,
   sessionPattern: '/x-julia/atendimentos/:sessionId',
+  sessionsManage: '/x-julia/sessoes',
   contracts: '/x-julia/contratos',
   agenda: '/x-julia/agenda',
   contractSign: '/x-julia/contrato/:contractId',
