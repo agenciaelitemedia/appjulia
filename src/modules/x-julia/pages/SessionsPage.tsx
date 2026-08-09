@@ -10,6 +10,7 @@ import { XJLayout } from '../components/XJLayout';
 import { XJQualificationBadge, XJStageBadge } from '../components/XJStageBadge';
 import { useXJSessions } from '../hooks/useXJSessions';
 import { XJ_STAGES, XJ_STAGE_LABELS, X_JULIA_ROUTES } from '../module';
+import { formatUsd } from '../modelCatalog';
 
 export default function XJSessionsPage() {
   const [search, setSearch] = useState('');
