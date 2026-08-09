@@ -47,15 +47,25 @@ export async function xjReadInbound(
       content.push({ type: "input_audio", input_audio: { data: base64, format } });
     } else {
       const file = await fetch(inbound.media_url);
-      const base64 = toBase64(new Uint8Array(await file.arrayBuffer()));
-      const mime = inbound.mime_type || "application/pdf";
-      if (!mime.includes("pdf") && !mime.startsWith("image/")) {
-        return text || `[${label} recebido: ${inbound.file_name ?? "arquivo"} — não foi possível ler o conteúdo]`;
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const mime = (inbound.mime_type || "application/pdf").toLowerCase();
+      const name = inbound.file_name ?? "documento";
+
+      const extracted = await extractTextFromFile(bytes, mime, name);
+      if (extracted) {
+        // Planilha / CSV / texto: extraímos o conteúdo e pedimos um resumo objetivo.
+        content.push({
+          type: "text",
+          text: `Conteúdo extraído do arquivo "${name}":\n\n${extracted.slice(0, 20000)}`,
+        });
+      } else if (mime.includes("pdf") || mime.startsWith("image/")) {
+        content.push({
+          type: "file",
+          file: { filename: name, file_data: `data:${mime};base64,${toBase64(bytes)}` },
+        });
+      } else {
+        return text || `[${label} recebido: ${name} — não foi possível ler o conteúdo, peça ao lead que descreva]`;
       }
-      content.push({
-        type: "file",
-        file: { filename: inbound.file_name ?? "documento", file_data: `data:${mime};base64,${base64}` },
-      });
     }
 
     const result = await xjComplete({
@@ -76,6 +86,53 @@ export async function xjReadInbound(
 }
 
 function guessAudioFormat(mime?: string | null): string {
+  const m = (mime ?? "").toLowerCase();
+  if (m.includes("mp4") || m.includes("m4a")) return "m4a";
+  if (m.includes("mpeg") || m.includes("mp3")) return "mp3";
+  if (m.includes("wav")) return "wav";
+  if (m.includes("ogg")) return "ogg";
+  return "webm";
+}
+
+/**
+ * Extrai texto de planilhas (xlsx/xls/csv) e arquivos textuais.
+ * Retorna null quando o formato não é suportado por essa via.
+ */
+async function extractTextFromFile(
+  bytes: Uint8Array,
+  mime: string,
+  fileName: string,
+): Promise<string | null> {
+  const ext = (fileName.split(".").pop() ?? "").toLowerCase();
+  const isSheet = mime.includes("spreadsheet") || mime.includes("excel") ||
+    mime.includes("ms-excel") || ["xlsx", "xls", "xlsm", "ods"].includes(ext);
+  const isCsv = mime.includes("csv") || ext === "csv" || ext === "tsv";
+  const isPlain = mime.startsWith("text/") || mime.includes("json") ||
+    ["txt", "md", "json", "xml", "html"].includes(ext);
+
+  try {
+    if (isSheet) {
+      const XLSX = await import("npm:xlsx@0.18.5");
+      const wb = XLSX.read(bytes, { type: "array" });
+      const parts: string[] = [];
+      for (const sheetName of wb.SheetNames.slice(0, 5)) {
+        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sheetName]);
+        parts.push(`--- planilha: ${sheetName} ---\n${csv.split("\n").slice(0, 200).join("\n")}`);
+      }
+      const out = parts.join("\n\n").trim();
+      return out || null;
+    }
+    if (isCsv || isPlain) {
+      const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes).trim();
+      return decoded || null;
+    }
+  } catch (err) {
+    console.warn("[x-julia/documents] falha ao extrair arquivo:", String(err));
+  }
+  return null;
+}
+
+function _unusedGuessAudioFormat(mime?: string | null): string {
   const m = (mime ?? "").toLowerCase();
   if (m.includes("mp4") || m.includes("m4a")) return "m4a";
   if (m.includes("mpeg") || m.includes("mp3")) return "mp3";
