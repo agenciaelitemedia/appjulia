@@ -145,6 +145,10 @@ export function PipelineColumn({
           <h3 className="font-medium text-sm truncate">
             {pipeline.name}
           </h3>
+
+          {pipeline.is_system && (
+            <Badge variant="outline" className="text-[10px] flex-shrink-0">Julia</Badge>
+          )}
           
           <Badge variant="secondary" className="text-xs">
             {stats.count}
@@ -167,15 +171,19 @@ export function PipelineColumn({
                 <DropdownMenuSeparator />
               </>
             )}
-            <DropdownMenuItem onClick={onEdit}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Editar Etapa
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onDelete} className="text-destructive">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remover Etapa
-            </DropdownMenuItem>
+            {!pipeline.is_system && (
+              <>
+                <DropdownMenuItem onClick={onEdit}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar Etapa
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onDelete} className="text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remover Etapa
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
