@@ -232,9 +232,36 @@ export default function XJSessionDetailPage() {
 
         <Card className="lg:col-span-1">
           <CardHeader className="pb-2">
+            <CardTitle className="text-base">Espelho no CRM da Julia</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {mirror ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-[10px]">Card criado</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(mirror.at).toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                {mirror.boardId && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to={`/crm-builder/${mirror.boardId}`}>Abrir quadro CRM da Julia</Link>
+                  </Button>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Nenhum card espelhado ainda. O espelho acontece quando o agente cria/atualiza o lead com a
+                opção "Espelhar no CRM Builder" ativa.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-1">
+          <CardHeader className="pb-2">
             <CardTitle className="text-base">Histórico do motor</CardTitle>
           </CardHeader>
-          <CardContent className="hidden" />
           <CardContent className="max-h-[520px] space-y-2 overflow-y-auto">
             {events.length === 0 && <p className="text-sm text-muted-foreground">Sem eventos registrados.</p>}
             {events.map((event) => (
