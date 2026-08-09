@@ -149,6 +149,24 @@ Deno.serve(async (req) => {
     if (action !== "run") return json({ error: `ação desconhecida: ${action}` }, 400);
 
     const conversationId: string | null = data.conversation_id ?? null;
+
+    // Mensagem enviada manualmente pelo escritório: o agente não responde a si mesmo,
+    // apenas registra na trilha que a sessão está aguardando o lead.
+    if (data.manual_outbound === true) {
+      if (!conversationId) return json({ ok: true, skipped: "sem conversa para registrar" });
+      const { data: waitingSession } = await supabase
+        .from("xj_sessions")
+        .select("id, client_id, stage")
+        .eq("conversation_id", conversationId)
+        .maybeSingle();
+      if (!waitingSession) return json({ ok: true, skipped: "sem sessão X-Julia nesta conversa" });
+      await logXJEvent(supabase, waitingSession as any, {
+        kind: "waiting_customer",
+        detail: "resposta manual do atendente — o agente aguarda a próxima mensagem do lead",
+      }).catch(() => {});
+      return json({ ok: true, skipped: "mensagem própria (manual): aguardando lead" });
+    }
+
     const contactId: string | null = data.contact_id ?? null;
     let queueId: string | null = data.queue_id ?? null;
     let clientId: string | null = data.client_id ? String(data.client_id) : null;
