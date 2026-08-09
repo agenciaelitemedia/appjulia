@@ -80,6 +80,7 @@ const EXT_MAP: Record<string, XJMediaType> = {
 };
 
 const URL_RE = /https?:\/\/[^\s<>"')]+/i;
+const URL_RE_ALL = /https?:\/\/[^\s<>"')]+/gi;
 
 /** Divide o texto em blocos separados por dupla quebra de linha. */
 export function splitMessageBlocks(text: string): string[] {
@@ -87,6 +88,34 @@ export function splitMessageBlocks(text: string): string[] {
     .split(/\n\s*\n+/)
     .map((b) => b.trim())
     .filter((b) => b.length > 0);
+}
+
+/**
+ * Separa links do texto que vai ser narrado em áudio.
+ * Devolve o texto sem os links (`spoken`) e uma mensagem de texto por link,
+ * mantendo a ordem de aparição. URLs nunca devem ser lidas em voz alta.
+ */
+export function extractLinks(text: string): { spoken: string; linkMessages: string[] } {
+  const raw = String(text ?? "");
+  const found = raw.match(URL_RE_ALL) ?? [];
+  if (found.length === 0) return { spoken: raw.trim(), linkMessages: [] };
+
+  let spoken = raw;
+  const linkMessages: string[] = [];
+  for (const hit of found) {
+    const url = hit.replace(/[.,;:!?)]+$/, "");
+    linkMessages.push(url);
+    spoken = spoken.replace(hit, " ");
+  }
+
+  spoken = spoken
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return { spoken, linkMessages };
 }
 
 /** Detecta uma URL de mídia dentro do bloco e devolve tipo + legenda restante. */
