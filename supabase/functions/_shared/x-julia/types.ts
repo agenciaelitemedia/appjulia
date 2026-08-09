@@ -88,6 +88,9 @@ export interface XJSession {
   is_active: boolean;
   paused_reason: string | null;
   turns: number;
+  /** Quando true, o agente responde por nota de voz (skill modo_audio). */
+  audio_mode?: boolean;
+  audio_mode_reason?: string | null;
 }
 
 export interface XJQueueCreds {
