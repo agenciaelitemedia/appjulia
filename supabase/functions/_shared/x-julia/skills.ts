@@ -161,6 +161,35 @@ export const XJ_TOOLS: XJToolDef[] = [
     },
   },
   {
+    name: "calcular",
+    description:
+      "Faz QUALQUER cálculo numérico com precisão (renda per capita, soma de rendas, percentuais, honorários, parcelamento, contas livres). " +
+      "Use SEMPRE que a conversa envolver número, valor, soma, divisão, percentual ou renda familiar — nunca calcule de cabeça nem estime.",
+    parameters: {
+      type: "object",
+      properties: {
+        operacao: {
+          type: "string",
+          description:
+            "'renda_per_capita' | 'soma' | 'percentual' | 'parcelamento' | 'expressao' (padrão: expressao se vier 'expressao', senão soma)",
+        },
+        rendas: {
+          type: "array",
+          items: { type: "string" },
+          description: "valores das rendas/parcelas (aceita '1.234,56', 'R$ 900' ou número)",
+        },
+        pessoas: { type: "number", description: "nº de pessoas do grupo familiar (renda_per_capita)" },
+        salario_minimo: { type: "number", description: "opcional: salário mínimo vigente, se souber" },
+        valor: { type: "number", description: "valor base (percentual/parcelamento)" },
+        percentual: { type: "number", description: "percentual a aplicar, ex.: 30 para 30%" },
+        parcelas: { type: "number", description: "nº de parcelas" },
+        juros_mensal: { type: "number", description: "opcional: juros ao mês em %, ex.: 1.99" },
+        expressao: { type: "string", description: "conta livre, ex.: '(1200+800)/4' ou '2500*0,3'" },
+        descricao: { type: "string", description: "opcional: o que está sendo calculado" },
+      },
+    },
+  },
+  {
     name: "encerrar",
     description: "Encerra a sessão do agente (lead desqualificado, sem interesse ou atendimento concluído).",
     parameters: { type: "object", properties: { motivo: { type: "string" } } },
