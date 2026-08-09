@@ -151,7 +151,7 @@ async function fetchProviderModels(providerId: string, apiKey: string): Promise<
     openai: "https://api.openai.com/v1/models",
     deepseek: "https://api.deepseek.com/v1/models",
     grok: "https://api.x.ai/v1/models",
-    llmapi: "https://api.llmapi.com/models",
+    llmapi: "https://api.llmapi.ai/v1/models",
   };
   const url = endpoints[providerId];
   if (!url) throw new Error(`provedor ${providerId} não suporta listagem automática de modelos`);
