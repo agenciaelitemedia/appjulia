@@ -29,7 +29,20 @@ export async function xjGenerateContract(
   legalCase: XJLegalCase | null,
   input: { signer_name: string; signer_document?: string | null; value?: number | null; provider?: string | null },
 ): Promise<{ id: string; sign_url: string | null; status: string; provider: string; via_template?: boolean }> {
-  const provider = (input.provider || legalCase?.contract_provider || agent.contract_provider || "internal").toLowerCase();
+  let provider = (input.provider || legalCase?.contract_provider || agent.contract_provider || "internal").toLowerCase();
+
+  // O contrato pode ser gerado com o agente de recepção em mãos (handoff), cujo provider é
+  // "internal". Se o caso já tem um modelo ativo no ZapSign, ele manda no provider.
+  const providerCaseId = legalCase?.id ?? session.case_id;
+  if (provider !== "zapsign" && providerCaseId) {
+    const { data: activeTemplate } = await supabase
+      .from("xj_zapsign_templates")
+      .select("id")
+      .eq("case_id", providerCaseId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (activeTemplate?.id) provider = "zapsign";
+  }
   const template = legalCase?.contract_template || agent.contract_template || FALLBACK_TEMPLATE;
 
   const rendered = renderTemplate(template, {
