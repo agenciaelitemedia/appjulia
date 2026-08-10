@@ -161,9 +161,11 @@ Deno.serve(async (req) => {
 
       const fileRes = await fetch(fileUrl);
       const bytes = new Uint8Array(await fileRes.arrayBuffer());
-      let bin = "";
-      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-      const b64 = btoa(bin);
+      const chunks: string[] = [];
+      for (let i = 0; i < bytes.length; i += 8192) {
+        chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
+      }
+      const b64 = btoa(chunks.join(""));
       out.push({ name: "docx_download", status: fileRes.status, bytes: bytes.length });
 
       const create = await fetch("https://api.zapsign.com.br/api/v1/templates/create/", {
