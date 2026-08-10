@@ -154,7 +154,12 @@ Deno.serve(async (req) => {
       const create = await fetch("https://api.zapsign.com.br/api/v1/templates/create/", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: "XJ Debug Minimo", base64_docx: String(data.base64_docx), lang: "pt-br" }),
+        body: JSON.stringify({
+          name: "XJ Debug Minimo",
+          base64_docx: String(data.base64_docx),
+          lang: "pt-br",
+          ...(data.folder_path ? { folder_path: String(data.folder_path) } : {}),
+        }),
       });
       const createJson = await create.json().catch(() => ({}));
       out.push({ name: "template_create", status: create.status, token: (createJson as any)?.token, inputs: (createJson as any)?.inputs });
