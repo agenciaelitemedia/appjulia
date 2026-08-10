@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useXJZapsignMutations, useXJZapsignTemplate, type XJZapsignTemplate } from '../hooks/useXJZapsign';
 import {
   XJ_CONTRACT_FIELD_CATALOG,
@@ -37,6 +38,10 @@ const STEPS = [
   { id: 'modelo', label: 'Modelo', icon: Upload },
   { id: 'variaveis', label: 'Variáveis', icon: Link2 },
 ] as const;
+
+/** Acima disso o ZapSign aceita o upload mas falha ao converter o modelo (contrato sai vazio). */
+const MAX_DOCX_MB = 8;
+const MAX_DOCX_BYTES = MAX_DOCX_MB * 1024 * 1024;
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
