@@ -147,6 +147,19 @@ Deno.serve(async (req) => {
         return json({ ok: true, template: data });
       }
 
+      if (action === "deactivate_template") {
+        const id = String(body?.id ?? "").trim();
+        if (!id) return json({ error: "id é obrigatório" }, 400);
+        const { data, error } = await supabase
+          .from("xj_zapsign_templates")
+          .update({ is_active: false })
+          .eq("id", id)
+          .select("*")
+          .single();
+        if (error) return json({ error: error.message }, 500);
+        return json({ ok: true, template: data });
+      }
+
       return json({ error: `ação desconhecida: ${action}` }, 400);
     }
 
