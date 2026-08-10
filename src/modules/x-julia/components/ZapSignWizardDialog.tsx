@@ -14,8 +14,15 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Trash2 } from 'lucide-react';
 import { useXJZapsignMutations, useXJZapsignTemplate, type XJZapsignTemplate } from '../hooks/useXJZapsign';
-import { XJ_CONTRACT_FIELD_CATALOG, extraContractFields, type XJContractField } from '../lib/contractFieldCatalog';
+import {
+  XJ_CONTRACT_FIELD_CATALOG,
+  XJ_CONTRACT_SYSTEM_FIELDS,
+  extraContractFields,
+  previewSystemField,
+  type XJContractField,
+} from '../lib/contractFieldCatalog';
 
 const STEPS = [
   { id: 'token', label: 'Token', icon: ShieldCheck },
@@ -44,6 +51,7 @@ export function ZapSignWizardDialog({
   caseName,
   agentId,
   extraFields,
+  mode = 'create',
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -53,9 +61,10 @@ export function ZapSignWizardDialog({
   caseName: string;
   agentId?: string | null;
   extraFields?: XJContractField[];
+  mode?: 'create' | 'edit';
 }) {
   const { data: current } = useXJZapsignTemplate(caseId);
-  const { validateToken, uploadTemplate, saveMapping } = useXJZapsignMutations();
+  const { validateToken, uploadTemplate, saveMapping, deactivateTemplate } = useXJZapsignMutations();
 
   const [step, setStep] = useState(0);
   const [token, setToken] = useState('');
@@ -68,7 +77,8 @@ export function ZapSignWizardDialog({
   // (subir o modelo invalida a query e recarrega `current` com o diálogo ainda aberto).
   useEffect(() => {
     if (!open) return;
-    setStep(0);
+    // Modo edição: já existe modelo ativo — abre direto no mapeamento de variáveis.
+    setStep(mode === 'edit' && current ? 2 : 0);
     setToken('');
     setTokenStatus('idle');
     setFile(null);
@@ -97,8 +107,18 @@ export function ZapSignWizardDialog({
       token: token.trim() || undefined,
     });
     setTemplate(created);
-    setMapping({});
+    // Ao trocar o arquivo, preserva o mapeamento das variáveis que continuam existindo.
+    const names = new Set(created.variables.map((v) => v.variable));
+    setMapping((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => names.has(k))));
     setStep(2);
+  };
+
+  const handleRemoveTemplate = async () => {
+    if (!template) return;
+    await deactivateTemplate.mutateAsync({ id: template.id, case_id: caseId });
+    setTemplate(null);
+    setMapping({});
+    onOpenChange(false);
   };
 
   const handleSaveMapping = async () => {
@@ -193,10 +213,44 @@ export function ZapSignWizardDialog({
                   Pasta no ZapSign: <code>{template.folder_path}</code> · {template.variables.length} variável(is)
                   encontrada(s) no modelo. Vincule cada uma a um campo do caso.
                 </p>
+                <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 p-2 text-xs">
+                  <span>
+                    Modelo: <strong>{template.template_name}</strong>
+                  </span>
+                  <span className="text-muted-foreground">
+                    · atualizado em {new Date(template.updated_at).toLocaleString('pt-BR')}
+                  </span>
+                  <div className="ml-auto flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setStep(1)}>
+                      <Upload className="mr-1.5 h-3.5 w-3.5" /> Trocar arquivo
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive"
+                      onClick={handleRemoveTemplate}
+                      disabled={deactivateTemplate.isPending}
+                    >
+                      {deactivateTemplate.isPending ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      Remover modelo
+                    </Button>
+                  </div>
+                </div>
                 <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                   {template.variables.map((v) => (
                     <div key={v.variable} className="flex items-center gap-2 rounded-md border p-2">
-                      <code className="min-w-0 flex-1 truncate text-xs">{v.variable}</code>
+                      <div className="min-w-0 flex-1">
+                        <code className="block truncate text-xs">{v.variable}</code>
+                        {previewSystemField(mapping[v.variable] ?? '') && (
+                          <span className="text-[11px] text-muted-foreground">
+                            → {previewSystemField(mapping[v.variable] ?? '')}
+                          </span>
+                        )}
+                      </div>
                       <Select
                         value={mapping[v.variable] ?? '__ignore__'}
                         onValueChange={(value) =>
@@ -211,9 +265,18 @@ export function ZapSignWizardDialog({
                         <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__ignore__">Ignorar</SelectItem>
+                          <SelectGroup>
+                            <SelectLabel>Automáticas do sistema</SelectLabel>
+                            {XJ_CONTRACT_SYSTEM_FIELDS.map((f) => (
+                              <SelectItem key={f.key} value={f.key}>{f.label ?? f.key}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Dados do caso</SelectLabel>
                           {fieldOptions.map((f) => (
                             <SelectItem key={f.key} value={f.key}>{f.label ?? f.key}</SelectItem>
                           ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                     </div>
