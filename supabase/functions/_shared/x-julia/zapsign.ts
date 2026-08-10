@@ -4,7 +4,7 @@
 import type { XJAgent } from "./types.ts";
 
 /** Token padrão citado no wizard — só usado se nada estiver configurado no banco. */
-export const ZAPSIGN_DEFAULT_TOKEN = "1c34c87a-37d6-42c3-add9-b3ceaed8eb1d13d47d17-4386-407b-aee9-665af342b622";
+export const ZAPSIGN_DEFAULT_TOKEN = "b9465cbc-d26f-4d3a-9b0b-77136748386daa08b3ff-1bcf-4cbb-9b42-0f40eb169c02";
 
 const ZAPSIGN_API = "https://api.zapsign.com.br/api/v1";
 
