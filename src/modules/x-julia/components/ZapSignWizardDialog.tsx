@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, FileSignature, Link2, Loader2, ShieldCheck, Upload } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ExternalLink, FileSignature, FlaskConical, Link2, Loader2, ShieldCheck, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -77,7 +77,7 @@ export function ZapSignWizardDialog({
   mode?: 'create' | 'edit';
 }) {
   const { data: current } = useXJZapsignTemplate(caseId);
-  const { validateToken, uploadTemplate, saveMapping, deactivateTemplate } = useXJZapsignMutations();
+  const { validateToken, uploadTemplate, saveMapping, testMapping, deactivateTemplate } = useXJZapsignMutations();
 
   const [step, setStep] = useState(0);
   const [token, setToken] = useState('');
@@ -85,6 +85,12 @@ export function ZapSignWizardDialog({
   const [file, setFile] = useState<File | null>(null);
   const [template, setTemplate] = useState<XJZapsignTemplate | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    unmapped?: string[];
+    sign_url?: string | null;
+    error?: string;
+  } | null>(null);
 
   // Reseta o passo só quando o diálogo abre — não a cada refetch de `current`
   // (subir o modelo invalida a query e recarrega `current` com o diálogo ainda aberto).
@@ -97,6 +103,7 @@ export function ZapSignWizardDialog({
     setFile(null);
     setTemplate(current ?? null);
     setMapping(current?.field_mapping ?? {});
+    setTestResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -144,6 +151,28 @@ export function ZapSignWizardDialog({
     if (!template) return;
     await saveMapping.mutateAsync({ id: template.id, case_id: caseId, field_mapping: mapping });
     onOpenChange(false);
+  };
+
+  const handleTestMapping = async () => {
+    if (!template) return;
+    setTestResult(null);
+    // Salva antes para o teste refletir exatamente o que ficará valendo no contrato real.
+    await saveMapping.mutateAsync({ id: template.id, case_id: caseId, field_mapping: mapping });
+    const result = await testMapping.mutateAsync({
+      id: template.id,
+      field_mapping: mapping,
+      token: token.trim() || undefined,
+    });
+    setTestResult(result);
+    if (result.ok) {
+      toast.success(
+        result.unmapped?.length
+          ? `Documento de teste gerado, mas ${result.unmapped.length} variável(is) ficaram vazias.`
+          : 'Documento de teste gerado com todas as variáveis preenchidas.',
+      );
+    } else {
+      toast.error(result.error || 'O ZapSign não gerou o documento de teste.');
+    }
   };
 
   return (
@@ -307,12 +336,59 @@ export function ZapSignWizardDialog({
                     </p>
                   )}
                 </div>
+                {testResult && (
+                  <div
+                    className={`space-y-1.5 rounded-md border p-2 text-xs ${
+                      testResult.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-destructive/40 bg-destructive/5'
+                    }`}
+                  >
+                    <p className="flex items-center gap-1.5 font-medium">
+                      {testResult.ok ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                      )}
+                      {testResult.ok ? 'Documento de teste gerado no ZapSign' : 'Falha no teste'}
+                    </p>
+                    {testResult.error && <p className="text-muted-foreground">{testResult.error}</p>}
+                    {!!testResult.unmapped?.length && (
+                      <p className="text-muted-foreground">
+                        Sem valor: <code>{testResult.unmapped.join(', ')}</code>
+                      </p>
+                    )}
+                    {testResult.ok && !testResult.unmapped?.length && (
+                      <p className="text-muted-foreground">Todas as variáveis do modelo retornaram valor.</p>
+                    )}
+                    {testResult.sign_url && (
+                      <a
+                        href={testResult.sign_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-primary underline"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Abrir documento de teste
+                      </a>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <p className="text-sm text-muted-foreground">Nenhum modelo enviado ainda.</p>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep(1)}>Voltar</Button>
+              <Button
+                variant="outline"
+                onClick={handleTestMapping}
+                disabled={!template || testMapping.isPending || saveMapping.isPending}
+              >
+                {testMapping.isPending ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <FlaskConical className="mr-1.5 h-4 w-4" />
+                )}
+                Testar envio
+              </Button>
               <Button onClick={handleSaveMapping} disabled={!template || saveMapping.isPending}>
                 {saveMapping.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                 Salvar mapeamento

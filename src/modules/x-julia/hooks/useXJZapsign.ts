@@ -117,6 +117,32 @@ export function useXJZapsignMutations() {
     onError: (e: any) => toast.error(e?.message || 'Erro ao salvar o mapeamento'),
   });
 
+  const testMapping = useMutation<
+    {
+      ok: boolean;
+      unmapped?: string[];
+      filled?: Array<{ de: string; para: string }>;
+      sign_url?: string | null;
+      document_url?: string | null;
+      error?: string;
+    },
+    any,
+    { id: string; field_mapping: Record<string, string>; token?: string }
+  >({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.functions.invoke('xj-zapsign', {
+        method: 'POST',
+        body: { action: 'test_mapping', ...input },
+      });
+      if (error) {
+        const detail = await (error as any)?.context?.json?.().catch(() => null);
+        throw new Error(detail?.error || error.message || 'Não foi possível testar o modelo agora.');
+      }
+      return data as any;
+    },
+    onError: (e: any) => toast.error(e?.message || 'Erro ao gerar o documento de teste'),
+  });
+
   const deactivateTemplate = useMutation<XJZapsignTemplate, any, { id: string; case_id: string }>({
     mutationFn: async (input) => {
       const { data, error } = await supabase.functions.invoke('xj-zapsign', {
@@ -134,5 +160,5 @@ export function useXJZapsignMutations() {
     onError: (e: any) => toast.error(e?.message || 'Erro ao remover o modelo'),
   });
 
-  return { validateToken, uploadTemplate, saveMapping, deactivateTemplate };
+  return { validateToken, uploadTemplate, saveMapping, testMapping, deactivateTemplate };
 }
