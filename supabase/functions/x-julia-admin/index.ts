@@ -141,6 +141,40 @@ Deno.serve(async (req) => {
     }
 
     // Diagnóstico temporário ZapSign
+    if (action === "zapsign_debug3") {
+      const { data: settings } = await supabase
+        .from("xj_provider_settings")
+        .select("default_key")
+        .eq("provider", "zapsign")
+        .eq("kind", "contract")
+        .maybeSingle();
+      const token = (settings?.default_key ?? "").toString().trim();
+      const out: unknown[] = [];
+
+      const create = await fetch("https://api.zapsign.com.br/api/v1/templates/create/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: "XJ Debug Minimo", base64_docx: String(data.base64_docx), lang: "pt-br" }),
+      });
+      const createJson = await create.json().catch(() => ({}));
+      out.push({ name: "template_create", status: create.status, token: (createJson as any)?.token, inputs: (createJson as any)?.inputs });
+
+      const tId = (createJson as any)?.token;
+      if (tId) {
+        const res = await fetch("https://api.zapsign.com.br/api/v1/models/create-doc/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            template_id: tId,
+            signer_name: "Teste Minimo",
+            data: [{ de: "{{Nome}}", para: "Maria Teste" }],
+          }),
+        });
+        out.push({ name: "create_doc", status: res.status, body: (await res.text()).slice(0, 400) });
+      }
+      return json({ ok: true, results: out });
+    }
+
     if (action === "zapsign_debug2") {
       const { data: templateRow } = await supabase
         .from("xj_zapsign_templates")
