@@ -28,7 +28,7 @@ export async function xjGenerateContract(
   session: XJSession,
   legalCase: XJLegalCase | null,
   input: { signer_name: string; signer_document?: string | null; value?: number | null; provider?: string | null },
-): Promise<{ id: string; sign_url: string | null; status: string; provider: string }> {
+): Promise<{ id: string; sign_url: string | null; status: string; provider: string; via_template?: boolean }> {
   const provider = (input.provider || legalCase?.contract_provider || agent.contract_provider || "internal").toLowerCase();
   const template = legalCase?.contract_template || agent.contract_template || FALLBACK_TEMPLATE;
 
@@ -71,7 +71,7 @@ export async function xjGenerateContract(
 
   if (provider === "zapsign") {
     const viaTemplate = await sendViaZapSignTemplate(supabase, agent, legalCase, session, input);
-    const result = viaTemplate ?? await sendViaZapSign(supabase, contract, rendered, session);
+    const result = viaTemplate ?? await sendViaZapSign(supabase, agent, contract, rendered, session);
     await supabase
       .from("xj_contracts")
       .update({
@@ -84,7 +84,15 @@ export async function xjGenerateContract(
         template_id: viaTemplate?.templateRowId ?? null,
       })
       .eq("id", contract.id);
-    return { id: contract.id, sign_url: result.sign_url, status: result.sign_url ? "sent" : "error", provider };
+    if (!result.sign_url) {
+      const detail = typeof result.raw === "object" && result.raw !== null
+        ? JSON.stringify(result.raw).slice(0, 300)
+        : String(result.raw ?? "sem detalhe");
+      throw new Error(
+        `ZapSign não devolveu link de assinatura${viaTemplate ? "" : " (modelo .docx do caso não configurado — use o assistente ZapSign na aba Contrato do agente)"}: ${detail}`,
+      );
+    }
+    return { id: contract.id, sign_url: result.sign_url, status: "sent", provider, via_template: !!viaTemplate };
   }
 
   // Provider interno: link de assinatura hospedado pelo próprio módulo.
@@ -143,20 +151,15 @@ async function sendViaZapSignTemplate(
     signerName: input.signer_name,
     signerPhoneNumber: (session.phone ?? "").replace(/^55/, "") || null,
     data,
-    folderPath: templateRow.folder_path,
   });
 
   return { ...result, templateRowId: templateRow.id };
 }
 
 // deno-lint-ignore no-explicit-any
-async function sendViaZapSign(supabase: any, contract: any, rendered: string, session: XJSession) {
-  const { data: keyRow } = await supabase
-    .from("ai_provider_keys")
-    .select("api_key")
-    .eq("provider", "zapsign")
-    .maybeSingle();
-  const token = (keyRow?.api_key ?? "").toString().trim();
+async function sendViaZapSign(supabase: any, agent: XJAgent | null, contract: any, rendered: string, session: XJSession) {
+  // Mesma cadeia de resolução do caminho por modelo: agente -> escritório -> padrão global.
+  const token = (await resolveZapsignToken(supabase, agent, session.client_id)).trim();
   if (!token) return { external_id: null, sign_url: null, document_url: null, raw: { error: "token zapsign ausente" } };
 
   try {

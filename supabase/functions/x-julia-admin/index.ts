@@ -140,6 +140,92 @@ Deno.serve(async (req) => {
       return json({ ok: true, ...result });
     }
 
+    // Diagnóstico temporário ZapSign
+    if (action === "zapsign_debug2") {
+      const { data: templateRow } = await supabase
+        .from("xj_zapsign_templates")
+        .select("*")
+        .eq("id", data.template_row_id)
+        .maybeSingle();
+      if (!templateRow) return json({ error: "modelo não encontrado" }, 404);
+      const { data: settings } = await supabase
+        .from("xj_provider_settings")
+        .select("default_key")
+        .eq("provider", "zapsign")
+        .eq("kind", "contract")
+        .maybeSingle();
+      const token = (settings?.default_key ?? "").toString().trim();
+      const vars = Object.keys((templateRow.field_mapping ?? {}) as Record<string, string>);
+      const out: unknown[] = [];
+
+      const detail = await fetch(`https://api.zapsign.com.br/api/v1/templates/${templateRow.template_token}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const detailJson = await detail.json().catch(() => ({}));
+      out.push({
+        name: "template_detail",
+        status: detail.status,
+        inputs: (detailJson as any)?.inputs ?? (detailJson as any)?.answers ?? null,
+        signers: (detailJson as any)?.signers ?? null,
+      });
+
+      const variants: Array<{ name: string; body: Record<string, unknown> }> = [
+        {
+          name: "braces",
+          body: {
+            template_id: templateRow.template_token,
+            signer_name: "Teste Diagnostico",
+            data: vars.map((v) => ({ de: v, para: "TESTE" })),
+          },
+        },
+        {
+          name: "no_braces",
+          body: {
+            template_id: templateRow.template_token,
+            signer_name: "Teste Diagnostico",
+            data: vars.map((v) => ({ de: v.replace(/[{}]/g, ""), para: "TESTE" })),
+          },
+        },
+        {
+          name: "with_phone_lang",
+          body: {
+            template_id: templateRow.template_token,
+            signer_name: "Teste Diagnostico",
+            signer_phone_country: "55",
+            signer_phone_number: "34991633679",
+            lang: "pt-br",
+            data: vars.map((v) => ({ de: v, para: "TESTE" })),
+          },
+        },
+      ];
+      for (const v of variants) {
+        const res = await fetch("https://api.zapsign.com.br/api/v1/models/create-doc/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(v.body),
+        });
+        out.push({ name: `create_doc_${v.name}`, status: res.status, body: (await res.text()).slice(0, 300) });
+      }
+
+      const docs = await fetch("https://api.zapsign.com.br/api/v1/docs/?page=1&sort_order=desc&include_signers=true", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const docsJson = await docs.json().catch(() => ({}));
+      out.push({
+        name: "docs_list",
+        status: docs.status,
+        count: (docsJson as any)?.count ?? null,
+        first: ((docsJson as any)?.results ?? []).slice(0, 5).map((d: any) => ({
+          token: d.token,
+          name: d.name,
+          created_at: d.created_at,
+          folder_path: d.folder_path,
+          sign_url: d.signers?.[0]?.sign_url ?? null,
+        })),
+      });
+      return json({ ok: true, vars, results: out });
+    }
+
     return json({ error: `ação desconhecida: ${action}` }, 400);
   } catch (error) {
     console.error("[x-julia-admin] erro:", error);

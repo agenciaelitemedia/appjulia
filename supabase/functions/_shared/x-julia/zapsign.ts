@@ -107,29 +107,44 @@ export async function zapsignCreateDocFromTemplate(opts: {
   signerPhoneNumber?: string | null;
   signerEmail?: string | null;
   data: Array<{ de: string; para: string }>;
-  folderPath: string;
+  /** O endpoint de create-doc rejeita folder_path ("Erro inesperado." 400) — a pasta já vem do modelo. */
+  folderPath?: string;
 }): Promise<ZapsignCreateDocResult> {
+  const payload = {
+    template_id: opts.templateId,
+    signer_name: opts.signerName,
+    signer_phone_country: opts.signerPhoneNumber ? "55" : undefined,
+    signer_phone_number: opts.signerPhoneNumber ?? undefined,
+    signer_email: opts.signerEmail ?? undefined,
+    data: opts.data,
+  };
   const res = await fetch(`${ZAPSIGN_API}/models/create-doc/`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.token}` },
-    body: JSON.stringify({
-      template_id: opts.templateId,
-      signer_name: opts.signerName,
-      signer_phone_country: opts.signerPhoneNumber ? "55" : undefined,
-      signer_phone_number: opts.signerPhoneNumber ?? undefined,
-      signer_email: opts.signerEmail ?? undefined,
-      data: opts.data,
-      folder_path: opts.folderPath,
-    }),
+    body: JSON.stringify(payload),
   });
-  const raw = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return { external_id: null, sign_url: null, document_url: null, raw: { error: raw, status: res.status } };
+  const text = await res.text();
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    raw = { body: text.slice(0, 800) };
   }
+  if (!res.ok) {
+    console.error("[zapsign] create-doc falhou", res.status, text.slice(0, 800), JSON.stringify(payload).slice(0, 800));
+    return {
+      external_id: null,
+      sign_url: null,
+      document_url: null,
+      raw: { error: raw, status: res.status, sent: payload },
+    };
+  }
+  // deno-lint-ignore no-explicit-any
+  const ok = raw as any;
   return {
-    external_id: raw?.token ?? null,
-    sign_url: raw?.signers?.[0]?.sign_url ?? null,
-    document_url: raw?.original_file ?? null,
+    external_id: ok?.token ?? null,
+    sign_url: ok?.signers?.[0]?.sign_url ?? null,
+    document_url: ok?.original_file ?? null,
     raw,
   };
 }
