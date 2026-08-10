@@ -716,14 +716,32 @@ export default function XJAgentEditorPage() {
                         <span className="text-muted-foreground">Nenhum modelo configurado ainda neste caso.</span>
                       )}
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!canEdit || !currentCase}
-                      onClick={() => setZapsignWizardOpen(true)}
-                    >
-                      Configurar modelo no ZapSign
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      {zapsignTemplate && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={!canEdit || !currentCase}
+                          onClick={() => {
+                            setZapsignWizardMode('edit');
+                            setZapsignWizardOpen(true);
+                          }}
+                        >
+                          Editar mapeamento
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!canEdit || !currentCase}
+                        onClick={() => {
+                          setZapsignWizardMode('create');
+                          setZapsignWizardOpen(true);
+                        }}
+                      >
+                        {zapsignTemplate ? 'Substituir modelo' : 'Configurar modelo no ZapSign'}
+                      </Button>
+                    </div>
                   </div>
                   {!currentCase && (
                     <p className="text-xs text-muted-foreground">
@@ -763,6 +781,7 @@ export default function XJAgentEditorPage() {
             <ZapSignWizardDialog
               open={zapsignWizardOpen}
               onOpenChange={setZapsignWizardOpen}
+              mode={zapsignWizardMode}
               clientId={String(agent.client_id)}
               clientName={currentOfficeName}
               caseId={currentCase.id}
