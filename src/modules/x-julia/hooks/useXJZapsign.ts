@@ -58,7 +58,7 @@ export function useXJZapsignMutations() {
         method: 'POST',
         body: { action: 'validate_token', ...input },
       });
-      if (error) throw error;
+      if (error) throw new Error(error.message || 'Não foi possível contatar o serviço do ZapSign. Tente novamente.');
       return data as { ok: boolean; error?: string };
     },
     onError: (e: any) => toast.error(e?.message || 'Erro ao testar o token do ZapSign'),
@@ -106,7 +106,7 @@ export function useXJZapsignMutations() {
         method: 'POST',
         body: { action: 'save_mapping', id: input.id, field_mapping: input.field_mapping },
       });
-      if (error) throw error;
+      if (error) throw new Error(error.message || 'Não foi possível salvar o mapeamento agora. Tente novamente.');
       if ((data as any)?.error) throw new Error((data as any).error);
       return (data as any).template as XJZapsignTemplate;
     },
