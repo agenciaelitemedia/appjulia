@@ -141,6 +141,52 @@ Deno.serve(async (req) => {
     }
 
     // Diagnóstico temporário ZapSign
+    // Reenvia o .docx do modelo atual como um modelo novo e tenta gerar o documento.
+    if (action === "zapsign_debug4") {
+      const { data: templateRow } = await supabase
+        .from("xj_zapsign_templates").select("*").eq("id", data.template_row_id).maybeSingle();
+      const { data: settings } = await supabase
+        .from("xj_provider_settings").select("default_key")
+        .eq("provider", "zapsign").eq("kind", "contract").maybeSingle();
+      const token = (settings?.default_key ?? "").toString().trim();
+      const out: unknown[] = [];
+
+      const detail = await fetch(`https://api.zapsign.com.br/api/v1/templates/${templateRow.template_token}/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const detailJson = await detail.json().catch(() => ({}));
+      const fileUrl = (detailJson as any)?.template_file;
+      out.push({ name: "detail", status: detail.status, has_file: !!fileUrl, active: (detailJson as any)?.active, template_type: (detailJson as any)?.template_type });
+      if (!fileUrl) return json({ ok: true, results: out });
+
+      const fileRes = await fetch(fileUrl);
+      const bytes = new Uint8Array(await fileRes.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      const b64 = btoa(bin);
+      out.push({ name: "docx_download", status: fileRes.status, bytes: bytes.length });
+
+      const create = await fetch("https://api.zapsign.com.br/api/v1/templates/create/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: "XJ Debug Reupload", base64_docx: b64, lang: "pt-br" }),
+      });
+      const createJson = await create.json().catch(() => ({}));
+      out.push({ name: "template_create", status: create.status, token: (createJson as any)?.token, inputs_count: ((createJson as any)?.inputs ?? []).length });
+
+      const tId = (createJson as any)?.token;
+      if (tId) {
+        const vars = (((createJson as any)?.inputs ?? []) as any[]).map((i) => i.variable);
+        const res = await fetch("https://api.zapsign.com.br/api/v1/models/create-doc/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ template_id: tId, signer_name: "Teste Reupload", data: vars.map((v) => ({ de: v, para: "TESTE" })) }),
+        });
+        out.push({ name: "create_doc", status: res.status, body: (await res.text()).slice(0, 300) });
+      }
+      return json({ ok: true, results: out });
+    }
+
     if (action === "zapsign_debug3") {
       const { data: settings } = await supabase
         .from("xj_provider_settings")
