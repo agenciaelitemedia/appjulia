@@ -8,6 +8,13 @@ export const ZAPSIGN_DEFAULT_TOKEN = "1c34c87a-37d6-42c3-add9-b3ceaed8eb1d13d47d
 
 const ZAPSIGN_API = "https://api.zapsign.com.br/api/v1";
 
+/**
+ * Limite prático do .docx aceito pelo ZapSign. Arquivos pesados (imagens, digitalizações)
+ * são aceitos em templates/create, mas a conversão do modelo falha silenciosamente depois:
+ * models/create-doc/ responde 200 com o documento vazio (sem token/sign_url).
+ */
+export const ZAPSIGN_MAX_DOCX_BYTES = 8 * 1024 * 1024;
+
 /** Resolve o token do ZapSign: agente (override) -> escritório -> padrão global -> literal. */
 // deno-lint-ignore no-explicit-any
 export async function resolveZapsignToken(supabase: any, agent: XJAgent | null, clientId?: string | null): Promise<string> {
@@ -71,6 +78,13 @@ export async function zapsignCreateTemplate(opts: {
   base64Docx: string;
   folderPath: string;
 }): Promise<ZapsignCreateTemplateResult> {
+  const approxBytes = Math.floor((opts.base64Docx.length * 3) / 4);
+  if (approxBytes > ZAPSIGN_MAX_DOCX_BYTES) {
+    throw new Error(
+      `O arquivo .docx tem ${(approxBytes / 1024 / 1024).toFixed(1)} MB e o ZapSign não consegue converter modelos tão grandes ` +
+        `(limite ~${ZAPSIGN_MAX_DOCX_BYTES / 1024 / 1024} MB). Comprima ou remova as imagens do documento e envie novamente.`,
+    );
+  }
   const res = await fetch(`${ZAPSIGN_API}/templates/create/`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.token}` },
@@ -141,6 +155,23 @@ export async function zapsignCreateDocFromTemplate(opts: {
   }
   // deno-lint-ignore no-explicit-any
   const ok = raw as any;
+  // ZapSign às vezes responde 200 com um documento "em branco" (token vazio): significa que
+  // a conversão do modelo .docx falhou no lado deles — normalmente arquivo muito pesado.
+  if (!ok?.token && !ok?.signers?.[0]?.sign_url) {
+    console.error("[zapsign] create-doc retornou documento vazio", text.slice(0, 500));
+    return {
+      external_id: null,
+      sign_url: null,
+      document_url: null,
+      raw: {
+        error:
+          "O ZapSign aceitou a requisição mas não gerou o documento (resposta vazia). " +
+          "Isso acontece quando o modelo .docx é muito pesado ou não pôde ser convertido: " +
+          "reenvie o modelo do caso com um .docx mais leve (até 8 MB, sem imagens grandes).",
+        raw,
+      },
+    };
+  }
   return {
     external_id: ok?.token ?? null,
     sign_url: ok?.signers?.[0]?.sign_url ?? null,
