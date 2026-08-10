@@ -24,6 +24,7 @@ export interface XJAgent {
   voice_settings: Record<string, any>;
   contract_provider: string;
   contract_template: string | null;
+  contract_api_token?: string | null;
   business_hours: Record<string, any>;
   activation?: {
     session_start?: string;
@@ -214,6 +215,7 @@ export interface XJContract {
   deal_id: string | null;
   case_id: string | null;
   provider: string;
+  template_id?: string | null;
   sign_url: string | null;
   document_url: string | null;
   rendered_content: string | null;

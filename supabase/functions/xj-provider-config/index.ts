@@ -221,8 +221,8 @@ Deno.serve(async (req) => {
       if (action === "save_provider") {
         const provider = String(body?.provider ?? "").trim();
         const kind = String(body?.kind ?? "llm").trim();
-        if (!provider || !["llm", "voice"].includes(kind)) {
-          return json({ error: "provider e kind (llm|voice) são obrigatórios" }, 400);
+        if (!provider || !["llm", "voice", "contract"].includes(kind)) {
+          return json({ error: "provider e kind (llm|voice|contract) são obrigatórios" }, 400);
         }
 
         const payload: Record<string, unknown> = {
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
         const provider = String(body?.provider ?? "").trim();
         const kind = String(body?.kind ?? "llm").trim();
         const apiKey = String(body?.api_key ?? "").trim();
-        if (!clientId || !provider || !["llm", "voice"].includes(kind)) {
+        if (!clientId || !provider || !["llm", "voice", "contract"].includes(kind)) {
           return json({ error: "client_id, provider e kind são obrigatórios" }, 400);
         }
 

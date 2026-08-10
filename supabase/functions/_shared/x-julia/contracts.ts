@@ -2,6 +2,7 @@
 // X-Julia — contratos com provider plugável (internal | zapsign)
 // ============================================
 import type { XJAgent, XJLegalCase, XJSession } from "./types.ts";
+import { resolveZapsignToken, zapsignCreateDocFromTemplate } from "./zapsign.ts";
 
 function renderTemplate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key) => {
@@ -68,7 +69,8 @@ export async function xjGenerateContract(
   if (error) throw error;
 
   if (provider === "zapsign") {
-    const result = await sendViaZapSign(supabase, contract, rendered, session);
+    const viaTemplate = await sendViaZapSignTemplate(supabase, agent, legalCase, session, input);
+    const result = viaTemplate ?? await sendViaZapSign(supabase, contract, rendered, session);
     await supabase
       .from("xj_contracts")
       .update({
@@ -78,6 +80,7 @@ export async function xjGenerateContract(
         status: result.sign_url ? "sent" : "error",
         sent_at: new Date().toISOString(),
         metadata: result.raw ?? {},
+        template_id: viaTemplate?.templateRowId ?? null,
       })
       .eq("id", contract.id);
     return { id: contract.id, sign_url: result.sign_url, status: result.sign_url ? "sent" : "error", provider };
@@ -90,6 +93,52 @@ export async function xjGenerateContract(
     .update({ sign_url: signUrl, status: "sent", sent_at: new Date().toISOString() })
     .eq("id", contract.id);
   return { id: contract.id, sign_url: signUrl, status: "sent", provider };
+}
+
+/**
+ * Usa o modelo (.docx) real configurado no ZapSign para o caso, com as variáveis
+ * já mapeadas para os campos coletados na sessão. Retorna null quando o caso ainda
+ * não passou pelo wizard — nesse caso o chamador cai no fallback (sendViaZapSign).
+ */
+// deno-lint-ignore no-explicit-any
+async function sendViaZapSignTemplate(
+  supabase: any,
+  agent: XJAgent,
+  legalCase: XJLegalCase | null,
+  session: XJSession,
+  input: { signer_name: string; signer_document?: string | null; value?: number | null },
+): Promise<{ external_id: string | null; sign_url: string | null; document_url: string | null; raw: unknown; templateRowId: string } | null> {
+  const caseId = legalCase?.id ?? session.case_id;
+  if (!caseId) return null;
+
+  const { data: templateRow } = await supabase
+    .from("xj_zapsign_templates")
+    .select("*")
+    .eq("case_id", caseId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (!templateRow?.template_token) return null;
+
+  const mapping = (templateRow.field_mapping ?? {}) as Record<string, string>;
+  const data = Object.entries(mapping)
+    .filter(([, fieldKey]) => !!fieldKey)
+    .map(([zapsignVar, fieldKey]) => ({ de: zapsignVar, para: String(session.slots?.[fieldKey] ?? "") }));
+  // Wizard ainda não concluiu o mapeamento: usa o fallback (conteúdo renderizado) em vez de
+  // gerar o documento com as variáveis do modelo todas vazias.
+  if (data.length === 0) return null;
+
+  const token = await resolveZapsignToken(supabase, agent, session.client_id);
+
+  const result = await zapsignCreateDocFromTemplate({
+    token,
+    templateId: templateRow.template_token,
+    signerName: input.signer_name,
+    signerPhoneNumber: (session.phone ?? "").replace(/^55/, "") || null,
+    data,
+    folderPath: templateRow.folder_path,
+  });
+
+  return { ...result, templateRowId: templateRow.id };
 }
 
 // deno-lint-ignore no-explicit-any

@@ -59,6 +59,7 @@ export interface XJAgent {
   voice_settings: Record<string, unknown>;
   contract_provider: string;
   contract_template: string | null;
+  contract_api_token?: string | null;
   business_hours: Record<string, unknown>;
   handoff_policy: Record<string, unknown>;
   mirror_to_crm_builder: boolean;

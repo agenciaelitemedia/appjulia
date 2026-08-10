@@ -1,0 +1,243 @@
+import { useEffect, useState } from 'react';
+import { CheckCircle2, FileSignature, Link2, Loader2, ShieldCheck, Upload } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useXJZapsignMutations, useXJZapsignTemplate, type XJZapsignTemplate } from '../hooks/useXJZapsign';
+import { XJ_CONTRACT_FIELD_CATALOG, extraContractFields, type XJContractField } from '../lib/contractFieldCatalog';
+
+const STEPS = [
+  { id: 'token', label: 'Token', icon: ShieldCheck },
+  { id: 'modelo', label: 'Modelo', icon: Upload },
+  { id: 'variaveis', label: 'Variáveis', icon: Link2 },
+] as const;
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? '');
+      resolve(result.split(',').pop() ?? '');
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+export function ZapSignWizardDialog({
+  open,
+  onOpenChange,
+  clientId,
+  clientName,
+  caseId,
+  caseName,
+  agentId,
+  extraFields,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  clientId: string;
+  clientName: string;
+  caseId: string;
+  caseName: string;
+  agentId?: string | null;
+  extraFields?: XJContractField[];
+}) {
+  const { data: current } = useXJZapsignTemplate(caseId);
+  const { validateToken, uploadTemplate, saveMapping } = useXJZapsignMutations();
+
+  const [step, setStep] = useState(0);
+  const [token, setToken] = useState('');
+  const [tokenStatus, setTokenStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+  const [file, setFile] = useState<File | null>(null);
+  const [template, setTemplate] = useState<XJZapsignTemplate | null>(null);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+
+  // Reseta o passo só quando o diálogo abre — não a cada refetch de `current`
+  // (subir o modelo invalida a query e recarrega `current` com o diálogo ainda aberto).
+  useEffect(() => {
+    if (!open) return;
+    setStep(0);
+    setToken('');
+    setTokenStatus('idle');
+    setFile(null);
+    setTemplate(current ?? null);
+    setMapping(current?.field_mapping ?? {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const fieldOptions: XJContractField[] = [...XJ_CONTRACT_FIELD_CATALOG, ...extraContractFields(extraFields ?? [])];
+
+  const handleTestToken = async () => {
+    const result = await validateToken.mutateAsync({ token: token.trim() });
+    setTokenStatus(result.ok ? 'ok' : 'error');
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    const base64Docx = await fileToBase64(file);
+    const created = await uploadTemplate.mutateAsync({
+      client_id: clientId,
+      client_name: clientName,
+      case_id: caseId,
+      agent_id: agentId ?? null,
+      case_name: caseName,
+      base64_docx: base64Docx,
+      token: token.trim() || undefined,
+    });
+    setTemplate(created);
+    setMapping({});
+    setStep(2);
+  };
+
+  const handleSaveMapping = async () => {
+    if (!template) return;
+    await saveMapping.mutateAsync({ id: template.id, case_id: caseId, field_mapping: mapping });
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileSignature className="h-5 w-5" /> Configurar modelo no ZapSign
+          </DialogTitle>
+          <DialogDescription>
+            Caso jurídico: <strong>{caseName}</strong>
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs value={STEPS[step].id}>
+          <TabsList className="grid w-full grid-cols-3">
+            {STEPS.map((s, i) => (
+              <TabsTrigger key={s.id} value={s.id} disabled={i > step} className="gap-1.5">
+                <s.icon className="h-3.5 w-3.5" /> {s.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent value="token" className="space-y-3 pt-4">
+            <div className="space-y-1.5">
+              <Label>Token do ZapSign</Label>
+              <Input
+                type="password"
+                autoComplete="off"
+                placeholder="Deixe em branco para usar o token padrão do sistema"
+                value={token}
+                onChange={(e) => {
+                  setToken(e.target.value);
+                  setTokenStatus('idle');
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Por padrão usa o token padrão do sistema. Substitua aqui só se este agente especialista usar uma conta
+                própria no ZapSign.
+              </p>
+            </div>
+            {tokenStatus === 'ok' && (
+              <Badge variant="outline" className="gap-1 text-emerald-600">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Token válido
+              </Badge>
+            )}
+            {tokenStatus === 'error' && <Badge variant="destructive">Token inválido ou sem permissão</Badge>}
+            <DialogFooter>
+              <Button variant="outline" onClick={handleTestToken} disabled={validateToken.isPending}>
+                {validateToken.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Testar conexão
+              </Button>
+              <Button onClick={() => setStep(1)}>Continuar</Button>
+            </DialogFooter>
+          </TabsContent>
+
+          <TabsContent value="modelo" className="space-y-3 pt-4">
+            <div className="space-y-1.5">
+              <Label>Nome do modelo</Label>
+              <Input value={caseName} disabled />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Arquivo .docx do contrato (com variáveis {'{{assim}}'})</Label>
+              <Input
+                type="file"
+                accept=".docx"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+              <p className="text-xs text-muted-foreground">
+                O ZapSign só aceita modelos em .docx e extrai automaticamente as variáveis do arquivo.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStep(0)}>Voltar</Button>
+              <Button onClick={handleUpload} disabled={!file || uploadTemplate.isPending}>
+                {uploadTemplate.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Enviar ao ZapSign
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+
+          <TabsContent value="variaveis" className="space-y-3 pt-4">
+            {template ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Pasta no ZapSign: <code>{template.folder_path}</code> · {template.variables.length} variável(is)
+                  encontrada(s) no modelo. Vincule cada uma a um campo do caso.
+                </p>
+                <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                  {template.variables.map((v) => (
+                    <div key={v.variable} className="flex items-center gap-2 rounded-md border p-2">
+                      <code className="min-w-0 flex-1 truncate text-xs">{v.variable}</code>
+                      <Select
+                        value={mapping[v.variable] ?? '__ignore__'}
+                        onValueChange={(value) =>
+                          setMapping((prev) => {
+                            const next = { ...prev };
+                            if (value === '__ignore__') delete next[v.variable];
+                            else next[v.variable] = value;
+                            return next;
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__ignore__">Ignorar</SelectItem>
+                          {fieldOptions.map((f) => (
+                            <SelectItem key={f.key} value={f.key}>{f.label ?? f.key}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                  {template.variables.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      O ZapSign não encontrou variáveis {'{{...}}'} nesse arquivo.
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Nenhum modelo enviado ainda.</p>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStep(1)}>Voltar</Button>
+              <Button onClick={handleSaveMapping} disabled={!template || saveMapping.isPending}>
+                {saveMapping.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Salvar mapeamento
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}

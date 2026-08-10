@@ -45,6 +45,9 @@ import {
   extraContractFields,
   type XJContractField,
 } from '../lib/contractFieldCatalog';
+import { useXJOffices } from '../hooks/useXJOffices';
+import { useXJZapsignTemplate } from '../hooks/useXJZapsign';
+import { ZapSignWizardDialog } from '../components/ZapSignWizardDialog';
 import { toast } from 'sonner';
 
 /** Seleção do caso jurídico que o agente especialista atende (1 agente por caso). */
@@ -116,6 +119,7 @@ export default function XJAgentEditorPage() {
       voice_key_mode: agent.voice_key_mode ?? 'default',
       contract_provider: agent.contract_provider ?? 'internal',
       contract_template: agent.contract_template ?? '',
+      contract_api_token: (agent as any).contract_api_token ?? '',
       mirror_to_crm_builder: agent.mirror_to_crm_builder,
       max_turns: agent.max_turns ?? 40,
       is_active: agent.is_active,
@@ -207,6 +211,11 @@ export default function XJAgentEditorPage() {
     : [];
   const [contractFieldKeys, setContractFieldKeys] = useState<string[] | null>(null);
   const [contractFieldsCaseId, setContractFieldsCaseId] = useState<string | null>(null);
+  const [zapsignWizardOpen, setZapsignWizardOpen] = useState(false);
+  const { data: zapsignTemplate } = useXJZapsignTemplate(currentCase?.id);
+  const { data: offices = [] } = useXJOffices();
+  const currentOfficeName =
+    offices.find((o) => o.clientId === String(agent?.client_id ?? ''))?.name ?? `ClientID ${agent?.client_id ?? ''}`;
 
   useEffect(() => {
     if (!currentCase) return;
@@ -265,6 +274,7 @@ export default function XJAgentEditorPage() {
         ...form,
         voice_id: form.voice_id || null,
         contract_template: form.contract_template || null,
+        contract_api_token: form.contract_api_token?.trim() || null,
         max_turns: Number(form.max_turns) || 40,
         role: form.role ?? 'reception',
         case_id: form.role === 'specialist' ? form.case_id || null : null,
@@ -691,8 +701,52 @@ export default function XJAgentEditorPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {form.contract_provider === 'zapsign' && (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm">
+                      {zapsignTemplate ? (
+                        <span>
+                          Modelo configurado: <strong>{zapsignTemplate.template_name}</strong> ·{' '}
+                          {Object.values(zapsignTemplate.field_mapping ?? {}).filter(Boolean).length}/
+                          {zapsignTemplate.variables.length} variáveis mapeadas
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Nenhum modelo configurado ainda neste caso.</span>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!canEdit || !currentCase}
+                      onClick={() => setZapsignWizardOpen(true)}
+                    >
+                      Configurar modelo no ZapSign
+                    </Button>
+                  </div>
+                  {!currentCase && (
+                    <p className="text-xs text-muted-foreground">
+                      Vincule um caso jurídico ao agente (aba Geral) antes de configurar o modelo.
+                    </p>
+                  )}
+
+                  <div className="space-y-1.5 md:max-w-md">
+                    <Label>Token do ZapSign deste agente (opcional)</Label>
+                    <Input
+                      type="password"
+                      autoComplete="off"
+                      placeholder="Deixe em branco para usar o token padrão do sistema"
+                      value={form.contract_api_token ?? ''}
+                      onChange={(e) => set('contract_api_token', e.target.value)}
+                      disabled={!canEdit}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-1.5">
-                <Label>Template do contrato (Markdown, aceita placeholders)</Label>
+                <Label>Template do contrato (Markdown, aceita placeholders — usado se não houver modelo no ZapSign)</Label>
                 <Textarea
                   rows={14}
                   className="font-mono text-xs"
@@ -704,6 +758,19 @@ export default function XJAgentEditorPage() {
               </div>
             </CardContent>
           </Card>
+
+          {currentCase && (
+            <ZapSignWizardDialog
+              open={zapsignWizardOpen}
+              onOpenChange={setZapsignWizardOpen}
+              clientId={String(agent.client_id)}
+              clientName={currentOfficeName}
+              caseId={currentCase.id}
+              caseName={currentCase.name}
+              agentId={agentId}
+              extraFields={savedContractFields}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </XJLayout>
