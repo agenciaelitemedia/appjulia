@@ -117,5 +117,22 @@ export function useXJZapsignMutations() {
     onError: (e: any) => toast.error(e?.message || 'Erro ao salvar o mapeamento'),
   });
 
-  return { validateToken, uploadTemplate, saveMapping };
+  const deactivateTemplate = useMutation<XJZapsignTemplate, any, { id: string; case_id: string }>({
+    mutationFn: async (input) => {
+      const { data, error } = await supabase.functions.invoke('xj-zapsign', {
+        method: 'POST',
+        body: { action: 'deactivate_template', id: input.id },
+      });
+      if (error) throw new Error(error.message || 'Não foi possível remover o modelo agora.');
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return (data as any).template as XJZapsignTemplate;
+    },
+    onSuccess: (template) => {
+      invalidate(template.case_id);
+      toast.success('Modelo removido do caso');
+    },
+    onError: (e: any) => toast.error(e?.message || 'Erro ao remover o modelo'),
+  });
+
+  return { validateToken, uploadTemplate, saveMapping, deactivateTemplate };
 }
