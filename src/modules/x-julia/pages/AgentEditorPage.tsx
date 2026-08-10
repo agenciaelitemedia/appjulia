@@ -212,6 +212,7 @@ export default function XJAgentEditorPage() {
   const [contractFieldKeys, setContractFieldKeys] = useState<string[] | null>(null);
   const [contractFieldsCaseId, setContractFieldsCaseId] = useState<string | null>(null);
   const [zapsignWizardOpen, setZapsignWizardOpen] = useState(false);
+  const [zapsignWizardMode, setZapsignWizardMode] = useState<'create' | 'edit'>('create');
   const { data: zapsignTemplate } = useXJZapsignTemplate(currentCase?.id);
   const { data: offices = [] } = useXJOffices();
   const currentOfficeName =
