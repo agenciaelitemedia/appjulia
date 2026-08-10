@@ -8899,6 +8899,7 @@ export type Database = {
           business_hours: Json
           case_id: string | null
           client_id: string
+          contract_api_token: string | null
           contract_provider: string
           contract_template: string | null
           created_at: string
@@ -8930,6 +8931,7 @@ export type Database = {
           business_hours?: Json
           case_id?: string | null
           client_id: string
+          contract_api_token?: string | null
           contract_provider?: string
           contract_template?: string | null
           created_at?: string
@@ -8961,6 +8963,7 @@ export type Database = {
           business_hours?: Json
           case_id?: string | null
           client_id?: string
+          contract_api_token?: string | null
           contract_provider?: string
           contract_template?: string | null
           created_at?: string
@@ -9299,6 +9302,7 @@ export type Database = {
           signer_phone: string | null
           status: string
           template: string | null
+          template_id: string | null
           updated_at: string
           value: number | null
         }
@@ -9323,6 +9327,7 @@ export type Database = {
           signer_phone?: string | null
           status?: string
           template?: string | null
+          template_id?: string | null
           updated_at?: string
           value?: number | null
         }
@@ -9347,6 +9352,7 @@ export type Database = {
           signer_phone?: string | null
           status?: string
           template?: string | null
+          template_id?: string | null
           updated_at?: string
           value?: number | null
         }
@@ -9370,6 +9376,13 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "xj_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_contracts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "xj_zapsign_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -10326,7 +10339,22 @@ export type Database = {
           updated_at?: string
           variables?: Json
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "xj_zapsign_templates_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "xj_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "xj_zapsign_templates_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "xj_legal_cases"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

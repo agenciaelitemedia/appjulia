@@ -3,6 +3,7 @@
 // ============================================
 import type { XJAgent, XJLegalCase, XJSession } from "./types.ts";
 import { resolveZapsignToken, zapsignCreateDocFromTemplate } from "./zapsign.ts";
+import { resolveSystemContractField } from "./datetime.ts";
 
 function renderTemplate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key) => {
@@ -120,9 +121,16 @@ async function sendViaZapSignTemplate(
   if (!templateRow?.template_token) return null;
 
   const mapping = (templateRow.field_mapping ?? {}) as Record<string, string>;
+  const now = new Date();
   const data = Object.entries(mapping)
     .filter(([, fieldKey]) => !!fieldKey)
-    .map(([zapsignVar, fieldKey]) => ({ de: zapsignVar, para: String(session.slots?.[fieldKey] ?? "") }));
+    .map(([zapsignVar, fieldKey]) => {
+      const systemValue = resolveSystemContractField(String(fieldKey), now);
+      return {
+        de: zapsignVar,
+        para: systemValue ?? String(session.slots?.[fieldKey] ?? ""),
+      };
+    });
   // Wizard ainda não concluiu o mapeamento: usa o fallback (conteúdo renderizado) em vez de
   // gerar o documento com as variáveis do modelo todas vazias.
   if (data.length === 0) return null;

@@ -59,6 +59,37 @@ export function formatFullBRT(date: Date): string {
   return `${weekdayBRT(date)}, ${formatBRT(date)}`;
 }
 
+const MONTHS_PT = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+/** 10 de agosto de 2026 */
+export function formatDateLongBRT(date: Date = new Date()): string {
+  const s = toShifted(date);
+  return `${s.getUTCDate()} de ${MONTHS_PT[s.getUTCMonth()]} de ${s.getUTCFullYear()}`;
+}
+
+/** Brasília/DF, 10 de agosto de 2026 */
+export function formatPlaceDateBRT(date: Date = new Date()): string {
+  return `Brasília/DF, ${formatDateLongBRT(date)}`;
+}
+
+/**
+ * Resolve campos automáticos do contrato (prefixo `sys_`) usados no mapeamento
+ * de variáveis do ZapSign. Retorna null quando a chave não é do sistema.
+ */
+export function resolveSystemContractField(key: string, date: Date = new Date()): string | null {
+  switch (key) {
+    case "sys_data_completa":
+      return formatPlaceDateBRT(date);
+    case "sys_data_extenso":
+      return formatDateLongBRT(date);
+    default:
+      return null;
+  }
+}
+
 /** ISO 8601 com fuso explícito -03:00 (nunca sem fuso). */
 export function isoBRT(date: Date): string {
   const s = toShifted(date);
