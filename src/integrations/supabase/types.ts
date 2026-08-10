@@ -10280,6 +10280,54 @@ export type Database = {
           },
         ]
       }
+      xj_zapsign_templates: {
+        Row: {
+          agent_id: string | null
+          case_id: string
+          client_id: string
+          created_at: string
+          docx_file_url: string | null
+          field_mapping: Json
+          folder_path: string
+          id: string
+          is_active: boolean
+          template_name: string
+          template_token: string
+          updated_at: string
+          variables: Json
+        }
+        Insert: {
+          agent_id?: string | null
+          case_id: string
+          client_id: string
+          created_at?: string
+          docx_file_url?: string | null
+          field_mapping?: Json
+          folder_path?: string
+          id?: string
+          is_active?: boolean
+          template_name: string
+          template_token: string
+          updated_at?: string
+          variables?: Json
+        }
+        Update: {
+          agent_id?: string | null
+          case_id?: string
+          client_id?: string
+          created_at?: string
+          docx_file_url?: string | null
+          field_mapping?: Json
+          folder_path?: string
+          id?: string
+          is_active?: boolean
+          template_name?: string
+          template_token?: string
+          updated_at?: string
+          variables?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       active_queues: {
