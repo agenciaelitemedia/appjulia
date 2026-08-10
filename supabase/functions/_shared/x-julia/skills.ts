@@ -366,9 +366,12 @@ export async function runXJSkill(ctx: XJRunContext, name: string, args: any): Pr
         });
         await updateSession(supabase, session, { stage: "assinatura" });
         await upsertDeal(supabase, agent, session, { value: args?.valor ?? undefined });
+        const via = contract.provider === "zapsign"
+          ? contract.via_template ? " via modelo do caso" : " sem modelo do caso"
+          : "";
         return contract.sign_url
-          ? `Contrato gerado (${contract.provider}). Envie este link para assinatura: ${contract.sign_url}`
-          : `Contrato gerado (${contract.provider}), mas sem link de assinatura. Informe que a equipe enviará em seguida.`;
+          ? `Contrato gerado (${contract.provider}${via}). Envie este link para assinatura: ${contract.sign_url}`
+          : `Contrato gerado (${contract.provider}${via}), mas sem link de assinatura. Informe que a equipe enviará em seguida.`;
       } catch (err) {
         return `Falha ao gerar contrato: ${err instanceof Error ? err.message : String(err)}. Informe que a equipe enviará o contrato.`;
       }

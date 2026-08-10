@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useXJZapsignMutations, useXJZapsignTemplate, type XJZapsignTemplate } from '../hooks/useXJZapsign';
 import {
   XJ_CONTRACT_FIELD_CATALOG,
@@ -37,6 +38,10 @@ const STEPS = [
   { id: 'modelo', label: 'Modelo', icon: Upload },
   { id: 'variaveis', label: 'Variáveis', icon: Link2 },
 ] as const;
+
+/** Acima disso o ZapSign aceita o upload mas falha ao converter o modelo (contrato sai vazio). */
+const MAX_DOCX_MB = 8;
+const MAX_DOCX_BYTES = MAX_DOCX_MB * 1024 * 1024;
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -104,6 +109,12 @@ export function ZapSignWizardDialog({
 
   const handleUpload = async () => {
     if (!file) return;
+    if (file.size > MAX_DOCX_BYTES) {
+      toast.error(
+        `O arquivo tem ${(file.size / 1024 / 1024).toFixed(1)} MB. O ZapSign não converte modelos acima de ${MAX_DOCX_MB} MB — comprima ou remova as imagens do .docx.`,
+      );
+      return;
+    }
     const base64Docx = await fileToBase64(file);
     const created = await uploadTemplate.mutateAsync({
       client_id: clientId,
@@ -202,7 +213,8 @@ export function ZapSignWizardDialog({
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
               <p className="text-xs text-muted-foreground">
-                O ZapSign só aceita modelos em .docx e extrai automaticamente as variáveis do arquivo.
+                O ZapSign só aceita modelos em .docx (até {MAX_DOCX_MB} MB) e extrai automaticamente as variáveis do
+                arquivo. Modelos pesados (com imagens ou digitalizações) falham na conversão e o contrato não é gerado.
               </p>
             </div>
             <DialogFooter>

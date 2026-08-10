@@ -140,6 +140,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, ...result });
     }
 
+    // Diagnóstico temporário ZapSign
     return json({ error: `ação desconhecida: ${action}` }, 400);
   } catch (error) {
     console.error("[x-julia-admin] erro:", error);
