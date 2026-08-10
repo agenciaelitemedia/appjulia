@@ -164,10 +164,6 @@ Deno.serve(async (req) => {
         return json({ ok: true, template: data });
       }
 
-      if (action === "deactivate_template") {
-        // (mantido abaixo)
-      }
-
       if (action === "test_mapping") {
         const id = String(body?.id ?? "").trim();
         const overrideMapping = body?.field_mapping && typeof body.field_mapping === "object"
