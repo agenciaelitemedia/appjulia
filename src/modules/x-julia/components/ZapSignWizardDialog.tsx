@@ -336,12 +336,59 @@ export function ZapSignWizardDialog({
                     </p>
                   )}
                 </div>
+                {testResult && (
+                  <div
+                    className={`space-y-1.5 rounded-md border p-2 text-xs ${
+                      testResult.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-destructive/40 bg-destructive/5'
+                    }`}
+                  >
+                    <p className="flex items-center gap-1.5 font-medium">
+                      {testResult.ok ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                      )}
+                      {testResult.ok ? 'Documento de teste gerado no ZapSign' : 'Falha no teste'}
+                    </p>
+                    {testResult.error && <p className="text-muted-foreground">{testResult.error}</p>}
+                    {!!testResult.unmapped?.length && (
+                      <p className="text-muted-foreground">
+                        Sem valor: <code>{testResult.unmapped.join(', ')}</code>
+                      </p>
+                    )}
+                    {testResult.ok && !testResult.unmapped?.length && (
+                      <p className="text-muted-foreground">Todas as variáveis do modelo retornaram valor.</p>
+                    )}
+                    {testResult.sign_url && (
+                      <a
+                        href={testResult.sign_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-primary underline"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Abrir documento de teste
+                      </a>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <p className="text-sm text-muted-foreground">Nenhum modelo enviado ainda.</p>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep(1)}>Voltar</Button>
+              <Button
+                variant="outline"
+                onClick={handleTestMapping}
+                disabled={!template || testMapping.isPending || saveMapping.isPending}
+              >
+                {testMapping.isPending ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <FlaskConical className="mr-1.5 h-4 w-4" />
+                )}
+                Testar envio
+              </Button>
               <Button onClick={handleSaveMapping} disabled={!template || saveMapping.isPending}>
                 {saveMapping.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                 Salvar mapeamento
