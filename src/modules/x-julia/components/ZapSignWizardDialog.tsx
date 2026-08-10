@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, FileSignature, Link2, Loader2, ShieldCheck, Upload } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ExternalLink, FileSignature, FlaskConical, Link2, Loader2, ShieldCheck, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -77,7 +77,7 @@ export function ZapSignWizardDialog({
   mode?: 'create' | 'edit';
 }) {
   const { data: current } = useXJZapsignTemplate(caseId);
-  const { validateToken, uploadTemplate, saveMapping, deactivateTemplate } = useXJZapsignMutations();
+  const { validateToken, uploadTemplate, saveMapping, testMapping, deactivateTemplate } = useXJZapsignMutations();
 
   const [step, setStep] = useState(0);
   const [token, setToken] = useState('');
@@ -85,6 +85,12 @@ export function ZapSignWizardDialog({
   const [file, setFile] = useState<File | null>(null);
   const [template, setTemplate] = useState<XJZapsignTemplate | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    unmapped?: string[];
+    sign_url?: string | null;
+    error?: string;
+  } | null>(null);
 
   // Reseta o passo só quando o diálogo abre — não a cada refetch de `current`
   // (subir o modelo invalida a query e recarrega `current` com o diálogo ainda aberto).
@@ -97,6 +103,7 @@ export function ZapSignWizardDialog({
     setFile(null);
     setTemplate(current ?? null);
     setMapping(current?.field_mapping ?? {});
+    setTestResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -144,6 +151,28 @@ export function ZapSignWizardDialog({
     if (!template) return;
     await saveMapping.mutateAsync({ id: template.id, case_id: caseId, field_mapping: mapping });
     onOpenChange(false);
+  };
+
+  const handleTestMapping = async () => {
+    if (!template) return;
+    setTestResult(null);
+    // Salva antes para o teste refletir exatamente o que ficará valendo no contrato real.
+    await saveMapping.mutateAsync({ id: template.id, case_id: caseId, field_mapping: mapping });
+    const result = await testMapping.mutateAsync({
+      id: template.id,
+      field_mapping: mapping,
+      token: token.trim() || undefined,
+    });
+    setTestResult(result);
+    if (result.ok) {
+      toast.success(
+        result.unmapped?.length
+          ? `Documento de teste gerado, mas ${result.unmapped.length} variável(is) ficaram vazias.`
+          : 'Documento de teste gerado com todas as variáveis preenchidas.',
+      );
+    } else {
+      toast.error(result.error || 'O ZapSign não gerou o documento de teste.');
+    }
   };
 
   return (
