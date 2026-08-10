@@ -3,7 +3,24 @@
 // GET  ?case_id=...                          -> modelo ativo do caso (ou null)
 // POST { action: 'validate_token' | 'upload_template' | 'save_mapping' }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { resolveZapsignToken, slugifyClientFolder, zapsignCreateTemplate, ZAPSIGN_DEFAULT_TOKEN } from "../_shared/x-julia/zapsign.ts";
+import { resolveZapsignToken, slugifyClientFolder, zapsignCreateTemplate, zapsignCreateDocFromTemplate, ZAPSIGN_DEFAULT_TOKEN } from "../_shared/x-julia/zapsign.ts";
+import { resolveSystemContractField } from "../_shared/x-julia/datetime.ts";
+
+/** Valores fictícios usados no documento de teste, por campo do catálogo. */
+const SAMPLE_VALUES: Record<string, string> = {
+  nome_completo: "MARIA DE TESTE DA SILVA",
+  seu_cpf: "123.456.789-09",
+  sua_identidade: "MG-12.345.678",
+  seu_endereco: "Rua de Teste, 100",
+  seu_bairro: "Centro",
+  sua_cidade: "Uberlândia",
+  seu_estado: "MG",
+  seu_cep: "38400-000",
+  seu_email: "teste@exemplo.com",
+  nome_filho: "JOÃO DE TESTE DA SILVA",
+  cpf_filho: "987.654.321-00",
+  nascimento_filho: "01/01/2015",
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
