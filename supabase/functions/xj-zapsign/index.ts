@@ -165,6 +165,79 @@ Deno.serve(async (req) => {
       }
 
       if (action === "deactivate_template") {
+        // (mantido abaixo)
+      }
+
+      if (action === "test_mapping") {
+        const id = String(body?.id ?? "").trim();
+        const overrideMapping = body?.field_mapping && typeof body.field_mapping === "object"
+          ? (body.field_mapping as Record<string, string>)
+          : null;
+        if (!id) return json({ error: "id é obrigatório" }, 400);
+
+        const { data: templateRow, error: tplError } = await supabase
+          .from("xj_zapsign_templates")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
+        if (tplError) return json({ error: tplError.message }, 500);
+        if (!templateRow?.template_token) return json({ error: "modelo não encontrado" }, 404);
+
+        const mapping = overrideMapping ?? ((templateRow.field_mapping ?? {}) as Record<string, string>);
+        const variables = ((templateRow.variables ?? []) as Array<{ variable: string }>).map((v) => v.variable);
+        const now = new Date();
+
+        const unmapped: string[] = [];
+        const data = variables.map((variable) => {
+          const fieldKey = mapping[variable];
+          if (!fieldKey) {
+            unmapped.push(variable);
+            return { de: variable, para: "" };
+          }
+          const systemValue = resolveSystemContractField(String(fieldKey), now);
+          return {
+            de: variable,
+            para: systemValue ?? SAMPLE_VALUES[String(fieldKey)] ?? `TESTE ${fieldKey}`,
+          };
+        });
+
+        if (variables.length === 0) {
+          return json({ ok: false, unmapped: [], error: "O modelo não tem variáveis {{...}} para testar." });
+        }
+
+        const { data: agentRow } = templateRow.agent_id
+          ? await supabase.from("xj_agents").select("*").eq("id", templateRow.agent_id).maybeSingle()
+          : { data: null };
+        const token = body?.token
+          ? String(body.token).trim()
+          : await resolveZapsignToken(supabase, agentRow, templateRow.client_id);
+
+        const result = await zapsignCreateDocFromTemplate({
+          token,
+          templateId: templateRow.template_token,
+          signerName: "TESTE — não assinar",
+          signerEmail: "teste@exemplo.com",
+          data,
+        });
+
+        if (!result.sign_url) {
+          const detail = typeof result.raw === "object" && result.raw !== null
+            ? ((result.raw as any).error ?? JSON.stringify(result.raw).slice(0, 400))
+            : String(result.raw ?? "sem detalhe");
+          return json({ ok: false, unmapped, filled: data, error: String(detail) });
+        }
+
+        return json({
+          ok: true,
+          unmapped,
+          filled: data,
+          sign_url: result.sign_url,
+          document_url: result.document_url,
+          external_id: result.external_id,
+        });
+      }
+
+      if (action === "deactivate_template") {
         const id = String(body?.id ?? "").trim();
         if (!id) return json({ error: "id é obrigatório" }, 400);
         const { data, error } = await supabase
