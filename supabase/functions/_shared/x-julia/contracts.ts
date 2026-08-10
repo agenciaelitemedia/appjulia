@@ -3,6 +3,7 @@
 // ============================================
 import type { XJAgent, XJLegalCase, XJSession } from "./types.ts";
 import { resolveZapsignToken, zapsignCreateDocFromTemplate } from "./zapsign.ts";
+import { resolveSystemContractField } from "./datetime.ts";
 
 function renderTemplate(template: string, vars: Record<string, unknown>): string {
   return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, key) => {
