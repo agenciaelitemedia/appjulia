@@ -13,3 +13,7 @@ export { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod'
 export { ChatSidePanel } from '@/components/chat/ChatSidePanel';
 export { useAgentChatTarget } from '@/hooks/useAgentChatTarget';
 export { useAgentAliases } from '@/hooks/useAgentAliases';
+export { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
+export { WavoipCallButton } from '@/components/chat/WavoipCallButton';
+export { usePhone } from '@/contexts/PhoneContext';
+
