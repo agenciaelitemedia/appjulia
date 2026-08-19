@@ -45,9 +45,7 @@ export interface AlertTriggerDef {
 const DEFAULT_TEMPLATE = `🔔 *{situacao}*
 
 👤 Lead: {lead_nome}
-
 📱 WhatsApp: {lead_whatsapp}
-
 🗂️ CRM Julia: *{etapa_crm}*
 
 🕒 {data_hora}`;
