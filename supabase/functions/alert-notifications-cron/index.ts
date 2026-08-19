@@ -143,40 +143,89 @@ async function buildResumo(supabase: any, phone: string): Promise<string> {
   }
 }
 
+/**
+ * Gatilho "Cliente parou de responder" por silêncio real das mensagens.
+ * Considera conversas do agente onde a última mensagem é nossa (Julia/atendente)
+ * e o lead está sem responder há >= `minutes` minutos.
+ */
+async function fetchNoResponseCandidates(
+  supabase: any,
+  sql: any,
+  codAgent: string,
+  minutes: number,
+): Promise<Candidate[]> {
+  const now = Date.now();
+  const cutoff = new Date(now - minutes * 60_000).toISOString();
+  const floor = new Date(now - 2 * 24 * 60 * 60_000).toISOString();
+
+  const { data: convs, error } = await supabase
+    .from("chat_conversations")
+    .select("id, contact_id, last_customer_message_at, last_message_from_me, status")
+    .eq("cod_agent", codAgent)
+    .eq("last_message_from_me", true)
+    .not("last_customer_message_at", "is", null)
+    .lte("last_customer_message_at", cutoff)
+    .gte("last_customer_message_at", floor)
+    .neq("status", "closed")
+    .order("last_customer_message_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  if (!convs || convs.length === 0) return [];
+
+  const contactIds = [...new Set(convs.map((c: any) => c.contact_id).filter(Boolean))];
+  const { data: contacts } = await supabase
+    .from("chat_contacts")
+    .select("id, phone, name")
+    .in("id", contactIds);
+  const byId = new Map((contacts ?? []).map((c: any) => [c.id, c]));
+
+  const out: Candidate[] = [];
+  const seen = new Set<string>();
+  for (const conv of convs) {
+    const contact = byId.get(conv.contact_id);
+    const phone = String(contact?.phone ?? "").replace(/\D/g, "");
+    if (!phone || seen.has(phone)) continue;
+    seen.add(phone);
+
+    // Sessão da Julia (banco legado) para o modo Assumir + caso jurídico.
+    let sessionId: number | null = null;
+    let caso = "";
+    try {
+      const rows = await sql.unsafe(
+        `SELECT s.id::bigint AS id, COALESCE(s.case_legal, '') AS caso
+           FROM public.sessions s
+           JOIN public.agents a ON a.id = s.agent_id
+          WHERE a.cod_agent::text = $1
+            AND right(regexp_replace(s.whatsapp_number::text, '\\D', '', 'g'), 8) = right($2, 8)
+          ORDER BY s.id DESC
+          LIMIT 1`,
+        [codAgent, phone],
+      );
+      sessionId = rows?.[0]?.id ? Number(rows[0].id) : null;
+      caso = String(rows?.[0]?.caso ?? "");
+    } catch (err) {
+      console.warn(`[alerts] sessão não resolvida para ${phone}:`, err);
+    }
+
+    const marker = String(conv.last_customer_message_at ?? "").slice(0, 16).replace(/\D/g, "");
+    out.push({
+      leadPhone: phone,
+      leadName: String(contact?.name ?? ""),
+      caso,
+      resumo: "",
+      sessionId,
+      dedupeKey: `${phone}:nores:${minutes}:${marker}`,
+    });
+  }
+  return out;
+}
+
 async function fetchCandidates(
   sql: any,
   codAgent: string,
   triggerKey: string,
   stageIds: string[],
 ): Promise<Candidate[]> {
-  if (triggerKey === "no_response") {
-    const rows = await sql.unsafe(
-      `SELECT DISTINCT ON (s.id)
-              s.id::bigint AS session_id,
-              s.whatsapp_number::text AS phone,
-              COALESCE(c.contact_name, f.name_client, '') AS name,
-              COALESCE(s.case_legal, '') AS caso,
-              to_char(f.created_at, 'YYYYMMDDHH24MI') AS marker
-         FROM followup_queue f
-         JOIN sessions s ON s.id = f.session_id::bigint
-         LEFT JOIN crm_atendimento_cards c
-                ON c.whatsapp_number::text = s.whatsapp_number::text
-               AND c.cod_agent::text = $1
-        WHERE f.cod_agent::text = $1
-          AND f.created_at >= NOW() - INTERVAL '2 days'
-        ORDER BY s.id, f.created_at DESC`,
-      [codAgent],
-    );
-    return (rows ?? []).map((r: any) => ({
-      leadPhone: String(r.phone ?? ""),
-      leadName: String(r.name ?? ""),
-      caso: String(r.caso ?? ""),
-      resumo: "",
-      sessionId: r.session_id ? Number(r.session_id) : null,
-      dedupeKey: `${r.phone}:${r.marker ?? ""}`,
-    }));
-  }
-
   if (triggerKey === "qualified" || triggerKey === "disqualified") {
     if (stageIds.length === 0) return [];
     const rows = await sql.unsafe(
