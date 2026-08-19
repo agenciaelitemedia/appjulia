@@ -1,0 +1,110 @@
+import { useState } from 'react';
+import { Clock, Eye, Hash, MessageCircle, Phone, User } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { formatDbDateTime } from '@/lib/dateUtils';
+import { ChatSidePanel, useAgentChatTarget, useAgentAliases } from '../extend/crm';
+import type { AlertCrmCard } from '../types';
+
+interface Props {
+  card: AlertCrmCard;
+  onClick: () => void;
+}
+
+export function AlertCrmLeadCard({ card, onClick }: Props) {
+  const { getAlias } = useAgentAliases();
+  const [chatOpen, setChatOpen] = useState(false);
+  const { target: chatTarget, isLoading: chatLoading } = useAgentChatTarget(
+    card.cod_agent,
+    card.lead_phone || '',
+    chatOpen,
+  );
+
+  const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
+    addSuffix: false,
+    locale: ptBR,
+  });
+
+  return (
+    <>
+      <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={onClick}>
+        <CardContent className="p-3 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-medium leading-tight line-clamp-2">
+              {card.lead_name || 'Sem nome'}
+            </p>
+            <Badge variant="secondary" className="text-[10px] shrink-0">
+              {timeInStage}
+            </Badge>
+          </div>
+
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p className="flex items-center gap-1.5">
+              <Phone className="h-3 w-3 shrink-0" />
+              {card.lead_phone || '—'}
+            </p>
+            <p className="flex items-center gap-1.5 truncate">
+              <Hash className="h-3 w-3 shrink-0" />
+              {getAlias?.(card.cod_agent) || card.business_name || `[${card.cod_agent}]`}
+            </p>
+            <p className="flex items-center gap-1.5 truncate">
+              <User className="h-3 w-3 shrink-0" />
+              {card.crm_stage_label || 'Sem etapa'}
+            </p>
+            <p className="flex items-center gap-1.5">
+              <Clock className="h-3 w-3 shrink-0" />
+              {formatDbDateTime(card.created_at)}
+            </p>
+          </div>
+
+          <TooltipProvider>
+            <div className="flex items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7 rounded-full text-green-600 border-green-500/40"
+                    onClick={() => setChatOpen(true)}
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Abrir conversa no chat</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7 rounded-full"
+                    onClick={onClick}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Detalhes e ações de recuperação</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
+        </CardContent>
+      </Card>
+
+      {chatOpen && (
+        <ChatSidePanel
+          open={chatOpen}
+          onOpenChange={setChatOpen}
+          target={chatTarget ?? null}
+          isLoading={chatLoading}
+          title={card.lead_name || card.lead_phone || 'Conversa'}
+          emptyDescription="Nenhuma conversa encontrada para este lead."
+        />
+      )}
+    </>
+  );
+}

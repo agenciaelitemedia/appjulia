@@ -7,6 +7,7 @@ import { useAuth } from '../extend/auth';
 import { GeralTab } from '../components/GeralTab';
 import { ConfigurarAlertasTab } from '../components/ConfigurarAlertasTab';
 import { HistoricoTab } from '../components/HistoricoTab';
+import { CrmNotificacoesTab } from '../components/CrmNotificacoesTab';
 
 export default function NotificacoesAlertasPage() {
   const { data: agents = [], isLoading } = useJuliaAgents();
@@ -57,6 +58,7 @@ export default function NotificacoesAlertasPage() {
         <TabsList>
           <TabsTrigger value="geral">Geral</TabsTrigger>
           <TabsTrigger value="alertas">Configurar Alertas</TabsTrigger>
+          <TabsTrigger value="crm">CRM de Notificações</TabsTrigger>
           {isAdmin && <TabsTrigger value="historico">Histórico</TabsTrigger>}
         </TabsList>
 
@@ -70,6 +72,10 @@ export default function NotificacoesAlertasPage() {
           ) : (
             <p className="text-sm text-muted-foreground">Selecione um agente para configurar.</p>
           )}
+        </TabsContent>
+
+        <TabsContent value="crm" className="mt-6">
+          <CrmNotificacoesTab />
         </TabsContent>
 
         {isAdmin && (

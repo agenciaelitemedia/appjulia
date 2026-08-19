@@ -567,6 +567,64 @@ async function takeover(sql: any, codAgent: string, sessionId: number | null, ph
   }
 }
 
+/**
+ * CRM de Notificações: garante um card aberto por (agente, telefone, gatilho).
+ * Se já existe card aberto, apenas atualiza os dados; se o último foi resolvido,
+ * um novo alerta cria um card novo (reabertura).
+ */
+async function upsertAlertCrmCard(
+  supabase: any,
+  card: {
+    clientId: string | null;
+    codAgent: string;
+    triggerKey: string;
+    leadPhone: string;
+    leadName: string | null;
+    businessName: string | null;
+    crmStageLabel: string | null;
+    logId: string | null;
+  },
+) {
+  try {
+    const { data: existing } = await supabase
+      .from("alert_crm_cards")
+      .select("id")
+      .eq("cod_agent", card.codAgent)
+      .eq("lead_phone", card.leadPhone)
+      .eq("trigger_key", card.triggerKey)
+      .eq("status", "open")
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      await supabase
+        .from("alert_crm_cards")
+        .update({
+          lead_name: card.leadName,
+          business_name: card.businessName,
+          crm_stage_label: card.crmStageLabel,
+          log_id: card.logId,
+        })
+        .eq("id", existing[0].id);
+      return;
+    }
+
+    await supabase.from("alert_crm_cards").insert({
+      client_id: card.clientId,
+      cod_agent: card.codAgent,
+      trigger_key: card.triggerKey,
+      lead_phone: card.leadPhone,
+      lead_name: card.leadName,
+      business_name: card.businessName,
+      crm_stage_label: card.crmStageLabel,
+      log_id: card.logId,
+      status: "open",
+      stage_entered_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn(`[alerts] upsert card CRM falhou (${card.leadPhone}):`, err);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -611,6 +669,7 @@ serve(async (req) => {
 
       // client_id (escritório) do agente, para auditoria do histórico.
       let clientId: string | null = null;
+      let businessName: string | null = null;
       try {
         const rows = await sql.unsafe(
           `SELECT client_id::text AS client_id FROM public.agents WHERE cod_agent::text = $1 LIMIT 1`,
@@ -619,6 +678,17 @@ serve(async (req) => {
         clientId = rows?.[0]?.client_id ?? null;
       } catch (err) {
         console.warn(`[alerts] client_id não resolvido para ${codAgent}:`, err);
+      }
+      if (clientId) {
+        try {
+          const rows = await sql.unsafe(
+            `SELECT business_name FROM public.clients WHERE id::text = $1 LIMIT 1`,
+            [clientId],
+          );
+          businessName = rows?.[0]?.business_name ?? null;
+        } catch (_err) {
+          businessName = null;
+        }
       }
 
       for (const cfg of cfgList) {
@@ -690,7 +760,7 @@ serve(async (req) => {
               errorMessage = err instanceof Error ? err.message : String(err);
             }
 
-            await supabase.from("alert_notification_logs").insert({
+            const { data: logRow } = await supabase.from("alert_notification_logs").insert({
               config_id: cfg.id,
               client_id: clientId,
               cod_agent: codAgent,
@@ -703,7 +773,21 @@ serve(async (req) => {
               status,
               error_message: errorMessage,
               sent_at: status === "sent" ? new Date().toISOString() : null,
-            });
+            }).select("id").maybeSingle();
+
+            // CRM de Notificações: cria/reabre o card do lead na coluna do gatilho.
+            if (status === "sent") {
+              await upsertAlertCrmCard(supabase, {
+                clientId,
+                codAgent,
+                triggerKey: cfg.trigger_key,
+                leadPhone: cand.leadPhone,
+                leadName: cand.leadName ?? null,
+                businessName: businessName,
+                crmStageLabel: etapaCrm || null,
+                logId: logRow?.id ?? null,
+              });
+            }
 
             results.push({ trigger: cfg.trigger_key, lead: cand.leadPhone, to: phone, status });
           }
