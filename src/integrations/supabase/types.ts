@@ -158,6 +158,101 @@ export type Database = {
         }
         Relationships: []
       }
+      alert_notification_configs: {
+        Row: {
+          cod_agent: string
+          created_at: string
+          id: string
+          is_active: boolean
+          message_template: string | null
+          mode: string
+          recipients: Json
+          stage_ids: Json
+          trigger_key: string
+          updated_at: string
+        }
+        Insert: {
+          cod_agent: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template?: string | null
+          mode?: string
+          recipients?: Json
+          stage_ids?: Json
+          trigger_key: string
+          updated_at?: string
+        }
+        Update: {
+          cod_agent?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template?: string | null
+          mode?: string
+          recipients?: Json
+          stage_ids?: Json
+          trigger_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      alert_notification_logs: {
+        Row: {
+          cod_agent: string
+          config_id: string | null
+          created_at: string
+          dedupe_key: string | null
+          error_message: string | null
+          id: string
+          lead_name: string | null
+          lead_phone: string | null
+          message_text: string | null
+          recipient_phone: string
+          sent_at: string | null
+          status: string
+          trigger_key: string
+        }
+        Insert: {
+          cod_agent: string
+          config_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          error_message?: string | null
+          id?: string
+          lead_name?: string | null
+          lead_phone?: string | null
+          message_text?: string | null
+          recipient_phone: string
+          sent_at?: string | null
+          status?: string
+          trigger_key: string
+        }
+        Update: {
+          cod_agent?: string
+          config_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          error_message?: string | null
+          id?: string
+          lead_name?: string | null
+          lead_phone?: string | null
+          message_text?: string | null
+          recipient_phone?: string
+          sent_at?: string | null
+          status?: string
+          trigger_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_notification_logs_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "alert_notification_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blitzleads_case_events: {
         Row: {
           actor_id: string | null
