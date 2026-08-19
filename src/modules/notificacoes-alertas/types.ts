@@ -68,3 +68,33 @@ export interface AlertHistoryFilters {
   status?: string;
   search?: string;
 }
+
+export type AlertCrmCardStatus = 'open' | 'recovered' | 'lost';
+
+export interface AlertCrmCard {
+  id: string;
+  client_id: string | null;
+  cod_agent: string;
+  trigger_key: AlertTriggerKey | string;
+  lead_phone: string | null;
+  lead_name: string | null;
+  business_name: string | null;
+  owner_name: string | null;
+  crm_stage_label: string | null;
+  log_id: string | null;
+  status: AlertCrmCardStatus;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  stage_entered_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertCrmCardAction {
+  id: string;
+  card_id: string;
+  action_text: string;
+  created_by_name: string | null;
+  created_by_id: string | null;
+  created_at: string;
+}
