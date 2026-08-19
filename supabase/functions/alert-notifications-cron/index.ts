@@ -157,16 +157,6 @@ async function fetchNoResponseCandidates(
   const now = Date.now();
   const floor = new Date(now - 2 * 24 * 60 * 60_000).toISOString();
 
-  // chat_conversations.cod_agent não é preenchido. Reúne contatos vinculados
-  // ao agente e contatos sem agente do mesmo escritório.
-  const { data: agentContacts, error: agentContactsError } = await supabase
-    .from("chat_contacts")
-    .select("id, phone, name")
-    .eq("cod_agent", codAgent)
-    .limit(500);
-  if (agentContactsError) throw agentContactsError;
-  let contactRows: any[] = agentContacts ?? [];
-
   let clientId: string | null = null;
   try {
     const rows = await sql.unsafe(
@@ -177,32 +167,26 @@ async function fetchNoResponseCandidates(
   } catch (err) {
     console.warn(`[alerts] client_id não resolvido para ${codAgent}:`, err);
   }
-  if (clientId) {
-      const { data: officeContacts, error: officeContactsError } = await supabase
-        .from("chat_contacts")
-        .select("id, phone, name")
-        .eq("client_id", clientId)
-        .is("cod_agent", null)
-        .order("last_message_at", { ascending: false })
-        .limit(500);
-      if (officeContactsError) throw officeContactsError;
-      const merged = new Map(contactRows.map((contact: any) => [contact.id, contact]));
-      for (const contact of officeContacts ?? []) merged.set(contact.id, contact);
-      contactRows = Array.from(merged.values());
-  }
-  if (contactRows.length === 0) return [];
-  const byId = new Map(contactRows.map((c: any) => [c.id, c]));
+  if (!clientId) return [];
 
   const { data: convs, error } = await supabase
     .from("chat_conversations")
     .select("id, contact_id, last_customer_message_at, last_message_from_me, status")
-    .in("contact_id", contactRows.map((c: any) => c.id))
+    .eq("client_id", clientId)
     .eq("last_message_from_me", true)
     .in("status", ["pending", "open"])
     .order("updated_at", { ascending: false })
     .limit(200);
   if (error) throw error;
   if (!convs || convs.length === 0) return [];
+
+  const contactIds = [...new Set(convs.map((conv: any) => conv.contact_id).filter(Boolean))];
+  const { data: contactRows, error: contactsError } = await supabase
+    .from("chat_contacts")
+    .select("id, phone, name")
+    .in("id", contactIds);
+  if (contactsError) throw contactsError;
+  const byId = new Map((contactRows ?? []).map((contact: any) => [contact.id, contact]));
 
   const conversationIds = convs.map((conv: any) => conv.id);
   const { data: messages, error: messagesError } = await supabase

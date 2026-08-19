@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../extend/db';
-import { useJuliaAgents } from '../extend/agents';
+import { externalDb, supabase } from '../extend/db';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
 
 export interface NoResponsePreviewItem {
@@ -30,57 +29,41 @@ const WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
  */
 export function useNoResponsePreview(codAgent: string | null, minutes: number) {
   const safeMinutes = Math.max(1, Number(minutes) || 30);
-  const { data: agents = [] } = useJuliaAgents();
-  const clientId = (agents as any[]).find((a) => String(a.cod_agent) === String(codAgent))?.client_id;
 
   return useQuery({
-    queryKey: ['alerts', 'no-response-preview', codAgent, String(clientId ?? ''), safeMinutes],
+    queryKey: ['alerts', 'no-response-preview', codAgent, safeMinutes],
     enabled: !!codAgent,
     staleTime: 30_000,
     queryFn: async (): Promise<NoResponsePreviewResult> => {
       const now = Date.now();
       const floor = new Date(now - WINDOW_MS).toISOString();
 
-      // chat_conversations.cod_agent não é preenchido. Reúne os contatos
-      // vinculados ao agente e os contatos sem agente do mesmo escritório.
-      const { data: agentContacts, error: agentContactsError } = await (supabase as any)
-        .from('chat_contacts')
-        .select('id, phone, name')
-        .eq('cod_agent', codAgent)
-        .limit(500);
-      if (agentContactsError) throw agentContactsError;
-      let contactRows = (agentContacts ?? []) as any[];
-      let scope: NoResponseScope = contactRows.length > 0 ? 'agent' : 'none';
-
-      if (clientId) {
-        const { data: officeContacts, error: officeContactsError } = await (supabase as any)
-          .from('chat_contacts')
-          .select('id, phone, name')
-          .eq('client_id', String(clientId))
-          .is('cod_agent', null)
-          .order('last_message_at', { ascending: false })
-          .limit(500);
-        if (officeContactsError) throw officeContactsError;
-        const merged = new Map(contactRows.map((contact: any) => [contact.id, contact]));
-        for (const contact of (officeContacts ?? []) as any[]) merged.set(contact.id, contact);
-        contactRows = Array.from(merged.values());
-        if ((officeContacts ?? []).length > 0) scope = 'office';
-      }
-
-      if (contactRows.length === 0) return { items: [], scope: 'none' };
-      const byId = new Map(contactRows.map((c: any) => [c.id, c]));
+      const agentRows = await externalDb.raw<{ client_id: string }>({
+        query: 'SELECT client_id::text AS client_id FROM agents WHERE cod_agent::text = $1 LIMIT 1',
+        params: [String(codAgent)],
+      });
+      const clientId = agentRows?.[0]?.client_id;
+      if (!clientId) return { items: [], scope: 'none' };
 
       const { data: convs, error } = await (supabase as any)
         .from('chat_conversations')
         .select('id, contact_id, last_customer_message_at, last_message_from_me, status')
-        .in('contact_id', contactRows.map((c: any) => c.id))
+        .eq('client_id', String(clientId))
         .eq('last_message_from_me', true)
         .in('status', ['pending', 'open'])
         .order('updated_at', { ascending: false })
         .limit(200);
       if (error) throw error;
       const rows = (convs ?? []) as any[];
-      if (rows.length === 0) return { items: [], scope };
+      if (rows.length === 0) return { items: [], scope: 'office' };
+
+      const contactIds = [...new Set(rows.map((row) => row.contact_id).filter(Boolean))];
+      const { data: contacts, error: contactsError } = await (supabase as any)
+        .from('chat_contacts')
+        .select('id, phone, name')
+        .in('id', contactIds);
+      if (contactsError) throw contactsError;
+      const byId = new Map(((contacts ?? []) as any[]).map((contact: any) => [contact.id, contact]));
 
       // Última mensagem (não interna) de cada conversa — chat_conversations não
       // guarda o texto da última mensagem.
@@ -128,7 +111,7 @@ export function useNoResponsePreview(codAgent: string | null, minutes: number) {
       }
 
       out.sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
-      return { items: out, scope };
+      return { items: out, scope: 'office' };
     },
   });
 }
