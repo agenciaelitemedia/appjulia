@@ -567,6 +567,64 @@ async function takeover(sql: any, codAgent: string, sessionId: number | null, ph
   }
 }
 
+/**
+ * CRM de Notificações: garante um card aberto por (agente, telefone, gatilho).
+ * Se já existe card aberto, apenas atualiza os dados; se o último foi resolvido,
+ * um novo alerta cria um card novo (reabertura).
+ */
+async function upsertAlertCrmCard(
+  supabase: any,
+  card: {
+    clientId: string | null;
+    codAgent: string;
+    triggerKey: string;
+    leadPhone: string;
+    leadName: string | null;
+    businessName: string | null;
+    crmStageLabel: string | null;
+    logId: string | null;
+  },
+) {
+  try {
+    const { data: existing } = await supabase
+      .from("alert_crm_cards")
+      .select("id")
+      .eq("cod_agent", card.codAgent)
+      .eq("lead_phone", card.leadPhone)
+      .eq("trigger_key", card.triggerKey)
+      .eq("status", "open")
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      await supabase
+        .from("alert_crm_cards")
+        .update({
+          lead_name: card.leadName,
+          business_name: card.businessName,
+          crm_stage_label: card.crmStageLabel,
+          log_id: card.logId,
+        })
+        .eq("id", existing[0].id);
+      return;
+    }
+
+    await supabase.from("alert_crm_cards").insert({
+      client_id: card.clientId,
+      cod_agent: card.codAgent,
+      trigger_key: card.triggerKey,
+      lead_phone: card.leadPhone,
+      lead_name: card.leadName,
+      business_name: card.businessName,
+      crm_stage_label: card.crmStageLabel,
+      log_id: card.logId,
+      status: "open",
+      stage_entered_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn(`[alerts] upsert card CRM falhou (${card.leadPhone}):`, err);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
