@@ -50,6 +50,7 @@ const ComprarPage = () => {
     billing_period: 'monthly',
     payment_gateway: paymentGateway,
   });
+  const orderDataRef = useRef<OrderData>(orderData);
 
   const updateOrder = (data: Partial<OrderData>) => {
     setOrderData(prev => {
