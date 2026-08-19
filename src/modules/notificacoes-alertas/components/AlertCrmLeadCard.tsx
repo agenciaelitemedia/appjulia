@@ -26,12 +26,17 @@ interface Props {
 
 export function AlertCrmLeadCard({ card, onClick }: Props) {
   const { getAlias } = useAgentAliases();
+  const { isAvailable } = usePhone();
   const [chatOpen, setChatOpen] = useState(false);
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
   const { target: chatTarget, isLoading: chatLoading } = useAgentChatTarget(
     card.cod_agent,
     card.lead_phone || '',
     chatOpen,
   );
+
+  const voipUnavailable = !isAvailable || !card.lead_phone;
+
 
   const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
     addSuffix: false,
