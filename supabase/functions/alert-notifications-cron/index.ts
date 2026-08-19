@@ -690,7 +690,7 @@ serve(async (req) => {
               errorMessage = err instanceof Error ? err.message : String(err);
             }
 
-            await supabase.from("alert_notification_logs").insert({
+            const { data: logRow } = await supabase.from("alert_notification_logs").insert({
               config_id: cfg.id,
               client_id: clientId,
               cod_agent: codAgent,
@@ -703,7 +703,21 @@ serve(async (req) => {
               status,
               error_message: errorMessage,
               sent_at: status === "sent" ? new Date().toISOString() : null,
-            });
+            }).select("id").maybeSingle();
+
+            // CRM de Notificações: cria/reabre o card do lead na coluna do gatilho.
+            if (status === "sent") {
+              await upsertAlertCrmCard(supabase, {
+                clientId,
+                codAgent,
+                triggerKey: cfg.trigger_key,
+                leadPhone: cand.leadPhone,
+                leadName: cand.leadName ?? null,
+                businessName: businessName,
+                crmStageLabel: etapaCrm || null,
+                logId: logRow?.id ?? null,
+              });
+            }
 
             results.push({ trigger: cfg.trigger_key, lead: cand.leadPhone, to: phone, status });
           }
