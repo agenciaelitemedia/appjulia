@@ -95,6 +95,15 @@ interface Candidate {
 }
 
 /** Variantes BR do telefone (com/sem o 9º dígito) para casar bases legadas. */
+/**
+ * Chave canônica do telefone do lead: últimos 8 dígitos.
+ * Neutraliza variações de DDI/DDD/9º dígito, evitando alertas e cards
+ * duplicados para o mesmo lead escrito de formas diferentes.
+ */
+function phoneKey(raw: string | null | undefined): string {
+  return String(raw ?? "").replace(/\D/g, "").slice(-8);
+}
+
 function brPhoneVariants(raw: string | null | undefined): string[] {
   const d = String(raw ?? "").replace(/\D/g, "");
   if (!d) return [];
