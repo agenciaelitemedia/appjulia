@@ -36,6 +36,15 @@ export function AlertCrmCardDetailsDialog({ card, open, onOpenChange }: Props) {
   const [confirmRecovered, setConfirmRecovered] = useState(false);
   const [confirmLost, setConfirmLost] = useState(false);
 
+  useEffect(() => {
+    if (!open) {
+      setActionText('');
+      setConfirmDelete(false);
+      setConfirmRecovered(false);
+      setConfirmLost(false);
+    }
+  }, [open]);
+
   const { data: actions = [], isLoading: actionsLoading } = useAlertCrmCardActions(
     open ? card?.id ?? null : null,
   );
