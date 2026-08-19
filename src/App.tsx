@@ -49,6 +49,7 @@ const FollowupPage = lazy(() => import("./pages/agente/followup/FollowupPage"));
 const MyAgentsPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentsPage"));
 const MyAgentEditPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentEditPage"));
 const NotificacoesAlertasPage = lazy(() => import("./modules/notificacoes-alertas/pages/NotificacoesAlertasPage"));
+const CrmNotificacoesStandalonePage = lazy(() => import("./modules/notificacoes-alertas/pages/CrmNotificacoesStandalonePage"));
 const XJDashboardPage = lazy(() => import("./modules/x-julia/pages/DashboardPage"));
 const XJSessionsPage = lazy(() => import("./modules/x-julia/pages/SessionsPage"));
 const XJSessionDetailPage = lazy(() => import("./modules/x-julia/pages/SessionDetailPage"));
@@ -171,6 +172,7 @@ const App = () => (
                 <Route path="/comprar/sucesso" element={<ComprarSucessoPage />} />
                 <Route path="/call/:roomName" element={<JoinCallPage />} />
                 <Route path="/tv/master" element={<ProtectedRoute><TvMasterPage /></ProtectedRoute>} />
+                <Route path="/crm-notificacoes" element={<ProtectedRoute module="notifications_alerts"><CrmNotificacoesStandalonePage /></ProtectedRoute>} />
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/dashboard" element={<Dashboard />} />

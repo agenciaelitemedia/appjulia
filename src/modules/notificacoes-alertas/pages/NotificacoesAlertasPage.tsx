@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BellRing } from 'lucide-react';
+import { BellRing, ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { AgentSearchSelect, useJuliaAgents, getSavedAgentCodes, saveAgentCodes } from '../extend/agents';
@@ -51,6 +52,17 @@ export default function NotificacoesAlertasPage() {
             disabled={isLoading}
             placeholder="Selecione um agente"
           />
+          <Button
+            variant="outline"
+            size="icon"
+            className="rounded-full"
+            title="Abrir CRM de Notificações em nova janela"
+            onClick={() =>
+              window.open('/crm-notificacoes', '_blank', 'noopener,noreferrer')
+            }
+          >
+            <ExternalLink className="h-4 w-4 text-blue-600" />
+          </Button>
         </div>
       </div>
 
