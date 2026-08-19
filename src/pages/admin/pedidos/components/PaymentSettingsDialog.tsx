@@ -26,7 +26,7 @@ export const PaymentSettingsDialog = () => {
     gateway: 'infinitypay',
     is_active: true,
     is_sandbox: false,
-    config: { handle: 'atendejulia-masterchat' },
+    config: { handle: 'masterchat-inova' },
   });
 
   const [mpConfig, setMpConfig] = useState<PaymentConfig>({
