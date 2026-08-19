@@ -43,15 +43,17 @@ export function AlertCrmCardDetailsDialog({ card, open, onOpenChange }: Props) {
   const { user } = useAuth();
   const [actionText, setActionText] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [confirmRecovered, setConfirmRecovered] = useState(false);
-  const [confirmLost, setConfirmLost] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [recoveredDialogOpen, setRecoveredDialogOpen] = useState(false);
+  const [lostDialogOpen, setLostDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setActionText('');
       setConfirmDelete(false);
-      setConfirmRecovered(false);
-      setConfirmLost(false);
+      setDeleteDialogOpen(false);
+      setRecoveredDialogOpen(false);
+      setLostDialogOpen(false);
     }
   }, [open]);
 
