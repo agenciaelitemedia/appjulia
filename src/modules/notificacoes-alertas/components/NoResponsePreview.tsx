@@ -85,6 +85,11 @@ export function NoResponsePreview({ codAgent, minutes }: Props) {
                 </div>
 
                 <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Etapa no CRM da Julia:</span>{' '}
+                  {item.crmStage || 'Sem etapa'}
+                </p>
+
+                <p className="text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">Última mensagem considerada:</span>{' '}
                   {item.lastMessageFromMe ? 'Julia' : 'Lead'} · {fmtHour(item.lastMessageAt)} —{' '}
                   {item.lastMessagePreview}

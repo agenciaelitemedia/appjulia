@@ -48,6 +48,7 @@ const DEFAULT_TEMPLATE = `🔔 *{situacao}*
 📱 WhatsApp: {lead_whatsapp}
 🕒 {data_hora}
 📌 Caso: {caso}
+🗂️ Etapa CRM: {etapa_crm}
 
 📝 Resumo:
 {resumo_conversa}`;
@@ -109,5 +110,6 @@ export const ALERT_VARIABLES = [
   { key: 'situacao', label: 'Situação' },
   { key: 'resumo_conversa', label: 'Resumo da conversa' },
   { key: 'caso', label: 'Caso jurídico' },
+  { key: 'etapa_crm', label: 'Etapa no CRM da Julia' },
   { key: 'link_chat', label: 'Link do chat' },
 ] as const;
