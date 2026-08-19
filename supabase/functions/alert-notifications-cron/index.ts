@@ -611,6 +611,7 @@ serve(async (req) => {
 
       // client_id (escritório) do agente, para auditoria do histórico.
       let clientId: string | null = null;
+      let businessName: string | null = null;
       try {
         const rows = await sql.unsafe(
           `SELECT client_id::text AS client_id FROM public.agents WHERE cod_agent::text = $1 LIMIT 1`,
@@ -619,6 +620,17 @@ serve(async (req) => {
         clientId = rows?.[0]?.client_id ?? null;
       } catch (err) {
         console.warn(`[alerts] client_id não resolvido para ${codAgent}:`, err);
+      }
+      if (clientId) {
+        try {
+          const rows = await sql.unsafe(
+            `SELECT business_name FROM public.clients WHERE id::text = $1 LIMIT 1`,
+            [clientId],
+          );
+          businessName = rows?.[0]?.business_name ?? null;
+        } catch (_err) {
+          businessName = null;
+        }
       }
 
       for (const cfg of cfgList) {
