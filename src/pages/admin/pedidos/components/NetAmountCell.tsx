@@ -67,17 +67,38 @@ export const NetAmountCell = ({ order, onSaved }: Props) => {
   return (
     <>
       {editing ? (
-        <Input
-          autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={() => !confirmOpen && setEditing(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') requestSave();
-            if (e.key === 'Escape') setEditing(false);
-          }}
-          className="h-7 w-24 text-xs"
-        />
+        <div className="flex items-center gap-1">
+          <Input
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') requestSave();
+              if (e.key === 'Escape') setEditing(false);
+            }}
+            className="h-7 w-20 text-xs"
+          />
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            title="Confirmar alteração"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={requestSave}
+          >
+            <Check className="w-4 h-4 text-green-600" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            title="Cancelar edição"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setEditing(false)}
+          >
+            <X className="w-4 h-4 text-muted-foreground" />
+          </Button>
+        </div>
       ) : (
         <span
           onDoubleClick={startEdit}
@@ -87,6 +108,7 @@ export const NetAmountCell = ({ order, onSaved }: Props) => {
           {current != null ? formatCurrency(current) : '-'}
         </span>
       )}
+
 
       <AlertDialog open={confirmOpen} onOpenChange={(o) => { setConfirmOpen(o); if (!o) setConfirmed(false); }}>
         <AlertDialogContent>
