@@ -45,13 +45,12 @@ export interface AlertTriggerDef {
 const DEFAULT_TEMPLATE = `🔔 *{situacao}*
 
 👤 Lead: {lead_nome}
-📱 WhatsApp: {lead_whatsapp}
-🕒 {data_hora}
-📌 Caso: {caso}
-🗂️ Etapa CRM: {etapa_crm}
 
-📝 Resumo:
-{resumo_conversa}`;
+📱 WhatsApp: {lead_whatsapp}
+
+🗂️ CRM Julia: *{etapa_crm}*
+
+🕒 {data_hora}`;
 
 export const ALERT_DEFAULT_TEMPLATE = DEFAULT_TEMPLATE;
 
