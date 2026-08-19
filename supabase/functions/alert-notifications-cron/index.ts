@@ -366,7 +366,7 @@ async function fetchCandidates(
       caso: String(r.caso || r.stage_name || ""),
       resumo: "",
       sessionId: r.session_id ? Number(r.session_id) : null,
-      dedupeKey: `${r.phone}:${r.stage_id}:${r.marker ?? ""}`,
+      dedupeKey: `${phoneKey(r.phone)}:${r.stage_id}:${r.marker ?? ""}`,
     }));
   }
 
@@ -424,7 +424,7 @@ async function fetchCandidates(
       caso: String(r.caso ?? ""),
       resumo: "",
       sessionId: r.session_id ? Number(r.session_id) : null,
-      dedupeKey: `${r.phone}:${r.marker ?? ""}`,
+      dedupeKey: `${phoneKey(r.phone)}:flow:${r.marker ?? ""}`,
     }));
   }
 
