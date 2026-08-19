@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Calendar, CheckCircle2, Clock, Hash, Loader2, Phone, Send, Trash2, XCircle } from 'lucide-react';
+import { AlertTriangle, Calendar, CheckCircle2, Clock, Hash, Loader2, Phone, Send, ShieldAlert, Trash2, XCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
