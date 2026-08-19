@@ -79,6 +79,7 @@ export interface AlertCrmCard {
   lead_phone: string | null;
   lead_name: string | null;
   business_name: string | null;
+  lead_phone_key?: string | null;
   owner_name: string | null;
   crm_stage_label: string | null;
   log_id: string | null;
