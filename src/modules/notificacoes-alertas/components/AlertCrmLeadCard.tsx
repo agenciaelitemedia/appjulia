@@ -151,6 +151,17 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
           emptyDescription="Nenhuma conversa encontrada para este lead."
         />
       )}
+
+      {card.lead_phone && (
+        <PhoneCallDialog
+          open={phoneCallOpen}
+          onOpenChange={setPhoneCallOpen}
+          whatsappNumber={card.lead_phone}
+          contactName={card.lead_name || 'Sem nome'}
+          codAgent={card.cod_agent}
+        />
+      )}
     </>
+
   );
 }
