@@ -10,6 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
 import { getAgentCredentials } from "../_shared/get-agent-credentials.ts";
 import { createMessagingAdapter } from "../_shared/messaging-factory.ts";
+import { fetchZapSignDocStatus, resolveZapsignToken } from "../_shared/x-julia/zapsign.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -422,6 +423,131 @@ async function fetchCandidates(
 }
 
 /** Pausa a Julia no contato (modo Assumir). */
+/**
+ * Confere no ZapSign os contratos X-Julia enviados e ainda não assinados,
+ * marcando `signed` + `signed_at` quando a assinatura foi concluída.
+ * Substitui a necessidade de webhook do ZapSign.
+ */
+// deno-lint-ignore no-explicit-any
+async function syncXJContractSignatures(supabase: any, clientId: string | null) {
+  if (!clientId) return;
+  try {
+    const floor = new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString();
+    const { data: pending } = await supabase
+      .from("xj_contracts")
+      .select("id, external_id, provider, status, signed_at")
+      .eq("client_id", String(clientId))
+      .eq("provider", "zapsign")
+      .eq("status", "sent")
+      .is("signed_at", null)
+      .gte("created_at", floor)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (!pending || pending.length === 0) return;
+
+    const token = await resolveZapsignToken(supabase, null, clientId);
+    if (!token) return;
+
+    for (const contract of pending) {
+      const docToken = String(contract.external_id ?? "").trim();
+      if (!docToken) continue;
+      const status = await fetchZapSignDocStatus(token, docToken);
+      if (!status?.signed) continue;
+      await supabase
+        .from("xj_contracts")
+        .update({ status: "signed", signed_at: status.signed_at ?? new Date().toISOString() })
+        .eq("id", contract.id);
+    }
+  } catch (err) {
+    console.warn("[alerts] sync de assinaturas ZapSign falhou:", err);
+  }
+}
+
+/**
+ * Contratos do X-Julia (xj_contracts) como candidatos dos gatilhos de contrato.
+ * Em curso  = enviado para assinatura e ainda não assinado.
+ * Assinado  = status signed / signed_at preenchido.
+ */
+// deno-lint-ignore no-explicit-any
+async function fetchXJContractCandidates(
+  supabase: any,
+  sql: any,
+  codAgent: string,
+  clientId: string | null,
+  triggerKey: string,
+): Promise<Candidate[]> {
+  if (!clientId) return [];
+  const floor = new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString();
+
+  let query = supabase
+    .from("xj_contracts")
+    .select("id, status, signed_at, signer_name, signer_phone, case_id, created_at")
+    .eq("client_id", String(clientId))
+    .gte("created_at", floor)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (triggerKey === "contract_signed") {
+    query = query.or("status.eq.signed,signed_at.not.is.null");
+  } else {
+    query = query.eq("status", "sent").is("signed_at", null);
+  }
+
+  const { data: contracts, error } = await query;
+  if (error) {
+    console.warn("[alerts] contratos X-Julia não consultados:", error);
+    return [];
+  }
+  if (!contracts || contracts.length === 0) return [];
+
+  // Nome do caso jurídico (para {caso}).
+  const caseIds = [...new Set(contracts.map((c: any) => c.case_id).filter(Boolean))];
+  const caseNames = new Map<string, string>();
+  if (caseIds.length > 0) {
+    const { data: cases } = await supabase
+      .from("xj_legal_cases")
+      .select("id, name")
+      .in("id", caseIds);
+    for (const row of cases ?? []) caseNames.set(String(row.id), String(row.name ?? ""));
+  }
+
+  const statusTag = triggerKey === "contract_signed" ? "signed" : "sent";
+  const out: Candidate[] = [];
+  for (const contract of contracts) {
+    const phone = String(contract.signer_phone ?? "").replace(/\D/g, "");
+    if (!phone) continue;
+
+    // Sessão legada equivalente (quando existir) para permitir o modo Assumir.
+    let sessionId: number | null = null;
+    try {
+      const rows = await sql.unsafe(
+        `SELECT s.id::bigint AS id
+           FROM public.sessions s
+           JOIN public.agents a ON a.id = s.agent_id
+          WHERE a.cod_agent::text = $1
+            AND right(regexp_replace(s.whatsapp_number::text, '\\D', '', 'g'), 8) = right($2, 8)
+          ORDER BY s.id DESC
+          LIMIT 1`,
+        [codAgent, phone],
+      );
+      sessionId = rows?.[0]?.id ? Number(rows[0].id) : null;
+    } catch {
+      sessionId = null;
+    }
+
+    out.push({
+      leadPhone: phone,
+      leadName: String(contract.signer_name ?? ""),
+      caso: caseNames.get(String(contract.case_id)) ?? "",
+      resumo: "",
+      sessionId,
+      dedupeKey: `xj:${contract.id}:${statusTag}`,
+    });
+  }
+  return out;
+}
+
+/** Pausa a Julia no contato (modo Assumir). */
 async function takeover(sql: any, codAgent: string, sessionId: number | null, phone: string) {
   if (!sessionId) return;
   try {
@@ -502,6 +628,21 @@ serve(async (req) => {
           if (cfg.trigger_key === "no_response") {
             const minutes = Math.max(1, Number(cfg.no_response_minutes ?? 30));
             candidates = await fetchNoResponseCandidates(supabase, sql, codAgent, minutes);
+          } else if (
+            cfg.trigger_key === "contract_in_progress" || cfg.trigger_key === "contract_signed"
+          ) {
+            // Antes de coletar: confere assinaturas pendentes no ZapSign.
+            await syncXJContractSignatures(supabase, clientId);
+            const legacy = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
+            const xJulia = await fetchXJContractCandidates(
+              supabase, sql, codAgent, clientId, cfg.trigger_key,
+            );
+            const seenKeys = new Set<string>();
+            candidates = [...legacy, ...xJulia].filter((cand) => {
+              if (seenKeys.has(cand.dedupeKey)) return false;
+              seenKeys.add(cand.dedupeKey);
+              return true;
+            });
           } else {
             candidates = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
           }

@@ -179,3 +179,45 @@ export async function zapsignCreateDocFromTemplate(opts: {
     raw,
   };
 }
+
+export interface ZapsignDocStatus {
+  status: string;
+  signed: boolean;
+  signed_at: string | null;
+  raw: unknown;
+}
+
+/**
+ * Consulta o status de um documento no ZapSign (usado pelo cron de alertas para
+ * detectar assinatura sem depender de webhook).
+ */
+export async function fetchZapSignDocStatus(
+  token: string,
+  docToken: string,
+): Promise<ZapsignDocStatus | null> {
+  try {
+    const res = await fetch(`${ZAPSIGN_API}/docs/${encodeURIComponent(docToken)}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.warn(`[zapsign] status ${res.status} para doc ${docToken}: ${text.slice(0, 200)}`);
+      return null;
+    }
+    // deno-lint-ignore no-explicit-any
+    const raw: any = text ? JSON.parse(text) : null;
+    const status = String(raw?.status ?? "").toLowerCase();
+    const signers = Array.isArray(raw?.signers) ? raw.signers : [];
+    const allSigned = signers.length > 0 && signers.every((s: any) => !!s?.signed_at);
+    const signed = status === "signed" || allSigned;
+    const signedAt = signers
+      .map((s: any) => s?.signed_at)
+      .filter(Boolean)
+      .sort()
+      .pop() ?? null;
+    return { status, signed, signed_at: signed ? (signedAt ?? new Date().toISOString()) : null, raw };
+  } catch (err) {
+    console.warn(`[zapsign] falha ao consultar doc ${docToken}:`, err);
+    return null;
+  }
+}
