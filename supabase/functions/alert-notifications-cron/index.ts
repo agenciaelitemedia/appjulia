@@ -739,8 +739,13 @@ serve(async (req) => {
           continue;
         }
 
+        // Dedupe dentro da própria rodada: um disparo por lead/gatilho.
+        const seenLeads = new Set<string>();
         for (const cand of candidates) {
           if (!cand.leadPhone) continue;
+          const leadKey = phoneKey(cand.leadPhone);
+          if (!leadKey || seenLeads.has(leadKey)) continue;
+          seenLeads.add(leadKey);
 
           // Anti-duplicidade: um disparo por lead/gatilho/marcador.
           const { data: existing } = await supabase
