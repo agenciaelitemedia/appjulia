@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { externalDb, supabase } from '../extend/db';
 import { getMessagePreview } from '@/lib/chat/messagePreview';
+import { getBrPhoneVariants } from '@/lib/phoneVariants';
 
 export interface NoResponsePreviewItem {
   conversationId: string;
@@ -82,7 +83,44 @@ export function useNoResponsePreview(codAgent: string | null, minutes: number) {
         if (!lastMsg.has(m.conversation_id)) lastMsg.set(m.conversation_id, m);
       }
 
-      // Etapa no CRM da Julia (xj_deals -> xj_pipelines) por contato.
+      // Etapa no CRM da Julia.
+      // 1) CRM clássico (banco legado): crm_atendimento_cards + stages.
+      const phonesForStage = [
+        ...new Set(
+          rows
+            .map((r) => String((byId.get(r.contact_id) as any)?.phone ?? ''))
+            .flatMap((p) => getBrPhoneVariants(p)),
+        ),
+      ];
+      const stageByPhone = new Map<string, string>();
+      if (phonesForStage.length) {
+        try {
+          const legacy = await externalDb.raw<{ whatsapp_number: string; stage_name: string | null; updated_at: string | null }>({
+            query: `
+              SELECT c.whatsapp_number::text AS whatsapp_number,
+                     s.name AS stage_name,
+                     COALESCE(c.updated_at, c.created_at) AS updated_at
+                FROM crm_atendimento_cards c
+                LEFT JOIN crm_atendimento_stages s ON s.id = c.stage_id
+               WHERE c.whatsapp_number::text = ANY($1::varchar[])
+               ORDER BY COALESCE(c.updated_at, c.created_at) DESC NULLS LAST
+            `,
+            params: [phonesForStage],
+          });
+          for (const r of legacy ?? []) {
+            const name = String(r.stage_name ?? '').trim();
+            if (!name) continue;
+            for (const v of getBrPhoneVariants(String(r.whatsapp_number))) {
+              const tail = v.slice(-8);
+              if (tail && !stageByPhone.has(tail)) stageByPhone.set(tail, name);
+            }
+          }
+        } catch {
+          // silencioso: cai no fallback X-Julia
+        }
+      }
+
+      // 2) Fallback X-Julia (xj_deals -> xj_pipelines) por contato.
       const { data: deals } = await (supabase as any)
         .from('xj_deals')
         .select('contact_id, contact_phone, pipeline_id, updated_at')
@@ -94,7 +132,6 @@ export function useNoResponsePreview(codAgent: string | null, minutes: number) {
         ? await (supabase as any).from('xj_pipelines').select('id, name').in('id', pipelineIds)
         : { data: [] };
       const stageName = new Map(((stages ?? []) as any[]).map((s: any) => [s.id, s.name]));
-      const stageByPhone = new Map<string, string>();
       for (const d of (deals ?? []) as any[]) {
         const tail = String(d.contact_phone ?? '').replace(/\D/g, '').slice(-8);
         if (!tail || stageByPhone.has(tail)) continue;
