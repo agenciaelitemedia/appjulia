@@ -104,7 +104,6 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
                       e.stopPropagation();
                       setPhoneCallOpen(true);
                     }}
-                    disabled={voipUnavailable}
                     title={voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}
                   >
                     {voipUnavailable ? <PhoneOff className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
