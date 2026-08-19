@@ -10,3 +10,6 @@ export type { CRMCard, CRMStage } from '@/pages/crm/types';
 export { useCRMAgents, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
 export { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 export { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod';
+export { ChatSidePanel } from '@/components/chat/ChatSidePanel';
+export { useAgentChatTarget } from '@/hooks/useAgentChatTarget';
+export { useAgentAliases } from '@/hooks/useAgentAliases';
