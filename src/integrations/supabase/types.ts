@@ -158,6 +158,98 @@ export type Database = {
         }
         Relationships: []
       }
+      alert_crm_card_actions: {
+        Row: {
+          action_text: string
+          card_id: string
+          created_at: string
+          created_by_id: string | null
+          created_by_name: string | null
+          id: string
+        }
+        Insert: {
+          action_text: string
+          card_id: string
+          created_at?: string
+          created_by_id?: string | null
+          created_by_name?: string | null
+          id?: string
+        }
+        Update: {
+          action_text?: string
+          card_id?: string
+          created_at?: string
+          created_by_id?: string | null
+          created_by_name?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_crm_card_actions_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "alert_crm_cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_crm_cards: {
+        Row: {
+          business_name: string | null
+          client_id: string | null
+          cod_agent: string
+          created_at: string
+          crm_stage_label: string | null
+          id: string
+          lead_name: string | null
+          lead_phone: string | null
+          log_id: string | null
+          owner_name: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          stage_entered_at: string
+          status: string
+          trigger_key: string
+          updated_at: string
+        }
+        Insert: {
+          business_name?: string | null
+          client_id?: string | null
+          cod_agent: string
+          created_at?: string
+          crm_stage_label?: string | null
+          id?: string
+          lead_name?: string | null
+          lead_phone?: string | null
+          log_id?: string | null
+          owner_name?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          stage_entered_at?: string
+          status?: string
+          trigger_key: string
+          updated_at?: string
+        }
+        Update: {
+          business_name?: string | null
+          client_id?: string | null
+          cod_agent?: string
+          created_at?: string
+          crm_stage_label?: string | null
+          id?: string
+          lead_name?: string | null
+          lead_phone?: string | null
+          log_id?: string | null
+          owner_name?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          stage_entered_at?: string
+          status?: string
+          trigger_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       alert_notification_configs: {
         Row: {
           cod_agent: string
