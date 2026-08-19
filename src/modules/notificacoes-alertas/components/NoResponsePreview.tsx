@@ -57,7 +57,7 @@ export function NoResponsePreview({ codAgent, minutes }: Props) {
         </div>
       ) : items.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Nenhuma conversa em silêncio nas últimas 48h para este agente ou escritório.
+          Nenhuma conversa pendente ou em atendimento cuja última mensagem seja nossa e já tenha ultrapassado o tempo definido.
         </p>
       ) : (
         <>
@@ -91,9 +91,8 @@ export function NoResponsePreview({ codAgent, minutes }: Props) {
                 </p>
 
                 <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Vence em:</span>{' '}
-                  {fmtHour(item.dueAt)} ({fmtDelta(item.dueAt)}) · último retorno do lead{' '}
-                  {fmtHour(item.lastCustomerMessageAt)}
+                   <span className="font-medium text-foreground">Venceu em:</span>{' '}
+                   {fmtHour(item.dueAt)} ({fmtDelta(item.dueAt)})
                 </p>
               </div>
             ))}
@@ -102,8 +101,8 @@ export function NoResponsePreview({ codAgent, minutes }: Props) {
       )}
 
       <p className="text-[11px] text-muted-foreground">
-        A prévia usa a mesma regra do disparo: janela máxima de 2 dias, conversas encerradas ignoradas e
-        apenas conversas cuja última mensagem foi nossa.{' '}
+         A prévia usa a mesma regra do disparo: status pendente ou em atendimento, janela máxima de 2 dias e
+         última mensagem enviada pela Julia ou atendente há mais tempo que o definido.{' '}
         {scope === 'office'
           ? 'Como nenhum contato está vinculado a este agente, foram consideradas as conversas do escritório sem agente definido.'
           : scope === 'agent'
