@@ -12,6 +12,7 @@ export interface NoResponsePreviewItem {
   lastMessagePreview: string;
   lastMessageFromMe: boolean;
   lastMessageAt: string | null;
+  crmStage: string;
 }
 
 export type NoResponseScope = 'agent' | 'office' | 'none';
@@ -81,6 +82,25 @@ export function useNoResponsePreview(codAgent: string | null, minutes: number) {
         if (!lastMsg.has(m.conversation_id)) lastMsg.set(m.conversation_id, m);
       }
 
+      // Etapa no CRM da Julia (xj_deals -> xj_pipelines) por contato.
+      const { data: deals } = await (supabase as any)
+        .from('xj_deals')
+        .select('contact_id, contact_phone, pipeline_id, updated_at')
+        .eq('client_id', String(clientId))
+        .order('updated_at', { ascending: false })
+        .limit(1000);
+      const pipelineIds = [...new Set(((deals ?? []) as any[]).map((d) => d.pipeline_id).filter(Boolean))];
+      const { data: stages } = pipelineIds.length
+        ? await (supabase as any).from('xj_pipelines').select('id, name').in('id', pipelineIds)
+        : { data: [] };
+      const stageName = new Map(((stages ?? []) as any[]).map((s: any) => [s.id, s.name]));
+      const stageByPhone = new Map<string, string>();
+      for (const d of (deals ?? []) as any[]) {
+        const tail = String(d.contact_phone ?? '').replace(/\D/g, '').slice(-8);
+        if (!tail || stageByPhone.has(tail)) continue;
+        stageByPhone.set(tail, String(stageName.get(d.pipeline_id) ?? ''));
+      }
+
       const out: NoResponsePreviewItem[] = [];
       const seen = new Set<string>();
       for (const conv of rows) {
@@ -107,6 +127,7 @@ export function useNoResponsePreview(codAgent: string | null, minutes: number) {
             : '—',
           lastMessageFromMe: !!m?.from_me,
           lastMessageAt: m?.timestamp ?? null,
+          crmStage: stageByPhone.get(phone.slice(-8)) ?? '',
         });
       }
 
