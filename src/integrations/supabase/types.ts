@@ -166,6 +166,7 @@ export type Database = {
           is_active: boolean
           message_template: string | null
           mode: string
+          no_response_minutes: number
           recipients: Json
           stage_ids: Json
           trigger_key: string
@@ -178,6 +179,7 @@ export type Database = {
           is_active?: boolean
           message_template?: string | null
           mode?: string
+          no_response_minutes?: number
           recipients?: Json
           stage_ids?: Json
           trigger_key: string
@@ -190,6 +192,7 @@ export type Database = {
           is_active?: boolean
           message_template?: string | null
           mode?: string
+          no_response_minutes?: number
           recipients?: Json
           stage_ids?: Json
           trigger_key?: string
