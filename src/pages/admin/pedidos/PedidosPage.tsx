@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useOrders, type JuliaOrder } from './hooks/useOrders';
 import { OrderDetailSheet } from './components/OrderDetailSheet';
 import { PaymentSettingsDialog } from './components/PaymentSettingsDialog';
+import { NetAmountCell } from './components/NetAmountCell';
+import { DeleteOrderButton } from './components/DeleteOrderButton';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
 import { Search, DollarSign, Clock, CheckCircle, FileText, Loader2, Eye, Filter, X, TrendingDown, Wallet, ScrollText } from 'lucide-react';
@@ -24,7 +26,7 @@ const formatCurrency = (cents: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
 
 const PedidosPage = () => {
-  const { orders, isLoading, stats } = useOrders();
+  const { orders, isLoading, stats, refetch } = useOrders();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [planFilter, setPlanFilter] = useState('all');
@@ -167,7 +169,7 @@ const PedidosPage = () => {
                       <td className="py-3">{order.plan_name || '-'}</td>
                       <td className="py-3 font-medium">{order.plan_price ? formatCurrency(order.plan_price) : '-'}</td>
                       <td className="py-3 text-muted-foreground text-xs">
-                        {order.net_amount != null ? formatCurrency(order.net_amount) : order.status === 'paid' && order.fee_amount != null ? formatCurrency((order.paid_amount || order.plan_price) - order.fee_amount) : '-'}
+                        <NetAmountCell order={order} onSaved={refetch} />
                       </td>
                       <td className="py-3">
                         <Badge variant="outline" className={order.payment_gateway === 'mercadopago' ? 'border-blue-400 text-blue-600' : order.payment_gateway === 'asaas' ? 'border-orange-400 text-orange-600' : 'border-green-400 text-green-600'}>
@@ -185,6 +187,9 @@ const PedidosPage = () => {
                         <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(order)}>
                           <Eye className="w-4 h-4" />
                         </Button>
+                        {order.status !== 'paid' && (
+                          <DeleteOrderButton order={order} onDeleted={refetch} />
+                        )}
                       </td>
                     </tr>
                   );
