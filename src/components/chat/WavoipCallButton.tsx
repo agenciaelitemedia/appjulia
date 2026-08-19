@@ -10,9 +10,10 @@ interface Props {
   phone?: string | null;
   contactName?: string | null;
   queueId?: string | null;
+  iconOnly?: boolean;
 }
 
-export function WavoipCallButton({ phone, contactName, queueId }: Props) {
+export function WavoipCallButton({ phone, contactName, queueId, iconOnly }: Props) {
   const { hasActivePlan, ready, canDial } = useWavoip();
   const [open, setOpen] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
@@ -31,9 +32,9 @@ export function WavoipCallButton({ phone, contactName, queueId }: Props) {
     <>
       <Button
         variant="outline"
-        size="sm"
+        size={iconOnly ? 'icon' : 'sm'}
         className={cn(
-          'gap-1.5',
+          iconOnly ? 'h-7 w-7 rounded-full' : 'gap-1.5',
           unavailable
             ? 'opacity-60 text-muted-foreground border-border hover:bg-muted'
             : 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100',
@@ -41,8 +42,8 @@ export function WavoipCallButton({ phone, contactName, queueId }: Props) {
         onClick={onClick}
         title={unavailable ? 'ZAP Call indisponível' : 'Iniciar ZAP Call (Wavoip)'}
       >
-        <PhoneCall className="h-4 w-4" />
-        ZAP Call
+        <PhoneCall className={iconOnly ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
+        {!iconOnly && 'ZAP Call'}
       </Button>
       {phone && !unavailable ? (
         <WavoipCallDialog
