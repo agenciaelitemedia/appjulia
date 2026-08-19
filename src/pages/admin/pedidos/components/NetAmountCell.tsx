@@ -6,8 +6,10 @@ import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import { Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { updateOrderNetAmount, type JuliaOrder } from '../hooks/useOrders';
+
 
 const formatCurrency = (cents: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
