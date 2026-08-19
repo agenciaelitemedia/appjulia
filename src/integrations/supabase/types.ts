@@ -199,6 +199,7 @@ export type Database = {
       }
       alert_notification_logs: {
         Row: {
+          client_id: string | null
           cod_agent: string
           config_id: string | null
           created_at: string
@@ -214,6 +215,7 @@ export type Database = {
           trigger_key: string
         }
         Insert: {
+          client_id?: string | null
           cod_agent: string
           config_id?: string | null
           created_at?: string
@@ -229,6 +231,7 @@ export type Database = {
           trigger_key: string
         }
         Update: {
+          client_id?: string | null
           cod_agent?: string
           config_id?: string | null
           created_at?: string

@@ -42,3 +42,27 @@ export interface AlertCrmStage {
   name: string;
   color?: string | null;
 }
+
+export interface AlertHistoryEntry {
+  id: string;
+  client_id: string | null;
+  cod_agent: string;
+  config_id: string | null;
+  trigger_key: string;
+  lead_phone: string | null;
+  lead_name: string | null;
+  recipient_phone: string;
+  message_text: string | null;
+  status: string;
+  error_message: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface AlertHistoryFilters {
+  clientId?: string;
+  codAgent?: string;
+  triggerKey?: string;
+  status?: string;
+  search?: string;
+}

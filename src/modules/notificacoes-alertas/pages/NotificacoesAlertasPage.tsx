@@ -3,12 +3,16 @@ import { BellRing } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { AgentSearchSelect, useJuliaAgents, getSavedAgentCodes, saveAgentCodes } from '../extend/agents';
+import { useAuth } from '../extend/auth';
 import { GeralTab } from '../components/GeralTab';
 import { ConfigurarAlertasTab } from '../components/ConfigurarAlertasTab';
+import { HistoricoTab } from '../components/HistoricoTab';
 
 export default function NotificacoesAlertasPage() {
   const { data: agents = [], isLoading } = useJuliaAgents();
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     if (agents.length > 0 && !selectedAgent) {
@@ -53,6 +57,7 @@ export default function NotificacoesAlertasPage() {
         <TabsList>
           <TabsTrigger value="geral">Geral</TabsTrigger>
           <TabsTrigger value="alertas">Configurar Alertas</TabsTrigger>
+          {isAdmin && <TabsTrigger value="historico">Histórico</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="geral" className="mt-6">
@@ -66,6 +71,12 @@ export default function NotificacoesAlertasPage() {
             <p className="text-sm text-muted-foreground">Selecione um agente para configurar.</p>
           )}
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="historico" className="mt-6">
+            <HistoricoTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

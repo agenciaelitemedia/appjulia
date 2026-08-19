@@ -329,6 +329,18 @@ serve(async (req) => {
       }
       const adapter = createMessagingAdapter(creds);
 
+      // client_id (escritório) do agente, para auditoria do histórico.
+      let clientId: string | null = null;
+      try {
+        const rows = await sql.unsafe(
+          `SELECT client_id::text AS client_id FROM public.agents WHERE cod_agent::text = $1 LIMIT 1`,
+          [codAgent],
+        );
+        clientId = rows?.[0]?.client_id ?? null;
+      } catch (err) {
+        console.warn(`[alerts] client_id não resolvido para ${codAgent}:`, err);
+      }
+
       for (const cfg of cfgList) {
         const stageIds = Array.isArray(cfg.stage_ids) ? cfg.stage_ids.map(String) : [];
         let candidates: Candidate[] = [];
@@ -378,6 +390,7 @@ serve(async (req) => {
 
             await supabase.from("alert_notification_logs").insert({
               config_id: cfg.id,
+              client_id: clientId,
               cod_agent: codAgent,
               trigger_key: cfg.trigger_key,
               lead_phone: cand.leadPhone,
