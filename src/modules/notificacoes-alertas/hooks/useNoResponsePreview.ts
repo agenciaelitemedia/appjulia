@@ -41,27 +41,30 @@ export function useNoResponsePreview(codAgent: string | null, minutes: number) {
       const now = Date.now();
       const floor = new Date(now - WINDOW_MS).toISOString();
 
-      // chat_conversations.cod_agent não é preenchido; o vínculo com o agente
-      // vive em chat_contacts.cod_agent. Fallback: contatos do mesmo escritório
-      // sem agente definido.
-      let scope: NoResponseScope = 'agent';
-      const { data: agentContacts } = await (supabase as any)
+      // chat_conversations.cod_agent não é preenchido. Reúne os contatos
+      // vinculados ao agente e os contatos sem agente do mesmo escritório.
+      const { data: agentContacts, error: agentContactsError } = await (supabase as any)
         .from('chat_contacts')
         .select('id, phone, name')
         .eq('cod_agent', codAgent)
         .limit(500);
+      if (agentContactsError) throw agentContactsError;
       let contactRows = (agentContacts ?? []) as any[];
+      let scope: NoResponseScope = contactRows.length > 0 ? 'agent' : 'none';
 
-      if (contactRows.length === 0 && clientId) {
-        scope = 'office';
-        const { data: officeContacts } = await (supabase as any)
+      if (clientId) {
+        const { data: officeContacts, error: officeContactsError } = await (supabase as any)
           .from('chat_contacts')
           .select('id, phone, name')
           .eq('client_id', String(clientId))
           .is('cod_agent', null)
           .order('last_message_at', { ascending: false })
           .limit(500);
-        contactRows = (officeContacts ?? []) as any[];
+        if (officeContactsError) throw officeContactsError;
+        const merged = new Map(contactRows.map((contact: any) => [contact.id, contact]));
+        for (const contact of (officeContacts ?? []) as any[]) merged.set(contact.id, contact);
+        contactRows = Array.from(merged.values());
+        if ((officeContacts ?? []).length > 0) scope = 'office';
       }
 
       if (contactRows.length === 0) return { items: [], scope: 'none' };
@@ -72,11 +75,9 @@ export function useNoResponsePreview(codAgent: string | null, minutes: number) {
         .select('id, contact_id, last_customer_message_at, last_message_from_me, status')
         .in('contact_id', contactRows.map((c: any) => c.id))
         .eq('last_message_from_me', true)
-        .not('last_customer_message_at', 'is', null)
-        .gte('last_customer_message_at', floor)
-        .neq('status', 'closed')
-        .order('last_customer_message_at', { ascending: false })
-        .limit(50);
+        .in('status', ['pending', 'open'])
+        .order('updated_at', { ascending: false })
+        .limit(200);
       if (error) throw error;
       const rows = (convs ?? []) as any[];
       if (rows.length === 0) return { items: [], scope };
@@ -89,7 +90,7 @@ export function useNoResponsePreview(codAgent: string | null, minutes: number) {
         .select('conversation_id, text, caption, file_name, type, from_me, timestamp, internal_note')
         .in('conversation_id', convIds)
         .order('timestamp', { ascending: false })
-        .limit(Math.max(convIds.length * 10, 200));
+        .limit(Math.max(convIds.length * 20, 500));
 
       const lastMsg = new Map<string, any>();
       for (const m of (msgs ?? []) as any[]) {
@@ -103,17 +104,19 @@ export function useNoResponsePreview(codAgent: string | null, minutes: number) {
         const contact = byId.get(conv.contact_id) as any;
         const phone = String(contact?.phone ?? '').replace(/\D/g, '');
         if (!phone || seen.has(phone)) continue;
-        seen.add(phone);
-
-        const lastCustomer = String(conv.last_customer_message_at);
-        const dueMs = new Date(lastCustomer).getTime() + safeMinutes * 60_000;
         const m = lastMsg.get(conv.id);
+        const lastMessageMs = m?.timestamp ? new Date(m.timestamp).getTime() : Number.NaN;
+        if (!m?.from_me || !Number.isFinite(lastMessageMs)) continue;
+        if (lastMessageMs < now - WINDOW_MS) continue;
+        const dueMs = lastMessageMs + safeMinutes * 60_000;
+        if (dueMs > now) continue;
+        seen.add(phone);
 
         out.push({
           conversationId: conv.id,
           leadName: String(contact?.name ?? '') || 'Sem nome',
           leadPhone: phone,
-          lastCustomerMessageAt: lastCustomer,
+          lastCustomerMessageAt: conv.last_customer_message_at ?? m.timestamp,
           dueAt: new Date(dueMs).toISOString(),
           eligible: dueMs <= now,
           lastMessagePreview: m

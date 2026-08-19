@@ -155,39 +155,40 @@ async function fetchNoResponseCandidates(
   minutes: number,
 ): Promise<Candidate[]> {
   const now = Date.now();
-  const cutoff = new Date(now - minutes * 60_000).toISOString();
   const floor = new Date(now - 2 * 24 * 60 * 60_000).toISOString();
 
-  // chat_conversations.cod_agent não é preenchido; o vínculo com o agente vive
-  // em chat_contacts.cod_agent. Fallback: contatos do mesmo escritório sem agente.
-  const { data: agentContacts } = await supabase
+  // chat_conversations.cod_agent não é preenchido. Reúne contatos vinculados
+  // ao agente e contatos sem agente do mesmo escritório.
+  const { data: agentContacts, error: agentContactsError } = await supabase
     .from("chat_contacts")
     .select("id, phone, name")
     .eq("cod_agent", codAgent)
     .limit(500);
+  if (agentContactsError) throw agentContactsError;
   let contactRows: any[] = agentContacts ?? [];
 
-  if (contactRows.length === 0) {
-    let clientId: string | null = null;
-    try {
-      const rows = await sql.unsafe(
-        `SELECT client_id::text AS client_id FROM public.agents WHERE cod_agent::text = $1 LIMIT 1`,
-        [codAgent],
-      );
-      clientId = rows?.[0]?.client_id ?? null;
-    } catch (err) {
-      console.warn(`[alerts] client_id não resolvido para ${codAgent}:`, err);
-    }
-    if (clientId) {
-      const { data: officeContacts } = await supabase
+  let clientId: string | null = null;
+  try {
+    const rows = await sql.unsafe(
+      `SELECT client_id::text AS client_id FROM public.agents WHERE cod_agent::text = $1 LIMIT 1`,
+      [codAgent],
+    );
+    clientId = rows?.[0]?.client_id ?? null;
+  } catch (err) {
+    console.warn(`[alerts] client_id não resolvido para ${codAgent}:`, err);
+  }
+  if (clientId) {
+      const { data: officeContacts, error: officeContactsError } = await supabase
         .from("chat_contacts")
         .select("id, phone, name")
         .eq("client_id", clientId)
         .is("cod_agent", null)
         .order("last_message_at", { ascending: false })
         .limit(500);
-      contactRows = officeContacts ?? [];
-    }
+      if (officeContactsError) throw officeContactsError;
+      const merged = new Map(contactRows.map((contact: any) => [contact.id, contact]));
+      for (const contact of officeContacts ?? []) merged.set(contact.id, contact);
+      contactRows = Array.from(merged.values());
   }
   if (contactRows.length === 0) return [];
   const byId = new Map(contactRows.map((c: any) => [c.id, c]));
@@ -197,18 +198,37 @@ async function fetchNoResponseCandidates(
     .select("id, contact_id, last_customer_message_at, last_message_from_me, status")
     .in("contact_id", contactRows.map((c: any) => c.id))
     .eq("last_message_from_me", true)
-    .not("last_customer_message_at", "is", null)
-    .lte("last_customer_message_at", cutoff)
-    .gte("last_customer_message_at", floor)
-    .neq("status", "closed")
-    .order("last_customer_message_at", { ascending: false })
+    .in("status", ["pending", "open"])
+    .order("updated_at", { ascending: false })
     .limit(200);
   if (error) throw error;
   if (!convs || convs.length === 0) return [];
 
+  const conversationIds = convs.map((conv: any) => conv.id);
+  const { data: messages, error: messagesError } = await supabase
+    .from("chat_messages")
+    .select("conversation_id, from_me, timestamp, internal_note")
+    .in("conversation_id", conversationIds)
+    .order("timestamp", { ascending: false })
+    .limit(Math.max(conversationIds.length * 20, 500));
+  if (messagesError) throw messagesError;
+  const lastMessageByConversation = new Map<string, any>();
+  for (const message of messages ?? []) {
+    if (message.internal_note) continue;
+    if (!lastMessageByConversation.has(message.conversation_id)) {
+      lastMessageByConversation.set(message.conversation_id, message);
+    }
+  }
+
   const out: Candidate[] = [];
   const seen = new Set<string>();
   for (const conv of convs) {
+    const lastMessage = lastMessageByConversation.get(conv.id);
+    const lastMessageMs = lastMessage?.timestamp ? new Date(lastMessage.timestamp).getTime() : Number.NaN;
+    if (!lastMessage?.from_me || !Number.isFinite(lastMessageMs)) continue;
+    if (lastMessageMs < new Date(floor).getTime()) continue;
+    if (lastMessageMs + minutes * 60_000 > now) continue;
+
     const contact = byId.get(conv.contact_id);
     const phone = String(contact?.phone ?? "").replace(/\D/g, "");
     if (!phone || seen.has(phone)) continue;
@@ -234,7 +254,7 @@ async function fetchNoResponseCandidates(
       console.warn(`[alerts] sessão não resolvida para ${phone}:`, err);
     }
 
-    const marker = String(conv.last_customer_message_at ?? "").slice(0, 16).replace(/\D/g, "");
+    const marker = String(lastMessage.timestamp).slice(0, 16).replace(/\D/g, "");
     out.push({
       leadPhone: phone,
       leadName: String(contact?.name ?? ""),
