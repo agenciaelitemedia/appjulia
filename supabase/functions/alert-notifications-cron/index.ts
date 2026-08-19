@@ -394,7 +394,12 @@ serve(async (req) => {
         const stageIds = Array.isArray(cfg.stage_ids) ? cfg.stage_ids.map(String) : [];
         let candidates: Candidate[] = [];
         try {
-          candidates = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
+          if (cfg.trigger_key === "no_response") {
+            const minutes = Math.max(1, Number(cfg.no_response_minutes ?? 30));
+            candidates = await fetchNoResponseCandidates(supabase, sql, codAgent, minutes);
+          } else {
+            candidates = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
+          }
         } catch (err) {
           console.error(`[alerts] consulta ${cfg.trigger_key} falhou:`, err);
           continue;
