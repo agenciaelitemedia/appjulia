@@ -320,7 +320,7 @@ async function fetchNoResponseCandidates(
       caso,
       resumo: "",
       sessionId,
-      dedupeKey: `${phone}:nores:${minutes}:${marker}`,
+      dedupeKey: `${phoneKey(phone)}:nores:${marker}`,
     });
   }
   return out;
