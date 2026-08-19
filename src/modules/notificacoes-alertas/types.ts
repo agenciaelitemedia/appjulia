@@ -9,6 +9,7 @@ export interface AlertConfig {
   recipients: string[];
   message_template: string | null;
   stage_ids: string[];
+  no_response_minutes: number;
   created_at: string;
   updated_at: string;
 }
@@ -21,6 +22,7 @@ export interface AlertConfigInput {
   recipients?: string[];
   message_template?: string | null;
   stage_ids?: string[];
+  no_response_minutes?: number;
 }
 
 export interface AlertLog {

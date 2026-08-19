@@ -38,6 +38,8 @@ export interface AlertTriggerDef {
   defaultMode: AlertMode;
   /** Gatilho usa etapas do CRM para ser detectado. */
   usesStages?: boolean;
+  /** Gatilho usa minutos de silêncio do lead para ser detectado. */
+  usesSilenceMinutes?: boolean;
 }
 
 const DEFAULT_TEMPLATE = `🔔 *{situacao}*
@@ -57,8 +59,9 @@ export const ALERT_TRIGGERS: AlertTriggerDef[] = [
     key: 'no_response',
     label: 'Cliente parou de responder',
     situacao: 'Lead parou de responder — recuperação',
-    description: 'O lead ficou em silêncio e entrou em followup/recuperação.',
+    description: 'O lead ficou X minutos sem responder a última mensagem enviada.',
     defaultMode: 'takeover',
+    usesSilenceMinutes: true,
   },
   {
     key: 'qualified',
