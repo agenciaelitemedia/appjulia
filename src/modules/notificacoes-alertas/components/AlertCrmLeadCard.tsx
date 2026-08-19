@@ -98,7 +98,7 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
                       'h-7 w-7 rounded-full',
                       voipUnavailable
                         ? 'opacity-60 text-muted-foreground border-border hover:bg-muted'
-                        : 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100',
                     )}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -107,7 +107,7 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
                     disabled={voipUnavailable}
                     title={voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}
                   >
-                    {voipUnavailable ? <PhoneOff className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
+                    <PhoneCall className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}</TooltipContent>
