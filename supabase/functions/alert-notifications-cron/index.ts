@@ -755,7 +755,21 @@ serve(async (req) => {
             .eq("trigger_key", cfg.trigger_key)
             .eq("dedupe_key", cand.dedupeKey)
             .limit(1);
-          if (existing && existing.length > 0) continue;
+          if (existing && existing.length > 0) {
+            // Alerta já foi enviado antes: não reenvia, mas garante que o card
+            // exista no CRM de Notificações (sem isso o lead nunca ganha card).
+            await upsertAlertCrmCard(supabase, {
+              clientId,
+              codAgent,
+              triggerKey: cfg.trigger_key,
+              leadPhone: cand.leadPhone,
+              leadName: cand.leadName ?? null,
+              businessName: businessName,
+              crmStageLabel: null,
+              logId: existing[0].id ?? null,
+            });
+            continue;
+          }
 
           const resumo = cand.resumo || (await buildResumo(supabase, cand.leadPhone));
           const etapaCrm = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
