@@ -93,17 +93,56 @@ interface Candidate {
   sessionId?: number | null;
 }
 
-/** Etapa atual do lead no CRM da Julia (xj_deals -> xj_pipelines). */
+/** Variantes BR do telefone (com/sem o 9º dígito) para casar bases legadas. */
+function brPhoneVariants(raw: string | null | undefined): string[] {
+  const d = String(raw ?? "").replace(/\D/g, "");
+  if (!d) return [];
+  const out = new Set<string>([d]);
+  if (d.startsWith("55")) {
+    const ddd = d.slice(2, 4);
+    if (d.length === 13 && d[4] === "9" && /[6-9]/.test(d[5] ?? "")) {
+      out.add(`55${ddd}${d.slice(5)}`);
+    } else if (d.length === 12 && /[6-9]/.test(d[4] ?? "")) {
+      out.add(`55${ddd}9${d.slice(4)}`);
+    }
+  }
+  return [...out].filter(Boolean);
+}
+
+/**
+ * Etapa atual do lead no CRM da Julia.
+ * 1) CRM clássico/legado (crm_atendimento_cards + crm_atendimento_stages)
+ * 2) fallback X-Julia (xj_deals -> xj_pipelines)
+ */
 async function fetchCrmStage(
   supabase: any,
+  sql: any,
   clientId: string | null,
   phone: string,
 ): Promise<string> {
-  try {
-    const digits = String(phone ?? "").replace(/\D/g, "");
-    if (!digits) return "";
-    const tail = digits.slice(-8);
+  const variants = brPhoneVariants(phone);
+  if (variants.length === 0) return "";
 
+  // 1) CRM clássico (banco legado)
+  try {
+    const rows = await sql.unsafe(
+      `SELECT COALESCE(s.name, '') AS stage_name
+         FROM crm_atendimento_cards c
+         LEFT JOIN crm_atendimento_stages s ON s.id = c.stage_id
+        WHERE c.whatsapp_number::text = ANY($1::varchar[])
+        ORDER BY COALESCE(c.updated_at, c.created_at) DESC NULLS LAST
+        LIMIT 1`,
+      [variants],
+    );
+    const legacy = String(rows?.[0]?.stage_name ?? "").trim();
+    if (legacy) return legacy;
+  } catch (err) {
+    console.warn("[alerts] etapa CRM legado não resolvida:", err);
+  }
+
+  // 2) Fallback X-Julia
+  try {
+    const tail = variants[0].slice(-8);
     let query = supabase
       .from("xj_deals")
       .select("pipeline_id, updated_at, contact_phone")
@@ -123,7 +162,7 @@ async function fetchCrmStage(
       .maybeSingle();
     return String(stage?.name ?? "");
   } catch (err) {
-    console.warn("[alerts] etapa CRM não resolvida:", err);
+    console.warn("[alerts] etapa X-Julia não resolvida:", err);
     return "";
   }
 }
@@ -485,7 +524,7 @@ serve(async (req) => {
           if (existing && existing.length > 0) continue;
 
           const resumo = cand.resumo || (await buildResumo(supabase, cand.leadPhone));
-          const etapaCrm = await fetchCrmStage(supabase, clientId, cand.leadPhone);
+          const etapaCrm = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
           const message = renderTemplate(cfg.message_template ?? "", {
             lead_nome: cand.leadName || "Não informado",
             lead_whatsapp: cand.leadPhone,
