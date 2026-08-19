@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Eye, Hash, MessageCircle, Phone, PhoneOff, User } from 'lucide-react';
+import { Clock, Eye, Hash, MessageCircle, PhoneCall, User } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
