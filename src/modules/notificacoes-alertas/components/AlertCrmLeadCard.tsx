@@ -20,10 +20,10 @@ import {
 import type { AlertCrmCard } from '../types';
 
 interface Props {
-
   card: AlertCrmCard;
   onClick: () => void;
 }
+
 
 export function AlertCrmLeadCard({ card, onClick }: Props) {
   const { getAlias } = useAgentAliases();
@@ -39,10 +39,10 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
   const voipUnavailable = !isAvailable || !card.lead_phone;
 
   const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
-
     addSuffix: false,
     locale: ptBR,
   });
+
 
   return (
     <>
@@ -138,10 +138,10 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
             </div>
           </TooltipProvider>
         </CardContent>
-
       </Card>
 
       {chatOpen && (
+
         <ChatSidePanel
           open={chatOpen}
           onOpenChange={setChatOpen}
