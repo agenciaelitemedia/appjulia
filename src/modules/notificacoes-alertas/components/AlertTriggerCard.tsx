@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PhoneListEditor } from './PhoneListEditor';
 import { TemplateEditor } from './TemplateEditor';
@@ -28,6 +29,7 @@ export function AlertTriggerCard({ codAgent, trigger, config }: AlertTriggerCard
   const [recipients, setRecipients] = useState<string[]>([]);
   const [template, setTemplate] = useState(ALERT_DEFAULT_TEMPLATE);
   const [stageIds, setStageIds] = useState<string[]>([]);
+  const [silenceMinutes, setSilenceMinutes] = useState(30);
 
   useEffect(() => {
     setIsActive(config?.is_active ?? false);
@@ -35,6 +37,7 @@ export function AlertTriggerCard({ codAgent, trigger, config }: AlertTriggerCard
     setRecipients(config?.recipients ?? []);
     setTemplate(config?.message_template ?? ALERT_DEFAULT_TEMPLATE);
     setStageIds(config?.stage_ids ?? []);
+    setSilenceMinutes(config?.no_response_minutes ?? 30);
   }, [config, trigger.defaultMode]);
 
   const dirty = useMemo(() => {
@@ -43,9 +46,10 @@ export function AlertTriggerCard({ codAgent, trigger, config }: AlertTriggerCard
       mode !== ((config?.mode as AlertMode) ?? trigger.defaultMode) ||
       template !== (config?.message_template ?? ALERT_DEFAULT_TEMPLATE) ||
       JSON.stringify(recipients) !== JSON.stringify(config?.recipients ?? []) ||
-      JSON.stringify(stageIds) !== JSON.stringify(config?.stage_ids ?? [])
+      JSON.stringify(stageIds) !== JSON.stringify(config?.stage_ids ?? []) ||
+      silenceMinutes !== (config?.no_response_minutes ?? 30)
     );
-  }, [isActive, mode, recipients, template, stageIds, config, trigger.defaultMode]);
+  }, [isActive, mode, recipients, template, stageIds, silenceMinutes, config, trigger.defaultMode]);
 
   const toggleStage = (id: string) => {
     setStageIds((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
@@ -60,6 +64,7 @@ export function AlertTriggerCard({ codAgent, trigger, config }: AlertTriggerCard
       recipients,
       message_template: template,
       stage_ids: stageIds,
+      no_response_minutes: Math.max(1, Number(silenceMinutes) || 30),
     });
   };
 
@@ -98,6 +103,22 @@ export function AlertTriggerCard({ codAgent, trigger, config }: AlertTriggerCard
 
           <PhoneListEditor value={recipients} onChange={setRecipients} />
         </div>
+
+        {trigger.usesSilenceMinutes && (
+          <div className="space-y-2 md:max-w-xs">
+            <Label className="text-sm">Minutos sem resposta do lead</Label>
+            <Input
+              type="number"
+              min={1}
+              max={10080}
+              value={silenceMinutes}
+              onChange={(e) => setSilenceMinutes(Number(e.target.value))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Alerta dispara quando o lead ficar esse tempo sem responder a última mensagem enviada.
+            </p>
+          </div>
+        )}
 
         {trigger.usesStages && (
           <div className="space-y-2">
