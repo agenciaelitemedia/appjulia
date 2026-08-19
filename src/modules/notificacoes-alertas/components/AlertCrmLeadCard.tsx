@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Clock, Eye, Hash, MessageCircle, Phone, PhoneOff, User } from 'lucide-react';
-
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +23,6 @@ interface Props {
   onClick: () => void;
 }
 
-
 export function AlertCrmLeadCard({ card, onClick }: Props) {
   const { getAlias } = useAgentAliases();
   const { isAvailable } = usePhone();
@@ -42,7 +40,6 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
     addSuffix: false,
     locale: ptBR,
   });
-
 
   return (
     <>
@@ -141,7 +138,6 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
       </Card>
 
       {chatOpen && (
-
         <ChatSidePanel
           open={chatOpen}
           onOpenChange={setChatOpen}
@@ -164,4 +160,3 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
     </>
   );
 }
-
