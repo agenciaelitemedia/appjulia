@@ -768,6 +768,35 @@ serve(async (req) => {
           for (const recipient of cfg.recipients as string[]) {
             const phone = String(recipient).replace(/\D/g, "");
             if (!phone) continue;
+
+            // Reserva o disparo ANTES de enviar: o índice único
+            // (cod_agent, trigger_key, dedupe_key, recipient_phone) impede que
+            // duas execuções simultâneas do cron enviem o mesmo alerta.
+            const { data: logRow, error: reserveError } = await supabase
+              .from("alert_notification_logs")
+              .insert({
+                config_id: cfg.id,
+                client_id: clientId,
+                cod_agent: codAgent,
+                trigger_key: cfg.trigger_key,
+                lead_phone: cand.leadPhone,
+                lead_name: cand.leadName,
+                dedupe_key: cand.dedupeKey,
+                recipient_phone: phone,
+                message_text: message,
+                status: "pending",
+              })
+              .select("id")
+              .maybeSingle();
+
+            if (reserveError) {
+              // Duplicidade (23505) ou falha de reserva: não envia.
+              console.warn(
+                `[alerts] disparo já registrado/ignorado (${cfg.trigger_key} ${cand.leadPhone} -> ${phone})`,
+              );
+              continue;
+            }
+
             let status = "failed";
             let errorMessage: string | null = null;
             try {
@@ -778,20 +807,16 @@ serve(async (req) => {
               errorMessage = err instanceof Error ? err.message : String(err);
             }
 
-            const { data: logRow } = await supabase.from("alert_notification_logs").insert({
-              config_id: cfg.id,
-              client_id: clientId,
-              cod_agent: codAgent,
-              trigger_key: cfg.trigger_key,
-              lead_phone: cand.leadPhone,
-              lead_name: cand.leadName,
-              dedupe_key: cand.dedupeKey,
-              recipient_phone: phone,
-              message_text: message,
-              status,
-              error_message: errorMessage,
-              sent_at: status === "sent" ? new Date().toISOString() : null,
-            }).select("id").maybeSingle();
+            if (logRow?.id) {
+              await supabase
+                .from("alert_notification_logs")
+                .update({
+                  status,
+                  error_message: errorMessage,
+                  sent_at: status === "sent" ? new Date().toISOString() : null,
+                })
+                .eq("id", logRow.id);
+            }
 
             // CRM de Notificações: cria/reabre o card do lead na coluna do gatilho.
             if (status === "sent") {
