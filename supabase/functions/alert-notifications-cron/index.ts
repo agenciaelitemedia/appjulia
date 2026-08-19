@@ -10,6 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
 import { getAgentCredentials } from "../_shared/get-agent-credentials.ts";
 import { createMessagingAdapter } from "../_shared/messaging-factory.ts";
+import { fetchZapSignDocStatus, resolveZapsignToken } from "../_shared/x-julia/zapsign.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -423,6 +424,7 @@ async function fetchCandidates(
 
 /** Pausa a Julia no contato (modo Assumir). */
 async function takeover(sql: any, codAgent: string, sessionId: number | null, phone: string) {
+  if (!sessionId) return;
   if (!sessionId) return;
   try {
     await sql.unsafe(`UPDATE public.sessions SET active = FALSE WHERE id = $1::bigint`, [sessionId]);
