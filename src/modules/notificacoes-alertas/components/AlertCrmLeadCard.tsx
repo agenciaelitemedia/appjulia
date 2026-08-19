@@ -77,7 +77,7 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
           </div>
 
           <TooltipProvider>
-            <div className="flex items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-wrap items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -95,6 +95,36 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      'gap-1.5 rounded-full',
+                      voipUnavailable
+                        ? 'opacity-60 text-muted-foreground border-border hover:bg-muted'
+                        : 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100'
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPhoneCallOpen(true);
+                    }}
+                    disabled={voipUnavailable}
+                    title={voipUnavailable ? 'VOIP Call indisponível' : 'VOIP Call (ramal disponível)'}
+                  >
+                    {voipUnavailable ? <PhoneOff className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
+                    VOIP Call
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}</TooltipContent>
+              </Tooltip>
+
+              <WavoipCallButton
+                phone={card.lead_phone}
+                contactName={card.lead_name}
+              />
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
                     size="icon"
                     variant="outline"
                     className="h-7 w-7 rounded-full"
@@ -107,6 +137,7 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
               </Tooltip>
             </div>
           </TooltipProvider>
+
         </CardContent>
       </Card>
 
