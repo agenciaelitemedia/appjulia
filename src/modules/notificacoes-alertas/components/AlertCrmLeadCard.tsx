@@ -107,7 +107,7 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
                     disabled={voipUnavailable}
                     title={voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}
                   >
-                    <PhoneCall className="h-3.5 w-3.5" />
+                    {voipUnavailable ? <PhoneOff className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}</TooltipContent>
