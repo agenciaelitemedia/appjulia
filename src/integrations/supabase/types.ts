@@ -203,6 +203,7 @@ export type Database = {
           id: string
           lead_name: string | null
           lead_phone: string | null
+          lead_phone_key: string | null
           log_id: string | null
           owner_name: string | null
           resolved_at: string | null
@@ -221,6 +222,7 @@ export type Database = {
           id?: string
           lead_name?: string | null
           lead_phone?: string | null
+          lead_phone_key?: string | null
           log_id?: string | null
           owner_name?: string | null
           resolved_at?: string | null
@@ -239,6 +241,7 @@ export type Database = {
           id?: string
           lead_name?: string | null
           lead_phone?: string | null
+          lead_phone_key?: string | null
           log_id?: string | null
           owner_name?: string | null
           resolved_at?: string | null

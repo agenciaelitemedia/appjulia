@@ -95,6 +95,15 @@ interface Candidate {
 }
 
 /** Variantes BR do telefone (com/sem o 9º dígito) para casar bases legadas. */
+/**
+ * Chave canônica do telefone do lead: últimos 8 dígitos.
+ * Neutraliza variações de DDI/DDD/9º dígito, evitando alertas e cards
+ * duplicados para o mesmo lead escrito de formas diferentes.
+ */
+function phoneKey(raw: string | null | undefined): string {
+  return String(raw ?? "").replace(/\D/g, "").slice(-8);
+}
+
 function brPhoneVariants(raw: string | null | undefined): string[] {
   const d = String(raw ?? "").replace(/\D/g, "");
   if (!d) return [];
@@ -320,7 +329,7 @@ async function fetchNoResponseCandidates(
       caso,
       resumo: "",
       sessionId,
-      dedupeKey: `${phone}:nores:${minutes}:${marker}`,
+      dedupeKey: `${phoneKey(phone)}:nores:${marker}`,
     });
   }
   return out;
@@ -357,7 +366,7 @@ async function fetchCandidates(
       caso: String(r.caso || r.stage_name || ""),
       resumo: "",
       sessionId: r.session_id ? Number(r.session_id) : null,
-      dedupeKey: `${r.phone}:${r.stage_id}:${r.marker ?? ""}`,
+      dedupeKey: `${phoneKey(r.phone)}:${r.stage_id}:${r.marker ?? ""}`,
     }));
   }
 
@@ -415,7 +424,7 @@ async function fetchCandidates(
       caso: String(r.caso ?? ""),
       resumo: "",
       sessionId: r.session_id ? Number(r.session_id) : null,
-      dedupeKey: `${r.phone}:${r.marker ?? ""}`,
+      dedupeKey: `${phoneKey(r.phone)}:flow:${r.marker ?? ""}`,
     }));
   }
 
@@ -568,9 +577,11 @@ async function takeover(sql: any, codAgent: string, sessionId: number | null, ph
 }
 
 /**
- * CRM de Notificações: garante um card aberto por (agente, telefone, gatilho).
- * Se já existe card aberto, apenas atualiza os dados; se o último foi resolvido,
- * um novo alerta cria um card novo (reabertura).
+ * CRM de Notificações: garante NO MÁXIMO UM card aberto por (agente, lead).
+ * O telefone é normalizado (últimos 8 dígitos), então variações de DDI/DDD/9º
+ * dígito não geram cards duplicados. Se o lead já tem card aberto, ele é
+ * movido para a coluna do novo alerta em vez de criar um segundo card.
+ * Cards resolvidos (recuperado/perdido) não bloqueiam a criação de um novo.
  */
 async function upsertAlertCrmCard(
   supabase: any,
@@ -585,24 +596,30 @@ async function upsertAlertCrmCard(
     logId: string | null;
   },
 ) {
+  const key = phoneKey(card.leadPhone);
+  if (!key) return;
   try {
     const { data: existing } = await supabase
       .from("alert_crm_cards")
-      .select("id")
+      .select("id, trigger_key")
       .eq("cod_agent", card.codAgent)
-      .eq("lead_phone", card.leadPhone)
-      .eq("trigger_key", card.triggerKey)
+      .eq("lead_phone_key", key)
       .eq("status", "open")
       .limit(1);
 
     if (existing && existing.length > 0) {
+      const moved = existing[0].trigger_key !== card.triggerKey;
       await supabase
         .from("alert_crm_cards")
         .update({
+          trigger_key: card.triggerKey,
           lead_name: card.leadName,
+          lead_phone: card.leadPhone,
           business_name: card.businessName,
           crm_stage_label: card.crmStageLabel,
           log_id: card.logId,
+          ...(moved ? { stage_entered_at: new Date().toISOString() } : {}),
+          updated_at: new Date().toISOString(),
         })
         .eq("id", existing[0].id);
       return;
@@ -613,6 +630,7 @@ async function upsertAlertCrmCard(
       cod_agent: card.codAgent,
       trigger_key: card.triggerKey,
       lead_phone: card.leadPhone,
+      lead_phone_key: key,
       lead_name: card.leadName,
       business_name: card.businessName,
       crm_stage_label: card.crmStageLabel,
@@ -721,8 +739,13 @@ serve(async (req) => {
           continue;
         }
 
+        // Dedupe dentro da própria rodada: um disparo por lead/gatilho.
+        const seenLeads = new Set<string>();
         for (const cand of candidates) {
           if (!cand.leadPhone) continue;
+          const leadKey = phoneKey(cand.leadPhone);
+          if (!leadKey || seenLeads.has(leadKey)) continue;
+          seenLeads.add(leadKey);
 
           // Anti-duplicidade: um disparo por lead/gatilho/marcador.
           const { data: existing } = await supabase
@@ -750,6 +773,35 @@ serve(async (req) => {
           for (const recipient of cfg.recipients as string[]) {
             const phone = String(recipient).replace(/\D/g, "");
             if (!phone) continue;
+
+            // Reserva o disparo ANTES de enviar: o índice único
+            // (cod_agent, trigger_key, dedupe_key, recipient_phone) impede que
+            // duas execuções simultâneas do cron enviem o mesmo alerta.
+            const { data: logRow, error: reserveError } = await supabase
+              .from("alert_notification_logs")
+              .insert({
+                config_id: cfg.id,
+                client_id: clientId,
+                cod_agent: codAgent,
+                trigger_key: cfg.trigger_key,
+                lead_phone: cand.leadPhone,
+                lead_name: cand.leadName,
+                dedupe_key: cand.dedupeKey,
+                recipient_phone: phone,
+                message_text: message,
+                status: "pending",
+              })
+              .select("id")
+              .maybeSingle();
+
+            if (reserveError) {
+              // Duplicidade (23505) ou falha de reserva: não envia.
+              console.warn(
+                `[alerts] disparo já registrado/ignorado (${cfg.trigger_key} ${cand.leadPhone} -> ${phone})`,
+              );
+              continue;
+            }
+
             let status = "failed";
             let errorMessage: string | null = null;
             try {
@@ -760,20 +812,16 @@ serve(async (req) => {
               errorMessage = err instanceof Error ? err.message : String(err);
             }
 
-            const { data: logRow } = await supabase.from("alert_notification_logs").insert({
-              config_id: cfg.id,
-              client_id: clientId,
-              cod_agent: codAgent,
-              trigger_key: cfg.trigger_key,
-              lead_phone: cand.leadPhone,
-              lead_name: cand.leadName,
-              dedupe_key: cand.dedupeKey,
-              recipient_phone: phone,
-              message_text: message,
-              status,
-              error_message: errorMessage,
-              sent_at: status === "sent" ? new Date().toISOString() : null,
-            }).select("id").maybeSingle();
+            if (logRow?.id) {
+              await supabase
+                .from("alert_notification_logs")
+                .update({
+                  status,
+                  error_message: errorMessage,
+                  sent_at: status === "sent" ? new Date().toISOString() : null,
+                })
+                .eq("id", logRow.id);
+            }
 
             // CRM de Notificações: cria/reabre o card do lead na coluna do gatilho.
             if (status === "sent") {
