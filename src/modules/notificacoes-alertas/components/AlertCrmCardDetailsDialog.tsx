@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { AlertTriangle, Calendar, CheckCircle2, Clock, Hash, Loader2, Phone, Send, Trash2, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, Calendar, CheckCircle2, Clock, Hash, Loader2, Phone, Send, ShieldAlert, Trash2, XCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,17 @@ export function AlertCrmCardDetailsDialog({ card, open, onOpenChange }: Props) {
   const { user } = useAuth();
   const [actionText, setActionText] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRecovered, setConfirmRecovered] = useState(false);
+  const [confirmLost, setConfirmLost] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setActionText('');
+      setConfirmDelete(false);
+      setConfirmRecovered(false);
+      setConfirmLost(false);
+    }
+  }, [open]);
 
   const { data: actions = [], isLoading: actionsLoading } = useAlertCrmCardActions(
     open ? card?.id ?? null : null,
@@ -208,27 +219,46 @@ export function AlertCrmCardDetailsDialog({ card, open, onOpenChange }: Props) {
             <Separator className="my-3" />
 
             {card.status === 'open' && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 gap-1.5 text-green-600 border-green-500/40 hover:bg-green-100/50 dark:hover:bg-green-900/30"
-                  onClick={() => handleResolve('recovered')}
-                  disabled={resolveCard.isPending}
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Recuperado
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 gap-1.5 text-red-600 border-red-500/40 hover:bg-red-100/50 dark:hover:bg-red-900/30"
-                  onClick={() => handleResolve('lost')}
-                  disabled={resolveCard.isPending}
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  Perdido
-                </Button>
+              <div className="space-y-3">
+                <div className="rounded-md border border-green-500/30 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <ShieldAlert className="h-3.5 w-3.5" />
+                      Confirmar marcação como recuperado
+                    </Label>
+                    <Switch checked={confirmRecovered} onCheckedChange={setConfirmRecovered} />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1.5 text-green-600 border-green-500/40 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                    onClick={() => handleResolve('recovered')}
+                    disabled={!confirmRecovered || resolveCard.isPending}
+                  >
+                    {resolveCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    Recuperado
+                  </Button>
+                </div>
+
+                <div className="rounded-md border border-red-500/30 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <ShieldAlert className="h-3.5 w-3.5" />
+                      Confirmar marcação como perdido
+                    </Label>
+                    <Switch checked={confirmLost} onCheckedChange={setConfirmLost} />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1.5 text-red-600 border-red-500/40 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                    onClick={() => handleResolve('lost')}
+                    disabled={!confirmLost || resolveCard.isPending}
+                  >
+                    {resolveCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+                    Perdido
+                  </Button>
+                </div>
               </div>
             )}
 
