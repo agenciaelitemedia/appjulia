@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Eye, Hash, MessageCircle, Phone, User } from 'lucide-react';
+import { Clock, Eye, Hash, MessageCircle, Phone, PhoneOff, User } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +7,15 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatDbDateTime } from '@/lib/dateUtils';
-import { ChatSidePanel, useAgentChatTarget, useAgentAliases } from '../extend/crm';
+import { cn } from '@/lib/utils';
+import {
+  ChatSidePanel,
+  useAgentChatTarget,
+  useAgentAliases,
+  PhoneCallDialog,
+  usePhone,
+  WavoipCallButton,
+} from '../extend/crm';
 import type { AlertCrmCard } from '../types';
 
 interface Props {
@@ -17,12 +25,16 @@ interface Props {
 
 export function AlertCrmLeadCard({ card, onClick }: Props) {
   const { getAlias } = useAgentAliases();
+  const { isAvailable } = usePhone();
   const [chatOpen, setChatOpen] = useState(false);
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
   const { target: chatTarget, isLoading: chatLoading } = useAgentChatTarget(
     card.cod_agent,
     card.lead_phone || '',
     chatOpen,
   );
+
+  const voipUnavailable = !isAvailable || !card.lead_phone;
 
   const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
     addSuffix: false,
@@ -62,7 +74,7 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
           </div>
 
           <TooltipProvider>
-            <div className="flex items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-wrap items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -76,6 +88,36 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
                 </TooltipTrigger>
                 <TooltipContent>Abrir conversa no chat</TooltipContent>
               </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      'gap-1.5 rounded-full',
+                      voipUnavailable
+                        ? 'opacity-60 text-muted-foreground border-border hover:bg-muted'
+                        : 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100'
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPhoneCallOpen(true);
+                    }}
+                    disabled={voipUnavailable}
+                    title={voipUnavailable ? 'VOIP Call indisponível' : 'VOIP Call (ramal disponível)'}
+                  >
+                    {voipUnavailable ? <PhoneOff className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
+                    VOIP Call
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}</TooltipContent>
+              </Tooltip>
+
+              <WavoipCallButton
+                phone={card.lead_phone}
+                contactName={card.lead_name}
+              />
 
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -103,6 +145,16 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
           isLoading={chatLoading}
           title={card.lead_name || card.lead_phone || 'Conversa'}
           emptyDescription="Nenhuma conversa encontrada para este lead."
+        />
+      )}
+
+      {card.lead_phone && (
+        <PhoneCallDialog
+          open={phoneCallOpen}
+          onOpenChange={setPhoneCallOpen}
+          whatsappNumber={card.lead_phone}
+          contactName={card.lead_name || 'Sem nome'}
+          codAgent={card.cod_agent}
         />
       )}
     </>
