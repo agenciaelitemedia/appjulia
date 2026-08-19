@@ -425,7 +425,6 @@ async function fetchCandidates(
 /** Pausa a Julia no contato (modo Assumir). */
 async function takeover(sql: any, codAgent: string, sessionId: number | null, phone: string) {
   if (!sessionId) return;
-  if (!sessionId) return;
   try {
     await sql.unsafe(`UPDATE public.sessions SET active = FALSE WHERE id = $1::bigint`, [sessionId]);
     await sql.unsafe(
