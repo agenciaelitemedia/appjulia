@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { DocumentStep } from './steps/DocumentStep';
 import { CustomerStep } from './steps/CustomerStep';
@@ -50,9 +50,14 @@ const ComprarPage = () => {
     billing_period: 'monthly',
     payment_gateway: paymentGateway,
   });
+  const orderDataRef = useRef<OrderData>(orderData);
 
   const updateOrder = (data: Partial<OrderData>) => {
-    setOrderData(prev => ({ ...prev, ...data }));
+    setOrderData(prev => {
+      const next = { ...prev, ...data };
+      orderDataRef.current = next;
+      return next;
+    });
   };
 
   const goToStep = (step: number) => setCurrentStep(step);
@@ -96,15 +101,15 @@ const ComprarPage = () => {
         billing_period: billingPeriod as OrderData['billing_period'],
       };
 
-      // Generate contract in background
-      const tempOrder = { ...orderData, ...updatedOrder };
+      // Generate contract in background (usa o estado mais recente, evita dados vazios)
+      const tempOrder = { ...orderDataRef.current, ...updatedOrder };
       const contractBody = await generateContractBody(tempOrder as OrderData);
 
-      setOrderData(prev => ({
-        ...prev,
-        ...updatedOrder,
-        contract_body: contractBody,
-      }));
+      setOrderData(prev => {
+        const next = { ...prev, ...updatedOrder, contract_body: contractBody };
+        orderDataRef.current = next;
+        return next;
+      });
 
       // Advance to payment (step 2 in express)
       setCurrentStep(2);
@@ -114,7 +119,7 @@ const ComprarPage = () => {
     } finally {
       setExpressPreparing(false);
     }
-  }, [orderData, channelParam]);
+  }, [channelParam]);
 
   const nextStep = () => {
     if (isExpress && currentStep === 1) {

@@ -78,3 +78,16 @@ export function useOrders() {
 
   return { orders, isLoading, error, refetch: fetchOrders, stats };
 }
+
+export async function updateOrderNetAmount(orderId: string, netAmountCents: number) {
+  const { error } = await supabase
+    .from('julia_orders')
+    .update({ net_amount: netAmountCents, updated_at: new Date().toISOString() })
+    .eq('id', orderId);
+  if (error) throw error;
+}
+
+export async function deleteOrder(orderId: string) {
+  const { error } = await supabase.from('julia_orders').delete().eq('id', orderId);
+  if (error) throw error;
+}
