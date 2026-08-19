@@ -31,6 +31,7 @@ export type ModuleCode =
   | 'prompt_generator'
   | 'legal_cases'
   | 'contract_notifications'
+  | 'notifications_alerts'
   | 'julia_orders'
   | 'julia_plans'
   | 'adv_dashboard'
