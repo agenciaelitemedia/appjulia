@@ -44,6 +44,19 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Fetch InfinityPay config
+    const { data: ipConfig, error: cfgError } = await supabase
+      .from('julia_payment_config')
+      .select('*')
+      .eq('gateway', 'infinitypay')
+      .single()
+
+    const ipHandle = (ipConfig?.config as Record<string, string>)?.handle || 'atendejulia-masterchat'
+
+    if (cfgError) {
+      console.warn('[infinitypay-checkout] Config fetch error:', cfgError)
+    }
+
     // Generate unique order_nsu
     const orderNsu = `JULIA-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
 
@@ -53,7 +66,7 @@ Deno.serve(async (req) => {
 
     // Build InfinityPay payload
     const infinitypayPayload = {
-      handle: 'atendejulia-masterchat',
+      handle: ipHandle,
       items: [
         {
           quantity: 1,
