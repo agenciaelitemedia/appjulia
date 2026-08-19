@@ -577,9 +577,11 @@ async function takeover(sql: any, codAgent: string, sessionId: number | null, ph
 }
 
 /**
- * CRM de Notificações: garante um card aberto por (agente, telefone, gatilho).
- * Se já existe card aberto, apenas atualiza os dados; se o último foi resolvido,
- * um novo alerta cria um card novo (reabertura).
+ * CRM de Notificações: garante NO MÁXIMO UM card aberto por (agente, lead).
+ * O telefone é normalizado (últimos 8 dígitos), então variações de DDI/DDD/9º
+ * dígito não geram cards duplicados. Se o lead já tem card aberto, ele é
+ * movido para a coluna do novo alerta em vez de criar um segundo card.
+ * Cards resolvidos (recuperado/perdido) não bloqueiam a criação de um novo.
  */
 async function upsertAlertCrmCard(
   supabase: any,
@@ -594,24 +596,30 @@ async function upsertAlertCrmCard(
     logId: string | null;
   },
 ) {
+  const key = phoneKey(card.leadPhone);
+  if (!key) return;
   try {
     const { data: existing } = await supabase
       .from("alert_crm_cards")
-      .select("id")
+      .select("id, trigger_key")
       .eq("cod_agent", card.codAgent)
-      .eq("lead_phone", card.leadPhone)
-      .eq("trigger_key", card.triggerKey)
+      .eq("lead_phone_key", key)
       .eq("status", "open")
       .limit(1);
 
     if (existing && existing.length > 0) {
+      const moved = existing[0].trigger_key !== card.triggerKey;
       await supabase
         .from("alert_crm_cards")
         .update({
+          trigger_key: card.triggerKey,
           lead_name: card.leadName,
+          lead_phone: card.leadPhone,
           business_name: card.businessName,
           crm_stage_label: card.crmStageLabel,
           log_id: card.logId,
+          ...(moved ? { stage_entered_at: new Date().toISOString() } : {}),
+          updated_at: new Date().toISOString(),
         })
         .eq("id", existing[0].id);
       return;
@@ -622,6 +630,7 @@ async function upsertAlertCrmCard(
       cod_agent: card.codAgent,
       trigger_key: card.triggerKey,
       lead_phone: card.leadPhone,
+      lead_phone_key: key,
       lead_name: card.leadName,
       business_name: card.businessName,
       crm_stage_label: card.crmStageLabel,
