@@ -31,6 +31,8 @@ export type AlertTriggerKey =
 export type AlertMode = 'notify' | 'takeover';
 
 export interface AlertTriggerDef {
+  /** Código numérico único e estável da etapa (usado no param ?codEtapa=). */
+  code: number;
   key: AlertTriggerKey;
   label: string;
   situacao: string;
@@ -54,6 +56,7 @@ export const ALERT_DEFAULT_TEMPLATE = DEFAULT_TEMPLATE;
 
 export const ALERT_TRIGGERS: AlertTriggerDef[] = [
   {
+    code: 1,
     key: 'no_response',
     label: 'Cliente parou de responder',
     situacao: 'Lead parou de responder — recuperação',
@@ -62,6 +65,7 @@ export const ALERT_TRIGGERS: AlertTriggerDef[] = [
     usesSilenceMinutes: true,
   },
   {
+    code: 2,
     key: 'qualified',
     label: 'Lead qualificado',
     situacao: 'Lead qualificado',
@@ -70,6 +74,7 @@ export const ALERT_TRIGGERS: AlertTriggerDef[] = [
     usesStages: true,
   },
   {
+    code: 3,
     key: 'disqualified',
     label: 'Lead desqualificado',
     situacao: 'Lead desqualificado',
@@ -78,6 +83,7 @@ export const ALERT_TRIGGERS: AlertTriggerDef[] = [
     usesStages: true,
   },
   {
+    code: 4,
     key: 'contract_in_progress',
     label: 'Contrato em curso',
     situacao: 'Contrato em curso (aguardando assinatura)',
@@ -85,6 +91,7 @@ export const ALERT_TRIGGERS: AlertTriggerDef[] = [
     defaultMode: 'takeover',
   },
   {
+    code: 5,
     key: 'contract_signed',
     label: 'Contrato assinado',
     situacao: 'Contrato assinado',
@@ -92,6 +99,7 @@ export const ALERT_TRIGGERS: AlertTriggerDef[] = [
     defaultMode: 'takeover',
   },
   {
+    code: 6,
     key: 'flow_error',
     label: 'Fim de fluxo sem destino',
     situacao: 'Erro de fluxo — atendimento sem destino',
@@ -110,3 +118,16 @@ export const ALERT_VARIABLES = [
   { key: 'etapa_crm', label: 'Etapa no CRM da Julia' },
   { key: 'link_chat', label: 'Link do chat' },
 ] as const;
+
+export function getTriggerByCode(code: number): AlertTriggerDef | undefined {
+  return ALERT_TRIGGERS.find((t) => t.code === code);
+}
+
+/** Parseia "1,2,5" -> [1,2,5] (ignora valores inválidos). */
+export function parseCodEtapaParam(raw: string | null): number[] {
+  if (!raw) return [];
+  return raw
+    .split(',')
+    .map((v) => Number(v.trim()))
+    .filter((n) => Number.isFinite(n) && ALERT_TRIGGERS.some((t) => t.code === n));
+}

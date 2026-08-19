@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   UnifiedFilters,
   type UnifiedFiltersState,
@@ -27,8 +28,20 @@ const today = () => new Date().toISOString().slice(0, 10);
 const daysAgo = (n: number) =>
   new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
 
-export function CrmNotificacoesTab() {
+interface CrmNotificacoesTabProps {
+  /** Códigos de etapa (trigger.code) para restringir as colunas exibidas. */
+  codEtapas?: number[];
+}
+
+export function CrmNotificacoesTab({ codEtapas }: CrmNotificacoesTabProps = {}) {
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
+  const triggers = useMemo(
+    () =>
+      codEtapas && codEtapas.length > 0
+        ? ALERT_TRIGGERS.filter((t) => codEtapas.includes(t.code))
+        : ALERT_TRIGGERS,
+    [codEtapas],
+  );
   const [filters, setFilters] = useState<UnifiedFiltersState>({
     search: '',
     agentCodes: [],
@@ -56,9 +69,14 @@ export function CrmNotificacoesTab() {
     );
   }, [cards, filters.search]);
 
-  const openCards = filtered.filter((c) => c.status === 'open');
-  const recovered = filtered.filter((c) => c.status === 'recovered').length;
-  const lost = filtered.filter((c) => c.status === 'lost').length;
+  const scoped = useMemo(() => {
+    const keys = new Set(triggers.map((t) => t.key as string));
+    return filtered.filter((c) => keys.has(String(c.trigger_key)));
+  }, [filtered, triggers]);
+
+  const openCards = scoped.filter((c) => c.status === 'open');
+  const recovered = scoped.filter((c) => c.status === 'recovered').length;
+  const lost = scoped.filter((c) => c.status === 'lost').length;
 
   const handleCardClick = (card: AlertCrmCard) => {
     setSelected(card);
@@ -77,7 +95,7 @@ export function CrmNotificacoesTab() {
 
       {/* Totalizadores */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-        {ALERT_TRIGGERS.map((trigger, idx) => {
+        {triggers.map((trigger, idx) => {
           const count = openCards.filter((c) => c.trigger_key === trigger.key).length;
           return (
             <Card
@@ -124,7 +142,7 @@ export function CrmNotificacoesTab() {
             className="flex gap-4 pb-16 overflow-x-auto scrollbar-none"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {ALERT_TRIGGERS.map((trigger, idx) => {
+            {triggers.map((trigger, idx) => {
               const color = STAGE_COLORS[idx % STAGE_COLORS.length];
               const stageCards = openCards.filter((c) => c.trigger_key === trigger.key);
               return (
@@ -137,7 +155,19 @@ export function CrmNotificacoesTab() {
                     style={{ backgroundColor: `${color}20` }}
                   >
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div
+                              className="w-3 h-3 rounded-full cursor-help"
+                              style={{ backgroundColor: color }}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            cod: {trigger.code}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <h3 className="font-medium text-sm line-clamp-1" title={trigger.label}>
                         {trigger.label}
                       </h3>
