@@ -93,6 +93,41 @@ interface Candidate {
   sessionId?: number | null;
 }
 
+/** Etapa atual do lead no CRM da Julia (xj_deals -> xj_pipelines). */
+async function fetchCrmStage(
+  supabase: any,
+  clientId: string | null,
+  phone: string,
+): Promise<string> {
+  try {
+    const digits = String(phone ?? "").replace(/\D/g, "");
+    if (!digits) return "";
+    const tail = digits.slice(-8);
+
+    let query = supabase
+      .from("xj_deals")
+      .select("pipeline_id, updated_at, contact_phone")
+      .ilike("contact_phone", `%${tail}%`)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    if (clientId) query = query.eq("client_id", String(clientId));
+
+    const { data: deals } = await query;
+    const pipelineId = deals?.[0]?.pipeline_id;
+    if (!pipelineId) return "";
+
+    const { data: stage } = await supabase
+      .from("xj_pipelines")
+      .select("name")
+      .eq("id", pipelineId)
+      .maybeSingle();
+    return String(stage?.name ?? "");
+  } catch (err) {
+    console.warn("[alerts] etapa CRM não resolvida:", err);
+    return "";
+  }
+}
+
 /** Resumo curto das últimas mensagens do lead (mensagens do chat omnichannel). */
 async function buildResumo(supabase: any, phone: string): Promise<string> {
   try {
@@ -450,6 +485,7 @@ serve(async (req) => {
           if (existing && existing.length > 0) continue;
 
           const resumo = cand.resumo || (await buildResumo(supabase, cand.leadPhone));
+          const etapaCrm = await fetchCrmStage(supabase, clientId, cand.leadPhone);
           const message = renderTemplate(cfg.message_template ?? "", {
             lead_nome: cand.leadName || "Não informado",
             lead_whatsapp: cand.leadPhone,
@@ -457,6 +493,7 @@ serve(async (req) => {
             situacao: SITUACOES[cfg.trigger_key] ?? cfg.trigger_key,
             resumo_conversa: resumo,
             caso: cand.caso || "Não identificado",
+            etapa_crm: etapaCrm || "Sem etapa no CRM",
             link_chat: "",
           });
 
