@@ -628,6 +628,21 @@ serve(async (req) => {
           if (cfg.trigger_key === "no_response") {
             const minutes = Math.max(1, Number(cfg.no_response_minutes ?? 30));
             candidates = await fetchNoResponseCandidates(supabase, sql, codAgent, minutes);
+          } else if (
+            cfg.trigger_key === "contract_in_progress" || cfg.trigger_key === "contract_signed"
+          ) {
+            // Antes de coletar: confere assinaturas pendentes no ZapSign.
+            await syncXJContractSignatures(supabase, clientId);
+            const legacy = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
+            const xJulia = await fetchXJContractCandidates(
+              supabase, sql, codAgent, clientId, cfg.trigger_key,
+            );
+            const seenKeys = new Set<string>();
+            candidates = [...legacy, ...xJulia].filter((cand) => {
+              if (seenKeys.has(cand.dedupeKey)) return false;
+              seenKeys.add(cand.dedupeKey);
+              return true;
+            });
           } else {
             candidates = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
           }
