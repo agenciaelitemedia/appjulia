@@ -232,61 +232,37 @@ export function AlertCrmCardDetailsDialog({ card, open, onOpenChange }: Props) {
 
             {card.status === 'open' && (
               <div className="space-y-3">
-                <div className="rounded-md border border-green-500/30 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <ShieldAlert className="h-3.5 w-3.5" />
-                      Confirmar marcação como recuperado
-                    </Label>
-                    <Switch checked={confirmRecovered} onCheckedChange={setConfirmRecovered} />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-1.5 text-green-600 border-green-500/40 hover:bg-green-100/50 dark:hover:bg-green-900/30"
-                    onClick={() => handleResolve('recovered')}
-                    disabled={!confirmRecovered || resolveCard.isPending}
-                  >
-                    {resolveCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                    Recuperado
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5 text-green-600 border-green-500/40 hover:bg-green-100/50 dark:hover:bg-green-900/30"
+                  onClick={() => setRecoveredDialogOpen(true)}
+                  disabled={resolveCard.isPending}
+                >
+                  {resolveCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  Recuperado
+                </Button>
 
-                <div className="rounded-md border border-red-500/30 p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                      <ShieldAlert className="h-3.5 w-3.5" />
-                      Confirmar marcação como perdido
-                    </Label>
-                    <Switch checked={confirmLost} onCheckedChange={setConfirmLost} />
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-1.5 text-red-600 border-red-500/40 hover:bg-red-100/50 dark:hover:bg-red-900/30"
-                    onClick={() => handleResolve('lost')}
-                    disabled={!confirmLost || resolveCard.isPending}
-                  >
-                    {resolveCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
-                    Perdido
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5 text-red-600 border-red-500/40 hover:bg-red-100/50 dark:hover:bg-red-900/30"
+                  onClick={() => setLostDialogOpen(true)}
+                  disabled={resolveCard.isPending}
+                >
+                  {resolveCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+                  Perdido
+                </Button>
               </div>
             )}
 
-            <div className="mt-3 rounded-md border border-destructive/30 p-3 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-xs text-muted-foreground">
-                  Liberar exclusão definitiva deste card
-                </Label>
-                <Switch checked={confirmDelete} onCheckedChange={setConfirmDelete} />
-              </div>
+            <div className="mt-3">
               <Button
                 variant="destructive"
                 size="sm"
                 className="w-full gap-1.5"
-                disabled={!confirmDelete || deleteCard.isPending}
-                onClick={handleDelete}
+                disabled={deleteCard.isPending}
+                onClick={() => setDeleteDialogOpen(true)}
               >
                 {deleteCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                 Excluir card do CRM de Notificações
@@ -294,6 +270,99 @@ export function AlertCrmCardDetailsDialog({ card, open, onOpenChange }: Props) {
             </div>
           </TabsContent>
         </Tabs>
+
+        <AlertDialog open={recoveredDialogOpen} onOpenChange={setRecoveredDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-green-600">
+                <CheckCircle2 className="h-5 w-5" />
+                Marcar como recuperado?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                O lead <strong>{card.lead_name || card.lead_phone || 'Sem nome'}</strong> será movido para a coluna <strong>Recuperado</strong> e removido do CRM de Notificações ativo. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setRecoveredDialogOpen(false)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleResolve('recovered');
+                }}
+              >
+                {resolveCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                Sim, marcar como recuperado
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={lostDialogOpen} onOpenChange={setLostDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                <XCircle className="h-5 w-5" />
+                Marcar como perdido?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                O lead <strong>{card.lead_name || card.lead_phone || 'Sem nome'}</strong> será movido para a coluna <strong>Perdido</strong> e removido do CRM de Notificações ativo. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setLostDialogOpen(false)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleResolve('lost');
+                }}
+              >
+                {resolveCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                Sim, marcar como perdido
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                <Trash2 className="h-5 w-5" />
+                Excluir card permanentemente?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                O card de <strong>{card.lead_name || card.lead_phone || 'Sem nome'}</strong> será removido permanentemente do CRM de Notificações, junto com todo o histórico de ações de recuperação. Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex items-center gap-3 rounded-lg border p-3 my-3">
+              <Switch
+                id="confirm-delete-card"
+                checked={confirmDelete}
+                onCheckedChange={setConfirmDelete}
+              />
+              <Label htmlFor="confirm-delete-card" className="text-sm cursor-pointer">
+                Confirmo a exclusão definitiva deste card e de todo o histórico
+              </Label>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                disabled={!confirmDelete || deleteCard.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (!confirmDelete) return;
+                  handleDelete();
+                }}
+              >
+                {deleteCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                Excluir permanentemente
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
