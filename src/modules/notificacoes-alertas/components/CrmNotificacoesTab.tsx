@@ -142,7 +142,7 @@ export function CrmNotificacoesTab({ codEtapas }: CrmNotificacoesTabProps = {}) 
             className="flex gap-4 pb-16 overflow-x-auto scrollbar-none"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {ALERT_TRIGGERS.map((trigger, idx) => {
+            {triggers.map((trigger, idx) => {
               const color = STAGE_COLORS[idx % STAGE_COLORS.length];
               const stageCards = openCards.filter((c) => c.trigger_key === trigger.key);
               return (
