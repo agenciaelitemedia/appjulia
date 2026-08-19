@@ -48,6 +48,7 @@ const CampanhasPage = lazy(() => import("./pages/estrategico/campanhas/Campanhas
 const FollowupPage = lazy(() => import("./pages/agente/followup/FollowupPage"));
 const MyAgentsPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentsPage"));
 const MyAgentEditPage = lazy(() => import("./pages/agente/meus-agentes/MyAgentEditPage"));
+const NotificacoesAlertasPage = lazy(() => import("./modules/notificacoes-alertas/pages/NotificacoesAlertasPage"));
 const XJDashboardPage = lazy(() => import("./modules/x-julia/pages/DashboardPage"));
 const XJSessionsPage = lazy(() => import("./modules/x-julia/pages/SessionsPage"));
 const XJSessionDetailPage = lazy(() => import("./modules/x-julia/pages/SessionDetailPage"));
@@ -239,6 +240,7 @@ const App = () => (
                   <Route path="/painel-atendimento" element={<ProtectedRoute><OfficeDashboardPage /></ProtectedRoute>} />
                   <Route path="/datajud" element={<ProtectedRoute module="datajud"><DataJudSearchPage /></ProtectedRoute>} />
                   <Route path="/casos-juridicos" element={<ProtectedRoute module="legal_cases"><LegalCasesPage /></ProtectedRoute>} />
+                  <Route path="/notificacoes-alertas" element={<ProtectedRoute module="notifications_alerts"><NotificacoesAlertasPage /></ProtectedRoute>} />
                   <Route path="/notificacoes-contrato" element={<ProtectedRoute module="contract_notifications"><ContractNotificationsPage /></ProtectedRoute>} />
                   <Route path="/telefonia" element={<ProtectedRoute module="telephony"><TelefoniaPage /></ProtectedRoute>} />
                   <Route path="/comercial/crm" element={<ProtectedRoute module="crm_comercial"><CRMComercialPage /></ProtectedRoute>} />
