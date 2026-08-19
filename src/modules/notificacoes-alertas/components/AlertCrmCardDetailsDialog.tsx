@@ -100,7 +100,7 @@ export function AlertCrmCardDetailsDialog({ card, open, onOpenChange }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="info" className="flex-1 overflow-hidden flex flex-col">
+        <Tabs defaultValue="acoes" className="flex-1 overflow-hidden flex flex-col">
           <TabsList className="w-full">
             <TabsTrigger value="info" className="flex-1">Informações</TabsTrigger>
             <TabsTrigger value="acoes" className="flex-1">Ações de Recuperação</TabsTrigger>
