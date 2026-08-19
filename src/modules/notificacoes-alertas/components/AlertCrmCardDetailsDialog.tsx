@@ -33,6 +33,8 @@ export function AlertCrmCardDetailsDialog({ card, open, onOpenChange }: Props) {
   const { user } = useAuth();
   const [actionText, setActionText] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRecovered, setConfirmRecovered] = useState(false);
+  const [confirmLost, setConfirmLost] = useState(false);
 
   const { data: actions = [], isLoading: actionsLoading } = useAlertCrmCardActions(
     open ? card?.id ?? null : null,
