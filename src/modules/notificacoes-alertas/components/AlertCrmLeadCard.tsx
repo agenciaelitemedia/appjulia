@@ -92,10 +92,10 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    size="sm"
+                    size="icon"
                     variant="outline"
                     className={cn(
-                      'gap-1.5 rounded-full',
+                      'h-7 w-7 rounded-full',
                       voipUnavailable
                         ? 'opacity-60 text-muted-foreground border-border hover:bg-muted'
                         : 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100'
@@ -105,19 +105,27 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
                       setPhoneCallOpen(true);
                     }}
                     disabled={voipUnavailable}
-                    title={voipUnavailable ? 'VOIP Call indisponível' : 'VOIP Call (ramal disponível)'}
+                    title={voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}
                   >
                     {voipUnavailable ? <PhoneOff className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
-                    VOIP Call
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}</TooltipContent>
               </Tooltip>
 
-              <WavoipCallButton
-                phone={card.lead_phone}
-                contactName={card.lead_name}
-              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <WavoipCallButton
+                      phone={card.lead_phone}
+                      contactName={card.lead_name}
+                      iconOnly
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{!card.lead_phone ? 'ZAP Call indisponível' : 'Iniciar ZAP Call'}</TooltipContent>
+              </Tooltip>
+
 
               <Tooltip>
                 <TooltipTrigger asChild>
