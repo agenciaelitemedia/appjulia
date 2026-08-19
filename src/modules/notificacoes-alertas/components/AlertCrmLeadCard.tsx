@@ -56,7 +56,7 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
 
           <div className="space-y-1 text-xs text-muted-foreground">
             <p className="flex items-center gap-1.5">
-              <Phone className="h-3 w-3 shrink-0" />
+              <PhoneCall className="h-3 w-3 shrink-0" />
               {card.lead_phone || '—'}
             </p>
             <p className="flex items-center gap-1.5 truncate">
