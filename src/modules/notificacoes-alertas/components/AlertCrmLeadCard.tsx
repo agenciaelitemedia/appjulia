@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Eye, Hash, MessageCircle, Phone, User } from 'lucide-react';
+import { Clock, Eye, Hash, MessageCircle, Phone, PhoneCall, PhoneOff, User } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,8 +7,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatDbDateTime } from '@/lib/dateUtils';
-import { ChatSidePanel, useAgentChatTarget, useAgentAliases } from '../extend/crm';
+import { cn } from '@/lib/utils';
+import {
+  ChatSidePanel,
+  useAgentChatTarget,
+  useAgentAliases,
+  PhoneCallDialog,
+  usePhone,
+  WavoipCallButton,
+} from '../extend/crm';
 import type { AlertCrmCard } from '../types';
+
 
 interface Props {
   card: AlertCrmCard;
