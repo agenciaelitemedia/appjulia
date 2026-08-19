@@ -158,10 +158,44 @@ async function fetchNoResponseCandidates(
   const cutoff = new Date(now - minutes * 60_000).toISOString();
   const floor = new Date(now - 2 * 24 * 60 * 60_000).toISOString();
 
+  // chat_conversations.cod_agent não é preenchido; o vínculo com o agente vive
+  // em chat_contacts.cod_agent. Fallback: contatos do mesmo escritório sem agente.
+  const { data: agentContacts } = await supabase
+    .from("chat_contacts")
+    .select("id, phone, name")
+    .eq("cod_agent", codAgent)
+    .limit(500);
+  let contactRows: any[] = agentContacts ?? [];
+
+  if (contactRows.length === 0) {
+    let clientId: string | null = null;
+    try {
+      const rows = await sql.unsafe(
+        `SELECT client_id::text AS client_id FROM public.agents WHERE cod_agent::text = $1 LIMIT 1`,
+        [codAgent],
+      );
+      clientId = rows?.[0]?.client_id ?? null;
+    } catch (err) {
+      console.warn(`[alerts] client_id não resolvido para ${codAgent}:`, err);
+    }
+    if (clientId) {
+      const { data: officeContacts } = await supabase
+        .from("chat_contacts")
+        .select("id, phone, name")
+        .eq("client_id", clientId)
+        .is("cod_agent", null)
+        .order("last_message_at", { ascending: false })
+        .limit(500);
+      contactRows = officeContacts ?? [];
+    }
+  }
+  if (contactRows.length === 0) return [];
+  const byId = new Map(contactRows.map((c: any) => [c.id, c]));
+
   const { data: convs, error } = await supabase
     .from("chat_conversations")
     .select("id, contact_id, last_customer_message_at, last_message_from_me, status")
-    .eq("cod_agent", codAgent)
+    .in("contact_id", contactRows.map((c: any) => c.id))
     .eq("last_message_from_me", true)
     .not("last_customer_message_at", "is", null)
     .lte("last_customer_message_at", cutoff)
@@ -171,13 +205,6 @@ async function fetchNoResponseCandidates(
     .limit(200);
   if (error) throw error;
   if (!convs || convs.length === 0) return [];
-
-  const contactIds = [...new Set(convs.map((c: any) => c.contact_id).filter(Boolean))];
-  const { data: contacts } = await supabase
-    .from("chat_contacts")
-    .select("id, phone, name")
-    .in("id", contactIds);
-  const byId = new Map((contacts ?? []).map((c: any) => [c.id, c]));
 
   const out: Candidate[] = [];
   const seen = new Set<string>();

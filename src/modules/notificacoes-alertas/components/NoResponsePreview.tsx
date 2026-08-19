@@ -32,10 +32,12 @@ export function NoResponsePreview({ codAgent, minutes }: Props) {
     return () => clearTimeout(t);
   }, [minutes]);
 
-  const { data = [], isLoading, isError, error } = useNoResponsePreview(codAgent, debounced);
+  const { data, isLoading, isError, error } = useNoResponsePreview(codAgent, debounced);
+  const items = data?.items ?? [];
+  const scope = data?.scope ?? 'none';
 
-  const eligible = data.filter((d) => d.eligible).length;
-  const pending = data.length - eligible;
+  const eligible = items.filter((d) => d.eligible).length;
+  const pending = items.length - eligible;
 
   return (
     <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
@@ -53,9 +55,9 @@ export function NoResponsePreview({ codAgent, minutes }: Props) {
           <AlertTriangle className="h-3.5 w-3.5" />
           Não foi possível carregar a prévia{(error as any)?.message ? `: ${(error as any).message}` : ''}.
         </div>
-      ) : data.length === 0 ? (
+      ) : items.length === 0 ? (
         <p className="text-xs text-muted-foreground">
-          Nenhuma conversa em silêncio nas últimas 48h para este agente.
+          Nenhuma conversa em silêncio nas últimas 48h para este agente ou escritório.
         </p>
       ) : (
         <>
@@ -64,7 +66,7 @@ export function NoResponsePreview({ codAgent, minutes }: Props) {
           </p>
 
           <div className="space-y-2">
-            {data.slice(0, 8).map((item) => (
+            {items.slice(0, 8).map((item) => (
               <div
                 key={item.conversationId}
                 className="rounded-md border bg-background p-2.5 space-y-1.5"
@@ -101,7 +103,12 @@ export function NoResponsePreview({ codAgent, minutes }: Props) {
 
       <p className="text-[11px] text-muted-foreground">
         A prévia usa a mesma regra do disparo: janela máxima de 2 dias, conversas encerradas ignoradas e
-        apenas conversas cuja última mensagem foi nossa.
+        apenas conversas cuja última mensagem foi nossa.{' '}
+        {scope === 'office'
+          ? 'Como nenhum contato está vinculado a este agente, foram consideradas as conversas do escritório sem agente definido.'
+          : scope === 'agent'
+            ? 'Contatos vinculados a este agente.'
+            : ''}
       </p>
     </div>
   );
