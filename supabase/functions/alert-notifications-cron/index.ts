@@ -601,7 +601,7 @@ async function upsertAlertCrmCard(
   try {
     const { data: existing } = await supabase
       .from("alert_crm_cards")
-      .select("id, trigger_key")
+      .select("id, trigger_key, crm_stage_label")
       .eq("cod_agent", card.codAgent)
       .eq("lead_phone_key", key)
       .eq("status", "open")
@@ -616,7 +616,7 @@ async function upsertAlertCrmCard(
           lead_name: card.leadName,
           lead_phone: card.leadPhone,
           business_name: card.businessName,
-          crm_stage_label: card.crmStageLabel,
+          crm_stage_label: card.crmStageLabel ?? existing[0].crm_stage_label ?? null,
           log_id: card.logId,
           ...(moved ? { stage_entered_at: new Date().toISOString() } : {}),
           updated_at: new Date().toISOString(),
@@ -755,7 +755,21 @@ serve(async (req) => {
             .eq("trigger_key", cfg.trigger_key)
             .eq("dedupe_key", cand.dedupeKey)
             .limit(1);
-          if (existing && existing.length > 0) continue;
+          if (existing && existing.length > 0) {
+            // Alerta já foi enviado antes: não reenvia, mas garante que o card
+            // exista no CRM de Notificações (sem isso o lead nunca ganha card).
+            await upsertAlertCrmCard(supabase, {
+              clientId,
+              codAgent,
+              triggerKey: cfg.trigger_key,
+              leadPhone: cand.leadPhone,
+              leadName: cand.leadName ?? null,
+              businessName: businessName,
+              crmStageLabel: null,
+              logId: existing[0].id ?? null,
+            });
+            continue;
+          }
 
           const resumo = cand.resumo || (await buildResumo(supabase, cand.leadPhone));
           const etapaCrm = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
