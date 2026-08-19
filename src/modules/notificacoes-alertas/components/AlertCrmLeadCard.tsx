@@ -19,8 +19,8 @@ import {
 } from '../extend/crm';
 import type { AlertCrmCard } from '../types';
 
-
 interface Props {
+
   card: AlertCrmCard;
   onClick: () => void;
 }
@@ -38,8 +38,8 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
 
   const voipUnavailable = !isAvailable || !card.lead_phone;
 
-
   const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
+
     addSuffix: false,
     locale: ptBR,
   });
@@ -137,8 +137,8 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
               </Tooltip>
             </div>
           </TooltipProvider>
-
         </CardContent>
+
       </Card>
 
       {chatOpen && (
@@ -162,6 +162,6 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
         />
       )}
     </>
-
   );
 }
+
