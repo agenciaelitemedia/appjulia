@@ -601,7 +601,7 @@ async function upsertAlertCrmCard(
   try {
     const { data: existing } = await supabase
       .from("alert_crm_cards")
-      .select("id, trigger_key")
+      .select("id, trigger_key, crm_stage_label")
       .eq("cod_agent", card.codAgent)
       .eq("lead_phone_key", key)
       .eq("status", "open")
@@ -616,7 +616,7 @@ async function upsertAlertCrmCard(
           lead_name: card.leadName,
           lead_phone: card.leadPhone,
           business_name: card.businessName,
-          crm_stage_label: card.crmStageLabel,
+          crm_stage_label: card.crmStageLabel ?? existing[0].crm_stage_label ?? null,
           log_id: card.logId,
           ...(moved ? { stage_entered_at: new Date().toISOString() } : {}),
           updated_at: new Date().toISOString(),
