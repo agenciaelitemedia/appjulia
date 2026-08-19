@@ -18,7 +18,11 @@ interface Props {
 export function AlertCrmLeadCard({ card, onClick }: Props) {
   const { getAlias } = useAgentAliases();
   const [chatOpen, setChatOpen] = useState(false);
-  const { target: chatTarget } = useAgentChatTarget(card.cod_agent, card.lead_phone || '');
+  const { target: chatTarget, isLoading: chatLoading } = useAgentChatTarget(
+    card.cod_agent,
+    card.lead_phone || '',
+    chatOpen,
+  );
 
   const timeInStage = formatDistanceToNow(new Date(card.stage_entered_at), {
     addSuffix: false,
@@ -95,10 +99,10 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
         <ChatSidePanel
           open={chatOpen}
           onOpenChange={setChatOpen}
-          contactId={chatTarget?.contactId}
-          conversationId={chatTarget?.conversationId}
-          phone={card.lead_phone || undefined}
-          contactName={card.lead_name || undefined}
+          target={chatTarget ?? null}
+          isLoading={chatLoading}
+          title={card.lead_name || card.lead_phone || 'Conversa'}
+          emptyDescription="Nenhuma conversa encontrada para este lead."
         />
       )}
     </>
