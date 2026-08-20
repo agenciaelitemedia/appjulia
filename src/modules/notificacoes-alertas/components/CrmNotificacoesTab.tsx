@@ -35,6 +35,7 @@ interface CrmNotificacoesTabProps {
 }
 
 export function CrmNotificacoesTab({ codEtapas }: CrmNotificacoesTabProps = {}) {
+  useAlertCrmRealtime();
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
   const triggers = useMemo(
     () =>
