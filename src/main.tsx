@@ -22,3 +22,11 @@ if (isPreviewHost || isInIframe) {
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Remove o splash inicial (mascote) assim que o app monta
+requestAnimationFrame(() => {
+  const splash = document.getElementById("aj-splash");
+  if (!splash) return;
+  splash.classList.add("aj-splash-hidden");
+  window.setTimeout(() => splash.remove(), 400);
+});

@@ -24,6 +24,7 @@ import { ChatHeatmap } from '@/components/chat/analytics/ChatHeatmap';
 import { generateChatMetricsPdf } from '@/lib/chatPdfReport';
 import { useChatSlaConfigs } from '@/hooks/useChatSlaConfigs';
 import { cn } from '@/lib/utils';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface ConversationRow {
   id: string;
@@ -476,7 +477,7 @@ export default function ChatMetricsPage() {
   };
 
   if (loading) {
-    return <div className="p-6 flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+    return <div className="p-6 flex items-center justify-center h-full"><MascoteLoader size="sm" /></div>;
   }
 
   return (

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function RedirectPage() {
   const [searchParams] = useSearchParams();
@@ -91,7 +92,7 @@ export default function RedirectPage() {
       <Card className="max-w-md w-full">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Loader2 className="h-6 w-6 text-primary animate-spin" />
+            <MascoteLoader size="xs" />
           </div>
           <CardTitle>Redirecionando...</CardTitle>
           <CardDescription className="space-y-2">

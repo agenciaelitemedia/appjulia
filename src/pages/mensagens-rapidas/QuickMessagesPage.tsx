@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AVAILABLE_VARIABLES, interpolateVariables } from '@/lib/messageVariables';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 type Kind = 'text' | 'image' | 'video' | 'audio' | 'document' | 'link';
 
@@ -292,7 +293,7 @@ export default function QuickMessagesPage() {
 
       {isLoadingAll ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <MascoteLoader size="sm" />
         </div>
       ) : filtered.length === 0 ? (
         <Card>

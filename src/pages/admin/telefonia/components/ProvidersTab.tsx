@@ -7,6 +7,7 @@ import { Plus, Pencil, Trash2, Star, Loader2 } from 'lucide-react';
 import { useTelephonyProviders, useDeleteTelephonyProvider, type TelephonyProvider } from '../hooks/useTelephonyProviders';
 import { ProviderDialog } from './ProviderDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export function ProvidersTab() {
   const { data: providers = [], isLoading } = useTelephonyProviders();
@@ -31,7 +32,7 @@ export function ProvidersTab() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          <div className="py-8 flex justify-center"><MascoteLoader size="xs" /></div>
         ) : providers.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             Nenhum provedor cadastrado. Adicione um para liberar contratações automáticas.

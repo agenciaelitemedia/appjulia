@@ -14,6 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import {
+import { MascoteLoader } from "@/components/ui/mascote-loader";
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 
@@ -218,7 +219,7 @@ export default function SupportTeamConfig({ onMembersChange }: SupportTeamConfig
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <MascoteLoader size="xs" />
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

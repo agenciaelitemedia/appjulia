@@ -9,6 +9,7 @@ import { generateContractBody } from './steps/ContractStep';
 import { Check, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export interface OrderData {
   id?: string;
@@ -137,7 +138,7 @@ const ComprarPage = () => {
     if (expressPreparing) {
       return (
         <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-[#6C3AED]" />
+          <MascoteLoader size="sm" />
           <p className="text-gray-500 text-sm">Preparando seu pedido...</p>
         </div>
       );

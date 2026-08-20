@@ -18,6 +18,7 @@ import { isEncryptionEnvelope } from '@/lib/chat/envelopeFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { useConversationSummaries, type ConversationSummary } from '@/hooks/useConversationSummaries';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface ChatMessagesProps {
   contactId: string;
@@ -425,7 +426,7 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
           {/* Loading state */}
           {isLoading && contactMessages.length === 0 && (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <MascoteLoader size="xs" />
             </div>
           )}
 

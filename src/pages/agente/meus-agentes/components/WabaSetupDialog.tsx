@@ -11,6 +11,7 @@ import { Loader2, CheckCircle2, AlertCircle, Shield } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { UserAgent } from '../types';
 import { toast } from 'sonner';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface WabaSetupDialogProps {
   open: boolean;
@@ -257,7 +258,7 @@ export function WabaSetupDialog({ open, onOpenChange, agent, onSuccess }: WabaSe
 
           {isProcessing && (
             <div className="flex flex-col items-center gap-3 py-6">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <MascoteLoader size="sm" />
               <p className="text-sm text-muted-foreground">{stepMessages[step]}</p>
             </div>
           )}

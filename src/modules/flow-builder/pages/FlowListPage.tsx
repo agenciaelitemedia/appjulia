@@ -29,6 +29,7 @@ import { useFlows, useFlowMutations, type FlowSummary } from '../hooks/useFlows'
 import { useFlowBuilderPermissions } from '../extend/auth';
 import { useEnsureFlowBuilderModule } from '../extend/useEnsureFlowBuilderModule';
 import { FLOW_BUILDER_MODULE, FLOW_BUILDER_ROUTES } from '../module';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function FlowListPage() {
   useEnsureFlowBuilderModule();
@@ -68,7 +69,7 @@ export default function FlowListPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <MascoteLoader size="xs" />
         </div>
       ) : flows.length === 0 ? (
         <Card className="border-dashed">

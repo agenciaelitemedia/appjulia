@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Check, MessageSquare } from 'lucide-react';
 import { type QueuePlan, type BillingPeriod, type ContractDraft, PERIOD_LABELS, calculateTotal, priceForPeriod, setupFeeForPeriod } from '../types';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Props {
   draft: ContractDraft;
@@ -53,7 +54,7 @@ export function SelectPlanStep({ draft, onChange, onNext }: Props) {
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground col-span-2 mx-auto" />}
+          {isLoading && <MascoteLoader size="xs" className="col-span-full" />}
           {plans.map((p) => {
             const selected = draft.plan?.id === p.id;
             const price = priceForPeriod(p, draft.billing_period);

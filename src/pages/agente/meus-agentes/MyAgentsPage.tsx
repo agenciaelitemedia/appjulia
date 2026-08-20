@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMyAgents } from './hooks/useMyAgents';
 import { AgentCard } from './components/AgentCard';
 import { XJAgentsSection, useXJAgentsCount } from '@/modules/x-julia/public/XJAgentsSection';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function MyAgentsPage() {
   const { data, isLoading, error } = useMyAgents();
@@ -13,7 +14,7 @@ export default function MyAgentsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <MascoteLoader size="sm" />
       </div>
     );
   }

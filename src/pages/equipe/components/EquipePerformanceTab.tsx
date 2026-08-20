@@ -33,6 +33,7 @@ import {
 import { useTeamPerformance, usePresenceBackfillUntil, type PerformancePeriod } from '../hooks/useTeamPerformance';
 import { EquipePerformanceDrawer } from './EquipePerformanceDrawer';
 import { cn } from '@/lib/utils';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 type PeriodKey = 'today' | 'yesterday' | '7d' | 'month' | 'last_month' | 'custom';
 
@@ -233,7 +234,7 @@ export function EquipePerformanceTab() {
 
       {isLoading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <MascoteLoader size="xs" />
         </div>
       )}
 

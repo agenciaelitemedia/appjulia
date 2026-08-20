@@ -4,6 +4,7 @@ import { Plus, Database, Loader2 } from 'lucide-react';
 import { ModulesList } from './components/ModulesList';
 import { ModuleDialog } from './components/ModuleDialog';
 import { useModulesAdmin, type ModuleFormData } from './hooks/useModulesAdmin';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function ModulosPage() {
   const {
@@ -68,7 +69,7 @@ export default function ModulosPage() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <MascoteLoader size="sm" />
             </div>
           ) : (
             <ModulesList

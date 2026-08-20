@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, Save, RotateCcw, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const DEFAULT_PROMPT_KEY = 'script_generator';
 
@@ -62,7 +63,7 @@ export function PromptConfigTab() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

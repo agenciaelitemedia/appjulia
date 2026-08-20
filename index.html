@@ -34,10 +34,88 @@
       href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <style>
+      #aj-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(120% 90% at 20% 10%, #2b1140 0%, #150a24 45%, #0c0716 100%);
+        transition: opacity 0.35s ease;
+      }
+      #aj-splash.aj-splash-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .aj-splash-wrap {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 96px;
+        height: 96px;
+      }
+      .aj-splash-ring {
+        position: absolute;
+        inset: -8px;
+        border-radius: 9999px;
+        background: conic-gradient(
+          from 0deg,
+          transparent 0deg,
+          #e0399b 200deg,
+          #7c3aed 320deg,
+          transparent 360deg
+        );
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+        mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+        animation: aj-splash-spin 1s linear infinite;
+      }
+      .aj-splash-glow {
+        position: absolute;
+        inset: -14px;
+        border-radius: 9999px;
+        background: linear-gradient(135deg, #7c3aed, #e0399b);
+        opacity: 0.25;
+        filter: blur(22px);
+      }
+      .aj-splash-mascote {
+        position: relative;
+        width: 96px;
+        height: 96px;
+        object-fit: contain;
+        animation: aj-splash-float 2.4s ease-in-out infinite;
+      }
+      @keyframes aj-splash-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @keyframes aj-splash-float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-6px);
+        }
+      }
+    </style>
   </head>
 
   <body class="notranslate" translate="no">
+    <div id="aj-splash">
+      <div class="aj-splash-wrap">
+        <span class="aj-splash-glow"></span>
+        <span class="aj-splash-ring"></span>
+        <img
+          class="aj-splash-mascote"
+          src="/__l5e/assets-v1/aeaba325-79a1-4008-a408-718f0ee0b7a2/julia-mascote-acenando.png"
+          alt=""
+        />
+      </div>
+    </div>
     <div id="root" class="notranslate" translate="no"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+

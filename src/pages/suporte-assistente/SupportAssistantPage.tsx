@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import SupportLogsTab from "./components/SupportLogsTab";
 import SupportGroupsTab from "./components/SupportGroupsTab";
 import SupportTeamConfig from "./components/SupportTeamConfig";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface SupportConfig {
   id?: string;
@@ -311,7 +312,7 @@ export default function SupportAssistantPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <MascoteLoader size="sm" />
       </div>
     );
   }

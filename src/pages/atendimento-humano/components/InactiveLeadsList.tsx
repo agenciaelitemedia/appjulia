@@ -12,6 +12,7 @@ import { StartConversationFooter } from './StartConversationFooter';
 import { cn } from '@/lib/utils';
 import type { InactiveSession } from '@/lib/externalDb';
 import type { LeadPeriod, JuliaFilter } from '../hooks/useInactiveLeads';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const PERIOD_OPTIONS: { value: LeadPeriod; label: string }[] = [
   { value: 'all', label: 'Todos' },
@@ -265,7 +266,7 @@ export function InactiveLeadsList({
       <ScrollArea className="flex-1">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <MascoteLoader size="xs" />
           </div>
         ) : leads.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">

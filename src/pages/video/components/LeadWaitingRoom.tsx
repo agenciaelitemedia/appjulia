@@ -6,6 +6,7 @@ import { useRealtimeQueue } from '../hooks/useRealtimeQueue';
 import { QueuePositionIndicator } from './QueuePositionIndicator';
 import { InformativeCarousel } from './InformativeCarousel';
 import { supabase } from '@/integrations/supabase/client';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface LeadWaitingRoomProps {
   roomName: string;
@@ -158,7 +159,7 @@ export function LeadWaitingRoom({
             <div className="relative aspect-video bg-muted">
               {isInitializing ? (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <MascoteLoader size="md" />
                 </div>
               ) : (
                 <>

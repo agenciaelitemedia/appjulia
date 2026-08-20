@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Check, Video } from 'lucide-react';
 import {
+import { MascoteLoader } from "@/components/ui/mascote-loader";
   type VideoPlan, type BillingPeriod, type ContractDraft,
   PERIOD_LABELS, calculateTotal, priceForPeriod, setupFeeForPeriod, isAddonsFree,
 } from '../types';
@@ -58,7 +59,7 @@ export function SelectPlanStep({ draft, onChange, onNext }: Props) {
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground col-span-3 mx-auto" />}
+          {isLoading && <MascoteLoader size="xs" className="col-span-full" />}
           {plans.map((p) => {
             const selected = draft.plan?.id === p.id;
             const price = priceForPeriod(p, draft.billing_period);

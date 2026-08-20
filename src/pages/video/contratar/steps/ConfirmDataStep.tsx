@@ -7,6 +7,7 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import type { ContractDraft } from '../types';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Props {
   draft: ContractDraft;
@@ -87,7 +88,7 @@ export function ConfirmDataStep({ draft, onChange, onNext, onBack, busy }: Props
       <CardContent className="space-y-4 relative min-h-[280px]">
         {loading && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/80 backdrop-blur-sm rounded-md">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <MascoteLoader size="xs" />
             <p className="text-sm text-muted-foreground">Carregando seus dados...</p>
           </div>
         )}

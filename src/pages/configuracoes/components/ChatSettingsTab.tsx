@@ -16,6 +16,7 @@ import {
   type ChatClientSettingRow,
 } from '../hooks/useChatClientSettings';
 import { ChatSettingsDialog } from './ChatSettingsDialog';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export function ChatSettingsTab() {
   const { data: settings = [], isLoading } = useChatClientSettings();
@@ -81,7 +82,7 @@ export function ChatSettingsTab() {
 
       {isLoading ? (
         <div className="flex items-center justify-center h-32">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          <MascoteLoader size="xs" />
         </div>
       ) : settings.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">

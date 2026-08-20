@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Trophy, Star, CheckCircle, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const PERIODS: { value: PointsPeriod; label: string }[] = [
   { value: 'week', label: 'Semana' },
@@ -34,7 +35,7 @@ export function TasksDashboard() {
   if (isLoading && tasksLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

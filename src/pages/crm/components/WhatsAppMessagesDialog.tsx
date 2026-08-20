@@ -234,6 +234,7 @@ function formatQuotedParticipant(participant?: string): string {
 
 // Componente para exibir mensagem citada
 import React from 'react';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const QuotedMessage = React.forwardRef<
   HTMLDivElement,
@@ -664,7 +665,7 @@ const MessageBubble = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
                   onClick={() => onDownload?.(message.id)}
                 >
                   {isDownloading ? (
-                    <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
+                    <MascoteLoader size="xs" />
                   ) : (
                     <Video className="h-6 w-6 text-muted-foreground" />
                   )}
@@ -2370,7 +2371,7 @@ export function WhatsAppMessagesDialog({
           {loading ? (
             <div className="flex items-center justify-center h-full py-20">
               <div className="text-center space-y-3">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                <MascoteLoader size="sm" />
                 <p className="text-sm text-muted-foreground">Carregando mensagens...</p>
               </div>
             </div>

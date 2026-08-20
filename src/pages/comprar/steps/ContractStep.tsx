@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight, Loader2, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
 import type { OrderData } from '../ComprarPage';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Props {
   orderData: OrderData;
@@ -68,7 +69,7 @@ export const ContractStep = ({ orderData, updateOrder, onNext, onBack }: Props) 
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-[#6C3AED]" />
+        <MascoteLoader size="sm" />
       </div>
     );
   }

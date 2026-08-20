@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, CreditCard, Loader2, ShieldCheck, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import type { OrderData } from '../ComprarPage';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Props {
   orderData: OrderData;
@@ -126,7 +127,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
         <CardContent className="py-12 space-y-6 text-center">
           <div className="flex justify-center">
             <div className="w-16 h-16 rounded-full bg-[#6C3AED]/10 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 text-[#6C3AED] animate-spin" />
+              <MascoteLoader size="sm" />
             </div>
           </div>
 
@@ -231,7 +232,7 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
             className="flex-1 h-14 bg-[#6C3AED] hover:bg-[#5B2BD4] text-white text-lg font-bold rounded-xl"
           >
             {loading ? (
-              <Loader2 className="w-6 h-6 animate-spin" />
+              <MascoteLoader size="xs" />
             ) : (
               <>
                 <CreditCard className="w-5 h-5 mr-2" />

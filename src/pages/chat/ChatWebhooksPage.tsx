@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, Plus, Trash2, Edit, Webhook, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Hook {
   id: string;
@@ -91,7 +92,7 @@ export default function ChatWebhooksPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+        <div className="flex items-center justify-center py-10"><MascoteLoader size="sm" /></div>
       ) : hooks.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground"><Webhook className="h-10 w-10 mx-auto mb-3 opacity-30" /><p>Nenhum webhook configurado.</p></CardContent></Card>
       ) : (

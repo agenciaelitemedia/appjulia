@@ -13,6 +13,7 @@ import { DeleteOrderButton } from './components/DeleteOrderButton';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
 import { Search, DollarSign, Clock, CheckCircle, FileText, Loader2, Eye, Filter, X, TrendingDown, Wallet, ScrollText } from 'lucide-react';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   draft: { label: 'Rascunho', variant: 'outline' },
@@ -137,7 +138,7 @@ const PedidosPage = () => {
         <CardContent className="pt-6 overflow-x-auto">
           {isLoading ? (
             <div className="flex justify-center py-10">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <MascoteLoader size="xs" />
             </div>
           ) : (
             <table className="w-full text-sm">

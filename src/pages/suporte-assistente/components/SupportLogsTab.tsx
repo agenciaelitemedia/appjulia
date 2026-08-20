@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Loader2, ChevronLeft, ChevronRight, Search, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const PAGE_SIZE = 20;
 
@@ -86,7 +87,7 @@ export default function SupportLogsTab({ teamPhones }: SupportLogsTabProps) {
       <CardContent>
         {loading ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <MascoteLoader size="xs" />
           </div>
         ) : messages.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">Nenhuma mensagem encontrada</p>

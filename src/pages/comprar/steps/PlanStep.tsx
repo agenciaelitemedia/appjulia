@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight, Check, Star, Zap, Crown, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import type { OrderData } from '../ComprarPage';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface PlanFromDB {
   id: string;
@@ -143,7 +144,7 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
   if (loading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-[#6C3AED]" />
+        <MascoteLoader size="sm" />
       </div>
     );
   }

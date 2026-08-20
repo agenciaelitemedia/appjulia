@@ -13,6 +13,7 @@ import { RestoreQueueDialog } from './components/RestoreQueueDialog';
 import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';
 import { useAgentQueueLimits } from './hooks/useAgentQueueLimits';
 import {
+import { MascoteLoader } from "@/components/ui/mascote-loader";
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -61,7 +62,7 @@ export default function FilasPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <MascoteLoader size="sm" />
       </div>
     );
   }

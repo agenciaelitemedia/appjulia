@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Plus, Pencil, Loader2, Trash2, Save, Eye, Edit } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Plan {
   id: string;
@@ -204,7 +205,7 @@ const PlanosPage = () => {
   };
 
   if (loading) {
-    return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin" /></div>;
+    return <div className="flex justify-center py-20"><MascoteLoader size="sm" /></div>;
   }
 
   const handleSaveContract = async () => {
@@ -438,7 +439,7 @@ const PlanosPage = () => {
               </CardHeader>
               <CardContent>
                 {contractLoading ? (
-                  <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin" /></div>
+                  <div className="flex justify-center py-20"><MascoteLoader size="sm" /></div>
                 ) : contractMode === 'edit' ? (
                   <Textarea
                     value={contractBody}

@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Save, Loader2, Sparkles, AlertTriangle, Flame, Clock, TrendingUp, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CopilotSettings } from '../hooks/useCopilotAdmin';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const INSIGHT_TYPES = [
   { key: 'stuck_lead', label: 'Lead Parado', icon: Clock, desc: 'Detectar leads sem movimentação há mais de 48h' },
@@ -58,7 +59,7 @@ export function CopilotSettingsTab({ settings, isLoading, onSave, isSaving }: Pr
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

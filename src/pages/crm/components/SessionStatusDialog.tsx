@@ -27,6 +27,7 @@ import { toggleJuliaSession } from '@/lib/juliaSessionControl';
 import { useAgentQueueLink } from '@/hooks/useAgentQueueLink';
 import { formatTimeSaoPaulo, formatDateShortSaoPaulo } from '@/lib/dateUtils';
 import { useToast } from '@/hooks/use-toast';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface SessionStatusDialogProps {
   open: boolean;
@@ -157,7 +158,7 @@ export function SessionStatusDialog({
           <div className="space-y-4 pt-2">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <MascoteLoader size="xs" />
               </div>
             ) : error ? (
               <div className="text-center py-8 text-destructive text-sm">

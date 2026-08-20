@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, RefreshCw, Users, Shield, User, Search, Eye, EyeOff, MonitorCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface SupportGroupsTabProps {
   apiUrl: string;
@@ -382,7 +383,7 @@ export default function SupportGroupsTab({ apiUrl, instanceToken }: SupportGroup
       <CardContent>
         {loading ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <MascoteLoader size="xs" />
           </div>
         ) : filteredGroups.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">

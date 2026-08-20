@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { formatRelativePtBR } from '@/lib/relativeTime';
 import { useSoundAlertSettings } from '@/hooks/useSoundAlertSettings';
 import { toast } from 'sonner';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 function fmt(date: string | null | undefined) {
   if (!date) return null;
@@ -117,7 +118,7 @@ export function EquipeDashboardTab() {
         <Card>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <MascoteLoader size="xs" />
             </div>
           ) : (
             <Table>

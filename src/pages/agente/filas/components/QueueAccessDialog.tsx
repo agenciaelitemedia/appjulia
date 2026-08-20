@@ -10,6 +10,7 @@ import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueueMembers, useSetQueueMembers } from '@/hooks/useQueueMembers';
 import { toast } from 'sonner';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Props {
   queueId: string;
@@ -119,7 +120,7 @@ export function QueueAccessDialog({ queueId, queueName, open, onOpenChange }: Pr
         </DialogHeader>
 
         {isLoading ? (
-          <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          <div className="py-12 flex justify-center"><MascoteLoader size="xs" /></div>
         ) : (
           <div className="space-y-4">
             <div className="space-y-2">

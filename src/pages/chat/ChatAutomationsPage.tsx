@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { ArrowLeft, Plus, Trash2, Edit, Zap, Activity, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { AutomationTemplatesDialog } from '@/components/chat/AutomationTemplatesDialog';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Rule {
   id: string;
@@ -136,7 +137,7 @@ export default function ChatAutomationsPage({ embedded = false }: { embedded?: b
       />
 
       {loading ? (
-        <div className="flex items-center justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
+        <div className="flex items-center justify-center py-10"><MascoteLoader size="sm" /></div>
       ) : rules.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground">
           <Zap className="h-10 w-10 mx-auto mb-3 opacity-30" />

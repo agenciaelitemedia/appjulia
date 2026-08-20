@@ -4,6 +4,7 @@ import { Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { externalDb } from '@/lib/externalDb';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface ResolvedEmbed {
   url: string;
@@ -45,7 +46,7 @@ export default function EmbedPage() {
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-60px)] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <MascoteLoader size="sm" />
       </div>
     );
   }

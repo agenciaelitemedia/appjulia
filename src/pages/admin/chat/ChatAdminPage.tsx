@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function ChatAdminPage() {
   const { data: providers = [], isLoading } = useQueueProviders();
@@ -122,7 +123,7 @@ export default function ChatAdminPage() {
 
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              <MascoteLoader size="xs" />
             </div>
           ) : providers.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">

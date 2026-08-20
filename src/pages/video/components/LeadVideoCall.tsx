@@ -13,6 +13,7 @@ import { Loader2, Video as VideoIcon, AlertCircle, RefreshCw } from 'lucide-reac
 import { VideoTile } from './VideoTile';
 import { VideoControls } from './VideoControls';
 import { Button } from '@/components/ui/button';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface LeadVideoCallProps {
   roomUrl: string;
@@ -125,7 +126,7 @@ function LeadCallContent({ onLeave }: { onLeave: () => void }) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <MascoteLoader size="md" />
           <p className="text-muted-foreground text-lg">Entrando na chamada...</p>
           {/* Debug footer */}
           <p className="text-xs text-muted-foreground/50 font-mono">{debugInfo}</p>
@@ -301,7 +302,7 @@ export function LeadVideoCall({ roomUrl, onLeave, onError }: LeadVideoCallProps)
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <MascoteLoader size="md" />
           <p className="text-muted-foreground text-lg">Preparando sua chamada...</p>
           <p className="text-muted-foreground text-sm">Permita o acesso à câmera e microfone</p>
           {/* Debug footer */}

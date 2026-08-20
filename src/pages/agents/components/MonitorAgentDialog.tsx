@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { externalDb } from '@/lib/externalDb';
 import { useUserSearch, SearchedUser } from '../hooks/useUserSearch';
 import { useAgentSearch, SearchedAgent } from '../hooks/useAgentSearch';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface MonitorAgentDialogProps {
   open: boolean;
@@ -162,7 +163,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
               <ScrollArea className="h-[280px] pr-4">
                 {userSearch.isLoading ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <MascoteLoader size="xs" />
                   </div>
                 ) : userSearch.error ? (
                   <div className="text-center py-8 text-destructive">
@@ -230,7 +231,7 @@ export function MonitorAgentDialog({ open, onOpenChange, onSuccess }: MonitorAge
               <ScrollArea className="h-[220px] pr-4">
                 {agentSearch.isLoading ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <MascoteLoader size="xs" />
                   </div>
                 ) : agentSearch.error ? (
                   <div className="text-center py-8 text-destructive">

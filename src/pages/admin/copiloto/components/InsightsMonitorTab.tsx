@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { InsightDetailCard } from './InsightDetailCard';
 import type { InsightFilters } from '../hooks/useCopilotAdmin';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Props {
   insights: any[];
@@ -81,7 +82,7 @@ export function InsightsMonitorTab({
       {/* Results */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <MascoteLoader size="xs" />
         </div>
       ) : insights.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">

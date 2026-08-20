@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Settings, Loader2, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface PaymentConfig {
   id?: string;
@@ -138,7 +139,7 @@ export const PaymentSettingsDialog = () => {
 
         {loading ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <MascoteLoader size="xs" />
           </div>
         ) : (
           <Tabs defaultValue="gateways" className="mt-2">
