@@ -72,84 +72,9 @@ export function ConversationSummaries({ conversationId, contactId }: Conversatio
       )}
 
       <div className="space-y-3">
-        {summaries.map((s) => {
-          const isOpen = !!expanded[s.id];
-          return (
-          <div key={s.id} className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
-            {/* Header */}
-            <button
-              type="button"
-              onClick={() => toggle(s.id)}
-              className="w-full flex items-center gap-3 px-4 py-2 bg-muted/50 border-b text-xs text-muted-foreground hover:bg-muted transition-colors text-left"
-            >
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {format(new Date(s.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-              </span>
-              <span className="flex items-center gap-1">
-                <MessageSquare className="h-3 w-3" />
-                {s.message_count} mensagens
-              </span>
-              {s.triggered_by && s.triggered_by.startsWith('auto') && (
-                <Badge variant="secondary" className="text-xs py-0 px-1.5 h-4 gap-0.5">
-                  <Zap className="h-2.5 w-2.5" />
-                  {s.triggered_by === 'auto_resolve'
-                    ? 'auto (resolvida)'
-                    : s.triggered_by === 'auto_close'
-                    ? 'auto (encerrada)'
-                    : 'automático'}
-                </Badge>
-              )}
-              <span className="ml-auto flex items-center gap-1 text-muted-foreground">
-                {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              </span>
-            </button>
-
-            {!isOpen ? (
-              <div className="px-4 py-3">
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {buildPreview(s.summary)}
-                </p>
-              </div>
-            ) : (
-            <div className="p-4 space-y-3">
-              {/* Período */}
-              <div className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Clock className="h-3 w-3" />
-                <span className="font-medium text-foreground">Período:</span>
-                <span>{formatTs(s.first_message_ts)}</span>
-                <span>→</span>
-                <span>{formatTs(s.last_message_ts)}</span>
-              </div>
-
-              {/* Sentiment */}
-              {s.sentiment && (
-                <div className="text-sm">
-                  <span className="font-medium text-foreground">Sentimento:</span>{' '}
-                  <span className="text-muted-foreground">{s.sentiment}</span>
-                </div>
-              )}
-
-              {/* Summary */}
-              <div className="text-sm">
-                <p className="font-medium text-foreground mb-1">Resumo:</p>
-                <div className="text-muted-foreground space-y-0.5 whitespace-pre-line">
-                  {s.summary}
-                </div>
-              </div>
-
-              {/* Atendimento */}
-              {s.atendimento && (
-                <div className="text-sm">
-                  <span className="font-medium text-foreground">Atendimento:</span>{' '}
-                  <span className="text-muted-foreground">{s.atendimento}</span>
-                </div>
-              )}
-            </div>
-            )}
-          </div>
-          );
-        })}
+        {summaries.map((s) => (
+          <SummaryCard key={s.id} summary={s} />
+        ))}
       </div>
     </div>
   );
