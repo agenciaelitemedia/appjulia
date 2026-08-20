@@ -640,6 +640,14 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Gerar resumo do atendimento com IA */}
+          <GenerateSummaryButton
+            conversationId={selectedConversation?.id ?? null}
+            contactId={selectedContact?.id ?? null}
+            iconOnly
+            className="h-9 w-9 flex-shrink-0"
+          />
+
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
