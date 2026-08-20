@@ -378,7 +378,7 @@ async function fetchCandidates(
          LEFT JOIN sessions s ON s.whatsapp_number::text = c.whatsapp_number::text
         WHERE c.cod_agent::text = $1
           AND c.stage_id::text = ANY($2::varchar[])
-          AND COALESCE(c.stage_entered_at, c.updated_at) >= NOW() - INTERVAL '2 days'
+          AND COALESCE(c.stage_entered_at, c.updated_at) >= NOW() - INTERVAL '10 minutes'
         ORDER BY COALESCE(c.stage_entered_at, c.updated_at) DESC`,
       [codAgent, stageIds],
     );
@@ -406,7 +406,7 @@ async function fetchCandidates(
          LEFT JOIN sessions s ON s.whatsapp_number::text = d.whatsapp_number::text
         WHERE d.cod_agent::text = $1
           AND d.status_document = $2
-          AND d.created_at >= NOW() - INTERVAL '30 days'
+          AND d.created_at >= NOW() - INTERVAL '10 minutes'
         ORDER BY d.cod_document, d.created_at DESC`,
       [codAgent, status],
     );
