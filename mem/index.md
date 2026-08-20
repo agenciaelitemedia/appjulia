@@ -10,3 +10,4 @@
 - [Audio Transcription Multicanal](mem://technical/chat/audio-transcription-channel-aware) — chat-transcribe-audio para UaZapi e WABA (API Oficial)
 - [X-Julia Calc Skill](mem://features/x-julia/calc-skill) — skill `calcular` obrigatória: renda per capita (BPC 1/4 SM), somas, %, parcelamento, expressões
 - [Alertas WhatsApp](mem://features/notificacoes-alertas/module) — Módulo isolado de notificações por gatilho; padrão extend/ para módulos novos
+- [Legacy Timestamps](mem://technical/database/legacy-naive-timestamps) — Datas das tabelas legadas são naive em BRT; gravar com nowDbTimestamp()

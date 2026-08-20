@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CRMCard, CRMStage, CRMHistory, CRMAgent, CRMFiltersState } from '../types';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { getBrPhoneVariants } from '@/lib/phoneVariants';
+import { nowDbTimestamp } from '@/lib/dateUtils';
 
 // Hook to get all Julia conversations count (vw_painelv2_desempenho_julia_all)
 export function useCRMJuliaConversations(filters: CRMFiltersState) {
@@ -243,8 +244,8 @@ export function useMoveCard() {
         table: 'crm_atendimento_cards',
         data: {
           stage_id: toStageId,
-          stage_entered_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          stage_entered_at: nowDbTimestamp(),
+          updated_at: nowDbTimestamp(),
         },
         where: { id: cardId },
       });
@@ -256,7 +257,7 @@ export function useMoveCard() {
           from_stage_id: fromStageId,
           to_stage_id: toStageId,
           changed_by: user?.name || 'Sistema',
-          changed_at: new Date().toISOString(),
+          changed_at: nowDbTimestamp(),
           notes: notes || null,
         },
       });
@@ -359,7 +360,7 @@ export function useUpdateCardOwner() {
         table: 'crm_atendimento_cards',
         data: {
           owner_name: ownerName,
-          updated_at: new Date().toISOString(),
+          updated_at: nowDbTimestamp(),
         },
         where: { id: cardId },
       });
@@ -379,7 +380,7 @@ export function useUpdateCardName() {
         table: 'crm_atendimento_cards',
         data: {
           contact_name: contactName,
-          updated_at: new Date().toISOString(),
+          updated_at: nowDbTimestamp(),
         },
         where: { id: cardId },
       });

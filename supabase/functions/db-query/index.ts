@@ -56,6 +56,48 @@ function isRetryableError(error: unknown): boolean {
  * Handles double-stringified JSON like: "\"{...}\"" → {...}
  */
 function normalizeSettings(input: unknown): string {
+  return normalizeSettingsImpl(input);
+}
+
+/**
+ * Tabelas legadas cujas colunas de data são `timestamp without time zone`
+ * contendo horário de Brasília (gravado pelo n8n/JulIA).
+ */
+const NAIVE_BRT_TABLES = new Set([
+  'crm_atendimento_cards',
+  'crm_atendimento_history',
+  'crm_atendimento_stages',
+]);
+
+const ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+function toBrtNaive(iso: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false, hourCycle: 'h23',
+  }).formatToParts(new Date(iso));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
+}
+
+/**
+ * Converte valores ISO em UTC ("...Z") para horário naive de Brasília nas
+ * tabelas legadas, evitando timestamps 3h adiantados no mesmo registro.
+ */
+function normalizeNaiveTimestamps(table: unknown, data: unknown): void {
+  if (typeof table !== 'string' || !NAIVE_BRT_TABLES.has(table)) return;
+  if (!data || typeof data !== 'object') return;
+  const record = data as Record<string, unknown>;
+  for (const [key, value] of Object.entries(record)) {
+    if (typeof value === 'string' && ISO_UTC_RE.test(value)) {
+      record[key] = toBrtNaive(value);
+    }
+  }
+}
+
+function normalizeSettingsImpl(input: unknown): string {
   let value = input;
   
   // If it's a string, try to parse it (possibly multiple times for double-stringified)
@@ -301,6 +343,7 @@ serve(async (req) => {
       }
 
       case 'insert': {
+        normalizeNaiveTimestamps(table, data);
         // Special handling for agents table with settings field
         if (table === 'agents' && data && 'settings' in data) {
           const normalizedSettings = normalizeSettings(data.settings);
@@ -333,6 +376,7 @@ serve(async (req) => {
       }
 
       case 'update': {
+        normalizeNaiveTimestamps(table, data);
         // Special handling for agents table with settings field
         if (table === 'agents' && data && 'settings' in data) {
           const normalizedSettings = normalizeSettings(data.settings);
