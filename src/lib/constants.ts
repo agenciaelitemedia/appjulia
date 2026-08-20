@@ -13,4 +13,7 @@ export const STORAGE_KEYS = {
   AGENTS_LIST_FILTERS: 'agents-list-filters',
   /** DataJud search history */
   DATAJUD_SEARCH_HISTORY: 'datajud_search_history',
+  /** Sidebar collapsed/expanded preference */
+  SIDEBAR_COLLAPSED: 'julia_sidebar_collapsed',
 } as const;
+
