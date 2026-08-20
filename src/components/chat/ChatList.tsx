@@ -1618,7 +1618,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       <div className="flex border-b shrink-0">
         <TooltipProvider delayDuration={200}>
         {([
-          { value: 'resolved_closed' as const, label: '', icon: <CheckCheck className="h-4 w-4" />, count: effClosedConvCount, iconOnly: true, tooltip: 'Resolvidas / Encerradas' },
+          { value: 'resolved_closed' as const, label: 'Encerradas', icon: null, count: effClosedConvCount, iconOnly: false, tooltip: 'Resolvidas / Encerradas' },
           { value: 'pending' as const, label: 'Aguardando', count: effPendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
           { value: 'open' as const,    label: 'Atendimento', count: effOpenConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
         ]).map(tab => (
