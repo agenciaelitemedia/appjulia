@@ -359,7 +359,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
   if (readOnly) return null;
 
   return (
-    <div className="border-t bg-background">
+    <div className="border-t aj-chat-bar aj-chat-bar-bottom">
       {/* Claim/Reopen banner — same position, same layout */}
       {(showReopenBanner || showClaimBanner) && (
         <div className={cn(
