@@ -386,7 +386,7 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
     <div className="flex-1 relative flex flex-col overflow-hidden">
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto p-4"
+        className="flex-1 overflow-y-auto p-4 aj-chat-canvas"
         onScroll={handleScroll}
       >
         <div className="space-y-4">
