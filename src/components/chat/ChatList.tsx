@@ -1628,15 +1628,15 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
             key={tab.value}
             onClick={() => setConversationStatusFilter(tab.value)}
             className={cn(
-              'py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border-b-2',
+              'py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border-b-2 aj-focus-ring',
               tab.iconOnly ? 'shrink-0 px-3' : 'flex-1',
               conversationStatusFilter === tab.value
                 ? tab.value === 'pending'
-                  ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                  ? 'border-amber-500 text-amber-700 dark:text-amber-400 bg-amber-500/10'
                   : tab.value === 'open'
-                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                    : 'border-foreground text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                    ? 'border-emerald-500 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10'
+                    : 'border-primary text-foreground bg-primary/10'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
             )}
           >
             {tab.iconOnly ? tab.icon : <span className="whitespace-pre-line leading-tight">{tab.label}</span>}
@@ -1645,9 +1645,9 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
               'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
               conversationStatusFilter === tab.value
                 ? tab.value === 'pending'
-                  ? 'bg-amber-600 text-white'
+                  ? 'bg-amber-600 text-primary-foreground'
                   : tab.value === 'open'
-                    ? 'bg-emerald-600 text-white'
+                    ? 'bg-emerald-600 text-primary-foreground'
                     : 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground'
             )}>
