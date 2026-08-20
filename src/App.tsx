@@ -1,5 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { lazy, Suspense } from "react";
+import { ThemeProvider } from "next-themes";
+
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
