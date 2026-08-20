@@ -6,6 +6,7 @@ import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { MessageBubble } from './MessageBubble';
 import { ConversationEvent } from './ConversationEvent';
+import { SummaryCard } from './SummaryCard';
 import { ForwardDialog } from './ForwardDialog';
 import { useMessageReactions, sendReaction } from '@/hooks/useMessageReactions';
 import { format, isSameDay } from 'date-fns';
@@ -16,6 +17,7 @@ import type { ConversationHistoryEntry } from '@/types/conversation';
 import { isEncryptionEnvelope } from '@/lib/chat/envelopeFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { useChatClientSettings } from '@/hooks/useChatClientSettings';
+import { useConversationSummaries, type ConversationSummary } from '@/hooks/useConversationSummaries';
 
 interface ChatMessagesProps {
   contactId: string;
@@ -25,11 +27,13 @@ interface ChatMessagesProps {
 
 type TimelineItem =
   | { kind: 'message'; data: ChatMessage; ts: number }
-  | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
+  | { kind: 'event'; data: ConversationHistoryEntry; ts: number }
+  | { kind: 'summary'; data: ConversationSummary; ts: number };
 
 export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) {
   const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
   const { settings: chatClientSettings } = useChatClientSettings();
+  const { summaries } = useConversationSummaries(selectedConversation?.id ?? null, contactId);
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -311,6 +315,17 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
     while (i < msgItems.length) merged.push(msgItems[i++]);
     while (j < evtItems.length) merged.push(evtItems[j++]);
 
+    // Resumos entram na linha do tempo pela data de criação
+    if (summaries.length > 0) {
+      const sumItems: TimelineItem[] = summaries.map(s => ({
+        kind: 'summary' as const,
+        data: s,
+        ts: new Date(s.created_at).getTime(),
+      }));
+      merged.push(...sumItems);
+      merged.sort((a, b) => a.ts - b.ts);
+    }
+
     const groups: Record<string, TimelineItem[]> = {};
     for (const item of merged) {
       const dateKey = format(new Date(item.ts), 'yyyy-MM-dd');
@@ -318,7 +333,7 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
       groups[dateKey].push(item);
     }
     return groups;
-  }, [contactMessages, conversationHistory]);
+  }, [contactMessages, conversationHistory, summaries]);
 
   // Reactions
   const visibleMessageIds = useMemo(
@@ -438,6 +453,17 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
                     if (!chatClientSettings.events_enabled) return null;
                     if (chatClientSettings.event_visibility?.[item.data.action] === false) return null;
                     return <ConversationEvent key={`evt-${item.data.id}`} entry={item.data} />;
+                  }
+                  if (item.kind === 'summary') {
+                    return (
+                      <div key={`sum-${item.data.id}`} className="flex justify-center my-3">
+                        <SummaryCard
+                          summary={item.data}
+                          title="Resumo do atendimento"
+                          className="w-full max-w-xl"
+                        />
+                      </div>
+                    );
                   }
                   return (
                     <MessageBubble

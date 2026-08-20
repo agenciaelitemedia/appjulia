@@ -48,6 +48,7 @@ import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMes
 import { SlaBadge } from './SlaBadge';
 import { PriorityBadge } from './PriorityBadge';
 import { JuliaStatusBadge } from './JuliaStatusBadge';
+import { GenerateSummaryButton } from './GenerateSummaryButton';
 
 interface ChatHeaderProps {
   contact: ChatContact;
@@ -642,6 +643,14 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                 const isActive = ['pending', 'open'].includes(currentStatus);
                 return (
                   <div className="inline-flex items-center gap-0.5 border rounded px-1 py-0.5">
+                    <GenerateSummaryButton
+                      conversationId={selectedConversation?.id ?? null}
+                      contactId={contact.id}
+                      iconOnly
+                      className="h-7 w-7"
+                      onGenerated={onShowDetails}
+                    />
+
                     <Button
                       variant="ghost"
                       size="icon"

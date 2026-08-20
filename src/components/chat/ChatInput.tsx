@@ -7,6 +7,7 @@ import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, Stick
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { GenerateSummaryButton } from './GenerateSummaryButton';
 import type { MessageType, ChatMessage } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
 import { AudioRecorder } from './AudioRecorder';
@@ -639,6 +640,14 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Gerar resumo do atendimento com IA */}
+          <GenerateSummaryButton
+            conversationId={selectedConversation?.id ?? null}
+            contactId={selectedContact?.id ?? null}
+            iconOnly
+            className="h-9 w-9 flex-shrink-0"
+          />
 
           {/* Hidden file input */}
           <input
