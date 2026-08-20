@@ -161,8 +161,33 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: "Sora", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.02em;
   }
 }
+
+/* Utilitários de marca reutilizáveis no painel */
+@layer utilities {
+  .bg-brand-gradient {
+    background-image: var(--gradient-brand);
+  }
+  .text-brand-gradient {
+    background-image: var(--gradient-brand);
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .shadow-brand-soft {
+    box-shadow: var(--shadow-brand);
+  }
+}
+
 
 /* ==========================================================================
    Atende Julia — tela de Login (escopo isolado em .aj-login)
