@@ -137,7 +137,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
               onClick={onToggle}
               className={cn(
                 "lg:hidden text-sidebar-foreground transition-all duration-300 overflow-hidden",
-                isCollapsed ? "opacity-0 max-w-0 p-0" : "opacity-100 max-w-10"
+                isCollapsed ? "opacity-0 w-0 max-w-0 p-0" : "opacity-100 w-10 max-w-10"
               )}
             >
               <X className="w-5 h-5" />
