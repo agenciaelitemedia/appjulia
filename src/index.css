@@ -347,3 +347,51 @@ All colors MUST be HSL.
   --ring: 330 92% 62%;
   color: hsl(var(--foreground));
 }
+
+/* Superfícies do chrome escuro — degradês da identidade Atende Julia */
+.aj-shell-surface {
+  background-color: hsl(258 34% 8%);
+  background-image:
+    radial-gradient(circle at 0% 0%, hsl(330 92% 60% / 0.18), transparent 55%),
+    radial-gradient(circle at 100% 0%, hsl(262 78% 58% / 0.16), transparent 55%),
+    linear-gradient(180deg, hsl(258 36% 11%), hsl(258 34% 7%));
+}
+
+.aj-sidebar-surface {
+  background-color: hsl(258 34% 7%);
+  background-image:
+    radial-gradient(circle at 15% 0%, hsl(330 92% 60% / 0.18), transparent 45%),
+    radial-gradient(circle at 90% 12%, hsl(262 78% 58% / 0.14), transparent 45%),
+    linear-gradient(180deg, hsl(258 36% 10%) 0%, hsl(258 34% 6%) 55%, hsl(258 38% 5%) 100%);
+  box-shadow: 1px 0 0 hsl(0 0% 100% / 0.05), 24px 0 60px -40px hsl(330 92% 60% / 0.25);
+}
+
+.aj-nav-item-active {
+  background-image: linear-gradient(
+    100deg,
+    hsl(330 92% 60% / 0.22),
+    hsl(262 78% 58% / 0.16) 60%,
+    transparent
+  );
+  border: 1px solid hsl(330 92% 60% / 0.28);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.07), 0 10px 24px -18px hsl(330 92% 60% / 0.8);
+  color: hsl(0 0% 100%);
+}
+
+.aj-nav-item-idle {
+  border: 1px solid transparent;
+}
+.aj-nav-item-idle:hover {
+  background-image: linear-gradient(100deg, hsl(0 0% 100% / 0.07), hsl(0 0% 100% / 0.02));
+  border-color: hsl(0 0% 100% / 0.08);
+}
+
+.aj-hairline {
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    hsl(330 92% 60% / 0.9),
+    hsl(262 78% 58% / 0.9),
+    transparent
+  );
+}

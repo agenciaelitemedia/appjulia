@@ -87,8 +87,8 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <header className="aj-shell-dark sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 text-foreground backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 lg:px-6">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-brand-gradient opacity-80" />
+      <header className="aj-shell-dark sticky top-0 z-30 flex h-16 items-center gap-3 aj-shell-surface border-b border-white/10 px-4 text-foreground backdrop-blur-xl lg:px-6">
+        <div className="aj-hairline pointer-events-none absolute inset-x-0 top-0 h-[2px] opacity-90" />
 
         {/* Menu Toggle (Mobile) */}
         <Button
@@ -140,7 +140,7 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
             <Input
               type="search"
               placeholder="Buscar..."
-              className="pl-10 rounded-full border-border bg-muted/60 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/40"
+              className="h-10 rounded-full border-white/10 bg-white/[0.06] pl-10 text-foreground placeholder:text-muted-foreground/80 focus-visible:border-primary/50 focus-visible:ring-primary/30"
             />
           </div>
         </div>
@@ -182,7 +182,7 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                <Avatar className="h-10 w-10 border-2 border-border">
+                <Avatar className="h-10 w-10 border-2 border-white/15 shadow-brand-soft">
                   <AvatarImage src={avatarSrc} alt={displayName} />
                   <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                     {getInitials(initialsName)}
