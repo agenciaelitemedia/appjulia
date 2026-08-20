@@ -161,18 +161,10 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                           <span
                             className={cn(
                               "inline-block overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
-                              isExpanded ? "opacity-100 max-w-[12rem]" : "opacity-0 max-w-0"
+                              isExpanded ? "opacity-100 max-w-[12rem] w-auto" : "opacity-0 max-w-0 w-0"
                             )}
                           >
                             {groupName}
-                          </span>
-                          <span
-                            className={cn(
-                              "inline-block overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
-                              !isExpanded ? "opacity-100 max-w-10" : "opacity-0 max-w-0"
-                            )}
-                          >
-                            {groupName.slice(0, 3)}
                           </span>
                         </h3>
                       </TooltipTrigger>
