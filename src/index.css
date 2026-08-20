@@ -468,11 +468,12 @@ All colors MUST be HSL.
   .dark .aj-chat-item-active {
     background-image: linear-gradient(
       100deg,
-      hsl(var(--brand-magenta) / 0.2),
-      hsl(var(--brand-violet) / 0.12) 70%
+      hsl(var(--brand-magenta) / 0.11),
+      hsl(var(--brand-violet) / 0.06) 70%
     );
-    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.06);
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
   }
+
   .aj-chat-item-active::before {
     content: "";
     position: absolute;
