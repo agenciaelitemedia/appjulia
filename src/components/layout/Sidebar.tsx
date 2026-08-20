@@ -197,8 +197,8 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                                   <Icon className="w-4 h-4 shrink-0" />
                                   <span
                                     className={cn(
-                                      "overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
-                                      isExpanded ? "opacity-100 max-w-[12rem]" : "opacity-0 max-w-0"
+                                      "inline-block overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
+                                      isExpanded ? "opacity-100 max-w-[12rem] w-auto" : "opacity-0 max-w-0 w-0"
                                     )}
                                   >
                                     {mod.name}
