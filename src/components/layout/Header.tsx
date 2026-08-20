@@ -107,9 +107,9 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
                 className="hidden lg:flex"
               >
                 {isCollapsed ? (
-                  <PanelLeft className="h-5 w-5" />
-                ) : (
                   <PanelLeftClose className="h-5 w-5" />
+                ) : (
+                  <PanelLeft className="h-5 w-5" />
                 )}
               </Button>
             </TooltipTrigger>

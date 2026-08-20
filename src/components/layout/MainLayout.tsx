@@ -52,7 +52,7 @@ function GlobalSoftphone() {
 
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
   const { data: agentsData, isLoading: agentsLoading } = useMyAgents();
 
