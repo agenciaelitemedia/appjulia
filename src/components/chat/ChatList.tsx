@@ -1619,8 +1619,8 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
         <TooltipProvider delayDuration={200}>
         {([
           { value: 'resolved_closed' as const, label: '', icon: <CheckCheck className="h-4 w-4" />, count: effClosedConvCount, iconOnly: true, tooltip: 'Resolvidas / Encerradas' },
-          { value: 'pending' as const, label: 'Aguardando Atendimento', count: effPendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
-          { value: 'open' as const,    label: 'Meus Atendimentos', count: effOpenConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
+          { value: 'pending' as const, label: 'Aguardando', count: effPendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
+          { value: 'open' as const,    label: 'Atendimento', count: effOpenConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
         ]).map(tab => (
           <Tooltip key={tab.value}>
             <TooltipTrigger asChild>
@@ -1639,7 +1639,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
-            {tab.iconOnly ? tab.icon : tab.label}
+            {tab.iconOnly ? tab.icon : <span className="whitespace-pre-line leading-tight">{tab.label}</span>}
             {tab.value !== 'resolved_closed' && (
             <span className={cn(
               'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
