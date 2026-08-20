@@ -376,6 +376,24 @@ All colors MUST be HSL.
     );
   }
 
+  /* Lista de conversas: superfície levemente iluminada em relação ao shell */
+  .aj-chat-list {
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.95),
+      hsl(var(--muted) / 0.55) 100%
+    );
+    background-color: hsl(var(--background) / 0.92);
+  }
+  .dark .aj-chat-list {
+    background-image: linear-gradient(
+      180deg,
+      hsl(258 30% 13% / 0.62),
+      hsl(258 30% 9% / 0.48) 100%
+    );
+    background-color: hsl(258 30% 11% / 0.55);
+  }
+
   /* Fundo da timeline: leve glow radial da marca */
   .aj-chat-canvas {
     background-color: hsl(var(--muted) / 0.35);
