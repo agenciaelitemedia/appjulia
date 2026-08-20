@@ -631,14 +631,39 @@ async function upsertAlertCrmCard(
   try {
     const { data: existing } = await supabase
       .from("alert_crm_cards")
-      .select("id, trigger_key, crm_stage_label")
+      .select("id, trigger_key, crm_stage_label, labels")
       .eq("cod_agent", card.codAgent)
       .eq("lead_phone_key", key)
       .eq("status", "open")
       .limit(1);
 
     if (existing && existing.length > 0) {
-      const moved = existing[0].trigger_key !== card.triggerKey;
+      const current = existing[0];
+      const currentLabels: string[] = Array.isArray(current.labels) ? current.labels : [];
+      const differentStage = current.trigger_key !== card.triggerKey;
+
+      // Regra "Cliente parou de responder": se o lead já tem card em outra etapa,
+      // não move o card — apenas atualiza a data e marca a etiqueta vermelha.
+      if (card.triggerKey === "no_response" && differentStage) {
+        const hasLabel = currentLabels.includes(NO_RESPONSE_LABEL);
+        await supabase
+          .from("alert_crm_cards")
+          .update({
+            lead_name: card.leadName,
+            lead_phone: card.leadPhone,
+            business_name: card.businessName,
+            crm_stage_label: card.crmStageLabel ?? current.crm_stage_label ?? null,
+            labels: hasLabel ? currentLabels : [...currentLabels, NO_RESPONSE_LABEL],
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", current.id);
+        return { shouldSend: !hasLabel, cardId: current.id };
+      }
+
+      const nextLabels = card.triggerKey === "no_response"
+        ? (currentLabels.includes(NO_RESPONSE_LABEL) ? currentLabels : [...currentLabels, NO_RESPONSE_LABEL])
+        : currentLabels.filter((label) => label !== NO_RESPONSE_LABEL);
+
       await supabase
         .from("alert_crm_cards")
         .update({
@@ -646,14 +671,16 @@ async function upsertAlertCrmCard(
           lead_name: card.leadName,
           lead_phone: card.leadPhone,
           business_name: card.businessName,
-          crm_stage_label: card.crmStageLabel ?? existing[0].crm_stage_label ?? null,
+          crm_stage_label: card.crmStageLabel ?? current.crm_stage_label ?? null,
+          labels: nextLabels,
           ...(card.logId ? { log_id: card.logId } : {}),
-          ...(moved ? { stage_entered_at: new Date().toISOString() } : {}),
+          ...(differentStage ? { stage_entered_at: new Date().toISOString() } : {}),
           updated_at: new Date().toISOString(),
         })
-        .eq("id", existing[0].id);
-      return { shouldSend: moved, cardId: existing[0].id };
+        .eq("id", current.id);
+      return { shouldSend: differentStage, cardId: current.id };
     }
+
 
     const { data: inserted } = await supabase.from("alert_crm_cards").insert({
       client_id: card.clientId,
