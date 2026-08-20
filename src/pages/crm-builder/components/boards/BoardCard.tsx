@@ -78,7 +78,7 @@ export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canMa
 
   return (
     <Card 
-      className="group cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-1 border-2"
+      className="aj-card-hover group cursor-pointer border-2"
       style={{ borderColor: `${board.color}40` }}
       onClick={onClick}
     >

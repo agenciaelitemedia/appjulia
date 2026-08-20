@@ -43,7 +43,7 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
 
   return (
     <>
-      <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={onClick}>
+      <Card className="aj-card-hover cursor-pointer border border-border/70" onClick={onClick}>
         <CardContent className="p-3 space-y-2">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-medium leading-tight line-clamp-2">
