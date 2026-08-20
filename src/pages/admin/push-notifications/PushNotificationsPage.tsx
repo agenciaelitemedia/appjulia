@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Send, Save, RefreshCw, Bell, BellRing, Loader2 } from "lucide-react";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function PushNotificationsPage() {
   const { user } = useAuth();
@@ -270,7 +271,7 @@ export default function PushNotificationsPage() {
             <CardContent>
               {isLoading ? (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <MascoteLoader size="xs" />
                 </div>
               ) : !notifications?.length ? (
                 <p className="text-muted-foreground text-center py-8">Nenhuma notificação criada ainda.</p>

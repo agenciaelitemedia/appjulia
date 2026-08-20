@@ -16,6 +16,7 @@ import {
   useHelpPostById, useHelpCategories, useSaveHelpPost, uploadHelpMedia, slugifyHelpTitle,
 } from '@/hooks/useHelpCenter';
 import { HelpRichTextEditor } from './components/HelpRichTextEditor';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function HelpPostEditorPage() {
   const { id } = useParams();
@@ -151,7 +152,7 @@ export default function HelpPostEditorPage() {
                 onClick={() => coverInputRef.current?.click()}
               >
                 {coverUploading ? (
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <MascoteLoader size="xs" />
                 ) : coverUrl ? (
                   <img src={coverUrl} alt="Capa" className="h-full w-full object-cover" />
                 ) : (

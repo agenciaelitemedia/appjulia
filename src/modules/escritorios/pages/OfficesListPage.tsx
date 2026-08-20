@@ -30,6 +30,7 @@ import { useEnsureEscritoriosModule } from '../extend/useEnsureEscritoriosModule
 import { useOffices, useOfficeMutations } from '../hooks/useOffices';
 import { ESCRITORIOS_MODULE, ESCRITORIOS_ROUTES } from '../module';
 import type { OfficeRecord } from '../types';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function OfficesListPage() {
   useEnsureEscritoriosModule();
@@ -84,7 +85,7 @@ export default function OfficesListPage() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <MascoteLoader size="xs" />
             </div>
           ) : offices.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center">

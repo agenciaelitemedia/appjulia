@@ -2,6 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { ALERT_TRIGGERS } from '../module';
 import { useAlertConfigs } from '../hooks/useAlertConfigs';
 import { AlertTriggerCard } from './AlertTriggerCard';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export function ConfigurarAlertasTab({ codAgent }: { codAgent: string }) {
   const { data: configs = [], isLoading } = useAlertConfigs(codAgent);
@@ -9,7 +10,7 @@ export function ConfigurarAlertasTab({ codAgent }: { codAgent: string }) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

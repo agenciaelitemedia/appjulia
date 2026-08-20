@@ -23,6 +23,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { VideoSettingsModal } from './VideoSettingsModal';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface PreJoinLobbyProps {
   roomUrl: string;
@@ -157,7 +158,7 @@ function LobbyContent({
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <MascoteLoader size="md" />
           <p className="text-muted-foreground">Iniciando câmera...</p>
           <p className="text-sm text-muted-foreground/70">
             Permita o acesso à câmera e microfone
@@ -401,7 +402,7 @@ export function PreJoinLobby({ roomUrl, onJoin, onCancel, userName }: PreJoinLob
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <MascoteLoader size="md" />
           <p className="text-muted-foreground">Preparando preview...</p>
         </div>
       </div>

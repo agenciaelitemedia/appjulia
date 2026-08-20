@@ -18,6 +18,7 @@ import { useHeartbeat } from '@/hooks/useHeartbeat';
 import { usePerformanceReporter } from '@/hooks/usePerformanceReporter';
 import { useNewMessageSound } from '@/hooks/useNewMessageSound';
 import { STORAGE_KEYS } from '@/lib/constants';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 
 function GlobalSoftphone() {
@@ -87,7 +88,7 @@ export function MainLayout() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <MascoteLoader size="md" />
           <p className="text-muted-foreground">Carregando...</p>
         </div>
       </div>

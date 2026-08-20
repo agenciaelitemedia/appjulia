@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Search, Scale, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useLegalCases, LegalCase, CASE_CATEGORIES } from '@/pages/admin/prompts/hooks/useLegalCases';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Digital': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
@@ -48,7 +49,7 @@ export default function LegalCasesPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <MascoteLoader size="sm" />
       </div>
     );
   }

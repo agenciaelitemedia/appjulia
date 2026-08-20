@@ -6,6 +6,7 @@ import { AutomationRuleCard } from './AutomationRuleCard';
 import { CreateAutomationDialog } from './CreateAutomationDialog';
 import { useCRMAutomations, type CRMAutomationRule, type CRMAutomationRuleFormData } from '../../hooks/useCRMAutomations';
 import type { CRMPipeline } from '../../types';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface AutomationsManagerProps {
   boardId: string;
@@ -56,7 +57,7 @@ export function AutomationsManager({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

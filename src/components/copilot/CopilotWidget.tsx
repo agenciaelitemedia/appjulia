@@ -16,6 +16,7 @@ import { useCopilotInsights } from '@/hooks/useCopilotInsights';
 import { CopilotInsightCard } from './CopilotInsightCard';
 import { CopilotChatTab } from './CopilotChatTab';
 import { cn } from '@/lib/utils';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export function CopilotWidget() {
   const [open, setOpen] = useState(false);
@@ -119,7 +120,7 @@ function renderAlerts(isLoading: boolean, insights: any[], markAsRead: any) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
 import type { ModuleCode } from '@/types/permissions';
 import { Loader2 } from 'lucide-react';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -37,7 +38,7 @@ export function ProtectedRoute({
   if (isLoading || permissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <MascoteLoader size="sm" />
       </div>
     );
   }

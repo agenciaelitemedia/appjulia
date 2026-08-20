@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { RefreshCw, Clock, Users, MessageSquare, Loader2 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface QueueItem {
   type: string;
@@ -108,7 +109,7 @@ export function NotificationQueueTab({ codAgent }: NotificationQueueTabProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

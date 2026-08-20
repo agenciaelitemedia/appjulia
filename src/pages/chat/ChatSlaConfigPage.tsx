@@ -12,6 +12,7 @@ import {
   type ChatSlaConfig,
 } from '@/hooks/useChatSlaConfigs';
 import { useState, useEffect } from 'react';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const PRIORITIES: { value: 'urgent' | 'high' | 'normal' | 'low'; label: string; color: string; dot: string }[] = [
   { value: 'urgent', label: 'Crítica',  color: 'text-destructive',        dot: 'bg-red-500' },
@@ -110,7 +111,7 @@ export function ChatSlaConfigContent({ showIntro = true }: { showIntro?: boolean
       <div className="space-y-3">
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            <MascoteLoader size="sm" />
           </div>
         ) : (
           PRIORITIES.map((p) => {

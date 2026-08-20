@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { externalDb } from '@/lib/externalDb';
 import { toast } from 'sonner';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface EmbedRow {
   id: number;
@@ -221,7 +222,7 @@ export default function EmbedManagerPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="py-12 flex justify-center"><MascoteLoader size="xs" /></div>
           ) : rows.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">
               Nenhum embed cadastrado. Clique em "Inicializar sistema" se for a primeira vez.

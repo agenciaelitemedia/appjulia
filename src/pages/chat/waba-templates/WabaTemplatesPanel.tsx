@@ -12,6 +12,7 @@ import { useWabaQueues, useWabaTemplatesCache, useSyncTemplates, useDeleteTempla
 import { TemplateBuilderDialog } from "./TemplateBuilderDialog";
 import { HeaderTypesReferenceDialog } from "./HeaderTypesReferenceDialog";
 import type { WabaStatus, WabaTemplateRow } from "./types";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const STATUS_VARIANT: Record<WabaStatus, { label: string; cls: string }> = {
   APPROVED: { label: "Ativo", cls: "bg-green-100 text-green-800 border-green-300" },
@@ -86,7 +87,7 @@ export function WabaTemplatesPanel() {
   if (loadingQueues) {
     return (
       <div className="flex justify-center p-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

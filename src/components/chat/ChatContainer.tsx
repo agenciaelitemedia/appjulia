@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import type { ChatMessage } from '@/types/chat';
 import type { ChatContact } from '@/types/chat';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const ChatListFallback = () => (
   <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-muted-foreground">
@@ -134,7 +135,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
           </div>
         ) : selectedContactId && (isHydratingContact || !selectedContact) ? (
           <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-            <Loader2 className="h-8 w-8 animate-spin mb-3" />
+            <MascoteLoader size="sm" />
             <p className="text-sm">Carregando conversa…</p>
           </div>
         ) : (

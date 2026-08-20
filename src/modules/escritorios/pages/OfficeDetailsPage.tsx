@@ -32,6 +32,7 @@ import { applyOfficePermissions } from '../extend/permissions';
 import { useOffice, useOfficeMutations } from '../hooks/useOffices';
 import { useOfficeOwnerPassword } from '../hooks/useOfficeOwnerPassword';
 import { ESCRITORIOS_ROUTES, OFFICE_MODULE_PACKAGE } from '../module';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function OfficeDetailsPage() {
   const { officeId } = useParams<{ officeId: string }>();
@@ -63,7 +64,7 @@ export default function OfficeDetailsPage() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

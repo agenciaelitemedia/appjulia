@@ -20,6 +20,7 @@ import {
 import { useOfficeClientId } from '../hooks/useOfficeClientId';
 import { useOfficeCrmDeals, useOfficeCrmPipelines } from '../hooks/useOfficeCrmData';
 import { useEscritoriosIdentity } from '../extend/auth';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export function OfficeCrmTab() {
   const { data: clientId } = useOfficeClientId();
@@ -59,7 +60,7 @@ export function OfficeCrmTab() {
   if (boardsLoading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }
@@ -105,7 +106,7 @@ export function OfficeCrmTab() {
 
       {isLoading ? (
         <div className="flex justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <MascoteLoader size="xs" />
         </div>
       ) : (
         <>

@@ -6,6 +6,7 @@ import { Loader2, Save, Eye, Edit } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function ContratoTemplatePage() {
   const [body, setBody] = useState('');
@@ -50,7 +51,7 @@ export default function ContratoTemplatePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <MascoteLoader size="sm" />
       </div>
     );
   }

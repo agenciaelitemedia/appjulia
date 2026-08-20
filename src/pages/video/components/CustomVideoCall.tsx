@@ -14,6 +14,7 @@ import { VideoTile } from './VideoTile';
 import { VideoControls } from './VideoControls';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface CustomVideoCallProps {
   roomUrl: string;
@@ -191,7 +192,7 @@ function VideoCallContent({
     return (
       <div className="h-full w-full flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <MascoteLoader size="md" />
           <p className="text-muted-foreground">Conectando...</p>
           {/* Debug footer */}
           <p className="text-xs text-muted-foreground/50 font-mono">{debugInfo}</p>
@@ -420,7 +421,7 @@ export function CustomVideoCall({ roomUrl, roomName, operatorId, operatorName, o
     return (
       <div className="h-full w-full flex items-center justify-center bg-background rounded-lg">
         <div className="text-center space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+          <MascoteLoader size="md" />
           <p className="text-muted-foreground">Iniciando chamada...</p>
           <p className="text-muted-foreground text-sm">Permita o acesso à câmera e microfone</p>
           {/* Debug footer */}

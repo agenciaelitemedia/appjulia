@@ -46,6 +46,7 @@ import { useFlowBuilderPermissions } from '../extend/auth';
 import { FLOW_BUILDER_ROUTES } from '../module';
 import { getNodeDefinition } from '../registry/nodeRegistry';
 import type { FlowNodeKind } from '../types';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function FlowEditorPage() {
   const { flowId } = useParams<{ flowId: string }>();
@@ -153,7 +154,7 @@ export default function FlowEditorPage() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <MascoteLoader size="xs" />
       </div>
     );
   }

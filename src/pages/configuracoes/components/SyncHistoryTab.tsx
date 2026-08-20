@@ -17,6 +17,7 @@ import { useWhatsappSyncJobs, useCancelSyncJob, useRestartSyncJob, type Whatsapp
 import { SyncHistoryLogsDrawer } from './SyncHistoryLogsDrawer';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 function formatDuration(start: string | null, end: string | null): string {
   if (!start) return '—';
@@ -74,7 +75,7 @@ export function SyncHistoryTab() {
 
       {isLoading ? (
         <div className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <MascoteLoader size="xs" />
         </div>
       ) : jobs.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">

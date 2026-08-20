@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export function AdminRoute() {
   const { user, isLoading } = useAuth();
@@ -7,7 +8,7 @@ export function AdminRoute() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <MascoteLoader size="md" />
       </div>
     );
   }

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 const PERIOD_LABELS: Record<string, string> = {
   monthly: 'Mensal', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual',
@@ -71,7 +72,7 @@ export function VideoOrdersTab() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            <div className="py-8 flex justify-center"><MascoteLoader size="xs" /></div>
           ) : orders.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground">Nenhum pedido até o momento.</div>
           ) : (

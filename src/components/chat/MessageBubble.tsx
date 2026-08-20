@@ -16,6 +16,7 @@ import { type DownloadMediaResult, useWhatsAppData } from '@/contexts/WhatsAppDa
 import { forceDownload } from '@/lib/forceDownload';
 import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { useQueueAutomationFlags } from '@/hooks/useQueueAutomationFlags';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -298,13 +299,13 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
                   className="rounded-lg max-w-full blur-sm"
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-background/30">
-                  <Loader2 className="h-6 w-6 animate-spin text-foreground" />
+                  <MascoteLoader size="xs" />
                 </div>
               </div>
             ) : (
               <div className="bg-muted rounded-lg p-8 flex items-center justify-center min-h-[180px] min-w-[200px]">
                 {isLoading && downloadState === 'idle' ? (
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <MascoteLoader size="xs" />
                 ) : (
                   <FallbackBox label="Baixar imagem" />
                 )}
@@ -354,7 +355,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
           ) : (
             <div className="bg-muted rounded-lg p-8 flex items-center justify-center aspect-video">
               {isLoading && downloadState === 'idle' ? (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <MascoteLoader size="xs" />
               ) : (
                 <FallbackBox label="Baixar vídeo" />
               )}

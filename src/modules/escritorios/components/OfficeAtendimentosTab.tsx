@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useOfficeDashboard, type OfficePeriod } from '../hooks/useOfficeDashboard';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 type PeriodKey = 'today' | 'yesterday' | '7d' | 'month' | 'last_month' | 'custom';
 
@@ -132,7 +133,7 @@ export function OfficeAtendimentosTab() {
 
       {isLoading || !stats ? (
         <div className="flex justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <MascoteLoader size="xs" />
         </div>
       ) : (
         <>

@@ -29,6 +29,7 @@ import { useContactCampaigns, useContactFirstInboundMessage } from './hooks/useC
 import { ContactCampaignCard } from './ContactCampaignCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useIsOwner } from '@/lib/auth/isOwner';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 // ─── TagSelector ─────────────────────────────────────────────────────────────
 interface TagSelectorProps {
@@ -625,7 +626,7 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
             <div className="p-4 space-y-4">
               {isLoadingCampaigns ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
-                  <Loader2 className="h-6 w-6 animate-spin" />
+                  <MascoteLoader size="xs" />
                   <span className="text-xs">Carregando campanhas…</span>
                 </div>
               ) : contactCampaigns.length === 0 ? (
