@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Loader2, Sparkles, Clock, MessageSquare, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useConversationSummaries } from '@/hooks/useConversationSummaries';
+import { SummaryCard } from './SummaryCard';
 
 interface ConversationSummariesProps {
   conversationId?: string | null;
@@ -15,17 +13,6 @@ interface ConversationSummariesProps {
 export function ConversationSummaries({ conversationId, contactId }: ConversationSummariesProps) {
   const { summaries, isLoading, generateSummary, getAfterTsForNext } = useConversationSummaries(conversationId, contactId);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
-  const toggle = (id: string) =>
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-
-  const buildPreview = (text: string) => {
-    if (!text) return '';
-    const firstLines = text.split('\n').slice(0, 2).join(' ').trim();
-    const clipped = firstLines.length > 180 ? firstLines.slice(0, 180).trimEnd() + '…' : firstLines;
-    return clipped;
-  };
 
   const handleGenerate = async () => {
     if (!conversationId) {
@@ -41,11 +28,6 @@ export function ConversationSummaries({ conversationId, contactId }: Conversatio
     } finally {
       setIsGenerating(false);
     }
-  };
-
-  const formatTs = (ts: string | null) => {
-    if (!ts) return '—';
-    return format(new Date(ts), "dd/MM/yyyy HH:mm", { locale: ptBR });
   };
 
   return (
