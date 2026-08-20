@@ -768,34 +768,24 @@ serve(async (req) => {
           if (!leadKey || seenLeads.has(leadKey)) continue;
           seenLeads.add(leadKey);
 
-          // Anti-duplicidade: um disparo por lead/gatilho/marcador.
-          const { data: existing } = await supabase
-            .from("alert_notification_logs")
-            .select("id")
-            .eq("cod_agent", codAgent)
-            .eq("trigger_key", cfg.trigger_key)
-            .eq("dedupe_key", cand.dedupeKey)
-            .limit(1);
-          if (existing && existing.length > 0) {
-            // Alerta já foi enviado antes: não reenvia, mas garante que o card
-            // exista no CRM de Notificações (sem isso o lead nunca ganha card).
-            // Resolve a etapa do CRM também aqui — sem isso o card fica "Sem etapa".
-            const etapaCrmExistente = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
-            await upsertAlertCrmCard(supabase, {
-              clientId,
-              codAgent,
-              triggerKey: cfg.trigger_key,
-              leadPhone: cand.leadPhone,
-              leadName: cand.leadName ?? null,
-              businessName: businessName,
-              crmStageLabel: etapaCrmExistente || null,
-              logId: existing[0].id ?? null,
-            });
-            continue;
-          }
+          // O card do CRM de Notificações decide o disparo:
+          //  - card na mesma etapa -> só atualiza data/hora e não reenvia;
+          //  - card em etapa diferente -> move + envia;
+          //  - sem card -> cria + envia.
+          const etapaCrm = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
+          const decision = await upsertAlertCrmCard(supabase, {
+            clientId,
+            codAgent,
+            triggerKey: cfg.trigger_key,
+            leadPhone: cand.leadPhone,
+            leadName: cand.leadName ?? null,
+            businessName: businessName,
+            crmStageLabel: etapaCrm || null,
+            logId: null,
+          });
+          if (!decision.shouldSend) continue;
 
           const resumo = cand.resumo || (await buildResumo(supabase, cand.leadPhone));
-          const etapaCrm = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
           const message = renderTemplate(cfg.message_template ?? "", {
             lead_nome: cand.leadName || "Não informado",
             lead_whatsapp: cand.leadPhone,
@@ -860,18 +850,12 @@ serve(async (req) => {
                 .eq("id", logRow.id);
             }
 
-            // CRM de Notificações: cria/reabre o card do lead na coluna do gatilho.
-            if (status === "sent") {
-              await upsertAlertCrmCard(supabase, {
-                clientId,
-                codAgent,
-                triggerKey: cfg.trigger_key,
-                leadPhone: cand.leadPhone,
-                leadName: cand.leadName ?? null,
-                businessName: businessName,
-                crmStageLabel: etapaCrm || null,
-                logId: logRow?.id ?? null,
-              });
+            // Vincula o último disparo ao card já criado/movido acima.
+            if (status === "sent" && decision.cardId && logRow?.id) {
+              await supabase
+                .from("alert_crm_cards")
+                .update({ log_id: logRow.id, updated_at: new Date().toISOString() })
+                .eq("id", decision.cardId);
             }
 
             results.push({ trigger: cfg.trigger_key, lead: cand.leadPhone, to: phone, status });
