@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
@@ -17,6 +17,8 @@ import { useGlobalPresence } from '@/hooks/useGlobalPresence';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 import { usePerformanceReporter } from '@/hooks/usePerformanceReporter';
 import { useNewMessageSound } from '@/hooks/useNewMessageSound';
+import { STORAGE_KEYS } from '@/lib/constants';
+
 
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
