@@ -192,7 +192,7 @@ export function PipelineColumn({
 
       {/* Stats bar */}
       {stats.value > 0 && (
-        <div className="px-3 py-2 text-xs text-muted-foreground border-b bg-muted/20">
+        <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b border-border/70 bg-background/40 backdrop-blur-sm">
           Total: {formatCurrency(stats.value)}
         </div>
       )}
@@ -201,8 +201,8 @@ export function PipelineColumn({
       <div
         ref={setDropRef}
         className={cn(
-          'flex-1 flex flex-col p-2 transition-colors min-h-[300px]',
-          isOver && 'ring-2 ring-primary bg-primary/10'
+          'flex-1 flex flex-col p-2 transition-all min-h-[300px] rounded-b-xl',
+          isOver && 'aj-drop-active'
         )}
       >
         <div className="space-y-2">
