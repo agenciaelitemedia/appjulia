@@ -13,7 +13,6 @@ import { RestoreQueueDialog } from './components/RestoreQueueDialog';
 import { useEnsureFilasModule } from '@/hooks/useEnsureFilasModule';
 import { useAgentQueueLimits } from './hooks/useAgentQueueLimits';
 import {
-import { MascoteLoader } from "@/components/ui/mascote-loader";
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -23,6 +22,7 @@ import { MascoteLoader } from "@/components/ui/mascote-loader";
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export default function FilasPage() {
   useEnsureFilasModule();
