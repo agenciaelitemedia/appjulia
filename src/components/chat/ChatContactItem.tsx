@@ -207,10 +207,10 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       className={cn(
         'group w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] border-b border-border/50 min-w-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         isSelected
-          ? 'bg-primary/15 border-l-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.3)] ring-1 ring-primary/20'
+          ? 'aj-chat-item-active border-l-transparent'
           : cn(
-              'border-l-transparent hover:bg-accent/20',
-              index % 2 === 0 ? 'bg-background' : 'bg-muted/30'
+              'border-l-transparent hover:bg-muted/60',
+              index % 2 === 0 ? 'bg-background' : 'bg-muted/25'
             ),
         isQueueDisconnected &&
           '!bg-destructive/10 hover:!bg-destructive/15 border-l-destructive/60',
