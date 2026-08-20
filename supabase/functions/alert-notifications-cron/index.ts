@@ -613,6 +613,8 @@ async function takeover(sql: any, codAgent: string, sessionId: number | null, ph
  * O telefone é normalizado (últimos 8 dígitos). Cards resolvidos
  * (recuperado/perdido) não bloqueiam a criação de um novo.
  */
+const NO_RESPONSE_LABEL = "Parou de responder";
+
 async function upsertAlertCrmCard(
   supabase: any,
   card: {
