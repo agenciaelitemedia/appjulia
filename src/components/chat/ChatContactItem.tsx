@@ -425,7 +425,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             {queueName && (
               <Pill
                 label={toTitleCase(queueName)}
-                className="bg-blue-600 text-white rounded-l w-[110px]"
+                className="bg-[image:var(--gradient-brand)] text-primary-foreground rounded-l w-[110px]"
               />
             )}
             <Pill
