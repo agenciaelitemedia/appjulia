@@ -20,6 +20,9 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+/** Janela de recência: o evento só gera alerta se ficou elegível nos últimos 10 min. */
+const RECENT_WINDOW_MS = 10 * 60_000;
+
 const SITUACOES: Record<string, string> = {
   no_response: "Lead parou de responder — recuperação",
   qualified: "Lead qualificado",
