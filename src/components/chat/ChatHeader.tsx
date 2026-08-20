@@ -541,7 +541,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
               {selectedConversation && (
                 <span
                   className={cn(
-                    'inline-flex items-center justify-center h-5 px-1.5 text-[9px] leading-none overflow-hidden whitespace-nowrap text-center bg-slate-100 text-slate-900 w-[110px]',
+                    'inline-flex items-center justify-center h-5 px-1.5 text-[9px] leading-none overflow-hidden whitespace-nowrap text-center bg-secondary text-secondary-foreground w-[110px]',
                     !queueName && 'rounded-l',
                     !slaEvaluation && 'rounded-r',
                     selectedConversation.assigned_to ? 'font-bold' : 'font-normal'
