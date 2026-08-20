@@ -702,7 +702,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
               size="icon"
               className={cn(
                 'h-9 w-9 flex-shrink-0',
-                noteMode && 'bg-blue-500 hover:bg-blue-600'
+                noteMode && 'bg-sky-600 hover:bg-sky-700 bg-none'
               )}
               onClick={handleSend}
               disabled={isSending}
