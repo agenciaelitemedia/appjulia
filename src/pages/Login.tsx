@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import logoAsset from '@/assets/atende-julia-logo.png.asset.json';
 import mascoteAsset from '@/assets/julia-mascote-acenando.png.asset.json';
+import mascotePose2 from '@/assets/julia-mascote-pose2.png.asset.json';
+import mascotePose3 from '@/assets/julia-mascote-pose3.png.asset.json';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
