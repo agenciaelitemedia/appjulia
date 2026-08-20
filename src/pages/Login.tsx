@@ -155,11 +155,7 @@ export default function Login() {
 
           {/* Mobile */}
           <div className="flex items-center gap-5 lg:hidden">
-            <img
-              src={mascoteAsset.url}
-              alt="Julia, assistente de atendimento com IA"
-              className="h-24 w-24 shrink-0 object-contain"
-            />
+            <MascoteAnimado className="h-24 w-24" />
             <div className="min-w-0">
               <h1 className="text-2xl font-bold leading-tight">
                 Seu atendimento continua.{' '}
