@@ -11,6 +11,7 @@ import {
 } from '../extend/crm';
 import { ALERT_TRIGGERS } from '../module';
 import { useAlertCrmCards } from '../hooks/useAlertCrmCards';
+import { useAlertCrmRealtime } from '../hooks/useAlertCrmRealtime';
 import { AlertCrmLeadCard } from './AlertCrmLeadCard';
 import { AlertCrmCardDetailsDialog } from './AlertCrmCardDetailsDialog';
 import type { AlertCrmCard } from '../types';
