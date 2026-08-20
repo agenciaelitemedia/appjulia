@@ -54,9 +54,26 @@ function GlobalSoftphone() {
 
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED);
+      return stored ? stored === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
   const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
   const { data: agentsData, isLoading: agentsLoading } = useMyAgents();
+
+  // Persiste a preferência do sidebar entre recarregamentos
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SIDEBAR_COLLAPSED, String(sidebarCollapsed));
+    } catch {
+      // ignore storage errors
+    }
+  }, [sidebarCollapsed]);
+
 
   // Anuncia presença global para o dashboard de equipe
   useGlobalPresence();
