@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CRMCard, CRMStage, CRMHistory, CRMAgent, CRMFiltersState } from '../types';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { getBrPhoneVariants } from '@/lib/phoneVariants';
+import { nowDbTimestamp } from '@/lib/dateUtils';
 
 // Hook to get all Julia conversations count (vw_painelv2_desempenho_julia_all)
 export function useCRMJuliaConversations(filters: CRMFiltersState) {
