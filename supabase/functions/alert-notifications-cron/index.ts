@@ -758,6 +758,8 @@ serve(async (req) => {
           if (existing && existing.length > 0) {
             // Alerta já foi enviado antes: não reenvia, mas garante que o card
             // exista no CRM de Notificações (sem isso o lead nunca ganha card).
+            // Resolve a etapa do CRM também aqui — sem isso o card fica "Sem etapa".
+            const etapaCrmExistente = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
             await upsertAlertCrmCard(supabase, {
               clientId,
               codAgent,
@@ -765,7 +767,7 @@ serve(async (req) => {
               leadPhone: cand.leadPhone,
               leadName: cand.leadName ?? null,
               businessName: businessName,
-              crmStageLabel: null,
+              crmStageLabel: etapaCrmExistente || null,
               logId: existing[0].id ?? null,
             });
             continue;
