@@ -20,6 +20,9 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+/** Janela de recência: o evento só gera alerta se ficou elegível nos últimos 10 min. */
+const RECENT_WINDOW_MS = 10 * 60_000;
+
 const SITUACOES: Record<string, string> = {
   no_response: "Lead parou de responder — recuperação",
   qualified: "Lead qualificado",
@@ -256,7 +259,8 @@ async function fetchNoResponseCandidates(
   minutes: number,
 ): Promise<Candidate[]> {
   const now = Date.now();
-  const floor = new Date(now - 2 * 24 * 60 * 60_000).toISOString();
+  // Janela: mensagem nossa enviada há >= minutes e < minutes + 10 min.
+  const floor = new Date(now - (minutes * 60_000 + RECENT_WINDOW_MS)).toISOString();
 
   let clientId: string | null = null;
   try {
@@ -313,6 +317,7 @@ async function fetchNoResponseCandidates(
     if (!lastMessage?.from_me || !Number.isFinite(lastMessageMs)) continue;
     if (lastMessageMs < new Date(floor).getTime()) continue;
     if (lastMessageMs + minutes * 60_000 > now) continue;
+    if (lastMessageMs + minutes * 60_000 + RECENT_WINDOW_MS < now) continue;
 
     const contact = byId.get(conv.contact_id);
     const phone = String(contact?.phone ?? "").replace(/\D/g, "");
@@ -373,7 +378,7 @@ async function fetchCandidates(
          LEFT JOIN sessions s ON s.whatsapp_number::text = c.whatsapp_number::text
         WHERE c.cod_agent::text = $1
           AND c.stage_id::text = ANY($2::varchar[])
-          AND COALESCE(c.stage_entered_at, c.updated_at) >= NOW() - INTERVAL '2 days'
+          AND COALESCE(c.stage_entered_at, c.updated_at) >= NOW() - INTERVAL '10 minutes'
         ORDER BY COALESCE(c.stage_entered_at, c.updated_at) DESC`,
       [codAgent, stageIds],
     );
@@ -401,7 +406,7 @@ async function fetchCandidates(
          LEFT JOIN sessions s ON s.whatsapp_number::text = d.whatsapp_number::text
         WHERE d.cod_agent::text = $1
           AND d.status_document = $2
-          AND d.created_at >= NOW() - INTERVAL '30 days'
+          AND d.created_at >= NOW() - INTERVAL '10 minutes'
         ORDER BY d.cod_document, d.created_at DESC`,
       [codAgent, status],
     );
@@ -503,20 +508,20 @@ async function fetchXJContractCandidates(
   triggerKey: string,
 ): Promise<Candidate[]> {
   if (!clientId) return [];
-  const floor = new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString();
+  const recentFloor = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
 
   let query = supabase
     .from("xj_contracts")
     .select("id, status, signed_at, signer_name, signer_phone, case_id, created_at")
     .eq("client_id", String(clientId))
-    .gte("created_at", floor)
     .order("created_at", { ascending: false })
     .limit(100);
 
   if (triggerKey === "contract_signed") {
-    query = query.or("status.eq.signed,signed_at.not.is.null");
+    // Assinado nos últimos 10 minutos (exige signed_at para ter data confiável).
+    query = query.not("signed_at", "is", null).gte("signed_at", recentFloor);
   } else {
-    query = query.eq("status", "sent").is("signed_at", null);
+    query = query.eq("status", "sent").is("signed_at", null).gte("created_at", recentFloor);
   }
 
   const { data: contracts, error } = await query;
