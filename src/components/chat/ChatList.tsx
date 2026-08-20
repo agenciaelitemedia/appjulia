@@ -1238,7 +1238,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
   };
 
   return (
-    <div className="h-full w-full min-w-0 flex flex-col bg-background overflow-hidden">
+    <div className="h-full w-full min-w-0 flex flex-col aj-chat-list overflow-hidden">
       {/* Header - Helena style */}
       <div className="border-b">
         {/* Status pills row */}
