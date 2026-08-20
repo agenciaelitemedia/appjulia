@@ -1,0 +1,1 @@
+ALTER TABLE public.alert_crm_cards ADD COLUMN IF NOT EXISTS labels text[] NOT NULL DEFAULT '{}';

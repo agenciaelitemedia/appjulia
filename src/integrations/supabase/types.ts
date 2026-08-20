@@ -201,6 +201,7 @@ export type Database = {
           created_at: string
           crm_stage_label: string | null
           id: string
+          labels: string[]
           lead_name: string | null
           lead_phone: string | null
           lead_phone_key: string | null
@@ -220,6 +221,7 @@ export type Database = {
           created_at?: string
           crm_stage_label?: string | null
           id?: string
+          labels?: string[]
           lead_name?: string | null
           lead_phone?: string | null
           lead_phone_key?: string | null
@@ -239,6 +241,7 @@ export type Database = {
           created_at?: string
           crm_stage_label?: string | null
           id?: string
+          labels?: string[]
           lead_name?: string | null
           lead_phone?: string | null
           lead_phone_key?: string | null
