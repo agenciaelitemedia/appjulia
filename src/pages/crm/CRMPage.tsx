@@ -52,7 +52,7 @@ export default function CRMPage() {
 
   const { data: stages = [], isLoading: stagesLoading } = useCRMStages();
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
-  const { data: cards = [], isLoading: cardsLoading, refetch } = useCRMCards(filters);
+  const { data: cards = [], refetch } = useCRMCards(filters);
   const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo);
   const firstAgentCode = filters.agentCodes.length === 1 ? filters.agentCodes[0] : filters.agentCodes[0] || null;
   const { data: teamMembers = [] } = useTeamForAgent(firstAgentCode);
