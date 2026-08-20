@@ -336,10 +336,14 @@ All colors MUST be HSL.
   .dark .aj-chat-bar {
     background-image: linear-gradient(
       180deg,
-      hsl(var(--brand-magenta) / 0.1),
-      hsl(var(--background) / 0.9) 60%
+      hsl(var(--brand-magenta) / 0.04),
+      hsl(var(--background) / 0.55) 60%
     );
+    background-color: hsl(var(--background) / 0.45);
+    border-color: hsl(var(--border) / 0.45);
+    backdrop-filter: blur(18px) saturate(130%);
   }
+
   .aj-chat-bar-top::before,
   .aj-chat-bar-bottom::after {
     content: "";
