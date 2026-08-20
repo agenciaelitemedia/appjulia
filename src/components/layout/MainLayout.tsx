@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
@@ -17,6 +17,8 @@ import { useGlobalPresence } from '@/hooks/useGlobalPresence';
 import { useHeartbeat } from '@/hooks/useHeartbeat';
 import { usePerformanceReporter } from '@/hooks/usePerformanceReporter';
 import { useNewMessageSound } from '@/hooks/useNewMessageSound';
+import { STORAGE_KEYS } from '@/lib/constants';
+
 
 function GlobalSoftphone() {
   const { sip, showSoftphone, setShowSoftphone, softphoneCentered, setSoftphoneCentered, dialContactName, isDialing, dialError, clearDialError, retryDial, cancelDial } = usePhone();
@@ -52,9 +54,26 @@ function GlobalSoftphone() {
 
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.SIDEBAR_COLLAPSED);
+      return stored ? stored === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
   const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
   const { data: agentsData, isLoading: agentsLoading } = useMyAgents();
+
+  // Persiste a preferência do sidebar entre recarregamentos
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SIDEBAR_COLLAPSED, String(sidebarCollapsed));
+    } catch {
+      // ignore storage errors
+    }
+  }, [sidebarCollapsed]);
+
 
   // Anuncia presença global para o dashboard de equipe
   useGlobalPresence();
