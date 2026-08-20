@@ -163,14 +163,31 @@ async function fetchCrmStage(
 
     const { data: deals } = await query;
     const pipelineId = deals?.[0]?.pipeline_id;
-    if (!pipelineId) return "";
+    if (pipelineId) {
+      const { data: stage } = await supabase
+        .from("xj_pipelines")
+        .select("name")
+        .eq("id", pipelineId)
+        .maybeSingle();
+      const name = String(stage?.name ?? "").trim();
+      if (name) return name;
+    }
 
-    const { data: stage } = await supabase
-      .from("xj_pipelines")
+    // 3) Fallback CRM Builder (espelho "CRM da Julia")
+    const { data: builderDeals } = await supabase
+      .from("crm_deals")
+      .select("pipeline_id, updated_at, contact_phone")
+      .ilike("contact_phone", `%${tail}%`)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const builderPipelineId = builderDeals?.[0]?.pipeline_id;
+    if (!builderPipelineId) return "";
+    const { data: builderStage } = await supabase
+      .from("crm_pipelines")
       .select("name")
-      .eq("id", pipelineId)
+      .eq("id", builderPipelineId)
       .maybeSingle();
-    return String(stage?.name ?? "");
+    return String(builderStage?.name ?? "");
   } catch (err) {
     console.warn("[alerts] etapa X-Julia não resolvida:", err);
     return "";
@@ -758,6 +775,8 @@ serve(async (req) => {
           if (existing && existing.length > 0) {
             // Alerta já foi enviado antes: não reenvia, mas garante que o card
             // exista no CRM de Notificações (sem isso o lead nunca ganha card).
+            // Resolve a etapa do CRM também aqui — sem isso o card fica "Sem etapa".
+            const etapaCrmExistente = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
             await upsertAlertCrmCard(supabase, {
               clientId,
               codAgent,
@@ -765,7 +784,7 @@ serve(async (req) => {
               leadPhone: cand.leadPhone,
               leadName: cand.leadName ?? null,
               businessName: businessName,
-              crmStageLabel: null,
+              crmStageLabel: etapaCrmExistente || null,
               logId: existing[0].id ?? null,
             });
             continue;
