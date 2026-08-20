@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PhoneListEditor } from './PhoneListEditor';
 import { TemplateEditor } from './TemplateEditor';
-import { NoResponsePreview } from './NoResponsePreview';
+
 import { ALERT_DEFAULT_TEMPLATE, type AlertMode, type AlertTriggerDef } from '../module';
 import { useUpsertAlertConfig } from '../hooks/useAlertConfigs';
 import { useAlertCrmStages } from '../hooks/useAlertCrmStages';
@@ -121,9 +121,6 @@ export function AlertTriggerCard({ codAgent, trigger, config }: AlertTriggerCard
           </div>
         )}
 
-        {trigger.usesSilenceMinutes && (
-          <NoResponsePreview codAgent={codAgent} minutes={silenceMinutes} />
-        )}
 
         {trigger.usesStages && (
           <div className="space-y-2">
