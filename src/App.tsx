@@ -1,5 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { lazy, Suspense } from "react";
+import { ThemeProvider } from "next-themes";
+
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -153,9 +155,17 @@ const queryClient = new QueryClient({
 });
 
 const App = () => (
+  <ThemeProvider
+    attribute="class"
+    defaultTheme="light"
+    enableSystem={false}
+    storageKey="julia-theme"
+    disableTransitionOnChange
+  >
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <DebugProvider>
+
         <Toaster />
         <Sonner />
         <BrowserRouter>
@@ -308,6 +318,8 @@ const App = () => (
       </DebugProvider>
     </TooltipProvider>
   </QueryClientProvider>
+  </ThemeProvider>
 );
+
 
 export default App;

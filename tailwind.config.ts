@@ -60,7 +60,10 @@ export default {
         brand: {
           DEFAULT: "hsl(var(--brand-accent))",
           foreground: "hsl(var(--brand-accent-foreground))",
+          magenta: "hsl(var(--brand-magenta))",
+          violet: "hsl(var(--brand-violet))",
         },
+
         flow: {
           trigger: "hsl(var(--flow-trigger))",
           logic: "hsl(var(--flow-logic))",

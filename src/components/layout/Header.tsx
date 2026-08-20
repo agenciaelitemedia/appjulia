@@ -2,6 +2,9 @@ import { Menu, Search, LogOut, User, Settings, PanelLeftClose, PanelLeft, Volume
 import { HeaderDialer } from './HeaderDialer';
 import { HeaderZapCallBadge } from './HeaderZapCallBadge';
 import { PushNotificationOptIn } from '@/components/notifications/PushNotificationOptIn';
+import { ThemeToggle } from './ThemeToggle';
+import logoAsset from '@/assets/atende-julia-logo.png.asset.json';
+
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,7 +87,9 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 lg:px-6">
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 lg:px-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-brand-gradient opacity-80" />
+
         {/* Menu Toggle (Mobile) */}
         <Button
           variant="ghost"
@@ -119,6 +124,15 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
           </Tooltip>
         )}
 
+        {/* Logomarca — sempre visível */}
+        <Link to="/dashboard" className="flex shrink-0 items-center pl-1 pr-2">
+          <img
+            src={logoAsset.url}
+            alt="Atende Julia"
+            className="h-8 w-auto object-contain sm:h-9"
+          />
+        </Link>
+
         {/* Search */}
         <div className="flex-1 max-w-md hidden md:block">
           <div className="relative">
@@ -126,7 +140,7 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
             <Input
               type="search"
               placeholder="Buscar..."
-              className="pl-10 bg-muted/50"
+              className="pl-10 rounded-full border-border/70 bg-muted/50 focus-visible:ring-primary/40"
             />
           </div>
         </div>
@@ -134,7 +148,9 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
         <div className="flex-1 md:hidden" />
 
         {/* Right side */}
-        <div className="flex items-center gap-4 ml-auto">
+        <div className="flex items-center gap-2 ml-auto sm:gap-3">
+          <ThemeToggle />
+
           {/* Alerta de som de novas mensagens */}
           <Tooltip>
             <TooltipTrigger asChild>
