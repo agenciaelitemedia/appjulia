@@ -181,10 +181,8 @@ export default function Login() {
             </div>
 
             <div className="relative mt-12 flex items-end gap-8">
-              <img
-                src={mascoteAsset.url}
-                alt="Julia, assistente de atendimento com IA"
-                className="aj-float h-64 w-64 shrink-0 object-contain xl:h-72 xl:w-72"
+              <MascoteAnimado
+                className="aj-float h-64 w-64 xl:h-72 xl:w-72"
                 style={{ filter: 'drop-shadow(0 30px 60px hsl(var(--aj-magenta) / 0.3))' }}
               />
               <ul className="mb-4 flex min-w-0 flex-1 flex-col gap-3">
