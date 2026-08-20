@@ -110,16 +110,16 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
         {/* Sidebar */}
         <aside
           className={cn(
-            "fixed top-0 left-0 z-50 h-full bg-sidebar transition-all duration-300 ease-in-out lg:translate-x-0 overflow-hidden",
+            "aj-sidebar-surface fixed top-0 left-0 z-50 h-full transition-all duration-300 ease-in-out lg:translate-x-0 overflow-hidden",
             "flex flex-col",
             isOpen ? "translate-x-0" : "-translate-x-full",
             sidebarWidth,
-            "border-r border-sidebar-border",
+            "border-r border-white/[0.06]",
           )}
         >
           {/* Logo Header */}
           <div className={cn(
-            "flex items-center h-16 border-b border-sidebar-border shrink-0 transition-all duration-300",
+            "relative flex items-center h-16 border-b border-white/[0.07] shrink-0 transition-all duration-300",
             isExpanded ? "justify-between px-4" : "justify-center px-2"
           )}>
             <div className="flex items-center gap-2 overflow-hidden">
@@ -163,7 +163,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                   <div key={groupName}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <h3 className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider mb-2 px-1 text-center cursor-default">
+                        <h3 className="text-[10px] font-semibold text-sidebar-foreground/45 uppercase tracking-wider mb-2 px-1 text-center cursor-default">
                           <span
                             className={cn(
                               "inline-block overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
@@ -193,11 +193,11 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                                 <NavLink
                                   to={mod.route || '/'}
                                   className={cn(
-                                    "relative flex items-center rounded-lg text-sm transition-all duration-300 ease-in-out",
+                                    "relative flex items-center rounded-xl text-sm transition-all duration-300 ease-in-out",
                                     isExpanded ? "justify-start px-3 py-2 gap-3" : "justify-center p-2",
                                     isActive
-                                      ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-brand-gradient"
-                                      : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+                                      ? "aj-nav-item-active font-semibold"
+                                      : "aj-nav-item-idle text-sidebar-foreground/85 hover:text-sidebar-accent-foreground",
                                   )}
 
                                 >
