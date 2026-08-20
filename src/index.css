@@ -147,3 +147,135 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* ==========================================================================
+   Atende Julia — tela de Login (escopo isolado em .aj-login)
+   Nada aqui afeta o tema global do app.
+   ========================================================================== */
+.aj-login {
+  --aj-bg: 258 32% 6%;
+  --aj-surface: 260 26% 12%;
+  --aj-fg: 300 20% 98%;
+  --aj-muted-fg: 265 14% 72%;
+  --aj-magenta: 330 92% 60%;
+  --aj-violet: 262 78% 58%;
+  --aj-success: 160 62% 55%;
+  --aj-gradient: linear-gradient(120deg, hsl(var(--aj-magenta)), hsl(var(--aj-violet)));
+
+  background-color: hsl(var(--aj-bg));
+  color: hsl(var(--aj-fg));
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.aj-login h1,
+.aj-login h2 {
+  font-family: "Sora", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.aj-muted {
+  color: hsl(var(--aj-muted-fg));
+}
+
+.aj-aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.aj-grid-lines {
+  background-image:
+    linear-gradient(hsl(0 0% 100% / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 100% / 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.aj-glass {
+  background-image: linear-gradient(160deg, hsl(0 0% 100% / 0.09), hsl(0 0% 100% / 0.02));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid hsl(0 0% 100% / 0.1);
+}
+
+.aj-glass-hover {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.35s,
+    box-shadow 0.35s;
+}
+.aj-glass-hover:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--aj-magenta) / 0.4);
+}
+
+.aj-glow-ring {
+  box-shadow: 0 24px 70px -28px hsl(var(--aj-magenta) / 0.65);
+}
+
+.aj-text-gradient {
+  background-image: var(--aj-gradient);
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.aj-bg-brand {
+  background-image: var(--aj-gradient);
+}
+
+.aj-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid hsl(0 0% 100% / 0.12);
+  background-color: hsl(var(--aj-surface) / 0.6);
+  color: hsl(var(--aj-fg));
+  font-size: 0.875rem;
+  padding: 0.875rem 2.75rem;
+  outline: none;
+  transition: all 0.3s ease;
+}
+.aj-input::placeholder {
+  color: hsl(var(--aj-muted-fg) / 0.7);
+}
+.aj-input:focus {
+  border-color: hsl(var(--aj-magenta) / 0.6);
+  background-color: hsl(var(--aj-surface));
+  box-shadow: 0 0 0 2px hsl(var(--aj-magenta) / 0.4);
+}
+
+@keyframes aj-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.aj-float {
+  animation: aj-float 6s ease-in-out infinite;
+}
+
+@keyframes aj-pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+}
+.aj-pulse-soft {
+  animation: aj-pulse-soft 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aj-float,
+  .aj-pulse-soft {
+    animation: none;
+  }
+}
