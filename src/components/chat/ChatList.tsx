@@ -1262,7 +1262,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     submitSearch();
                   }
                 }}
-                className="pl-3 pr-16 h-9 bg-muted/40 border-0"
+                className="pl-3 pr-16 h-9 bg-muted/50 border border-border/60 focus-visible:ring-2 focus-visible:ring-ring"
               />
               {(searchDraft || searchQuery) && (
                 <Button
@@ -1504,7 +1504,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                       className={cn(
                         "h-8 w-8 p-0 rounded-md border transition-colors",
                         modeFilter === 'all'
-                          ? "bg-gray-700 text-white border-gray-700 hover:bg-gray-700 hover:text-white dark:bg-gray-200 dark:text-gray-900 dark:border-gray-200"
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary hover:text-primary-foreground"
                           : "bg-transparent text-muted-foreground border-border hover:bg-muted",
                       )}
                     >
@@ -1521,7 +1521,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                       className={cn(
                         "h-8 w-8 p-0 rounded-md border transition-colors",
                         modeFilter === 'julia'
-                          ? "bg-green-600 text-white border-green-600 hover:bg-green-600 hover:text-white"
+                          ? "bg-emerald-600 text-primary-foreground border-emerald-600 hover:bg-emerald-600 hover:text-primary-foreground"
                           : "bg-transparent text-muted-foreground border-border hover:bg-muted",
                       )}
                     >
@@ -1538,7 +1538,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                       className={cn(
                         "h-8 w-8 p-0 rounded-md border transition-colors",
                         modeFilter === 'human'
-                          ? "bg-amber-500 text-white border-amber-500 hover:bg-amber-500 hover:text-white"
+                          ? "bg-amber-600 text-primary-foreground border-amber-600 hover:bg-amber-600 hover:text-primary-foreground"
                           : "bg-transparent text-muted-foreground border-border hover:bg-muted",
                       )}
                     >
@@ -1628,15 +1628,15 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
             key={tab.value}
             onClick={() => setConversationStatusFilter(tab.value)}
             className={cn(
-              'py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border-b-2',
+              'py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border-b-2 aj-focus-ring',
               tab.iconOnly ? 'shrink-0 px-3' : 'flex-1',
               conversationStatusFilter === tab.value
                 ? tab.value === 'pending'
-                  ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                  ? 'border-amber-500 text-amber-700 dark:text-amber-400 bg-amber-500/10'
                   : tab.value === 'open'
-                    ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                    : 'border-foreground text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                    ? 'border-emerald-500 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10'
+                    : 'border-primary text-foreground bg-primary/10'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
             )}
           >
             {tab.iconOnly ? tab.icon : <span className="whitespace-pre-line leading-tight">{tab.label}</span>}
@@ -1645,9 +1645,9 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
               'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
               conversationStatusFilter === tab.value
                 ? tab.value === 'pending'
-                  ? 'bg-amber-600 text-white'
+                  ? 'bg-amber-600 text-primary-foreground'
                   : tab.value === 'open'
-                    ? 'bg-emerald-600 text-white'
+                    ? 'bg-emerald-600 text-primary-foreground'
                     : 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground'
             )}>
@@ -1663,9 +1663,11 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       </div>
       {/* Contact List */}
       <div ref={listRef} className={cn(
-        "flex-1 overflow-y-auto transition-colors",
-        conversationStatusFilter === 'pending' && 'bg-amber-50 dark:bg-amber-950/20 [&_.bg-background]:bg-amber-50 [&_.bg-background]:dark:bg-amber-950/20 [&_.bg-muted\\/30]:bg-amber-100 [&_.bg-muted\\/30]:dark:bg-amber-900/30',
-        conversationStatusFilter === 'open' && 'bg-emerald-50 dark:bg-emerald-950/20 [&_.bg-background]:bg-emerald-50 [&_.bg-background]:dark:bg-emerald-950/20 [&_.bg-muted\\/30]:bg-emerald-100 [&_.bg-muted\\/30]:dark:bg-emerald-900/30',
+        "flex-1 overflow-y-auto transition-colors relative",
+        "before:sticky before:top-0 before:z-10 before:block before:h-[2px] before:-mb-[2px] before:content-['']",
+        conversationStatusFilter === 'pending' && 'before:bg-amber-500/70',
+        conversationStatusFilter === 'open' && 'before:bg-emerald-500/70',
+        conversationStatusFilter !== 'pending' && conversationStatusFilter !== 'open' && 'before:bg-transparent',
       )}>
         {/* Silent-refetch banner — shown when reloading but the list is
             already populated, so the user doesn't lose the current view. */}

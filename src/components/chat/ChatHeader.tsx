@@ -64,10 +64,10 @@ interface ChatHeaderProps {
 
 function ChannelBadge({ channel }: { channel?: string }) {
   const config: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
-    whatsapp_uazapi: { label: 'WhatsApp', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-600 border-emerald-500/30 bg-emerald-500/5' },
-    whatsapp_waba: { label: 'API Oficial', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-700 border-emerald-600/30 bg-emerald-600/5' },
-    webchat: { label: 'WebChat', icon: <Globe className="h-3 w-3" />, className: 'text-blue-600 border-blue-500/30 bg-blue-500/5' },
-    instagram: { label: 'Instagram', icon: <Instagram className="h-3 w-3" />, className: 'text-pink-600 border-pink-500/30 bg-pink-500/5' },
+    whatsapp_uazapi: { label: 'WhatsApp', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-700 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
+    whatsapp_waba: { label: 'API Oficial', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-700 dark:text-emerald-400 border-emerald-600/30 bg-emerald-600/10' },
+    webchat: { label: 'WebChat', icon: <Globe className="h-3 w-3" />, className: 'text-sky-700 dark:text-sky-400 border-sky-500/30 bg-sky-500/10' },
+    instagram: { label: 'Instagram', icon: <Instagram className="h-3 w-3" />, className: 'text-pink-700 dark:text-pink-400 border-pink-500/30 bg-pink-500/10' },
   };
   const c = config[channel || ''] || config.whatsapp_uazapi;
   return (
@@ -350,10 +350,10 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
     .toUpperCase();
 
   const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-    pending: { label: 'Pendente', color: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30', icon: <Clock className="h-3 w-3" /> },
-    open: { label: 'Em atendimento', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30', icon: <MessageSquare className="h-3 w-3" /> },
+    pending: { label: 'Pendente', color: 'bg-amber-500/12 text-amber-700 dark:text-amber-400 border-amber-500/35', icon: <Clock className="h-3 w-3" /> },
+    open: { label: 'Em atendimento', color: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 border-emerald-500/35', icon: <MessageSquare className="h-3 w-3" /> },
     closed: { label: 'Encerrada', color: 'bg-muted text-muted-foreground border-border', icon: <XCircle className="h-3 w-3" /> },
-    resolved: { label: 'Resolvida', color: 'bg-blue-500/10 text-blue-600 border-blue-500/30', icon: <CheckCircle2 className="h-3 w-3" /> },
+    resolved: { label: 'Resolvida', color: 'bg-sky-500/12 text-sky-700 dark:text-sky-400 border-sky-500/35', icon: <CheckCircle2 className="h-3 w-3" /> },
   };
 
   const currentStatus = selectedConversation?.status || 'pending';
@@ -468,7 +468,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
 
   return (
     <>
-      <div className="border-b bg-background">
+      <div className="border-b aj-chat-bar aj-chat-bar-top">
       <div className="flex items-start gap-3 p-3">
         <button
           type="button"
@@ -476,9 +476,9 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
           className={contact.avatar ? 'cursor-zoom-in' : 'cursor-default'}
           aria-label="Ver foto do contato"
         >
-          <Avatar className="h-10 w-10">
+          <Avatar className="h-10 w-10 ring-1 ring-border/70">
             <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
-            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+            <AvatarFallback className="bg-[image:var(--gradient-brand)] text-primary-foreground font-semibold">
               {contact.is_group ? <Users className="h-4 w-4" /> : initials}
             </AvatarFallback>
           </Avatar>
@@ -532,7 +532,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
             <div className="flex items-stretch gap-0 mt-1">
               {queueName && (
                 <span
-                  className="inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center bg-blue-600 text-white rounded-l w-[110px]"
+                  className="inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center bg-[image:var(--gradient-brand)] text-primary-foreground rounded-l w-[110px]"
                   title={`Fila: ${queueName}`}
                 >
                   <span className="truncate">{queueName}</span>
@@ -541,7 +541,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
               {selectedConversation && (
                 <span
                   className={cn(
-                    'inline-flex items-center justify-center h-5 px-1.5 text-[9px] leading-none overflow-hidden whitespace-nowrap text-center bg-slate-100 text-slate-900 w-[110px]',
+                    'inline-flex items-center justify-center h-5 px-1.5 text-[9px] leading-none overflow-hidden whitespace-nowrap text-center bg-secondary text-secondary-foreground w-[110px]',
                     !queueName && 'rounded-l',
                     !slaEvaluation && 'rounded-r',
                     selectedConversation.assigned_to ? 'font-bold' : 'font-normal'
@@ -615,7 +615,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                 className={cn(
                   'gap-1.5',
                   phoneReady
-                    ? 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800'
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/20 hover:text-emerald-800 dark:hover:text-emerald-300'
                     : 'text-muted-foreground border-border hover:bg-muted'
                 )}
                 onClick={() => (phoneReady ? setShowPhoneCall(true) : setShowVoipUpsell(true))}
@@ -664,7 +664,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 dark:text-amber-400 disabled:opacity-40"
                       onClick={() => setShowSnooze(true)}
                       disabled={!isActive}
                       title="Adiar conversa (z)"
@@ -686,7 +686,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 dark:text-amber-400 disabled:opacity-40"
                       onClick={() => setShowReturnDialog(true)}
                       disabled={!isActive || !selectedConversation?.assigned_to}
                       title="Devolver para fila de atendimento"
@@ -697,7 +697,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+                      className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 disabled:opacity-40"
                       onClick={handleResolve}
                       disabled={!isActive}
                       title="Marcar como resolvida (e)"
@@ -796,7 +796,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
               className={cn(
                 'gap-1.5',
                 phoneReady
-                  ? 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800'
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/20 hover:text-emerald-800 dark:hover:text-emerald-300'
                   : 'text-muted-foreground border-border hover:bg-muted'
               )}
               onClick={() => (phoneReady ? setShowPhoneCall(true) : setShowVoipUpsell(true))}

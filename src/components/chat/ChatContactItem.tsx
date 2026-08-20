@@ -207,10 +207,10 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       className={cn(
         'group w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] border-b border-border/50 min-w-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         isSelected
-          ? 'bg-primary/15 border-l-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.3)] ring-1 ring-primary/20'
+          ? 'aj-chat-item-active border-l-transparent'
           : cn(
-              'border-l-transparent hover:bg-accent/20',
-              index % 2 === 0 ? 'bg-background' : 'bg-muted/30'
+              'border-l-transparent hover:bg-muted/60',
+              index % 2 === 0 ? 'bg-background' : 'bg-muted/25'
             ),
         isQueueDisconnected &&
           '!bg-destructive/10 hover:!bg-destructive/15 border-l-destructive/60',
@@ -220,7 +220,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
       <div className="relative flex-shrink-0 mt-0.5">
         <Avatar className="h-12 w-12">
           <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
-          <AvatarFallback className="bg-muted text-muted-foreground text-sm font-semibold">
+          <AvatarFallback className="bg-secondary text-secondary-foreground text-sm font-semibold">
             {contact.is_group ? <Users className="h-4 w-4" /> : initials}
           </AvatarFallback>
         </Avatar>
@@ -270,7 +270,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             </span>
           </div>
           {contact.unread_count > 0 ? (
-            <span className="flex-shrink-0 bg-emerald-500 text-white text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
+            <span className="flex-shrink-0 bg-emerald-600 text-primary-foreground text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
               {contact.unread_count > 99 ? '99+' : contact.unread_count}
             </span>
           ) : (
@@ -285,7 +285,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
               <TooltipTrigger asChild>
                 <div className="animate-in fade-in slide-in-from-top-1 duration-200 flex items-center justify-between gap-1.5 min-w-0 w-full pt-1 mt-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-sm border border-emerald-100/70 dark:border-emerald-900/40 px-0 py-[2px] my-0">
                   <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
-                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-emerald-100 text-emerald-700 whitespace-nowrap flex-shrink-0">
+                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 whitespace-nowrap flex-shrink-0">
                       <Bot className="h-2.5 w-2.5 flex-shrink-0" />
                       JULIA
                     </span>
@@ -297,7 +297,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
                   </div>
                   {agentCodAgent && (
                     <span
-                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap max-w-[120px] truncate"
+                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-primary-foreground whitespace-nowrap max-w-[120px] truncate"
                       style={{
                         backgroundColor: stageName
                           ? (stageColor || '#64748b')
@@ -425,7 +425,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             {queueName && (
               <Pill
                 label={toTitleCase(queueName)}
-                className="bg-blue-600 text-white rounded-l w-[110px]"
+                className="bg-[image:var(--gradient-brand)] text-primary-foreground rounded-l w-[110px]"
               />
             )}
             <Pill

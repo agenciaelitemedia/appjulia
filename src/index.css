@@ -304,7 +304,156 @@ All colors MUST be HSL.
     border-color: hsl(var(--brand-magenta) / 0.35);
     box-shadow: 0 14px 30px -20px hsl(var(--brand-magenta) / 0.5);
   }
+
+  /* ---------- Chat: superfícies, bolhas e status ---------- */
+
+  /* Barras (header do chat e composer): vidro + hairline degradê */
+  .aj-chat-bar {
+    position: relative;
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--brand-magenta) / 0.05),
+      hsl(var(--background) / 0.92) 60%
+    );
+    background-color: hsl(var(--background) / 0.85);
+    backdrop-filter: blur(14px);
+    border-color: hsl(var(--border) / 0.7);
+  }
+  .dark .aj-chat-bar {
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--brand-magenta) / 0.1),
+      hsl(var(--background) / 0.9) 60%
+    );
+  }
+  .aj-chat-bar-top::before,
+  .aj-chat-bar-bottom::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--brand-magenta) / 0.55),
+      hsl(var(--brand-violet) / 0.35) 60%,
+      transparent
+    );
+    pointer-events: none;
+  }
+  .aj-chat-bar-top::before {
+    bottom: -1px;
+  }
+  .aj-chat-bar-bottom::after {
+    top: -1px;
+  }
+
+  /* Fundo da timeline: leve glow radial da marca */
+  .aj-chat-canvas {
+    background-color: hsl(var(--muted) / 0.35);
+    background-image:
+      radial-gradient(
+        70% 50% at 12% 0%,
+        hsl(var(--brand-violet) / 0.07),
+        transparent 70%
+      ),
+      radial-gradient(
+        60% 45% at 100% 100%,
+        hsl(var(--brand-magenta) / 0.06),
+        transparent 70%
+      );
+  }
+  .dark .aj-chat-canvas {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(
+        70% 50% at 12% 0%,
+        hsl(var(--brand-violet) / 0.12),
+        transparent 70%
+      ),
+      radial-gradient(
+        60% 45% at 100% 100%,
+        hsl(var(--brand-magenta) / 0.1),
+        transparent 70%
+      );
+  }
+
+  /* Bolhas */
+  .aj-bubble-out {
+    background-image: linear-gradient(
+      160deg,
+      hsl(var(--brand-magenta) / 0.16),
+      hsl(var(--brand-violet) / 0.12)
+    );
+    border: 1px solid hsl(var(--brand-magenta) / 0.28);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.5),
+      0 6px 16px -14px hsl(var(--brand-magenta) / 0.6);
+  }
+  .dark .aj-bubble-out {
+    background-image: linear-gradient(
+      160deg,
+      hsl(var(--brand-magenta) / 0.24),
+      hsl(var(--brand-violet) / 0.18)
+    );
+    border-color: hsl(var(--brand-magenta) / 0.4);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.08),
+      0 8px 20px -16px hsl(var(--brand-magenta) / 0.7);
+  }
+
+  .aj-bubble-in {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border) / 0.9);
+    box-shadow: 0 4px 14px -14px hsl(258 40% 20% / 0.55);
+  }
+  .dark .aj-bubble-in {
+    background-color: hsl(var(--card) / 0.9);
+    border-color: hsl(var(--border) / 0.8);
+  }
+
+  /* Separador de data / chips flutuantes na timeline */
+  .aj-chat-chip {
+    background-color: hsl(var(--background) / 0.7);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsl(var(--border) / 0.7);
+    box-shadow: 0 4px 14px -12px hsl(258 40% 20% / 0.5);
+  }
+
+  /* Item ativo da lista de conversas: pílula com faixa da marca */
+  .aj-chat-item-active {
+    position: relative;
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta) / 0.14),
+      hsl(var(--brand-violet) / 0.08) 70%
+    );
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.35);
+  }
+  .dark .aj-chat-item-active {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta) / 0.2),
+      hsl(var(--brand-violet) / 0.12) 70%
+    );
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.06);
+  }
+  .aj-chat-item-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 999px;
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--brand-magenta)),
+      hsl(var(--brand-violet))
+    );
+  }
 }
+
 
 
 /* ==========================================================================

@@ -359,7 +359,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
   if (readOnly) return null;
 
   return (
-    <div className="border-t bg-background">
+    <div className="border-t aj-chat-bar aj-chat-bar-bottom">
       {/* Claim/Reopen banner — same position, same layout */}
       {(showReopenBanner || showClaimBanner) && (
         <div className={cn(
@@ -394,9 +394,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
       {/* Note mode indicator */}
       {noteMode && (() => {
         const noteStyles = {
-          info: { bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'text-blue-600', text: 'text-blue-700 dark:text-blue-400', title: 'Nota Informativa' },
-          question: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', icon: 'text-yellow-700', text: 'text-yellow-800 dark:text-yellow-400', title: 'Nota de Dúvida' },
-          urgent: { bg: 'bg-red-500/10', border: 'border-red-500/30', icon: 'text-red-600', text: 'text-red-700 dark:text-red-400', title: 'Nota de Urgência' },
+          info: { bg: 'bg-sky-500/10', border: 'border-sky-500/25', icon: 'text-sky-700 dark:text-sky-400', text: 'text-sky-700 dark:text-sky-300', title: 'Nota Informativa' },
+          question: { bg: 'bg-amber-500/12', border: 'border-amber-500/30', icon: 'text-amber-700 dark:text-amber-400', text: 'text-amber-800 dark:text-amber-300', title: 'Nota de Dúvida' },
+          urgent: { bg: 'bg-destructive/10', border: 'border-destructive/30', icon: 'text-destructive', text: 'text-destructive dark:text-red-300', title: 'Nota de Urgência' },
         }[noteType];
         const NoteIcon = noteType === 'question' ? HelpCircle : noteType === 'urgent' ? AlertTriangle : StickyNote;
         return (
@@ -616,9 +616,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
                 size="icon"
                 className={cn(
                   'h-9 w-9 flex-shrink-0',
-                  noteMode && noteType === 'info' && 'bg-blue-500 text-white hover:bg-blue-600 hover:text-white',
-                  noteMode && noteType === 'question' && 'bg-yellow-500 text-white hover:bg-yellow-600 hover:text-white',
-                  noteMode && noteType === 'urgent' && 'bg-red-500 text-white hover:bg-red-600 hover:text-white',
+                  noteMode && noteType === 'info' && 'bg-sky-600 text-primary-foreground hover:bg-sky-700 hover:text-primary-foreground',
+                  noteMode && noteType === 'question' && 'bg-amber-600 text-primary-foreground hover:bg-amber-700 hover:text-primary-foreground',
+                  noteMode && noteType === 'urgent' && 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground',
                 )}
                 title="Nota interna"
               >
@@ -702,7 +702,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
               size="icon"
               className={cn(
                 'h-9 w-9 flex-shrink-0',
-                noteMode && 'bg-blue-500 hover:bg-blue-600'
+                noteMode && 'bg-sky-600 hover:bg-sky-700 bg-none'
               )}
               onClick={handleSend}
               disabled={isSending}
