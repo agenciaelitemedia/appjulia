@@ -1262,7 +1262,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     submitSearch();
                   }
                 }}
-                className="pl-3 pr-16 h-9 bg-muted/40 border-0"
+                className="pl-3 pr-16 h-9 bg-muted/50 border border-border/60 focus-visible:ring-2 focus-visible:ring-ring"
               />
               {(searchDraft || searchQuery) && (
                 <Button
@@ -1504,7 +1504,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                       className={cn(
                         "h-8 w-8 p-0 rounded-md border transition-colors",
                         modeFilter === 'all'
-                          ? "bg-gray-700 text-white border-gray-700 hover:bg-gray-700 hover:text-white dark:bg-gray-200 dark:text-gray-900 dark:border-gray-200"
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary hover:text-primary-foreground"
                           : "bg-transparent text-muted-foreground border-border hover:bg-muted",
                       )}
                     >
@@ -1521,7 +1521,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                       className={cn(
                         "h-8 w-8 p-0 rounded-md border transition-colors",
                         modeFilter === 'julia'
-                          ? "bg-green-600 text-white border-green-600 hover:bg-green-600 hover:text-white"
+                          ? "bg-emerald-600 text-primary-foreground border-emerald-600 hover:bg-emerald-600 hover:text-primary-foreground"
                           : "bg-transparent text-muted-foreground border-border hover:bg-muted",
                       )}
                     >
@@ -1538,7 +1538,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                       className={cn(
                         "h-8 w-8 p-0 rounded-md border transition-colors",
                         modeFilter === 'human'
-                          ? "bg-amber-500 text-white border-amber-500 hover:bg-amber-500 hover:text-white"
+                          ? "bg-amber-600 text-primary-foreground border-amber-600 hover:bg-amber-600 hover:text-primary-foreground"
                           : "bg-transparent text-muted-foreground border-border hover:bg-muted",
                       )}
                     >
