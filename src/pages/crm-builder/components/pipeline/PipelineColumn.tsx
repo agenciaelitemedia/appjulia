@@ -113,25 +113,24 @@ export function PipelineColumn({
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, ['--stage-color' as string]: hslFromHex(pipeline.color) }}
       className={cn(
-        'flex-shrink-0 min-w-[280px] max-w-[280px] flex flex-col bg-muted/30 rounded-lg',
+        'aj-column-shell flex-shrink-0 min-w-[280px] max-w-[280px] flex flex-col rounded-xl overflow-hidden',
         isDragging && 'opacity-50'
       )}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
+      aria-label={`Etapa ${pipeline.name}`}
     >
       {/* Header */}
-      <div 
-        className="p-3 rounded-t-lg flex items-center justify-between gap-2"
-        style={{ backgroundColor: `${pipeline.color}20` }}
-      >
+      <div className="aj-column-head p-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <button
             {...attributes}
             {...listeners}
+            aria-label={`Reordenar etapa ${pipeline.name}`}
             className={cn(
-              'cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted transition-opacity',
+              'aj-focus-ring cursor-grab active:cursor-grabbing p-1 rounded transition-opacity hover:bg-foreground/10 focus-visible:opacity-100',
               isHovering && !pipeline.is_system ? 'opacity-100' : 'opacity-0',
               pipeline.is_system && 'pointer-events-none'
             )}
@@ -140,11 +139,11 @@ export function PipelineColumn({
           </button>
           
           <div 
-            className="w-3 h-3 rounded-full flex-shrink-0" 
+            className="w-3 h-3 rounded-full flex-shrink-0 ring-1 ring-inset ring-foreground/10" 
             style={{ backgroundColor: pipeline.color }}
           />
           
-          <h3 className="font-medium text-sm truncate">
+          <h3 className="aj-title-gradient font-semibold text-sm truncate">
             {pipeline.name}
           </h3>
 
@@ -159,7 +158,7 @@ export function PipelineColumn({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7">
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label={`Ações da etapa ${pipeline.name}`}>
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
