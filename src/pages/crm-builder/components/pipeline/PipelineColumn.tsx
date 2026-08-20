@@ -20,6 +20,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { hslFromHex } from '@/lib/colorToHsl';
 import type { CRMPipeline, CRMDeal } from '../../types';
 
 const ITEMS_PER_PAGE = 30;
