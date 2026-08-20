@@ -675,3 +675,28 @@ All colors MUST be HSL.
     transparent
   );
 }
+
+/* ==========================================================================
+   Dark mode — superfícies translúcidas (vidro) sobre o fundo do shell
+   ========================================================================== */
+.dark .aj-shell-surface {
+  background-color: hsl(258 34% 8% / 0.72);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.dark .aj-sidebar-surface {
+  background-color: hsl(258 34% 7% / 0.7);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+/* Cartões ficam semitransparentes para o degradê do fundo aparecer */
+.dark .bg-card {
+  background-color: hsl(260 24% 14% / 0.66);
+  backdrop-filter: blur(14px);
+}
+
+/* Camada leve de vidro do conteúdo principal */
+.dark .aj-content-glass {
+  background-image: linear-gradient(180deg, hsl(0 0% 100% / 0.045), hsl(0 0% 100% / 0.015));
+  backdrop-filter: blur(6px);
+}
