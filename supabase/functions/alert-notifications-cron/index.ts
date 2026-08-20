@@ -693,7 +693,9 @@ async function upsertAlertCrmCard(
       crm_stage_label: card.crmStageLabel,
       log_id: card.logId,
       status: "open",
+      labels: card.triggerKey === "no_response" ? [NO_RESPONSE_LABEL] : [],
       stage_entered_at: new Date().toISOString(),
+
     }).select("id").maybeSingle();
     return { shouldSend: true, cardId: inserted?.id ?? null };
   } catch (err) {
