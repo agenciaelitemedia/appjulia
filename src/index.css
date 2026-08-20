@@ -8,55 +8,62 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 260 30% 99%;
+    --foreground: 258 30% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 258 30% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 258 30% 12%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 330 78% 48%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 264 30% 96%;
+    --secondary-foreground: 258 30% 16%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 264 24% 96%;
+    --muted-foreground: 258 12% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 330 70% 96%;
+    --accent-foreground: 330 60% 30%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 264 22% 91%;
+    --input: 264 22% 89%;
+    --ring: 330 78% 52%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
+    --sidebar-background: 260 32% 98%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-foreground: 258 20% 28%;
 
-    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary: 330 78% 48%;
 
-    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-primary-foreground: 0 0% 100%;
 
-    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent: 330 62% 95%;
 
-    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-accent-foreground: 330 58% 32%;
 
-    --sidebar-border: 220 13% 91%;
+    --sidebar-border: 264 22% 91%;
 
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 330 78% 52%;
 
     /* Brand accent - Julia IA */
     --brand-accent: 38 92% 50%;
     --brand-accent-foreground: 0 0% 100%;
+
+    /* Marca Atende Julia (mesma paleta da tela de login) */
+    --brand-magenta: 330 84% 52%;
+    --brand-violet: 262 74% 52%;
+    --gradient-brand: linear-gradient(120deg, hsl(var(--brand-magenta)), hsl(var(--brand-violet)));
+    --shadow-brand: 0 20px 50px -24px hsl(var(--brand-magenta) / 0.45);
+    --surface-glass: 0 0% 100% / 0.72;
 
     /* Chart colors */
     --chart-1: 221.2 83.2% 53.3%;
@@ -72,10 +79,11 @@ All colors MUST be HSL.
     --flow-julia: 38 92% 50%;
     --flow-crm: 221.2 83.2% 53.3%;
     --flow-data: 199 89% 48%;
-    --flow-canvas: 210 40% 98%;
-    --flow-grid: 214.3 31.8% 85%;
-    --flow-edge: 215.4 16.3% 60%;
+    --flow-canvas: 260 30% 98%;
+    --flow-grid: 264 22% 88%;
+    --flow-edge: 258 12% 60%;
   }
+
 
   .dark {
     --background: 222.2 84% 4.9%;
