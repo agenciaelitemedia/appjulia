@@ -87,14 +87,16 @@ All colors MUST be HSL.
 
 
   .dark {
-    --background: 258 26% 12%;
+    /* Base alinhada às superfícies do header/sidebar (aj-shell-surface) */
+    --background: 258 34% 8%;
     --foreground: 300 20% 98%;
 
-    --card: 259 22% 16%;
+    --card: 260 24% 14%;
     --card-foreground: 300 20% 98%;
 
-    --popover: 259 22% 17%;
+    --popover: 260 24% 15%;
     --popover-foreground: 300 20% 98%;
+
 
     --primary: 330 92% 60%;
     --primary-foreground: 0 0% 100%;
