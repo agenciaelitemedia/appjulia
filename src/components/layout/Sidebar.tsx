@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { X, Loader2 } from "lucide-react";
-import juliaLogo from "@/assets/julia-logo.png";
+import logoAsset from "@/assets/atende-julia-logo.png.asset.json";
+import mascoteAsset from "@/assets/julia-mascote-acenando.png.asset.json";
+
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
