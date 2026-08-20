@@ -594,11 +594,13 @@ async function takeover(sql: any, codAgent: string, sessionId: number | null, ph
 }
 
 /**
- * CRM de Notificações: garante NO MÁXIMO UM card aberto por (agente, lead).
- * O telefone é normalizado (últimos 8 dígitos), então variações de DDI/DDD/9º
- * dígito não geram cards duplicados. Se o lead já tem card aberto, ele é
- * movido para a coluna do novo alerta em vez de criar um segundo card.
- * Cards resolvidos (recuperado/perdido) não bloqueiam a criação de um novo.
+ * CRM de Notificações: garante NO MÁXIMO UM card aberto por (agente, lead) e
+ * DECIDE se a notificação deve ser enviada:
+ *  - card aberto na MESMA etapa (mesmo gatilho) -> só atualiza data/hora, NÃO envia;
+ *  - card aberto em etapa DIFERENTE -> move de etapa, atualiza data/hora e ENVIA;
+ *  - sem card aberto -> cria o card e ENVIA.
+ * O telefone é normalizado (últimos 8 dígitos). Cards resolvidos
+ * (recuperado/perdido) não bloqueiam a criação de um novo.
  */
 async function upsertAlertCrmCard(
   supabase: any,
@@ -612,9 +614,9 @@ async function upsertAlertCrmCard(
     crmStageLabel: string | null;
     logId: string | null;
   },
-) {
+): Promise<{ shouldSend: boolean; cardId: string | null }> {
   const key = phoneKey(card.leadPhone);
-  if (!key) return;
+  if (!key) return { shouldSend: false, cardId: null };
   try {
     const { data: existing } = await supabase
       .from("alert_crm_cards")
@@ -634,15 +636,15 @@ async function upsertAlertCrmCard(
           lead_phone: card.leadPhone,
           business_name: card.businessName,
           crm_stage_label: card.crmStageLabel ?? existing[0].crm_stage_label ?? null,
-          log_id: card.logId,
+          ...(card.logId ? { log_id: card.logId } : {}),
           ...(moved ? { stage_entered_at: new Date().toISOString() } : {}),
           updated_at: new Date().toISOString(),
         })
         .eq("id", existing[0].id);
-      return;
+      return { shouldSend: moved, cardId: existing[0].id };
     }
 
-    await supabase.from("alert_crm_cards").insert({
+    const { data: inserted } = await supabase.from("alert_crm_cards").insert({
       client_id: card.clientId,
       cod_agent: card.codAgent,
       trigger_key: card.triggerKey,
@@ -654,9 +656,11 @@ async function upsertAlertCrmCard(
       log_id: card.logId,
       status: "open",
       stage_entered_at: new Date().toISOString(),
-    });
+    }).select("id").maybeSingle();
+    return { shouldSend: true, cardId: inserted?.id ?? null };
   } catch (err) {
     console.warn(`[alerts] upsert card CRM falhou (${card.leadPhone}):`, err);
+    return { shouldSend: false, cardId: null };
   }
 }
 
@@ -764,34 +768,24 @@ serve(async (req) => {
           if (!leadKey || seenLeads.has(leadKey)) continue;
           seenLeads.add(leadKey);
 
-          // Anti-duplicidade: um disparo por lead/gatilho/marcador.
-          const { data: existing } = await supabase
-            .from("alert_notification_logs")
-            .select("id")
-            .eq("cod_agent", codAgent)
-            .eq("trigger_key", cfg.trigger_key)
-            .eq("dedupe_key", cand.dedupeKey)
-            .limit(1);
-          if (existing && existing.length > 0) {
-            // Alerta já foi enviado antes: não reenvia, mas garante que o card
-            // exista no CRM de Notificações (sem isso o lead nunca ganha card).
-            // Resolve a etapa do CRM também aqui — sem isso o card fica "Sem etapa".
-            const etapaCrmExistente = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
-            await upsertAlertCrmCard(supabase, {
-              clientId,
-              codAgent,
-              triggerKey: cfg.trigger_key,
-              leadPhone: cand.leadPhone,
-              leadName: cand.leadName ?? null,
-              businessName: businessName,
-              crmStageLabel: etapaCrmExistente || null,
-              logId: existing[0].id ?? null,
-            });
-            continue;
-          }
+          // O card do CRM de Notificações decide o disparo:
+          //  - card na mesma etapa -> só atualiza data/hora e não reenvia;
+          //  - card em etapa diferente -> move + envia;
+          //  - sem card -> cria + envia.
+          const etapaCrm = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
+          const decision = await upsertAlertCrmCard(supabase, {
+            clientId,
+            codAgent,
+            triggerKey: cfg.trigger_key,
+            leadPhone: cand.leadPhone,
+            leadName: cand.leadName ?? null,
+            businessName: businessName,
+            crmStageLabel: etapaCrm || null,
+            logId: null,
+          });
+          if (!decision.shouldSend) continue;
 
           const resumo = cand.resumo || (await buildResumo(supabase, cand.leadPhone));
-          const etapaCrm = await fetchCrmStage(supabase, sql, clientId, cand.leadPhone);
           const message = renderTemplate(cfg.message_template ?? "", {
             lead_nome: cand.leadName || "Não informado",
             lead_whatsapp: cand.leadPhone,
@@ -856,18 +850,12 @@ serve(async (req) => {
                 .eq("id", logRow.id);
             }
 
-            // CRM de Notificações: cria/reabre o card do lead na coluna do gatilho.
-            if (status === "sent") {
-              await upsertAlertCrmCard(supabase, {
-                clientId,
-                codAgent,
-                triggerKey: cfg.trigger_key,
-                leadPhone: cand.leadPhone,
-                leadName: cand.leadName ?? null,
-                businessName: businessName,
-                crmStageLabel: etapaCrm || null,
-                logId: logRow?.id ?? null,
-              });
+            // Vincula o último disparo ao card já criado/movido acima.
+            if (status === "sent" && decision.cardId && logRow?.id) {
+              await supabase
+                .from("alert_crm_cards")
+                .update({ log_id: logRow.id, updated_at: new Date().toISOString() })
+                .eq("id", decision.cardId);
             }
 
             results.push({ trigger: cfg.trigger_key, lead: cand.leadPhone, to: phone, status });
