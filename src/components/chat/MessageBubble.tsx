@@ -671,10 +671,10 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
           <div className="flex flex-col items-stretch min-w-0">
             <div
               className={cn(
-                'rounded-lg px-3 py-2',
+                'rounded-lg px-3 py-2 text-foreground',
                 message.from_me
-                  ? 'bg-green-100 dark:bg-green-900/30 text-foreground rounded-br-none'
-                  : 'bg-muted text-foreground border border-border/50 rounded-bl-none'
+                  ? 'aj-bubble-out rounded-br-none'
+                  : 'aj-bubble-in rounded-bl-none'
               )}
             >
               {/* Sender name (groups) */}
