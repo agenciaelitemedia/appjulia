@@ -259,7 +259,8 @@ async function fetchNoResponseCandidates(
   minutes: number,
 ): Promise<Candidate[]> {
   const now = Date.now();
-  const floor = new Date(now - 2 * 24 * 60 * 60_000).toISOString();
+  // Janela: mensagem nossa enviada há >= minutes e < minutes + 10 min.
+  const floor = new Date(now - (minutes * 60_000 + RECENT_WINDOW_MS)).toISOString();
 
   let clientId: string | null = null;
   try {
@@ -316,6 +317,7 @@ async function fetchNoResponseCandidates(
     if (!lastMessage?.from_me || !Number.isFinite(lastMessageMs)) continue;
     if (lastMessageMs < new Date(floor).getTime()) continue;
     if (lastMessageMs + minutes * 60_000 > now) continue;
+    if (lastMessageMs + minutes * 60_000 + RECENT_WINDOW_MS < now) continue;
 
     const contact = byId.get(conv.contact_id);
     const phone = String(contact?.phone ?? "").replace(/\D/g, "");
