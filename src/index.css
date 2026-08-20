@@ -59,9 +59,9 @@ All colors MUST be HSL.
     --brand-accent: 38 92% 50%;
     --brand-accent-foreground: 0 0% 100%;
 
-    /* Marca Atende Julia (mesma paleta da tela de login) */
-    --brand-magenta: 330 84% 52%;
-    --brand-violet: 262 74% 52%;
+    /* Marca Atende Julia (mesma paleta da tela de login, tons mais fechados no claro) */
+    --brand-magenta: 326 70% 40%;
+    --brand-violet: 262 62% 42%;
     --gradient-brand: linear-gradient(120deg, hsl(var(--brand-magenta)), hsl(var(--brand-violet)));
     --shadow-brand: 0 20px 50px -24px hsl(var(--brand-magenta) / 0.45);
     --surface-glass: 0 0% 100% / 0.72;
