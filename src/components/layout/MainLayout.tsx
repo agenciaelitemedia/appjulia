@@ -113,7 +113,7 @@ export function MainLayout() {
   return (
     <PhoneProvider>
       <SidebarProvider isCollapsed={sidebarCollapsed}>
-        <div className="min-h-screen bg-background dark:bg-transparent">
+        <div className="min-h-screen bg-background dark:bg-transparent aj-content-glass">
           <Sidebar 
             isOpen={sidebarOpen} 
             onToggle={() => setSidebarOpen(!sidebarOpen)}
