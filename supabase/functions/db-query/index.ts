@@ -301,6 +301,7 @@ serve(async (req) => {
       }
 
       case 'insert': {
+        normalizeNaiveTimestamps(table, data);
         // Special handling for agents table with settings field
         if (table === 'agents' && data && 'settings' in data) {
           const normalizedSettings = normalizeSettings(data.settings);
@@ -333,6 +334,7 @@ serve(async (req) => {
       }
 
       case 'update': {
+        normalizeNaiveTimestamps(table, data);
         // Special handling for agents table with settings field
         if (table === 'agents' && data && 'settings' in data) {
           const normalizedSettings = normalizeSettings(data.settings);
