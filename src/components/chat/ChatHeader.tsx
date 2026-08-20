@@ -532,7 +532,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
             <div className="flex items-stretch gap-0 mt-1">
               {queueName && (
                 <span
-                  className="inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center bg-blue-600 text-white rounded-l w-[110px]"
+                  className="inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center bg-[image:var(--gradient-brand)] text-primary-foreground rounded-l w-[110px]"
                   title={`Fila: ${queueName}`}
                 >
                   <span className="truncate">{queueName}</span>
