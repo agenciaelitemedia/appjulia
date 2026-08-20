@@ -394,9 +394,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
       {/* Note mode indicator */}
       {noteMode && (() => {
         const noteStyles = {
-          info: { bg: 'bg-blue-500/10', border: 'border-blue-500/20', icon: 'text-blue-600', text: 'text-blue-700 dark:text-blue-400', title: 'Nota Informativa' },
-          question: { bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', icon: 'text-yellow-700', text: 'text-yellow-800 dark:text-yellow-400', title: 'Nota de Dúvida' },
-          urgent: { bg: 'bg-red-500/10', border: 'border-red-500/30', icon: 'text-red-600', text: 'text-red-700 dark:text-red-400', title: 'Nota de Urgência' },
+          info: { bg: 'bg-sky-500/10', border: 'border-sky-500/25', icon: 'text-sky-700 dark:text-sky-400', text: 'text-sky-700 dark:text-sky-300', title: 'Nota Informativa' },
+          question: { bg: 'bg-amber-500/12', border: 'border-amber-500/30', icon: 'text-amber-700 dark:text-amber-400', text: 'text-amber-800 dark:text-amber-300', title: 'Nota de Dúvida' },
+          urgent: { bg: 'bg-destructive/10', border: 'border-destructive/30', icon: 'text-destructive', text: 'text-destructive dark:text-red-300', title: 'Nota de Urgência' },
         }[noteType];
         const NoteIcon = noteType === 'question' ? HelpCircle : noteType === 'urgent' ? AlertTriangle : StickyNote;
         return (
