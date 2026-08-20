@@ -121,17 +121,21 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
             isExpanded ? "justify-between px-4" : "justify-center px-2"
           )}>
             <div className="flex items-center gap-2 overflow-hidden">
-              <img src={juliaLogo} alt="Julia IA" className="w-8 h-8 rounded-lg shrink-0" />
-              <span
-                className={cn(
-                  "text-lg font-semibold overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
-                  isExpanded ? "opacity-100 max-w-[120px]" : "opacity-0 max-w-0"
-                )}
-              >
-                <span className="text-sidebar-foreground">Jul</span>
-                <span className="text-brand">IA</span>
-              </span>
+              {isExpanded ? (
+                <img
+                  src={logoAsset.url}
+                  alt="Atende Julia"
+                  className="h-8 w-auto max-w-[170px] object-contain"
+                />
+              ) : (
+                <img
+                  src={mascoteAsset.url}
+                  alt="Atende Julia"
+                  className="h-9 w-9 shrink-0 rounded-lg object-contain"
+                />
+              )}
             </div>
+
             <Button
               variant="ghost"
               size="icon"
