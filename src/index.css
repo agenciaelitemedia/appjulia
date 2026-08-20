@@ -336,10 +336,14 @@ All colors MUST be HSL.
   .dark .aj-chat-bar {
     background-image: linear-gradient(
       180deg,
-      hsl(var(--brand-magenta) / 0.1),
-      hsl(var(--background) / 0.9) 60%
+      hsl(var(--brand-magenta) / 0.04),
+      hsl(var(--background) / 0.55) 60%
     );
+    background-color: hsl(var(--background) / 0.45);
+    border-color: hsl(var(--border) / 0.45);
+    backdrop-filter: blur(18px) saturate(130%);
   }
+
   .aj-chat-bar-top::before,
   .aj-chat-bar-bottom::after {
     content: "";
@@ -361,6 +365,16 @@ All colors MUST be HSL.
   .aj-chat-bar-bottom::after {
     top: -1px;
   }
+  /* No dark a hairline fica bem discreta para não pesar */
+  .dark .aj-chat-bar-top::before,
+  .dark .aj-chat-bar-bottom::after {
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--brand-magenta) / 0.28),
+      hsl(var(--brand-violet) / 0.16) 60%,
+      transparent
+    );
+  }
 
   /* Fundo da timeline: leve glow radial da marca */
   .aj-chat-canvas {
@@ -378,19 +392,21 @@ All colors MUST be HSL.
       );
   }
   .dark .aj-chat-canvas {
-    background-color: hsl(var(--background));
+    background-color: hsl(258 30% 9% / 0.4);
     background-image:
       radial-gradient(
         70% 50% at 12% 0%,
-        hsl(var(--brand-violet) / 0.12),
+        hsl(var(--brand-violet) / 0.06),
         transparent 70%
       ),
       radial-gradient(
         60% 45% at 100% 100%,
-        hsl(var(--brand-magenta) / 0.1),
+        hsl(var(--brand-magenta) / 0.05),
         transparent 70%
       );
+    backdrop-filter: blur(2px);
   }
+
 
   /* Bolhas */
   .aj-bubble-out {
@@ -407,13 +423,15 @@ All colors MUST be HSL.
   .dark .aj-bubble-out {
     background-image: linear-gradient(
       160deg,
-      hsl(var(--brand-magenta) / 0.24),
-      hsl(var(--brand-violet) / 0.18)
+      hsl(var(--brand-magenta) / 0.13),
+      hsl(var(--brand-violet) / 0.09)
     );
-    border-color: hsl(var(--brand-magenta) / 0.4);
+    background-color: hsl(258 30% 12% / 0.5);
+    border-color: hsl(var(--brand-magenta) / 0.2);
+    backdrop-filter: blur(10px);
     box-shadow:
-      inset 0 1px 0 hsl(0 0% 100% / 0.08),
-      0 8px 20px -16px hsl(var(--brand-magenta) / 0.7);
+      inset 0 1px 0 hsl(0 0% 100% / 0.05),
+      0 8px 22px -20px hsl(var(--brand-magenta) / 0.5);
   }
 
   .aj-bubble-in {
@@ -422,9 +440,12 @@ All colors MUST be HSL.
     box-shadow: 0 4px 14px -14px hsl(258 40% 20% / 0.55);
   }
   .dark .aj-bubble-in {
-    background-color: hsl(var(--card) / 0.9);
-    border-color: hsl(var(--border) / 0.8);
+    background-color: hsl(260 24% 16% / 0.5);
+    border-color: hsl(0 0% 100% / 0.07);
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
   }
+
 
   /* Separador de data / chips flutuantes na timeline */
   .aj-chat-chip {
@@ -447,11 +468,12 @@ All colors MUST be HSL.
   .dark .aj-chat-item-active {
     background-image: linear-gradient(
       100deg,
-      hsl(var(--brand-magenta) / 0.2),
-      hsl(var(--brand-violet) / 0.12) 70%
+      hsl(var(--brand-magenta) / 0.11),
+      hsl(var(--brand-violet) / 0.06) 70%
     );
-    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.06);
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
   }
+
   .aj-chat-item-active::before {
     content: "";
     position: absolute;
