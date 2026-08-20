@@ -508,20 +508,20 @@ async function fetchXJContractCandidates(
   triggerKey: string,
 ): Promise<Candidate[]> {
   if (!clientId) return [];
-  const floor = new Date(Date.now() - 30 * 24 * 60 * 60_000).toISOString();
+  const recentFloor = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
 
   let query = supabase
     .from("xj_contracts")
     .select("id, status, signed_at, signer_name, signer_phone, case_id, created_at")
     .eq("client_id", String(clientId))
-    .gte("created_at", floor)
     .order("created_at", { ascending: false })
     .limit(100);
 
   if (triggerKey === "contract_signed") {
-    query = query.or("status.eq.signed,signed_at.not.is.null");
+    // Assinado nos últimos 10 minutos (exige signed_at para ter data confiável).
+    query = query.not("signed_at", "is", null).gte("signed_at", recentFloor);
   } else {
-    query = query.eq("status", "sent").is("signed_at", null);
+    query = query.eq("status", "sent").is("signed_at", null).gte("created_at", recentFloor);
   }
 
   const { data: contracts, error } = await query;
