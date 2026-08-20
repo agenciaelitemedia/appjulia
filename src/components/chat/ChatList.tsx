@@ -1663,9 +1663,11 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
       </div>
       {/* Contact List */}
       <div ref={listRef} className={cn(
-        "flex-1 overflow-y-auto transition-colors",
-        conversationStatusFilter === 'pending' && 'bg-amber-50 dark:bg-amber-950/20 [&_.bg-background]:bg-amber-50 [&_.bg-background]:dark:bg-amber-950/20 [&_.bg-muted\\/30]:bg-amber-100 [&_.bg-muted\\/30]:dark:bg-amber-900/30',
-        conversationStatusFilter === 'open' && 'bg-emerald-50 dark:bg-emerald-950/20 [&_.bg-background]:bg-emerald-50 [&_.bg-background]:dark:bg-emerald-950/20 [&_.bg-muted\\/30]:bg-emerald-100 [&_.bg-muted\\/30]:dark:bg-emerald-900/30',
+        "flex-1 overflow-y-auto transition-colors relative",
+        "before:sticky before:top-0 before:z-10 before:block before:h-[2px] before:-mb-[2px] before:content-['']",
+        conversationStatusFilter === 'pending' && 'before:bg-amber-500/70',
+        conversationStatusFilter === 'open' && 'before:bg-emerald-500/70',
+        conversationStatusFilter !== 'pending' && conversationStatusFilter !== 'open' && 'before:bg-transparent',
       )}>
         {/* Silent-refetch banner — shown when reloading but the list is
             already populated, so the user doesn't lose the current view. */}
