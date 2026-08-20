@@ -191,10 +191,45 @@ export function getDateGroupLabel(date: Date): string {
  */
 export function parseDbTimestamp(dateStr: string | Date): Date {
   if (dateStr instanceof Date) return dateStr;
-  
+
   // Remove o Z final se existir (para não interpretar como UTC)
   const cleanStr = dateStr.replace(/Z$/, '');
-  return new Date(cleanStr);
+  const parsed = new Date(cleanStr);
+
+  // Proteção: registros antigos gravados em UTC (3h à frente do horário de
+  // Brasília) aparecem no futuro. Nesse caso, tratamos como UTC e corrigimos.
+  const nowBrt = new Date(cleanNowBrtString());
+  if (parsed.getTime() - nowBrt.getTime() > 2 * 60 * 60 * 1000) {
+    return new Date(parsed.getTime() - 3 * 60 * 60 * 1000);
+  }
+  return parsed;
+}
+
+/** "YYYY-MM-DDTHH:mm:ss" com a hora atual de Brasília (sem offset). */
+function cleanNowBrtString(): string {
+  return nowDbTimestamp().replace(' ', 'T');
+}
+
+/**
+ * Timestamp atual no fuso de Brasília, no formato aceito pelo banco externo
+ * ("YYYY-MM-DD HH:mm:ss", sem offset). Use SEMPRE isto ao gravar datas nas
+ * tabelas do banco externo (que usam `timestamp without time zone` contendo
+ * horário de Brasília), nunca `new Date().toISOString()` (que é UTC).
+ */
+export function nowDbTimestamp(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
 }
 
 /**
