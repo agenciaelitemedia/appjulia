@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import logoAsset from '@/assets/atende-julia-logo.png.asset.json';
 import mascoteAsset from '@/assets/julia-mascote-acenando.png.asset.json';
+import mascotePose2 from '@/assets/julia-mascote-pose2.png.asset.json';
+import mascotePose3 from '@/assets/julia-mascote-pose3.png.asset.json';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -43,6 +45,37 @@ const HIGHLIGHTS = [
     delay: '2.6s',
   },
 ];
+
+const MASCOTE_POSES = [mascoteAsset.url, mascotePose2.url, mascotePose3.url];
+
+/** Mascote trocando de pose com cross-fade contínuo. */
+function MascoteAnimado({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setIndex((prev) => (prev + 1) % MASCOTE_POSES.length),
+      3200,
+    );
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <div className={`relative shrink-0 ${className ?? ''}`} style={style}>
+      {MASCOTE_POSES.map((url, i) => (
+        <img
+          key={url}
+          src={url}
+          alt="Julia, assistente de atendimento com IA"
+          className="absolute inset-0 h-full w-full object-contain transition-opacity duration-700 ease-out"
+          style={{ opacity: i === index ? 1 : 0 }}
+          loading="eager"
+          decoding="async"
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -122,11 +155,7 @@ export default function Login() {
 
           {/* Mobile */}
           <div className="flex items-center gap-5 lg:hidden">
-            <img
-              src={mascoteAsset.url}
-              alt="Julia, assistente de atendimento com IA"
-              className="h-24 w-24 shrink-0 object-contain"
-            />
+            <MascoteAnimado className="h-24 w-24" />
             <div className="min-w-0">
               <h1 className="text-2xl font-bold leading-tight">
                 Seu atendimento continua.{' '}
@@ -148,10 +177,8 @@ export default function Login() {
             </div>
 
             <div className="relative mt-12 flex items-end gap-8">
-              <img
-                src={mascoteAsset.url}
-                alt="Julia, assistente de atendimento com IA"
-                className="aj-float h-64 w-64 shrink-0 object-contain xl:h-72 xl:w-72"
+              <MascoteAnimado
+                className="aj-float h-64 w-64 xl:h-72 xl:w-72"
                 style={{ filter: 'drop-shadow(0 30px 60px hsl(var(--aj-magenta) / 0.3))' }}
               />
               <ul className="mb-4 flex min-w-0 flex-1 flex-col gap-3">
