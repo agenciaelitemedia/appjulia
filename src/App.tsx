@@ -316,6 +316,8 @@ const App = () => (
       </DebugProvider>
     </TooltipProvider>
   </QueryClientProvider>
+  </ThemeProvider>
 );
+
 
 export default App;
