@@ -167,15 +167,17 @@ All colors MUST be HSL.
     font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   }
 
-  /* Fundo suave com degradês da marca no tema escuro */
+  /* Fundo escuro no mesmo padrão do header/sidebar (aj-shell-surface) */
   .dark body {
+    background-color: hsl(258 34% 8%);
     background-image:
-      radial-gradient(70% 55% at 0% 0%, hsl(var(--brand-violet) / 0.16), transparent 65%),
-      radial-gradient(60% 50% at 100% 0%, hsl(var(--brand-magenta) / 0.12), transparent 65%),
+      radial-gradient(60% 45% at 0% 0%, hsl(var(--brand-magenta) / 0.16), transparent 55%),
+      radial-gradient(60% 45% at 100% 0%, hsl(var(--brand-violet) / 0.14), transparent 55%),
       radial-gradient(80% 60% at 50% 100%, hsl(262 60% 40% / 0.1), transparent 70%),
-      linear-gradient(180deg, hsl(258 28% 14%), hsl(258 26% 11%));
+      linear-gradient(180deg, hsl(258 36% 11%), hsl(258 34% 7%));
     background-attachment: fixed;
   }
+
 
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
