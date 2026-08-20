@@ -636,7 +636,7 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-all hover:text-primary aj-focus-ring focus-visible:opacity-100"
                   onClick={() => onEdit(message)}
                   aria-label="Editar"
                 >
@@ -647,7 +647,7 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-all hover:text-primary aj-focus-ring focus-visible:opacity-100"
                   onClick={() => onReply(message)}
                   aria-label="Responder"
                 >
@@ -658,7 +658,7 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-all hover:text-primary aj-focus-ring focus-visible:opacity-100"
                   onClick={() => onForward(message)}
                   aria-label="Encaminhar"
                 >
@@ -765,7 +765,7 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-all hover:text-primary aj-focus-ring focus-visible:opacity-100"
                   onClick={() => onReply(message)}
                   aria-label="Responder"
                 >
@@ -776,7 +776,7 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-all hover:text-primary aj-focus-ring focus-visible:opacity-100"
                   onClick={() => onForward(message)}
                   aria-label="Encaminhar"
                 >
