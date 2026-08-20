@@ -96,7 +96,8 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
     );
   };
 
-  const sidebarWidth = isCollapsed ? "w-16" : "w-64";
+  const isExpanded = isOpen || !isCollapsed;
+  const sidebarWidth = isExpanded ? "w-64" : "w-16";
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -117,14 +118,14 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
           {/* Logo Header */}
           <div className={cn(
             "flex items-center h-16 border-b border-sidebar-border shrink-0 transition-all duration-300",
-            isCollapsed ? "justify-center px-2" : "justify-between px-4"
+            isExpanded ? "justify-between px-4" : "justify-center px-2"
           )}>
             <div className="flex items-center gap-2 overflow-hidden">
               <img src={juliaLogo} alt="Julia IA" className="w-8 h-8 rounded-lg shrink-0" />
               <span
                 className={cn(
                   "text-lg font-semibold overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
-                  isCollapsed ? "opacity-0 max-w-0" : "opacity-100 max-w-[120px]"
+                  isExpanded ? "opacity-100 max-w-[120px]" : "opacity-0 max-w-0"
                 )}
               >
                 <span className="text-sidebar-foreground">Jul</span>
@@ -137,7 +138,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
               onClick={onToggle}
               className={cn(
                 "lg:hidden text-sidebar-foreground transition-all duration-300 overflow-hidden",
-                isCollapsed ? "opacity-0 w-0 max-w-0 p-0" : "opacity-100 w-10 max-w-10"
+                isExpanded ? "opacity-100 w-10 max-w-10" : "opacity-0 w-0 max-w-0 p-0"
               )}
             >
               <X className="w-5 h-5" />
@@ -146,7 +147,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
 
           {/* Menu */}
           <ScrollArea className="flex-1 min-h-0">
-            <nav className={cn("p-4 space-y-6 transition-all duration-300", isCollapsed && "px-2 py-4 space-y-4")}>
+            <nav className={cn("p-4 space-y-6 transition-all duration-300", !isExpanded && "px-2 py-4 space-y-4")}>
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-sidebar-foreground/50" />
@@ -160,7 +161,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                           <span
                             className={cn(
                               "inline-block overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
-                              isCollapsed ? "opacity-0 max-w-0" : "opacity-100 max-w-[12rem]"
+                              isExpanded ? "opacity-100 max-w-[12rem]" : "opacity-0 max-w-0"
                             )}
                           >
                             {groupName}
@@ -168,14 +169,14 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                           <span
                             className={cn(
                               "inline-block overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
-                              isCollapsed ? "opacity-100 max-w-10" : "opacity-0 max-w-0"
+                              !isExpanded ? "opacity-100 max-w-10" : "opacity-0 max-w-0"
                             )}
                           >
                             {groupName.slice(0, 3)}
                           </span>
                         </h3>
                       </TooltipTrigger>
-                      {isCollapsed && (
+                      {!isExpanded && (
                         <TooltipContent side="right" sideOffset={8} className="font-medium z-[100]">
                           {groupName}
                         </TooltipContent>
@@ -195,7 +196,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                                   to={mod.route || '/'}
                                   className={cn(
                                     "flex items-center rounded-lg transition-all duration-300 ease-in-out",
-                                    isCollapsed ? "justify-center p-2" : "justify-start px-3 py-2 gap-3",
+                                    isExpanded ? "justify-start px-3 py-2 gap-3" : "justify-center p-2",
                                     isActive
                                       ? "bg-sidebar-primary text-sidebar-primary-foreground"
                                       : "text-sidebar-foreground hover:bg-sidebar-accent/50",
@@ -205,14 +206,14 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                                   <span
                                     className={cn(
                                       "overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
-                                      isCollapsed ? "opacity-0 max-w-0" : "opacity-100 max-w-[12rem]"
+                                      isExpanded ? "opacity-100 max-w-[12rem]" : "opacity-0 max-w-0"
                                     )}
                                   >
                                     {mod.name}
                                   </span>
                                 </NavLink>
                               </TooltipTrigger>
-                              {isCollapsed && (
+                              {!isExpanded && (
                                 <TooltipContent side="right" sideOffset={8} className="font-medium z-[100]">
                                   {mod.name}
                                 </TooltipContent>
@@ -229,7 +230,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
           </ScrollArea>
 
           {/* Developer Tools Toggle - Fixed at bottom */}
-          <DebugBarToggle isCollapsed={isCollapsed} />
+          <DebugBarToggle isCollapsed={!isExpanded} />
         </aside>
       </>
     </TooltipProvider>
