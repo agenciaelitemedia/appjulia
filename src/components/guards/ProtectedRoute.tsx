@@ -38,7 +38,7 @@ export function ProtectedRoute({
   if (isLoading || permissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <MascoteLoader size="sm" />
+        <MascoteLoader size="md" />
       </div>
     );
   }
