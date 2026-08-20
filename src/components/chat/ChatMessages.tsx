@@ -443,7 +443,7 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
           {Object.entries(groupedTimeline).map(([dateKey, items]) => (
             <div key={dateKey}>
               <div className="flex items-center justify-center my-4">
-                <div className="bg-muted px-3 py-1 rounded-full text-xs text-muted-foreground">
+                <div className="aj-chat-chip px-3 py-1 rounded-full text-xs font-medium text-muted-foreground">
                   {formatDateHeader(dateKey)}
                 </div>
               </div>
