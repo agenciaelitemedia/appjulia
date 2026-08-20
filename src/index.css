@@ -17,7 +17,7 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 258 30% 12%;
 
-    --primary: 330 78% 48%;
+    --primary: 322 62% 34%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 264 30% 96%;
@@ -26,15 +26,15 @@ All colors MUST be HSL.
     --muted: 264 24% 96%;
     --muted-foreground: 258 12% 45%;
 
-    --accent: 330 70% 96%;
-    --accent-foreground: 330 60% 30%;
+    --accent: 322 44% 95%;
+    --accent-foreground: 322 55% 26%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 264 22% 91%;
     --input: 264 22% 89%;
-    --ring: 330 78% 52%;
+    --ring: 322 62% 38%;
 
     --radius: 0.75rem;
 
@@ -59,9 +59,9 @@ All colors MUST be HSL.
     --brand-accent: 38 92% 50%;
     --brand-accent-foreground: 0 0% 100%;
 
-    /* Marca Atende Julia (mesma paleta da tela de login) */
-    --brand-magenta: 330 84% 52%;
-    --brand-violet: 262 74% 52%;
+    /* Marca Atende Julia (mesma paleta da tela de login, tons mais fechados no claro) */
+    --brand-magenta: 326 70% 40%;
+    --brand-violet: 262 62% 42%;
     --gradient-brand: linear-gradient(120deg, hsl(var(--brand-magenta)), hsl(var(--brand-violet)));
     --shadow-brand: 0 20px 50px -24px hsl(var(--brand-magenta) / 0.45);
     --surface-glass: 0 0% 100% / 0.72;
@@ -186,6 +186,37 @@ All colors MUST be HSL.
   }
   .shadow-brand-soft {
     box-shadow: var(--shadow-brand);
+  }
+  /* Acabamento vitrificado com degradê da marca (botões/badges principais) */
+  .aj-glass-primary {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta)),
+      hsl(var(--brand-violet)) 92%
+    );
+    border: 1px solid hsl(0 0% 100% / 0.14);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.18),
+      0 10px 24px -16px hsl(var(--brand-magenta) / 0.65);
+    color: hsl(var(--primary-foreground));
+  }
+  .aj-glass-primary:hover {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta) / 0.92),
+      hsl(var(--brand-violet) / 0.92) 92%
+    );
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.24),
+      0 14px 30px -16px hsl(var(--brand-magenta) / 0.7);
+  }
+  .aj-glass-primary:active {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta)),
+      hsl(var(--brand-violet)) 70%
+    );
+    box-shadow: inset 0 2px 6px hsl(258 40% 8% / 0.35);
   }
 }
 
