@@ -14,7 +14,7 @@ export function CRMTotalizers({ cards, stages }: CRMTotalizersProps) {
   const totalLeads = cards.length;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-1">
       {/* Stage cards */}
       {stages.map((stage) => {
         const count = getCountForStage(stage.id);
@@ -22,18 +22,18 @@ export function CRMTotalizers({ cards, stages }: CRMTotalizersProps) {
         return (
           <Card
             key={stage.id}
-            className="border-l-4"
+            className="border-l-2"
             style={{ borderLeftColor: stage.color }}
           >
-            <CardContent className="p-3">
+            <CardContent className="p-2">
               <div className="flex items-baseline gap-1">
-                <p className="text-2xl font-bold">{count}</p>
-                <span className="text-xs font-medium text-muted-foreground">
+                <p className="text-base font-bold leading-tight">{count}</p>
+                <span className="text-[10px] font-medium text-muted-foreground leading-tight">
                   ({pct.toFixed(1).replace('.', ',')}%)
                 </span>
               </div>
               <p
-                className="text-xs text-muted-foreground line-clamp-1"
+                className="text-[10px] text-muted-foreground line-clamp-1 leading-tight"
                 title={`${stage.name} — ${pct.toFixed(1).replace('.', ',')}% do total`}
               >
                 {stage.name}
@@ -44,10 +44,10 @@ export function CRMTotalizers({ cards, stages }: CRMTotalizersProps) {
       })}
 
       {/* Total card */}
-      <Card className="border-l-4 border-l-primary bg-primary/5">
-        <CardContent className="p-3">
-          <p className="text-2xl font-bold text-primary">{totalLeads}</p>
-          <p className="text-xs text-muted-foreground">Total</p>
+      <Card className="border-l-2 border-l-primary bg-primary/5">
+        <CardContent className="p-2">
+          <p className="text-base font-bold text-primary leading-tight">{totalLeads}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">Total</p>
         </CardContent>
       </Card>
     </div>
