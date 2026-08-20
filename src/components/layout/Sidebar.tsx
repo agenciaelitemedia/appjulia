@@ -176,7 +176,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                         </h3>
                       </TooltipTrigger>
                       {isCollapsed && (
-                        <TooltipContent side="right" className="font-medium">
+                        <TooltipContent side="right" sideOffset={8} className="font-medium z-[100]">
                           {groupName}
                         </TooltipContent>
                       )}
@@ -213,7 +213,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                                 </NavLink>
                               </TooltipTrigger>
                               {isCollapsed && (
-                                <TooltipContent side="right" className="font-medium">
+                                <TooltipContent side="right" sideOffset={8} className="font-medium z-[100]">
                                   {mod.name}
                                 </TooltipContent>
                               )}
