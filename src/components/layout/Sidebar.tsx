@@ -187,12 +187,13 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
                                 <NavLink
                                   to={mod.route || '/'}
                                   className={cn(
-                                    "flex items-center rounded-lg transition-all duration-300 ease-in-out",
+                                    "relative flex items-center rounded-lg text-sm transition-all duration-300 ease-in-out",
                                     isExpanded ? "justify-start px-3 py-2 gap-3" : "justify-center p-2",
                                     isActive
-                                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                                      : "text-sidebar-foreground hover:bg-sidebar-accent/50",
+                                      ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground before:absolute before:left-0 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-r-full before:bg-brand-gradient"
+                                      : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
                                   )}
+
                                 >
                                   <Icon className="w-4 h-4 shrink-0" />
                                   <span
