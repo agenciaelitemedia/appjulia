@@ -21,7 +21,7 @@ export default function CrmNotificacoesStandalonePage() {
             <BellRing className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">CRM de Notificações</h1>
+            <h1 className="text-2xl font-bold text-brand-gradient">CRM de Notificações</h1>
             <p className="text-sm text-muted-foreground">
               {stageNames || 'Acompanhe os leads alertados e as ações de recuperação'}
             </p>

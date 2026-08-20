@@ -1,3 +1,4 @@
+import { hslFromHex } from '@/lib/colorToHsl';
 import { useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -150,18 +151,17 @@ export function CrmNotificacoesTab({ codEtapas }: CrmNotificacoesTabProps = {}) 
               return (
                 <div
                   key={trigger.key}
-                  className="flex flex-col min-w-[280px] max-w-[280px] bg-muted/30 rounded-lg"
+                  className="aj-column-shell flex flex-col min-w-[280px] max-w-[280px] rounded-xl overflow-hidden"
+                  style={{ ['--stage-color' as string]: hslFromHex(color) }}
+                  aria-label={`Etapa ${trigger.label}`}
                 >
-                  <div
-                    className="p-3 rounded-t-lg flex items-center justify-between"
-                    style={{ backgroundColor: `${color}20` }}
-                  >
+                  <div className="aj-column-head p-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div
-                              className="w-3 h-3 rounded-full cursor-help"
+                              className="w-3 h-3 rounded-full cursor-help ring-1 ring-inset ring-foreground/10"
                               style={{ backgroundColor: color }}
                             />
                           </TooltipTrigger>
@@ -170,7 +170,7 @@ export function CrmNotificacoesTab({ codEtapas }: CrmNotificacoesTabProps = {}) 
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                      <h3 className="font-medium text-sm line-clamp-1" title={trigger.label}>
+                      <h3 className="aj-title-gradient font-semibold text-sm line-clamp-1" title={trigger.label}>
                         {trigger.label}
                       </h3>
                     </div>

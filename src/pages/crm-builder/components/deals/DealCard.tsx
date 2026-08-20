@@ -230,7 +230,7 @@ export function DealCard({
       {...(canDrag ? attributes : {})}
       {...(canDrag ? listeners : {})}
       className={cn(
-        'transition-all hover:shadow-md group border-l-4',
+        'aj-card-hover group border-l-4 border border-border/70',
         canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
         isDragging && 'opacity-30 ring-2 ring-primary/50 ring-dashed bg-primary/5',
         deal.status === 'won' && 'border-l-primary bg-primary/5',

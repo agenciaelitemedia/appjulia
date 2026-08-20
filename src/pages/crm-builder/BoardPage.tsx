@@ -675,7 +675,7 @@ export default function BoardPage() {
             style={{ backgroundColor: board.color }}
           />
           
-          <h1 className="text-xl font-bold text-foreground">{board.name}</h1>
+          <h1 className="text-xl font-bold text-brand-gradient">{board.name}</h1>
         </div>
 
         <div className="flex items-center gap-2">

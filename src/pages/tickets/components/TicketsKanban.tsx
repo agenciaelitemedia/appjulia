@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { hslFromHex } from '@/lib/colorToHsl';
 import {
   MessageCircle, User, Eye, MoreHorizontal, ChevronDown, Plus,
   CheckCircle2, XCircle,
@@ -211,15 +212,16 @@ function Column({
   const visible = tickets.slice(0, visibleCount);
 
   return (
-    <div className="flex-shrink-0 min-w-[280px] max-w-[280px] flex flex-col bg-muted/30 rounded-lg h-full">
+    <div
+      className="aj-column-shell flex-shrink-0 min-w-[280px] max-w-[280px] flex flex-col rounded-xl overflow-hidden h-full"
+      style={{ ['--stage-color' as string]: hslFromHex(color) }}
+      aria-label={`Etapa ${STATUS_LABEL[status]}`}
+    >
       {/* Header tintado */}
-      <div
-        className="p-3 rounded-t-lg flex items-center justify-between gap-2"
-        style={{ backgroundColor: `${color}20` }}
-      >
+      <div className="aj-column-head p-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-          <h3 className="font-medium text-sm truncate">{STATUS_LABEL[status]}</h3>
+          <div className="w-3 h-3 rounded-full flex-shrink-0 ring-1 ring-inset ring-foreground/10" style={{ backgroundColor: color }} />
+          <h3 className="aj-title-gradient font-semibold text-sm truncate">{STATUS_LABEL[status]}</h3>
           <Badge variant="secondary" className="text-xs">{tickets.length}</Badge>
         </div>
       </div>
@@ -228,8 +230,8 @@ function Column({
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 flex flex-col p-2 transition-colors min-h-[300px] overflow-y-auto scrollbar-none',
-          isOver && 'ring-2 ring-primary bg-primary/10',
+          'flex-1 flex flex-col p-2 transition-all min-h-[300px] overflow-y-auto scrollbar-none rounded-b-xl',
+          isOver && 'aj-drop-active',
         )}
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >

@@ -36,7 +36,7 @@ export default function NotificacoesAlertasPage() {
             <BellRing className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Notificações e Alertas</h1>
+            <h1 className="text-2xl font-bold text-brand-gradient">Notificações e Alertas</h1>
             <p className="text-sm text-muted-foreground">
               Configure quem recebe no WhatsApp cada situação do atendimento e a mensagem enviada
             </p>
