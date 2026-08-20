@@ -9,10 +9,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Check, Video } from 'lucide-react';
 import {
-import { MascoteLoader } from "@/components/ui/mascote-loader";
   type VideoPlan, type BillingPeriod, type ContractDraft,
   PERIOD_LABELS, calculateTotal, priceForPeriod, setupFeeForPeriod, isAddonsFree,
 } from '../types';
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Props {
   draft: ContractDraft;

@@ -14,9 +14,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import {
-import { MascoteLoader } from "@/components/ui/mascote-loader";
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface TeamMember {
   id: string;
