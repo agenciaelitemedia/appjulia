@@ -46,6 +46,37 @@ const HIGHLIGHTS = [
   },
 ];
 
+const MASCOTE_POSES = [mascoteAsset.url, mascotePose2.url, mascotePose3.url];
+
+/** Mascote trocando de pose com cross-fade contínuo. */
+function MascoteAnimado({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setIndex((prev) => (prev + 1) % MASCOTE_POSES.length),
+      3200,
+    );
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <div className={`relative shrink-0 ${className ?? ''}`} style={style}>
+      {MASCOTE_POSES.map((url, i) => (
+        <img
+          key={url}
+          src={url}
+          alt="Julia, assistente de atendimento com IA"
+          className="absolute inset-0 h-full w-full object-contain transition-opacity duration-700 ease-out"
+          style={{ opacity: i === index ? 1 : 0 }}
+          loading="eager"
+          decoding="async"
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
