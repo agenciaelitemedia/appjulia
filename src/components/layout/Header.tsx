@@ -2,6 +2,9 @@ import { Menu, Search, LogOut, User, Settings, PanelLeftClose, PanelLeft, Volume
 import { HeaderDialer } from './HeaderDialer';
 import { HeaderZapCallBadge } from './HeaderZapCallBadge';
 import { PushNotificationOptIn } from '@/components/notifications/PushNotificationOptIn';
+import { ThemeToggle } from './ThemeToggle';
+import logoAsset from '@/assets/atende-julia-logo.png.asset.json';
+
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
