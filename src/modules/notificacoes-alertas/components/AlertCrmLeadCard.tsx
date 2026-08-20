@@ -73,6 +73,20 @@ export function AlertCrmLeadCard({ card, onClick }: Props) {
             </p>
           </div>
 
+          {(card.labels?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {card.labels!.map((label) => (
+                <Badge
+                  key={label}
+                  className="text-[10px] px-1.5 py-0 h-4 bg-destructive text-destructive-foreground hover:bg-destructive"
+                >
+                  {label}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+
           <TooltipProvider>
             <div className="flex flex-wrap items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
               <Tooltip>
