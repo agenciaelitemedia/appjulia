@@ -18,6 +18,7 @@ export function CRMTotalizers({ cards, stages }: CRMTotalizersProps) {
       {/* Stage cards */}
       {stages.map((stage) => {
         const count = getCountForStage(stage.id);
+        const pct = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
         return (
           <Card
             key={stage.id}
@@ -25,8 +26,16 @@ export function CRMTotalizers({ cards, stages }: CRMTotalizersProps) {
             style={{ borderLeftColor: stage.color }}
           >
             <CardContent className="p-3">
-              <p className="text-2xl font-bold">{count}</p>
-              <p className="text-xs text-muted-foreground line-clamp-1" title={stage.name}>
+              <div className="flex items-baseline gap-1">
+                <p className="text-2xl font-bold">{count}</p>
+                <span className="text-xs font-medium text-muted-foreground">
+                  ({pct.toFixed(1).replace('.', ',')}%)
+                </span>
+              </div>
+              <p
+                className="text-xs text-muted-foreground line-clamp-1"
+                title={`${stage.name} — ${pct.toFixed(1).replace('.', ',')}% do total`}
+              >
                 {stage.name}
               </p>
             </CardContent>
