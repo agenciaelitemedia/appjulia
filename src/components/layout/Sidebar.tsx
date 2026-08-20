@@ -189,7 +189,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
 
                         return (
                           <li key={mod.code}>
-                            <Tooltip open={isCollapsed ? undefined : false}>
+                            <Tooltip>
                               <TooltipTrigger asChild>
                                 <NavLink
                                   to={mod.route || '/'}
