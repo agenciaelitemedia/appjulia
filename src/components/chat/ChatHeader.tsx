@@ -64,10 +64,10 @@ interface ChatHeaderProps {
 
 function ChannelBadge({ channel }: { channel?: string }) {
   const config: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
-    whatsapp_uazapi: { label: 'WhatsApp', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-600 border-emerald-500/30 bg-emerald-500/5' },
-    whatsapp_waba: { label: 'API Oficial', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-700 border-emerald-600/30 bg-emerald-600/5' },
-    webchat: { label: 'WebChat', icon: <Globe className="h-3 w-3" />, className: 'text-blue-600 border-blue-500/30 bg-blue-500/5' },
-    instagram: { label: 'Instagram', icon: <Instagram className="h-3 w-3" />, className: 'text-pink-600 border-pink-500/30 bg-pink-500/5' },
+    whatsapp_uazapi: { label: 'WhatsApp', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-700 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
+    whatsapp_waba: { label: 'API Oficial', icon: <MessageCircle className="h-3 w-3" />, className: 'text-emerald-700 dark:text-emerald-400 border-emerald-600/30 bg-emerald-600/10' },
+    webchat: { label: 'WebChat', icon: <Globe className="h-3 w-3" />, className: 'text-sky-700 dark:text-sky-400 border-sky-500/30 bg-sky-500/10' },
+    instagram: { label: 'Instagram', icon: <Instagram className="h-3 w-3" />, className: 'text-pink-700 dark:text-pink-400 border-pink-500/30 bg-pink-500/10' },
   };
   const c = config[channel || ''] || config.whatsapp_uazapi;
   return (
@@ -350,10 +350,10 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
     .toUpperCase();
 
   const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-    pending: { label: 'Pendente', color: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30', icon: <Clock className="h-3 w-3" /> },
-    open: { label: 'Em atendimento', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30', icon: <MessageSquare className="h-3 w-3" /> },
+    pending: { label: 'Pendente', color: 'bg-amber-500/12 text-amber-700 dark:text-amber-400 border-amber-500/35', icon: <Clock className="h-3 w-3" /> },
+    open: { label: 'Em atendimento', color: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-400 border-emerald-500/35', icon: <MessageSquare className="h-3 w-3" /> },
     closed: { label: 'Encerrada', color: 'bg-muted text-muted-foreground border-border', icon: <XCircle className="h-3 w-3" /> },
-    resolved: { label: 'Resolvida', color: 'bg-blue-500/10 text-blue-600 border-blue-500/30', icon: <CheckCircle2 className="h-3 w-3" /> },
+    resolved: { label: 'Resolvida', color: 'bg-sky-500/12 text-sky-700 dark:text-sky-400 border-sky-500/35', icon: <CheckCircle2 className="h-3 w-3" /> },
   };
 
   const currentStatus = selectedConversation?.status || 'pending';
