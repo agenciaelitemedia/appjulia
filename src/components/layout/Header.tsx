@@ -87,7 +87,7 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 lg:px-6">
+      <header className="aj-shell-dark sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/95 px-4 text-foreground backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 lg:px-6">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px] bg-brand-gradient opacity-80" />
 
         {/* Menu Toggle (Mobile) */}
@@ -140,7 +140,7 @@ export function Header({ onMenuToggle, isCollapsed, onCollapse }: HeaderProps) {
             <Input
               type="search"
               placeholder="Buscar..."
-              className="pl-10 rounded-full border-border/70 bg-muted/50 focus-visible:ring-primary/40"
+              className="pl-10 rounded-full border-border bg-muted/60 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/40"
             />
           </div>
         </div>

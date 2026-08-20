@@ -38,21 +38,22 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
-    --sidebar-background: 260 32% 98%;
+    /* Sidebar sempre escura (paleta da tela de login), mesmo no tema claro */
+    --sidebar-background: 258 34% 7%;
 
-    --sidebar-foreground: 258 20% 28%;
+    --sidebar-foreground: 265 18% 86%;
 
-    --sidebar-primary: 330 78% 48%;
+    --sidebar-primary: 330 92% 60%;
 
     --sidebar-primary-foreground: 0 0% 100%;
 
-    --sidebar-accent: 330 62% 95%;
+    --sidebar-accent: 262 32% 17%;
 
-    --sidebar-accent-foreground: 330 58% 32%;
+    --sidebar-accent-foreground: 300 16% 97%;
 
-    --sidebar-border: 264 22% 91%;
+    --sidebar-border: 262 20% 15%;
 
-    --sidebar-ring: 330 78% 52%;
+    --sidebar-ring: 330 92% 62%;
 
     /* Brand accent - Julia IA */
     --brand-accent: 38 92% 50%;
@@ -319,4 +320,30 @@ All colors MUST be HSL.
   .aj-pulse-soft {
     animation: none;
   }
+}
+
+
+/* ==========================================================================
+   Chrome escuro (header) — paleta da tela de login.
+   Redefine tokens localmente para que utilitários semânticos (bg-background,
+   text-muted-foreground, border, bg-muted) fiquem escuros apenas no header,
+   sem afetar o conteúdo principal.
+   ========================================================================== */
+.aj-shell-dark {
+  --background: 258 34% 8%;
+  --foreground: 300 20% 98%;
+  --card: 260 26% 12%;
+  --card-foreground: 300 20% 98%;
+  --muted: 260 22% 16%;
+  --muted-foreground: 265 14% 74%;
+  --accent: 262 32% 18%;
+  --accent-foreground: 300 16% 97%;
+  --secondary: 260 22% 16%;
+  --secondary-foreground: 300 16% 96%;
+  --border: 262 20% 18%;
+  --input: 262 20% 22%;
+  --primary: 330 92% 60%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 330 92% 62%;
+  color: hsl(var(--foreground));
 }
