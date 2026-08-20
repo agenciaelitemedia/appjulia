@@ -615,7 +615,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                 className={cn(
                   'gap-1.5',
                   phoneReady
-                    ? 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800'
+                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/20 hover:text-emerald-800 dark:hover:text-emerald-300'
                     : 'text-muted-foreground border-border hover:bg-muted'
                 )}
                 onClick={() => (phoneReady ? setShowPhoneCall(true) : setShowVoipUpsell(true))}
@@ -664,7 +664,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 dark:text-amber-400 disabled:opacity-40"
                       onClick={() => setShowSnooze(true)}
                       disabled={!isActive}
                       title="Adiar conversa (z)"
@@ -686,7 +686,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                      className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 dark:text-amber-400 disabled:opacity-40"
                       onClick={() => setShowReturnDialog(true)}
                       disabled={!isActive || !selectedConversation?.assigned_to}
                       title="Devolver para fila de atendimento"
@@ -697,7 +697,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+                      className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 disabled:opacity-40"
                       onClick={handleResolve}
                       disabled={!isActive}
                       title="Marcar como resolvida (e)"
@@ -796,7 +796,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
               className={cn(
                 'gap-1.5',
                 phoneReady
-                  ? 'bg-green-50 text-green-700 border-green-500 hover:bg-green-100 hover:text-green-800'
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/20 hover:text-emerald-800 dark:hover:text-emerald-300'
                   : 'text-muted-foreground border-border hover:bg-muted'
               )}
               onClick={() => (phoneReady ? setShowPhoneCall(true) : setShowVoipUpsell(true))}
