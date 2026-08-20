@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { X, Loader2 } from "lucide-react";
+import { X } from "lucide-react";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 import logoAsset from "@/assets/atende-julia-logo.png.asset.json";
 import mascoteAsset from "@/assets/julia-mascote-acenando.png.asset.json";
 
@@ -156,7 +157,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
             <nav className={cn("p-4 space-y-6 transition-all duration-300", !isExpanded && "px-2 py-4 space-y-4")}>
               {isLoading ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-sidebar-foreground/50" />
+                  <MascoteLoader size="sm" />
                 </div>
               ) : (
                 filteredGroups.map(([groupName, modules]) => (
