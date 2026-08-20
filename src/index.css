@@ -87,32 +87,32 @@ All colors MUST be HSL.
 
 
   .dark {
-    --background: 258 32% 6%;
+    --background: 258 26% 12%;
     --foreground: 300 20% 98%;
 
-    --card: 260 26% 10%;
+    --card: 259 22% 16%;
     --card-foreground: 300 20% 98%;
 
-    --popover: 260 26% 11%;
+    --popover: 259 22% 17%;
     --popover-foreground: 300 20% 98%;
 
     --primary: 330 92% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 260 22% 16%;
+    --secondary: 259 20% 21%;
     --secondary-foreground: 300 16% 96%;
 
-    --muted: 260 20% 15%;
-    --muted-foreground: 265 14% 72%;
+    --muted: 259 18% 20%;
+    --muted-foreground: 265 16% 78%;
 
-    --accent: 262 40% 20%;
+    --accent: 262 34% 25%;
     --accent-foreground: 300 16% 96%;
 
     --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 262 18% 20%;
-    --input: 262 18% 22%;
+    --border: 262 16% 26%;
+    --input: 262 16% 28%;
     --ring: 330 92% 62%;
     --sidebar-background: 258 34% 5%;
     --sidebar-foreground: 265 18% 88%;
@@ -148,8 +148,8 @@ All colors MUST be HSL.
     --flow-julia: 38 92% 58%;
     --flow-crm: 217.2 91.2% 62%;
     --flow-data: 199 89% 58%;
-    --flow-canvas: 258 40% 7%;
-    --flow-grid: 262 18% 24%;
+    --flow-canvas: 258 26% 13%;
+    --flow-grid: 262 16% 28%;
     --flow-edge: 265 14% 60%;
   }
 
@@ -163,6 +163,16 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
     font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* Fundo suave com degradês da marca no tema escuro */
+  .dark body {
+    background-image:
+      radial-gradient(70% 55% at 0% 0%, hsl(var(--brand-violet) / 0.16), transparent 65%),
+      radial-gradient(60% 50% at 100% 0%, hsl(var(--brand-magenta) / 0.12), transparent 65%),
+      radial-gradient(80% 60% at 50% 100%, hsl(262 60% 40% / 0.1), transparent 70%),
+      linear-gradient(180deg, hsl(258 28% 14%), hsl(258 26% 11%));
+    background-attachment: fixed;
   }
 
   :focus-visible {
