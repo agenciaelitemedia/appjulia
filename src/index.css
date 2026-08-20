@@ -148,8 +148,8 @@ All colors MUST be HSL.
     --flow-julia: 38 92% 58%;
     --flow-crm: 217.2 91.2% 62%;
     --flow-data: 199 89% 58%;
-    --flow-canvas: 258 40% 7%;
-    --flow-grid: 262 18% 24%;
+    --flow-canvas: 258 26% 13%;
+    --flow-grid: 262 16% 28%;
     --flow-edge: 265 14% 60%;
   }
 
@@ -163,6 +163,16 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
     font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* Fundo suave com degradês da marca no tema escuro */
+  .dark body {
+    background-image:
+      radial-gradient(70% 55% at 0% 0%, hsl(var(--brand-violet) / 0.16), transparent 65%),
+      radial-gradient(60% 50% at 100% 0%, hsl(var(--brand-magenta) / 0.12), transparent 65%),
+      radial-gradient(80% 60% at 50% 100%, hsl(262 60% 40% / 0.1), transparent 70%),
+      linear-gradient(180deg, hsl(258 28% 14%), hsl(258 26% 11%));
+    background-attachment: fixed;
   }
 
   :focus-visible {
