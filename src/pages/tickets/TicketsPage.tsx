@@ -50,7 +50,7 @@ export default function TicketsPage() {
       <div className="flex items-center gap-2">
         <LifeBuoy className="h-6 w-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold leading-none">Suporte / Chamados</h1>
+          <h1 className="text-2xl font-bold leading-none text-brand-gradient">Suporte / Chamados</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {role === 'requester' ? 'Acompanhe e abra seus chamados de suporte'
               : role === 'manager' ? 'Chamados do seu escritório'

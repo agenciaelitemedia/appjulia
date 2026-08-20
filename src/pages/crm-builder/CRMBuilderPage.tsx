@@ -96,7 +96,7 @@ export default function CRMBuilderPage() {
             <LayoutDashboard className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Construtor de CRM</h1>
+            <h1 className="text-2xl font-bold text-brand-gradient">Construtor de CRM</h1>
             <p className="text-sm text-muted-foreground">
               Crie e gerencie seus pipelines de vendas
             </p>
