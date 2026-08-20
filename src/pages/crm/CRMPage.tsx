@@ -6,13 +6,11 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { CRMHeader } from './components/CRMHeader';
-import { CRMDashboardSummary } from './components/CRMDashboardSummary';
 import { CRMTotalizers } from './components/CRMTotalizers';
 import { CRMPipeline } from './components/CRMPipeline';
 import { CRMLeadDetailsDialog } from './components/CRMLeadDetailsDialog';
-import { useCRMStages, useCRMCards, useCRMAgents, useCRMJuliaSessions, useCRMJuliaConversations, useTeamForAgent } from './hooks/useCRMData';
+import { useCRMStages, useCRMCards, useCRMAgents, useTeamForAgent } from './hooks/useCRMData';
 import { useFollowupActiveLeads } from './hooks/useFollowupActiveLeads';
-import { useFollowupReturnRate } from './hooks/useFollowupReturnRate';
 import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState } from '@/components/filters/types';
@@ -55,10 +53,7 @@ export default function CRMPage() {
   const { data: stages = [], isLoading: stagesLoading } = useCRMStages();
   const { data: agents = [], isLoading: agentsLoading } = useCRMAgents();
   const { data: cards = [], isLoading: cardsLoading, refetch } = useCRMCards(filters);
-  const { data: juliaSessions } = useCRMJuliaSessions(filters);
-  const { data: juliaConversations } = useCRMJuliaConversations(filters);
   const { data: followupMap = new Map() } = useFollowupActiveLeads(filters.agentCodes, filters.dateFrom, filters.dateTo);
-  const { data: returnRateData } = useFollowupReturnRate(filters.agentCodes, filters.dateFrom, filters.dateTo);
   const firstAgentCode = filters.agentCodes.length === 1 ? filters.agentCodes[0] : filters.agentCodes[0] || null;
   const { data: teamMembers = [] } = useTeamForAgent(firstAgentCode);
 
@@ -185,8 +180,6 @@ export default function CRMPage() {
   return (
     <div className="flex flex-col h-full space-y-4">
       <CRMHeader onRefresh={handleRefresh} isLoading={isRefreshing} />
-
-      <CRMDashboardSummary cards={filteredCards} stages={stages} isLoading={cardsLoading} juliaSessions={juliaSessions} juliaConversations={juliaConversations} followupMap={followupMap} returnRateData={returnRateData} />
 
       <CRMTotalizers cards={filteredCards} stages={stages} />
 
