@@ -7,10 +7,12 @@ import pose3 from "@/assets/julia-mascote-pose3.png.asset.json";
 const POSES = [pose1.url, pose2.url, pose3.url];
 
 const SIZES = {
+  xs: "h-6 w-6",
   sm: "h-10 w-10",
   md: "h-16 w-16",
   lg: "h-24 w-24",
 } as const;
+
 
 interface MascoteLoaderProps {
   /** Tamanho do mascote */
