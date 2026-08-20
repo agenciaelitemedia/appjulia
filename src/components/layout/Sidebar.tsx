@@ -154,7 +154,7 @@ export function Sidebar({ isOpen, onToggle, isCollapsed }: SidebarProps) {
               ) : (
                 filteredGroups.map(([groupName, modules]) => (
                   <div key={groupName}>
-                    <Tooltip open={isCollapsed ? undefined : false}>
+                    <Tooltip>
                       <TooltipTrigger asChild>
                         <h3 className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider mb-2 px-1 text-center cursor-default">
                           <span
