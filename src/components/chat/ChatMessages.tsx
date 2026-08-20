@@ -315,6 +315,17 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
     while (i < msgItems.length) merged.push(msgItems[i++]);
     while (j < evtItems.length) merged.push(evtItems[j++]);
 
+    // Resumos entram na linha do tempo pela data de criação
+    if (summaries.length > 0) {
+      const sumItems: TimelineItem[] = summaries.map(s => ({
+        kind: 'summary' as const,
+        data: s,
+        ts: new Date(s.created_at).getTime(),
+      }));
+      merged.push(...sumItems);
+      merged.sort((a, b) => a.ts - b.ts);
+    }
+
     const groups: Record<string, TimelineItem[]> = {};
     for (const item of merged) {
       const dateKey = format(new Date(item.ts), 'yyyy-MM-dd');
@@ -322,7 +333,7 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
       groups[dateKey].push(item);
     }
     return groups;
-  }, [contactMessages, conversationHistory]);
+  }, [contactMessages, conversationHistory, summaries]);
 
   // Reactions
   const visibleMessageIds = useMemo(
@@ -442,6 +453,17 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
                     if (!chatClientSettings.events_enabled) return null;
                     if (chatClientSettings.event_visibility?.[item.data.action] === false) return null;
                     return <ConversationEvent key={`evt-${item.data.id}`} entry={item.data} />;
+                  }
+                  if (item.kind === 'summary') {
+                    return (
+                      <div key={`sum-${item.data.id}`} className="flex justify-center my-3">
+                        <SummaryCard
+                          summary={item.data}
+                          title="Resumo do atendimento"
+                          className="w-full max-w-xl"
+                        />
+                      </div>
+                    );
                   }
                   return (
                     <MessageBubble
