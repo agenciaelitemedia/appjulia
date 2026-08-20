@@ -259,8 +259,9 @@ async function fetchNoResponseCandidates(
   minutes: number,
 ): Promise<Candidate[]> {
   const now = Date.now();
-  // Janela: mensagem nossa enviada há >= minutes e < minutes + 10 min.
-  const floor = new Date(now - (minutes * 60_000 + RECENT_WINDOW_MS)).toISOString();
+  // Janela alvo: última mensagem nossa enviada há >= minutes e < minutes + 10 min.
+  const windowStart = new Date(now - (minutes * 60_000 + RECENT_WINDOW_MS)); // mais antiga aceita
+  const windowEnd = new Date(now - minutes * 60_000); // mais recente aceita
 
   let clientId: string | null = null;
   try {
@@ -274,16 +275,21 @@ async function fetchNoResponseCandidates(
   }
   if (!clientId) return [];
 
+  // Filtra já no banco pela janela (updated_at acompanha a última mensagem via trigger),
+  // evitando carregar conversas ativas que não interessam.
   const { data: convs, error } = await supabase
     .from("chat_conversations")
-    .select("id, contact_id, last_customer_message_at, last_message_from_me, status")
+    .select("id, contact_id, last_customer_message_at, last_message_from_me, status, updated_at")
     .eq("client_id", clientId)
     .eq("last_message_from_me", true)
     .in("status", ["pending", "open"])
+    .gte("updated_at", windowStart.toISOString())
+    .lte("updated_at", windowEnd.toISOString())
     .order("updated_at", { ascending: false })
-    .limit(200);
+    .limit(100);
   if (error) throw error;
   if (!convs || convs.length === 0) return [];
+  console.log(`[alerts] no_response agente=${codAgent} conversas na janela=${convs.length}`);
 
   const contactIds = [...new Set(convs.map((conv: any) => conv.contact_id).filter(Boolean))];
   const { data: contactRows, error: contactsError } = await supabase
@@ -293,21 +299,21 @@ async function fetchNoResponseCandidates(
   if (contactsError) throw contactsError;
   const byId = new Map((contactRows ?? []).map((contact: any) => [contact.id, contact]));
 
-  const conversationIds = convs.map((conv: any) => conv.id);
-  const { data: messages, error: messagesError } = await supabase
-    .from("chat_messages")
-    .select("conversation_id, from_me, timestamp, internal_note")
-    .in("conversation_id", conversationIds)
-    .order("timestamp", { ascending: false })
-    .limit(Math.max(conversationIds.length * 20, 500));
-  if (messagesError) throw messagesError;
+  // Confirma a última mensagem real (ignorando notas internas) por conversa,
+  // uma query por conversa — sem risco de truncamento global.
   const lastMessageByConversation = new Map<string, any>();
-  for (const message of messages ?? []) {
-    if (message.internal_note) continue;
-    if (!lastMessageByConversation.has(message.conversation_id)) {
-      lastMessageByConversation.set(message.conversation_id, message);
-    }
-  }
+  await Promise.all(
+    convs.map(async (conv: any) => {
+      const { data: rows } = await supabase
+        .from("chat_messages")
+        .select("conversation_id, from_me, timestamp, internal_note")
+        .eq("conversation_id", conv.id)
+        .or("internal_note.is.null,internal_note.eq.false")
+        .order("timestamp", { ascending: false })
+        .limit(1);
+      if (rows?.[0]) lastMessageByConversation.set(conv.id, rows[0]);
+    }),
+  );
 
   const out: Candidate[] = [];
   const seen = new Set<string>();
@@ -315,9 +321,9 @@ async function fetchNoResponseCandidates(
     const lastMessage = lastMessageByConversation.get(conv.id);
     const lastMessageMs = lastMessage?.timestamp ? new Date(lastMessage.timestamp).getTime() : Number.NaN;
     if (!lastMessage?.from_me || !Number.isFinite(lastMessageMs)) continue;
-    if (lastMessageMs < new Date(floor).getTime()) continue;
-    if (lastMessageMs + minutes * 60_000 > now) continue;
-    if (lastMessageMs + minutes * 60_000 + RECENT_WINDOW_MS < now) continue;
+    if (lastMessageMs < windowStart.getTime()) continue;
+    if (lastMessageMs > windowEnd.getTime()) continue;
+
 
     const contact = byId.get(conv.contact_id);
     const phone = String(contact?.phone ?? "").replace(/\D/g, "");
