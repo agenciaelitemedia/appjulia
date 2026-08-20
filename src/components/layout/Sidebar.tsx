@@ -15,7 +15,8 @@ import { useEnsureCopilotModule } from "@/hooks/useEnsureCopilotModule";
 import { useEnsureTelefoniaModule } from "@/hooks/useEnsureTelefoniaModule";
 import { useEnsureWavoipModule } from "@/hooks/useEnsureWavoipModule";
 import { useEnsurePromptGeneratorModule } from "@/hooks/useEnsurePromptGeneratorModule";
-import { useEnsureLegalCasesModule } from "@/pages/admin/legal-cases/hooks/useEnsureLegalCasesModule";
+import { useEnsureLegalCasesModule } from "@/hooks/useEnsureLegalCasesModule";
+
 import { useEnsureContractNotificationsModule } from "@/hooks/useEnsureContractNotificationsModule";
 import { useEnsureJuliaOrdersModule } from "@/hooks/useEnsureJuliaOrdersModule";
 import { useEnsureJuliaPlansModule } from "@/hooks/useEnsureJuliaPlansModule";
