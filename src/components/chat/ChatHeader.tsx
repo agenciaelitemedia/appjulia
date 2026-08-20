@@ -468,7 +468,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
 
   return (
     <>
-      <div className="border-b bg-background">
+      <div className="border-b aj-chat-bar aj-chat-bar-top">
       <div className="flex items-start gap-3 p-3">
         <button
           type="button"
@@ -476,9 +476,9 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
           className={contact.avatar ? 'cursor-zoom-in' : 'cursor-default'}
           aria-label="Ver foto do contato"
         >
-          <Avatar className="h-10 w-10">
+          <Avatar className="h-10 w-10 ring-1 ring-border/70">
             <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
-            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+            <AvatarFallback className="bg-[image:var(--gradient-brand)] text-primary-foreground font-semibold">
               {contact.is_group ? <Users className="h-4 w-4" /> : initials}
             </AvatarFallback>
           </Avatar>
