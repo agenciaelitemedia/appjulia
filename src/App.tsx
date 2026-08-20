@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { lazy, Suspense } from "react";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 import { ThemeProvider } from "next-themes";
 
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -174,7 +175,7 @@ const App = () => (
               <WavoipProvider>
               <ErrorBoundary>
               <BlitzSubdomainGate />
-              <Suspense fallback={null}>
+              <Suspense fallback={<MascoteLoader fullscreen label="Carregando…" />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/redirect" element={<RedirectPage />} />
