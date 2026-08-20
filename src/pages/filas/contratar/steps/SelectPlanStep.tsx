@@ -54,7 +54,7 @@ export function SelectPlanStep({ draft, onChange, onNext }: Props) {
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {isLoading && <MascoteLoader size="xs" />}
+          {isLoading && <MascoteLoader size="xs" className="col-span-full" />}
           {plans.map((p) => {
             const selected = draft.plan?.id === p.id;
             const price = priceForPeriod(p, draft.billing_period);
