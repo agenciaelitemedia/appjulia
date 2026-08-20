@@ -6,6 +6,7 @@ import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { MessageBubble } from './MessageBubble';
 import { ConversationEvent } from './ConversationEvent';
+import { SummaryCard } from './SummaryCard';
 import { ForwardDialog } from './ForwardDialog';
 import { useMessageReactions, sendReaction } from '@/hooks/useMessageReactions';
 import { format, isSameDay } from 'date-fns';
@@ -16,6 +17,7 @@ import type { ConversationHistoryEntry } from '@/types/conversation';
 import { isEncryptionEnvelope } from '@/lib/chat/envelopeFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { useChatClientSettings } from '@/hooks/useChatClientSettings';
+import { useConversationSummaries, type ConversationSummary } from '@/hooks/useConversationSummaries';
 
 interface ChatMessagesProps {
   contactId: string;
@@ -25,11 +27,13 @@ interface ChatMessagesProps {
 
 type TimelineItem =
   | { kind: 'message'; data: ChatMessage; ts: number }
-  | { kind: 'event'; data: ConversationHistoryEntry; ts: number };
+  | { kind: 'event'; data: ConversationHistoryEntry; ts: number }
+  | { kind: 'summary'; data: ConversationSummary; ts: number };
 
 export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) {
   const { messages, loadMessages, conversationHistory, loadConversationHistory, selectedConversation, downloadMedia, selectedQueue, contacts } = useWhatsAppData();
   const { settings: chatClientSettings } = useChatClientSettings();
+  const { summaries } = useConversationSummaries(selectedConversation?.id ?? null, contactId);
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
