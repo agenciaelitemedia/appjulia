@@ -616,9 +616,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
                 size="icon"
                 className={cn(
                   'h-9 w-9 flex-shrink-0',
-                  noteMode && noteType === 'info' && 'bg-blue-500 text-white hover:bg-blue-600 hover:text-white',
-                  noteMode && noteType === 'question' && 'bg-yellow-500 text-white hover:bg-yellow-600 hover:text-white',
-                  noteMode && noteType === 'urgent' && 'bg-red-500 text-white hover:bg-red-600 hover:text-white',
+                  noteMode && noteType === 'info' && 'bg-sky-600 text-primary-foreground hover:bg-sky-700 hover:text-primary-foreground',
+                  noteMode && noteType === 'question' && 'bg-amber-600 text-primary-foreground hover:bg-amber-700 hover:text-primary-foreground',
+                  noteMode && noteType === 'urgent' && 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground',
                 )}
                 title="Nota interna"
               >
