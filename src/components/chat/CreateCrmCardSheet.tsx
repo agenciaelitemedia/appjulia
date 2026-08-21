@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,9 +42,11 @@ interface CreateCrmCardSheetProps {
   codAgent?: string | null;
   queueId?: string | null;
   conversationId?: string | null;
+  /** 'sheet' (default) abre em overlay; 'inline' renderiza dentro da right-bar */
+  variant?: 'sheet' | 'inline';
 }
 
-export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queueId, conversationId }: CreateCrmCardSheetProps) {
+export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queueId, conversationId, variant = 'sheet' }: CreateCrmCardSheetProps) {
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
   const queryClient = useQueryClient();
