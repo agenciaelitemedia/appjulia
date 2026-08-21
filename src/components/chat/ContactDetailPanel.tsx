@@ -145,6 +145,8 @@ function TagSelector({ allTags, activeTags, onToggle, onCreateAndAdd, newTagName
 interface ContactDetailPanelProps {
   contact: ChatContact;
   onClose: () => void;
+  /** Oculta o cabeçalho/botão de fechar (quando embutido na right-bar) */
+  hideHeaderClose?: boolean;
 }
 
 const actionLabels: Record<string, (e: ConversationHistoryEntry) => string> = {
@@ -167,7 +169,7 @@ const actionLabels: Record<string, (e: ConversationHistoryEntry) => string> = {
   auto_resolved_queue_switch: () => 'encerrou conversa anterior (contato mudou de fila)',
 };
 
-export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps) {
+export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }: ContactDetailPanelProps) {
   const {
     selectedConversation, tags, createTag, addTagToConversation, removeTagFromConversation,
     conversationHistory, loadConversationHistory,
@@ -396,14 +398,16 @@ export function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps
   };
 
   return (
-    <div className="flex flex-col h-full bg-background w-full">
+    <div className={cn('flex flex-col h-full w-full', hideHeaderClose ? 'bg-transparent' : 'bg-background')}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
-        <h3 className="font-semibold text-sm">Detalhes do contato</h3>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      {!hideHeaderClose && (
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold text-sm">Detalhes do contato</h3>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Contact identity (always visible) */}
       <div className="flex flex-col items-center text-center p-4 pb-3 border-b">

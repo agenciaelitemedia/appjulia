@@ -99,6 +99,8 @@ interface DealDetailsSheetProps {
     targetBoardId: string,
     targetPipelineId?: string,
   ) => Promise<{ newDealId: string; newBoardId: string } | null | void>;
+  /** 'sheet' (default) abre em overlay; 'inline' renderiza dentro da right-bar */
+  variant?: 'sheet' | 'inline';
 }
 
 export function DealDetailsSheet({
@@ -118,6 +120,7 @@ export function DealDetailsSheet({
   onMoveToStage,
   boards,
   onMoveToBoard,
+  variant = 'sheet',
 }: DealDetailsSheetProps) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('details');
@@ -387,23 +390,33 @@ export function DealDetailsSheet({
     setEditingDueDate(false);
   };
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col h-full overflow-y-auto">
-        {/* Header */}
-        <SheetHeader className="p-6 pb-4 border-b">
-          <SheetTitle className="text-xl font-semibold line-clamp-2 text-left">
-            {deal.title}
-          </SheetTitle>
-          <div className="mt-2">
-            <Badge
-              variant="outline"
-              className={cn(statusConfig.color, statusConfig.bgColor)}
-            >
-              {statusConfig.label}
-            </Badge>
-          </div>
-        </SheetHeader>
+  const statusBadge = (
+    <div className="mt-2">
+      <Badge variant="outline" className={cn(statusConfig.color, statusConfig.bgColor)}>
+        {statusConfig.label}
+      </Badge>
+    </div>
+  );
+
+  const headerNode =
+    variant === 'inline' ? (
+      <div className="p-4 pb-3 border-b">
+        <h3 className="text-lg font-semibold line-clamp-2 text-left">{deal.title}</h3>
+        {statusBadge}
+      </div>
+    ) : (
+      <SheetHeader className="p-6 pb-4 border-b">
+        <SheetTitle className="text-xl font-semibold line-clamp-2 text-left">
+          {deal.title}
+        </SheetTitle>
+        {statusBadge}
+      </SheetHeader>
+    );
+
+  const body = (
+    <>
+      {headerNode}
+
 
         {/* Bloco Quadro — independente do bloco Etapas. Aparece sempre que o
             callback onMoveToBoard estiver disponível. */}
@@ -1239,7 +1252,20 @@ export function DealDetailsSheet({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+    </>
+  );
+
+  if (variant === 'inline') {
+    if (!open) return null;
+    return <div className="flex flex-col h-full min-h-0 overflow-y-auto">{body}</div>;
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col h-full overflow-y-auto">
+        {body}
       </SheetContent>
     </Sheet>
   );
+
 }

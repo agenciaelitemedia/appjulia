@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,9 +42,11 @@ interface CreateCrmCardSheetProps {
   codAgent?: string | null;
   queueId?: string | null;
   conversationId?: string | null;
+  /** 'sheet' (default) abre em overlay; 'inline' renderiza dentro da right-bar */
+  variant?: 'sheet' | 'inline';
 }
 
-export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queueId, conversationId }: CreateCrmCardSheetProps) {
+export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queueId, conversationId, variant = 'sheet' }: CreateCrmCardSheetProps) {
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
   const queryClient = useQueryClient();
@@ -366,37 +368,57 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
 
   const stageSelected = !!selectedPipeline;
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
-        <SheetHeader className="p-6 pb-4 border-b">
-          <SheetTitle className="flex items-center gap-2">
-            <Kanban className="h-5 w-5 text-primary" />
-            Criar Card no CRM
-          </SheetTitle>
-          <SheetDescription>
-            {contact.name || 'Contato'} · {contact.phone || 'sem telefone'}
-          </SheetDescription>
-          <div className="pt-2">
-            {agentResolving ? (
-              <Badge variant="outline" className="text-[10px] gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" /> Resolvendo agente...
-              </Badge>
-            ) : effectiveCodAgent ? (
-              <Badge variant="outline" className="text-[10px]">
-                Agente: #{effectiveCodAgent}
-                {agentSource === 'board' && ' (via quadro)'}
-                {agentSource === 'queue' && ' (via fila)'}
-                {agentSource === 'user' && ' (seu agente)'}
-                {agentSource === 'conversation' && ' (conversa)'}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                Sem agente da Júlia (vínculo apenas por fila)
-              </Badge>
-            )}
-          </div>
-        </SheetHeader>
+  const agentBadge = (
+    <div className="pt-2">
+      {agentResolving ? (
+        <Badge variant="outline" className="text-[10px] gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" /> Resolvendo agente...
+        </Badge>
+      ) : effectiveCodAgent ? (
+        <Badge variant="outline" className="text-[10px]">
+          Agente: #{effectiveCodAgent}
+          {agentSource === 'board' && ' (via quadro)'}
+          {agentSource === 'queue' && ' (via fila)'}
+          {agentSource === 'user' && ' (seu agente)'}
+          {agentSource === 'conversation' && ' (conversa)'}
+        </Badge>
+      ) : (
+        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+          Sem agente da Júlia (vínculo apenas por fila)
+        </Badge>
+      )}
+    </div>
+  );
+
+  const headerNode =
+    variant === 'inline' ? (
+      <div className="p-4 pb-3 border-b">
+        <h3 className="flex items-center gap-2 font-semibold">
+          <Kanban className="h-5 w-5 text-primary" />
+          Criar Card no CRM
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          {contact.name || 'Contato'} · {contact.phone || 'sem telefone'}
+        </p>
+        {agentBadge}
+      </div>
+    ) : (
+      <SheetHeader className="p-6 pb-4 border-b">
+        <SheetTitle className="flex items-center gap-2">
+          <Kanban className="h-5 w-5 text-primary" />
+          Criar Card no CRM
+        </SheetTitle>
+        <SheetDescription>
+          {contact.name || 'Contato'} · {contact.phone || 'sem telefone'}
+        </SheetDescription>
+        {agentBadge}
+      </SheetHeader>
+    );
+
+  const body = (
+    <>
+      {headerNode}
+
 
         <ScrollArea className="flex-1">
           <div className="p-6 space-y-5">
@@ -619,18 +641,30 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
           </div>
         </ScrollArea>
 
-        <SheetFooter className="p-4 border-t gap-2 sm:gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1">
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={saving || !stageSelected || !effectiveCodAgent || agentResolving || (!!existingDeal.data && !forceCreate)}
-            className="flex-1"
-          >
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Criar Card
-          </Button>
-        </SheetFooter>
+      <div className="p-4 border-t flex gap-2">
+        <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1">
+          Cancelar
+        </Button>
+        <Button
+          onClick={handleCreate}
+          disabled={saving || !stageSelected || !effectiveCodAgent || agentResolving || (!!existingDeal.data && !forceCreate)}
+          className="flex-1"
+        >
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Criar Card
+        </Button>
+      </div>
+    </>
+  );
+
+  if (variant === 'inline') {
+    if (!open) return null;
+    return <div className="flex flex-col h-full min-h-0">{body}</div>;
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+        {body}
       </SheetContent>
     </Sheet>
   );
