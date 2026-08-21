@@ -3,7 +3,7 @@ import { ChatList } from './ChatList';
 import { ChatHeader } from './ChatHeader';
 import { ChatMessages } from './ChatMessages';
 import { ChatInput } from './ChatInput';
-import { ContactDetailPanel } from './ContactDetailPanel';
+import { ChatRightBar } from './ChatRightBar';
 import { ChatTicketSidePanel } from './ChatTicketSidePanel';
 import { ChatTicketDetailSidePanel } from './ChatTicketDetailSidePanel';
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -48,6 +48,8 @@ export function ChatContainer({ className }: ChatContainerProps) {
     selectedContactId,
     showDetailPanel,
     setShowDetailPanel,
+    rightBarTab,
+    setRightBarTab,
     isHydratingContact,
     contactHydrationError,
     retryHydrateSelectedContact,
