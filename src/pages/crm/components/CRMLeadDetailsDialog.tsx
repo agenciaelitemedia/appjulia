@@ -35,6 +35,8 @@ interface CRMLeadDetailsDialogProps {
   stages: CRMStage[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** `inline` renderiza o conteúdo sem o wrapper de Dialog (right-bar do chat) */
+  variant?: 'dialog' | 'inline';
 }
 
 export function CRMLeadDetailsDialog({
@@ -42,6 +44,7 @@ export function CRMLeadDetailsDialog({
   stages,
   open,
   onOpenChange,
+  variant = 'dialog',
 }: CRMLeadDetailsDialogProps) {
   const { user: authUser } = useAuth();
   const { toast } = useToast();
