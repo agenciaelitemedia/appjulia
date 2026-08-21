@@ -408,7 +408,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('open');
   const [showDetailPanel, setShowDetailPanelState] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    const stored = window.localStorage.getItem('chat_rightbar_open');
+    try {
+      // limpa a chave legada (podia ter ficado gravada como "false")
+      window.localStorage.removeItem('chat_rightbar_open');
+    } catch { /* ignore */ }
+    const stored = window.localStorage.getItem('chat_rightbar_open_v2');
     if (stored === 'true') return true;
     if (stored === 'false') return false;
     return window.innerWidth >= 1024;
@@ -420,8 +424,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const setShowDetailPanel = useCallback((show: boolean) => {
     setShowDetailPanelState(show);
-    try { window.localStorage.setItem('chat_rightbar_open', String(show)); } catch { /* ignore */ }
+    try { window.localStorage.setItem('chat_rightbar_open_v2', String(show)); } catch { /* ignore */ }
   }, []);
+
   const setRightBarTab = useCallback((tab: 'contact' | 'crm') => {
     setRightBarTabState(tab);
     try { window.localStorage.setItem('chat_rightbar_tab', tab); } catch { /* ignore */ }

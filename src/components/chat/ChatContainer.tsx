@@ -37,9 +37,25 @@ const ChatMessagesFallback = () => (
   </div>
 );
 
+/** true quando a viewport é menor que o breakpoint `lg` (1024px) do Tailwind */
+function useIsBelowLg() {
+  const [below, setBelow] = useState(() =>
+    typeof window === 'undefined' ? false : window.innerWidth < 1024,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1023px)');
+    const onChange = () => setBelow(mql.matches);
+    onChange();
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return below;
+}
+
 interface ChatContainerProps {
   className?: string;
 }
+
 
 export function ChatContainer({ className }: ChatContainerProps) {
   const {
@@ -54,6 +70,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
     contactHydrationError,
     retryHydrateSelectedContact,
   } = useWhatsAppData();
+  const isBelowLg = useIsBelowLg();
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [ticketPanel, setTicketPanel] = useState<
@@ -175,8 +192,9 @@ export function ChatContainer({ className }: ChatContainerProps) {
         </div>
       )}
 
-      {/* Right-bar em overlay (mobile/tablet) */}
-      {selectedContact && (
+      {/* Right-bar em overlay (mobile/tablet) — não montado no desktop para
+          que a cortina do Sheet nunca cubra a conversa */}
+      {selectedContact && isBelowLg && (
         <Sheet open={showDetailPanel} onOpenChange={setShowDetailPanel}>
           <SheetContent side="right" className="w-full sm:w-[440px] sm:max-w-[440px] p-0 lg:hidden">
             <VisuallyHidden>
