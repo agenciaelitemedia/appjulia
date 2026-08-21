@@ -12,15 +12,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Scale, Eye, ExternalLink, Bot, Loader2 } from 'lucide-react';
+import { Scale, ExternalLink, Bot, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toggleJuliaSession } from '@/lib/juliaSessionControl';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { useContractInfo } from '@/pages/crm/hooks/useContractInfo';
-import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
+
 import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
-import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
+
 
 export interface CrmActionBarProps {
   phone: string;
@@ -39,8 +39,6 @@ export function CrmActionBar({ phone, queueId, contactName, className }: CrmActi
   const codAgent = queueLink?.codAgent ?? null;
 
   const { data: contractInfo } = useContractInfo(phone, codAgent ?? '', !!codAgent);
-  const { data: crmCard } = useCRMCardByWhatsapp(codAgent ? phone : null);
-  const { data: stages = [] } = useCRMStages();
 
   const {
     session: sessionData,
@@ -50,7 +48,6 @@ export function CrmActionBar({ phone, queueId, contactName, className }: CrmActi
   const [updatingSession, setUpdatingSession] = useState(false);
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const handleToggleSession = async () => {
     if (!sessionData) return;
