@@ -54,6 +54,7 @@ interface ChatHeaderProps {
   contact: ChatContact;
   onClose: () => void;
   onShowDetails?: () => void;
+  onShowCrm?: () => void;
   /**
    * Modo somente-leitura: oculta ações de escrita (Assumir, Transferir,
    * Resolver, Encerrar, Reabrir, Adiar, Devolver, toggle Jul.IA, tickets…).
@@ -239,7 +240,7 @@ function CrmActionBar({ phone, queueId, contactName }: CrmActionBarProps) {
   );
 }
 
-export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }: ChatHeaderProps) {
+export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnly = false }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter, sendInternalNote } = useWhatsAppData();
   const { user, hasPermission } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
@@ -607,6 +608,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
                 contact={contact}
                 codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
                 queueId={selectedConversation?.queue_id || null}
+                onOpenPanel={onShowCrm}
               />
 
               <Button
@@ -789,6 +791,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, readOnly = false }
               contact={contact}
               codAgent={selectedConversation?.cod_agent || (contact as any).cod_agent || null}
               queueId={selectedConversation?.queue_id || null}
+              onOpenPanel={onShowCrm}
             />
             <Button
               variant="outline"

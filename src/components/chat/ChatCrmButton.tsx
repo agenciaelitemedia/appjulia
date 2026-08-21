@@ -13,9 +13,11 @@ interface Props {
   contact: ChatContact;
   codAgent?: string | null;
   queueId?: string | null;
+  /** Quando fornecido, o clique abre a right-bar na aba CRM em vez do overlay */
+  onOpenPanel?: () => void;
 }
 
-export function ChatCrmButton({ conversationId, contact, codAgent, queueId }: Props) {
+export function ChatCrmButton({ conversationId, contact, codAgent, queueId, onOpenPanel }: Props) {
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
 
@@ -35,7 +37,10 @@ export function ChatCrmButton({ conversationId, contact, codAgent, queueId }: Pr
       <Button
         size="sm"
         variant="outline"
-        onClick={() => (isLinked ? setLinkedOpen(true) : setCreateOpen(true))}
+        onClick={() => {
+          if (onOpenPanel) { onOpenPanel(); return; }
+          isLinked ? setLinkedOpen(true) : setCreateOpen(true);
+        }}
         className={cn(
           'gap-1.5',
           isLinked && 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100 hover:text-blue-800'
