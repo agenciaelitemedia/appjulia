@@ -272,6 +272,9 @@ interface ExtendedContextValue extends ChatContextValue {
   // Contact detail panel
   showDetailPanel: boolean;
   setShowDetailPanel: (show: boolean) => void;
+  /** Aba ativa da right-bar do chat */
+  rightBarTab: 'contact' | 'crm';
+  setRightBarTab: (tab: 'contact' | 'crm') => void;
 
   // Conversation history
   conversationHistory: ConversationHistoryEntry[];
@@ -404,6 +407,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('open');
   const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [rightBarTab, setRightBarTab] = useState<'contact' | 'crm'>('contact');
   const [tags, setTags] = useState<ChatTag[]>([]);
   const [conversationTagsMap, setConversationTagsMap] = useState<Record<string, ChatTag[]>>({});
   const [conversationHistory, setConversationHistory] = useState<ConversationHistoryEntry[]>([]);
@@ -3057,6 +3061,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // Detail panel
     showDetailPanel,
     setShowDetailPanel,
+    rightBarTab,
+    setRightBarTab,
 
     // Conversation history
     conversationHistory,
@@ -3096,7 +3102,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     loadConversations, getOrCreateConversation, updateConversationStatus, assignConversation,
     tags, loadTags, updateTag, deleteTag, addTagToConversation, removeTagFromConversation, createTag,
     conversationTagsMap, refreshConversationTags,
-    sendInternalNote, showDetailPanel, conversationHistory, loadConversationHistory,
+    sendInternalNote, showDetailPanel, rightBarTab, conversationHistory, loadConversationHistory,
     hasMoreContacts, isLoadingMoreContacts, loadMoreContacts,
     hasMoreConversations, isLoadingMoreConversations, loadMoreConversations,
     periodFilter, sortOrder, clientId, queuesLoading, hasLoadedConversationsOnce,

@@ -15,6 +15,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   deal: ChatLinkedDeal;
   onMoved?: () => void;
+  /** 'sheet' (default) abre em overlay; 'inline' renderiza dentro da right-bar */
+  variant?: 'sheet' | 'inline';
 }
 
 /**
@@ -29,7 +31,7 @@ interface Props {
  * tabela `crm_deals` e propagadas via invalidação das queries que alimentam
  * o badge CRM da lista de conversas e o botão CRM do header.
  */
-export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props) {
+export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved, variant = 'sheet' }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -209,6 +211,7 @@ export function ChatLinkedDealSheet({ open, onOpenChange, deal, onMoved }: Props
 
   return (
     <DealDetailsSheet
+      variant={variant}
       deal={dealForSheet}
       pipeline={pipelineForSheet}
       open={open}
