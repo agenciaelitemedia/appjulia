@@ -813,11 +813,6 @@ export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnl
               queueId={selectedConversation?.queue_id || null}
             />
           </div>
-          <CrmActionBar
-            phone={contact.phone}
-            queueId={selectedConversation?.queue_id}
-            contactName={contact.name}
-          />
         </div>
       )}
       </div>
