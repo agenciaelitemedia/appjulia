@@ -1745,6 +1745,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                   key={virtualItem.key}
                   data-index={virtualItem.index}
                   ref={rowVirtualizer.measureElement}
+                  className="px-[1px] pb-[1px]"
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -1753,47 +1754,49 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <ChatContactItem
-                    contact={contact}
-                    isSelected={contact.id === selectedContactId}
-                    onClick={clickHandlerByContact.get(contact.id)!}
-                    conversation={conv}
-                    queueName={convQueue?.name}
-                    assignedAgentName={resolveAssigneeName(conv?.assigned_to, assigneeIndex) || undefined}
-                    index={virtualItem.index}
-                    convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
-                    agentCodAgent={agentCodAgent}
-                    agentAlias={agentAlias}
-                    stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
-                    stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
-                    stageLoading={
-                      queueLink?.hasAgent &&
-                      !stageInfo &&
-                      (!stageByPhone || stageByPhoneFetching)
-                    }
-                    hasCrmCard={
-                      (conv?.id ? !!crmBuilderMap?.byConversation.has(conv.id) : false) ||
-                      !!crmBuilderMap?.byContact.has(contact.id)
-                    }
-                    crmBuilderLink={
-                      (conv?.id ? crmBuilderMap?.byConversation.get(conv.id) : undefined) ??
-                      crmBuilderMap?.byContact.get(contact.id)
-                    }
-                    ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
-                    campaignLink={contact.phone ? campaignByPhone?.get(contact.phone) ?? null : null}
-                    lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
-                    onOpenTicket={openTicketHandlerByContact?.get(contact.id)}
-                    isQueueDisconnected={isQueueDisconnected}
-                    slaEvaluation={conv ? slaEvalByConversation.get(conv.id) ?? null : null}
-                    canViewTickets={canViewTickets}
-                    canCreateTickets={canCreateTickets}
-                    queueHasAgent={queueLink?.hasAgent}
-                    sessionIsActive={
-                      queueLink?.hasAgent
-                        ? (getSessionActive(contact.phone, agentCodAgent) ?? null)
-                        : null
-                    }
-                  />
+                  <div className="border border-border/50 rounded-md overflow-hidden">
+                    <ChatContactItem
+                      contact={contact}
+                      isSelected={contact.id === selectedContactId}
+                      onClick={clickHandlerByContact.get(contact.id)!}
+                      conversation={conv}
+                      queueName={convQueue?.name}
+                      assignedAgentName={resolveAssigneeName(conv?.assigned_to, assigneeIndex) || undefined}
+                      index={virtualItem.index}
+                      convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
+                      agentCodAgent={agentCodAgent}
+                      agentAlias={agentAlias}
+                      stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
+                      stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
+                      stageLoading={
+                        queueLink?.hasAgent &&
+                        !stageInfo &&
+                        (!stageByPhone || stageByPhoneFetching)
+                      }
+                      hasCrmCard={
+                        (conv?.id ? !!crmBuilderMap?.byConversation.has(conv.id) : false) ||
+                        !!crmBuilderMap?.byContact.has(contact.id)
+                      }
+                      crmBuilderLink={
+                        (conv?.id ? crmBuilderMap?.byConversation.get(conv.id) : undefined) ??
+                        crmBuilderMap?.byContact.get(contact.id)
+                      }
+                      ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
+                      campaignLink={contact.phone ? campaignByPhone?.get(contact.phone) ?? null : null}
+                      lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
+                      onOpenTicket={openTicketHandlerByContact?.get(contact.id)}
+                      isQueueDisconnected={isQueueDisconnected}
+                      slaEvaluation={conv ? slaEvalByConversation.get(conv.id) ?? null : null}
+                      canViewTickets={canViewTickets}
+                      canCreateTickets={canCreateTickets}
+                      queueHasAgent={queueLink?.hasAgent}
+                      sessionIsActive={
+                        queueLink?.hasAgent
+                          ? (getSessionActive(contact.phone, agentCodAgent) ?? null)
+                          : null
+                      }
+                    />
+                  </div>
                 </div>
               );
             })}

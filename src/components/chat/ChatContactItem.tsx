@@ -205,7 +205,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         }
       }}
       className={cn(
-        'group w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] border-b border-border/50 min-w-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'group w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] min-w-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         isSelected
           ? 'aj-chat-item-active border-l-transparent'
           : cn(
