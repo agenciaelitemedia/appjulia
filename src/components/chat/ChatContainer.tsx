@@ -94,7 +94,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
     <div className={cn('flex h-full w-full bg-background min-w-0 overflow-hidden', className)}>
       {/* Contact list sidebar */}
       <div className={cn(
-        'w-full lg:w-[252px] xl:w-[300px] 2xl:w-[348px] lg:flex-shrink-0 flex-shrink-0 border-r min-w-0 overflow-hidden',
+        'w-full lg:w-[282px] xl:w-[330px] 2xl:w-[378px] lg:flex-shrink-0 flex-shrink-0 border-r min-w-0 overflow-hidden',
         (selectedContact || selectedContactId) && 'hidden lg:flex lg:flex-col'
       )}>
         <ErrorBoundary fallback={<ChatListFallback />}>
