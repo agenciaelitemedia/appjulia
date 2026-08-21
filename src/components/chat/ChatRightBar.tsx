@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { PanelRightClose, Info, Kanban, Loader2 } from 'lucide-react';
+import { PanelRightClose, Info, Kanban, Loader2, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +8,9 @@ import { ContactDetailPanel } from './ContactDetailPanel';
 import { CreateCrmCardSheet } from './CreateCrmCardSheet';
 import { ChatLinkedDealSheet } from './ChatLinkedDealSheet';
 import { CrmActionBar } from './CrmActionBar';
+import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
+import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
+import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import type { ChatContact } from '@/types/chat';
 
 interface ChatRightBarProps {
@@ -36,9 +39,17 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
     contact?.phone ?? null,
   );
 
-  const tabs: { id: 'contact' | 'crm'; label: string; icon: typeof Info }[] = [
+  const { data: queueLink } = useQueueAgentLink(queueId);
+  const leadCodAgent = queueLink?.codAgent ?? null;
+  const { data: crmCard, isLoading: leadLoading } = useCRMCardByWhatsapp(
+    leadCodAgent ? contact?.phone || null : null,
+  );
+  const { data: stages = [] } = useCRMStages();
+
+  const tabs: { id: 'contact' | 'crm' | 'lead'; label: string; icon: typeof Info }[] = [
     { id: 'contact', label: 'Contato', icon: Info },
     { id: 'crm', label: 'CRM', icon: Kanban },
+    ...(leadCodAgent ? [{ id: 'lead' as const, label: 'Lead', icon: Eye }] : []),
   ];
 
   return (
@@ -78,6 +89,28 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
       <div className="flex-1 min-h-0 overflow-hidden">
         {rightBarTab === 'contact' ? (
           <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose />
+        ) : rightBarTab === 'lead' ? (
+          leadLoading ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : crmCard ? (
+            <div className="h-full px-3 py-3">
+              <CRMLeadDetailsDialog
+                variant="inline"
+                card={crmCard}
+                stages={stages}
+                open
+                onOpenChange={(o) => {
+                  if (!o) setRightBarTab('contact');
+                }}
+              />
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-full px-6 text-center text-sm text-muted-foreground">
+              Este contato ainda não possui card no CRM da Julia.
+            </div>
+          )
         ) : dealLoading ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
