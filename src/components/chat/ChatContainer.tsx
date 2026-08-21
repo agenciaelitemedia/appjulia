@@ -70,6 +70,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
     contactHydrationError,
     retryHydrateSelectedContact,
   } = useWhatsAppData();
+  const isBelowLg = useIsBelowLg();
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [ticketPanel, setTicketPanel] = useState<
