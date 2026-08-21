@@ -406,8 +406,27 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   // Conversation state
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [conversationStatusFilter, setConversationStatusFilter] = useState<ConversationFilterStatus>('open');
-  const [showDetailPanel, setShowDetailPanel] = useState(false);
-  const [rightBarTab, setRightBarTab] = useState<'contact' | 'crm'>('contact');
+  const [showDetailPanel, setShowDetailPanelState] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const stored = window.localStorage.getItem('chat_rightbar_open');
+    if (stored === 'true') return true;
+    if (stored === 'false') return false;
+    return window.innerWidth >= 1024;
+  });
+  const [rightBarTab, setRightBarTabState] = useState<'contact' | 'crm'>(() => {
+    if (typeof window === 'undefined') return 'contact';
+    return window.localStorage.getItem('chat_rightbar_tab') === 'crm' ? 'crm' : 'contact';
+  });
+
+  const setShowDetailPanel = useCallback((show: boolean) => {
+    setShowDetailPanelState(show);
+    try { window.localStorage.setItem('chat_rightbar_open', String(show)); } catch { /* ignore */ }
+  }, []);
+  const setRightBarTab = useCallback((tab: 'contact' | 'crm') => {
+    setRightBarTabState(tab);
+    try { window.localStorage.setItem('chat_rightbar_tab', tab); } catch { /* ignore */ }
+  }, []);
+
   const [tags, setTags] = useState<ChatTag[]>([]);
   const [conversationTagsMap, setConversationTagsMap] = useState<Record<string, ChatTag[]>>({});
   const [conversationHistory, setConversationHistory] = useState<ConversationHistoryEntry[]>([]);
