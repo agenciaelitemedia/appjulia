@@ -7,6 +7,7 @@ import { useChatDealLink } from '@/hooks/useChatDealLink';
 import { ContactDetailPanel } from './ContactDetailPanel';
 import { CreateCrmCardSheet } from './CreateCrmCardSheet';
 import { ChatLinkedDealSheet } from './ChatLinkedDealSheet';
+import { CrmActionBar } from './CrmActionBar';
 import type { ChatContact } from '@/types/chat';
 
 interface ChatRightBarProps {
