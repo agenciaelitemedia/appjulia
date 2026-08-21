@@ -1,18 +1,21 @@
-Remover o mapa de calor da página de métricas de chat
+Adicionar borda de 1px e espaçamento de 1px entre os itens da lista de chat
 
 ## Objetivo
-Remover o componente de mapa de calor ("Mapa de Calor — Volume por Dia × Hora") da página `/chat/metricas`.
+Aplicar uma borda de 1px e um espaçamento de 1px entre as divs de cada item da lista de conversas (ChatList), deixando a visualização mais definida e alinhada.
 
 ## Escopo
-- Alteração única no frontend.
-- Página afetada: `src/pages/chat/ChatMetricsPage.tsx`.
-- Componente a remover: `ChatHeatmap` (importado na linha 23 e renderizado na linha 724).
+- Alteração visual pontual no frontend.
+- Componente afetado: `src/components/chat/ChatList.tsx`.
+- O wrapper absoluto de cada item virtualizado (`<div key={virtualItem.key} ...>`) deve receber a borda e o espaçamento.
 
 ## Passos
-1. Remover o import de `ChatHeatmap` no topo de `src/pages/chat/ChatMetricsPage.tsx`.
-2. Remover o bloco de renderização `{/* ── Heatmap ───────────────────────────────────────────────────── */}` e `<ChatHeatmap conversations={filtered} />` no corpo da página.
-3. Validar o build após a alteração.
+1. No arquivo `src/components/chat/ChatList.tsx`, localizar o wrapper `<div key={virtualItem.key} ...>` que envolve `<ChatContactItem>` (por volta da linha 1744).
+2. Adicionar classes de borda ao wrapper: `border border-border/50` (ou `border-border` conforme contraste atual) e cantos arredondados leves (`rounded-md`).
+3. Adicionar espaçamento entre os itens: aplicar `m-[1px]` ou `mb-[1px]` no wrapper, de forma que o virtualizer `measureElement` consiga medir corretamente a altura total incluindo o espaçamento.
+4. Garantir que o layout continue funcionando no virtualizador (os itens são absolutamente posicionados).
+5. Validar o build e visualizar o preview para confirmar que a borda e o espaçamento aparecem sem quebrar o scroll ou a seleção.
 
 ## Não incluso
-- Não excluir o arquivo `src/components/chat/analytics/ChatHeatmap.tsx` (mantido disponível para reutilização futura).
-- Não alterar dados, filtros ou outros componentes da página.
+- Não alterar o componente `ChatContactItem` internamente.
+- Não modificar cores, sombras, tipografia ou outros aspectos visuais da lista.
+- Não alterar dados ou comportamento da lista (filtros, ordenação, seleção).
