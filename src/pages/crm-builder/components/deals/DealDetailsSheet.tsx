@@ -1249,7 +1249,20 @@ export function DealDetailsSheet({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+    </>
+  );
+
+  if (variant === 'inline') {
+    if (!open) return null;
+    return <div className="flex flex-col h-full min-h-0 overflow-y-auto">{body}</div>;
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col h-full overflow-y-auto">
+        {body}
       </SheetContent>
     </Sheet>
   );
+
 }
