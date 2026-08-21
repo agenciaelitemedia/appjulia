@@ -409,10 +409,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [showDetailPanel, setShowDetailPanelState] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     try {
-      // limpa a chave legada (podia ter ficado gravada como "false")
+      // Migração v3: descarta preferências antigas que podiam manter a
+      // right-bar inteira oculta após a inclusão da aba Lead.
       window.localStorage.removeItem('chat_rightbar_open');
+      window.localStorage.removeItem('chat_rightbar_open_v2');
     } catch { /* ignore */ }
-    const stored = window.localStorage.getItem('chat_rightbar_open_v2');
+    const stored = window.localStorage.getItem('chat_rightbar_open_v3');
     if (stored === 'true') return true;
     if (stored === 'false') return false;
     return window.innerWidth >= 1024;
@@ -425,7 +427,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const setShowDetailPanel = useCallback((show: boolean) => {
     setShowDetailPanelState(show);
-    try { window.localStorage.setItem('chat_rightbar_open_v2', String(show)); } catch { /* ignore */ }
+    try { window.localStorage.setItem('chat_rightbar_open_v3', String(show)); } catch { /* ignore */ }
   }, []);
 
   const setRightBarTab = useCallback((tab: 'contact' | 'crm' | 'lead') => {
