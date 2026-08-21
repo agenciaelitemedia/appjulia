@@ -1745,7 +1745,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                   key={virtualItem.key}
                   data-index={virtualItem.index}
                   ref={rowVirtualizer.measureElement}
-                  className="px-[2px] pb-[2px]"
+                  className="px-[1px] pb-[1px]"
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -1754,7 +1754,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <div className="border-[3px] border-foreground/30 rounded-md overflow-hidden">
+                  <div className="border-[2px] border-foreground/30 rounded-md overflow-hidden">
                     <ChatContactItem
                       contact={contact}
                       isSelected={contact.id === selectedContactId}
