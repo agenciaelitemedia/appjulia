@@ -192,8 +192,9 @@ export function ChatContainer({ className }: ChatContainerProps) {
         </div>
       )}
 
-      {/* Right-bar em overlay (mobile/tablet) */}
-      {selectedContact && (
+      {/* Right-bar em overlay (mobile/tablet) — não montado no desktop para
+          que a cortina do Sheet nunca cubra a conversa */}
+      {selectedContact && isBelowLg && (
         <Sheet open={showDetailPanel} onOpenChange={setShowDetailPanel}>
           <SheetContent side="right" className="w-full sm:w-[440px] sm:max-w-[440px] p-0 lg:hidden">
             <VisuallyHidden>
