@@ -66,7 +66,7 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
         </Button>
       </div>
 
-      <div className="px-2 py-2 border-b flex justify-center">
+      <div className="px-2 py-2 border-b flex justify-center empty:hidden empty:border-0 empty:p-0">
         <CrmActionBar
           phone={contact?.phone || ''}
           queueId={queueId}
