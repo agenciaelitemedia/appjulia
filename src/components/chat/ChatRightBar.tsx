@@ -7,6 +7,7 @@ import { useChatDealLink } from '@/hooks/useChatDealLink';
 import { ContactDetailPanel } from './ContactDetailPanel';
 import { CreateCrmCardSheet } from './CreateCrmCardSheet';
 import { ChatLinkedDealSheet } from './ChatLinkedDealSheet';
+import { CrmActionBar } from './CrmActionBar';
 import type { ChatContact } from '@/types/chat';
 
 interface ChatRightBarProps {
@@ -64,6 +65,15 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
           <PanelRightClose className="h-4 w-4" />
         </Button>
       </div>
+
+      <div className="px-2 py-2 border-b flex justify-center empty:hidden empty:border-0 empty:p-0">
+        <CrmActionBar
+          phone={contact?.phone || ''}
+          queueId={queueId}
+          contactName={contact?.name || ''}
+        />
+      </div>
+
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {rightBarTab === 'contact' ? (
