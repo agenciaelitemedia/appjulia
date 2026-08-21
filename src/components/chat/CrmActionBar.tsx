@@ -12,15 +12,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Scale, Eye, ExternalLink, Bot, Loader2 } from 'lucide-react';
+import { Scale, ExternalLink, Bot, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toggleJuliaSession } from '@/lib/juliaSessionControl';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { useContractInfo } from '@/pages/crm/hooks/useContractInfo';
-import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
+
 import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
-import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
+
 
 export interface CrmActionBarProps {
   phone: string;
@@ -39,8 +39,6 @@ export function CrmActionBar({ phone, queueId, contactName, className }: CrmActi
   const codAgent = queueLink?.codAgent ?? null;
 
   const { data: contractInfo } = useContractInfo(phone, codAgent ?? '', !!codAgent);
-  const { data: crmCard } = useCRMCardByWhatsapp(codAgent ? phone : null);
-  const { data: stages = [] } = useCRMStages();
 
   const {
     session: sessionData,
@@ -50,7 +48,6 @@ export function CrmActionBar({ phone, queueId, contactName, className }: CrmActi
   const [updatingSession, setUpdatingSession] = useState(false);
   const [confirmToggle, setConfirmToggle] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const handleToggleSession = async () => {
     if (!sessionData) return;
@@ -94,19 +91,8 @@ export function CrmActionBar({ phone, queueId, contactName, className }: CrmActi
           <TooltipContent>{contractInfo ? 'Ver contrato' : 'Sem contrato'}</TooltipContent>
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={() => crmCard && setDetailsOpen(true)}
-              disabled={!crmCard}
-              className={cn('p-1 rounded hover:bg-muted transition-colors', !crmCard && 'opacity-40 cursor-not-allowed')}
-            >
-              <Eye className={cn('h-4 w-4', crmCard ? 'text-foreground' : 'text-muted-foreground')} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Detalhes do card CRM</TooltipContent>
-        </Tooltip>
+
+
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -177,12 +163,6 @@ export function CrmActionBar({ phone, queueId, contactName, className }: CrmActi
         codAgent={codAgent!}
       />
 
-      <CRMLeadDetailsDialog
-        card={crmCard ?? null}
-        stages={stages}
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-      />
     </>
   );
 }

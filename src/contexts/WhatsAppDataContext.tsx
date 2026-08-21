@@ -273,8 +273,8 @@ interface ExtendedContextValue extends ChatContextValue {
   showDetailPanel: boolean;
   setShowDetailPanel: (show: boolean) => void;
   /** Aba ativa da right-bar do chat */
-  rightBarTab: 'contact' | 'crm';
-  setRightBarTab: (tab: 'contact' | 'crm') => void;
+  rightBarTab: 'contact' | 'crm' | 'lead';
+  setRightBarTab: (tab: 'contact' | 'crm' | 'lead') => void;
 
   // Conversation history
   conversationHistory: ConversationHistoryEntry[];
@@ -417,9 +417,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (stored === 'false') return false;
     return window.innerWidth >= 1024;
   });
-  const [rightBarTab, setRightBarTabState] = useState<'contact' | 'crm'>(() => {
+  const [rightBarTab, setRightBarTabState] = useState<'contact' | 'crm' | 'lead'>(() => {
     if (typeof window === 'undefined') return 'contact';
-    return window.localStorage.getItem('chat_rightbar_tab') === 'crm' ? 'crm' : 'contact';
+    const stored = window.localStorage.getItem('chat_rightbar_tab');
+    return stored === 'crm' || stored === 'lead' ? stored : 'contact';
   });
 
   const setShowDetailPanel = useCallback((show: boolean) => {
@@ -427,10 +428,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     try { window.localStorage.setItem('chat_rightbar_open_v2', String(show)); } catch { /* ignore */ }
   }, []);
 
-  const setRightBarTab = useCallback((tab: 'contact' | 'crm') => {
+  const setRightBarTab = useCallback((tab: 'contact' | 'crm' | 'lead') => {
     setRightBarTabState(tab);
     try { window.localStorage.setItem('chat_rightbar_tab', tab); } catch { /* ignore */ }
   }, []);
+
 
   const [tags, setTags] = useState<ChatTag[]>([]);
   const [conversationTagsMap, setConversationTagsMap] = useState<Record<string, ChatTag[]>>({});

@@ -35,6 +35,8 @@ interface CRMLeadDetailsDialogProps {
   stages: CRMStage[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** `inline` renderiza o conteúdo sem o wrapper de Dialog (right-bar do chat) */
+  variant?: 'dialog' | 'inline';
 }
 
 export function CRMLeadDetailsDialog({
@@ -42,6 +44,7 @@ export function CRMLeadDetailsDialog({
   stages,
   open,
   onOpenChange,
+  variant = 'dialog',
 }: CRMLeadDetailsDialogProps) {
   const { user: authUser } = useAuth();
   const { toast } = useToast();
@@ -254,17 +257,19 @@ export function CRMLeadDetailsDialog({
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+  const body = (
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      {variant === 'dialog' && (
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
             Detalhes do Lead
           </DialogTitle>
         </DialogHeader>
+      )}
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 min-h-0 pr-4">
+
           <div className="space-y-4">
             {/* Info Grid */}
             <div className="grid grid-cols-2 gap-4">
@@ -549,6 +554,15 @@ export function CRMLeadDetailsDialog({
           codAgent={card.cod_agent}
           contactName={card.contact_name}
         />
+    </div>
+  );
+
+  if (variant === 'inline') return body;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        {body}
       </DialogContent>
     </Dialog>
   );
