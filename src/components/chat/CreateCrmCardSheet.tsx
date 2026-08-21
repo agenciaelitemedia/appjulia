@@ -639,18 +639,30 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
           </div>
         </ScrollArea>
 
-        <SheetFooter className="p-4 border-t gap-2 sm:gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1">
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={saving || !stageSelected || !effectiveCodAgent || agentResolving || (!!existingDeal.data && !forceCreate)}
-            className="flex-1"
-          >
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Criar Card
-          </Button>
-        </SheetFooter>
+      <div className="p-4 border-t flex gap-2">
+        <Button variant="ghost" onClick={() => onOpenChange(false)} className="flex-1">
+          Cancelar
+        </Button>
+        <Button
+          onClick={handleCreate}
+          disabled={saving || !stageSelected || !effectiveCodAgent || agentResolving || (!!existingDeal.data && !forceCreate)}
+          className="flex-1"
+        >
+          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Criar Card
+        </Button>
+      </div>
+    </>
+  );
+
+  if (variant === 'inline') {
+    if (!open) return null;
+    return <div className="flex flex-col h-full min-h-0">{body}</div>;
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+        {body}
       </SheetContent>
     </Sheet>
   );
