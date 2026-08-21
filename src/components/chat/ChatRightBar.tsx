@@ -66,6 +66,15 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
         </Button>
       </div>
 
+      <div className="px-2 py-2 border-b flex justify-center">
+        <CrmActionBar
+          phone={contact?.phone || ''}
+          queueId={queueId}
+          contactName={contact?.name || ''}
+        />
+      </div>
+
+
       <div className="flex-1 min-h-0 overflow-hidden">
         {rightBarTab === 'contact' ? (
           <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose />
