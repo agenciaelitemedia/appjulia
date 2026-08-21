@@ -166,12 +166,6 @@ export function CrmActionBar({ phone, queueId, contactName, className }: CrmActi
         codAgent={codAgent!}
       />
 
-      <CRMLeadDetailsDialog
-        card={crmCard ?? null}
-        stages={stages}
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-      />
     </>
   );
 }
