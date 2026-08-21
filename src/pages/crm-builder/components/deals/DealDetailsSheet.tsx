@@ -387,23 +387,33 @@ export function DealDetailsSheet({
     setEditingDueDate(false);
   };
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col h-full overflow-y-auto">
-        {/* Header */}
-        <SheetHeader className="p-6 pb-4 border-b">
-          <SheetTitle className="text-xl font-semibold line-clamp-2 text-left">
-            {deal.title}
-          </SheetTitle>
-          <div className="mt-2">
-            <Badge
-              variant="outline"
-              className={cn(statusConfig.color, statusConfig.bgColor)}
-            >
-              {statusConfig.label}
-            </Badge>
-          </div>
-        </SheetHeader>
+  const statusBadge = (
+    <div className="mt-2">
+      <Badge variant="outline" className={cn(statusConfig.color, statusConfig.bgColor)}>
+        {statusConfig.label}
+      </Badge>
+    </div>
+  );
+
+  const headerNode =
+    variant === 'inline' ? (
+      <div className="p-4 pb-3 border-b">
+        <h3 className="text-lg font-semibold line-clamp-2 text-left">{deal.title}</h3>
+        {statusBadge}
+      </div>
+    ) : (
+      <SheetHeader className="p-6 pb-4 border-b">
+        <SheetTitle className="text-xl font-semibold line-clamp-2 text-left">
+          {deal.title}
+        </SheetTitle>
+        {statusBadge}
+      </SheetHeader>
+    );
+
+  const body = (
+    <>
+      {headerNode}
+
 
         {/* Bloco Quadro — independente do bloco Etapas. Aparece sempre que o
             callback onMoveToBoard estiver disponível. */}
