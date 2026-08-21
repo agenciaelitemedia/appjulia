@@ -635,11 +635,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnl
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <CrmActionBar
-                phone={contact.phone}
-                queueId={selectedConversation?.queue_id}
-                contactName={contact.name}
-              />
+
 
               {(() => {
                 const isActive = ['pending', 'open'].includes(currentStatus);
