@@ -1745,6 +1745,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                   key={virtualItem.key}
                   data-index={virtualItem.index}
                   ref={rowVirtualizer.measureElement}
+                  className="px-[1px] pb-[1px]"
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -1753,7 +1754,8 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <ChatContactItem
+                  <div className="border border-border/50 rounded-md overflow-hidden">
+                    <ChatContactItem
                     contact={contact}
                     isSelected={contact.id === selectedContactId}
                     onClick={clickHandlerByContact.get(contact.id)!}
@@ -1793,7 +1795,8 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
                         ? (getSessionActive(contact.phone, agentCodAgent) ?? null)
                         : null
                     }
-                  />
+                    />
+                  </div>
                 </div>
               );
             })}
