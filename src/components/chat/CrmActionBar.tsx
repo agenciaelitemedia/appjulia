@@ -94,19 +94,8 @@ export function CrmActionBar({ phone, queueId, contactName, className }: CrmActi
           <TooltipContent>{contractInfo ? 'Ver contrato' : 'Sem contrato'}</TooltipContent>
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={() => crmCard && setDetailsOpen(true)}
-              disabled={!crmCard}
-              className={cn('p-1 rounded hover:bg-muted transition-colors', !crmCard && 'opacity-40 cursor-not-allowed')}
-            >
-              <Eye className={cn('h-4 w-4', crmCard ? 'text-foreground' : 'text-muted-foreground')} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Detalhes do card CRM</TooltipContent>
-        </Tooltip>
+
+
 
         <Tooltip>
           <TooltipTrigger asChild>
