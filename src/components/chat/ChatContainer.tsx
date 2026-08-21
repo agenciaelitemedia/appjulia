@@ -104,7 +104,18 @@ export function ChatContainer({ className }: ChatContainerProps) {
             <ChatHeader 
               contact={selectedContact} 
               onClose={() => selectContact(null)}
-              onShowDetails={() => setShowDetailPanel(!showDetailPanel)}
+              onShowDetails={() => {
+                if (showDetailPanel && rightBarTab === 'contact') {
+                  setShowDetailPanel(false);
+                } else {
+                  setRightBarTab('contact');
+                  setShowDetailPanel(true);
+                }
+              }}
+              onShowCrm={() => {
+                setRightBarTab('crm');
+                setShowDetailPanel(true);
+              }}
             />
             <ErrorBoundary fallback={<ChatMessagesFallback />}>
               <ChatMessages
@@ -149,21 +160,36 @@ export function ChatContainer({ className }: ChatContainerProps) {
         )}
       </div>
 
-      {/* Contact detail panel - overlay sheet */}
-      {selectedContact && (
-        <Sheet open={showDetailPanel} onOpenChange={setShowDetailPanel}>
-          <SheetContent side="right" className="w-[456px] sm:w-[504px] sm:max-w-[504px] p-0 overflow-y-auto">
-            <VisuallyHidden>
-              <SheetTitle>Detalhes do contato</SheetTitle>
-              <SheetDescription>Informações e ações do contato selecionado</SheetDescription>
-            </VisuallyHidden>
-            <ContactDetailPanel
+      {/* Right-bar fixa (desktop) */}
+      {selectedContact && showDetailPanel && (
+        <div className="hidden lg:flex lg:flex-shrink-0 w-[400px] xl:w-[420px] min-w-0">
+          <ErrorBoundary fallback={<div className="p-6 text-sm text-muted-foreground">Erro ao carregar o painel.</div>}>
+            <ChatRightBar
               contact={selectedContact}
               onClose={() => setShowDetailPanel(false)}
+              className="w-full"
+            />
+          </ErrorBoundary>
+        </div>
+      )}
+
+      {/* Right-bar em overlay (mobile/tablet) */}
+      {selectedContact && (
+        <Sheet open={showDetailPanel} onOpenChange={setShowDetailPanel}>
+          <SheetContent side="right" className="w-full sm:w-[440px] sm:max-w-[440px] p-0 lg:hidden">
+            <VisuallyHidden>
+              <SheetTitle>Detalhes da conversa</SheetTitle>
+              <SheetDescription>Informações do contato e card do CRM</SheetDescription>
+            </VisuallyHidden>
+            <ChatRightBar
+              contact={selectedContact}
+              onClose={() => setShowDetailPanel(false)}
+              className="h-full border-l-0"
             />
           </SheetContent>
         </Sheet>
       )}
+
 
       {/* Painéis de ticket abertos a partir do menu de contexto da lista */}
       {ticketPanel?.mode === 'create' && (
