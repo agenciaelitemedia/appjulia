@@ -554,6 +554,15 @@ export function CRMLeadDetailsDialog({
           codAgent={card.cod_agent}
           contactName={card.contact_name}
         />
+    </div>
+  );
+
+  if (variant === 'inline') return body;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        {body}
       </DialogContent>
     </Dialog>
   );
