@@ -273,8 +273,8 @@ interface ExtendedContextValue extends ChatContextValue {
   showDetailPanel: boolean;
   setShowDetailPanel: (show: boolean) => void;
   /** Aba ativa da right-bar do chat */
-  rightBarTab: 'contact' | 'crm';
-  setRightBarTab: (tab: 'contact' | 'crm') => void;
+  rightBarTab: 'contact' | 'crm' | 'lead';
+  setRightBarTab: (tab: 'contact' | 'crm' | 'lead') => void;
 
   // Conversation history
   conversationHistory: ConversationHistoryEntry[];
