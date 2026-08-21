@@ -366,37 +366,57 @@ export function CreateCrmCardSheet({ open, onOpenChange, contact, codAgent, queu
 
   const stageSelected = !!selectedPipeline;
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
-        <SheetHeader className="p-6 pb-4 border-b">
-          <SheetTitle className="flex items-center gap-2">
-            <Kanban className="h-5 w-5 text-primary" />
-            Criar Card no CRM
-          </SheetTitle>
-          <SheetDescription>
-            {contact.name || 'Contato'} · {contact.phone || 'sem telefone'}
-          </SheetDescription>
-          <div className="pt-2">
-            {agentResolving ? (
-              <Badge variant="outline" className="text-[10px] gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" /> Resolvendo agente...
-              </Badge>
-            ) : effectiveCodAgent ? (
-              <Badge variant="outline" className="text-[10px]">
-                Agente: #{effectiveCodAgent}
-                {agentSource === 'board' && ' (via quadro)'}
-                {agentSource === 'queue' && ' (via fila)'}
-                {agentSource === 'user' && ' (seu agente)'}
-                {agentSource === 'conversation' && ' (conversa)'}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                Sem agente da Júlia (vínculo apenas por fila)
-              </Badge>
-            )}
-          </div>
-        </SheetHeader>
+  const agentBadge = (
+    <div className="pt-2">
+      {agentResolving ? (
+        <Badge variant="outline" className="text-[10px] gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" /> Resolvendo agente...
+        </Badge>
+      ) : effectiveCodAgent ? (
+        <Badge variant="outline" className="text-[10px]">
+          Agente: #{effectiveCodAgent}
+          {agentSource === 'board' && ' (via quadro)'}
+          {agentSource === 'queue' && ' (via fila)'}
+          {agentSource === 'user' && ' (seu agente)'}
+          {agentSource === 'conversation' && ' (conversa)'}
+        </Badge>
+      ) : (
+        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+          Sem agente da Júlia (vínculo apenas por fila)
+        </Badge>
+      )}
+    </div>
+  );
+
+  const headerNode =
+    variant === 'inline' ? (
+      <div className="p-4 pb-3 border-b">
+        <h3 className="flex items-center gap-2 font-semibold">
+          <Kanban className="h-5 w-5 text-primary" />
+          Criar Card no CRM
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          {contact.name || 'Contato'} · {contact.phone || 'sem telefone'}
+        </p>
+        {agentBadge}
+      </div>
+    ) : (
+      <SheetHeader className="p-6 pb-4 border-b">
+        <SheetTitle className="flex items-center gap-2">
+          <Kanban className="h-5 w-5 text-primary" />
+          Criar Card no CRM
+        </SheetTitle>
+        <SheetDescription>
+          {contact.name || 'Contato'} · {contact.phone || 'sem telefone'}
+        </SheetDescription>
+        {agentBadge}
+      </SheetHeader>
+    );
+
+  const body = (
+    <>
+      {headerNode}
+
 
         <ScrollArea className="flex-1">
           <div className="p-6 space-y-5">
