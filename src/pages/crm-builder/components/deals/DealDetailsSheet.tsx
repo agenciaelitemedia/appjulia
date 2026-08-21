@@ -99,6 +99,8 @@ interface DealDetailsSheetProps {
     targetBoardId: string,
     targetPipelineId?: string,
   ) => Promise<{ newDealId: string; newBoardId: string } | null | void>;
+  /** 'sheet' (default) abre em overlay; 'inline' renderiza dentro da right-bar */
+  variant?: 'sheet' | 'inline';
 }
 
 export function DealDetailsSheet({
@@ -118,6 +120,7 @@ export function DealDetailsSheet({
   onMoveToStage,
   boards,
   onMoveToBoard,
+  variant = 'sheet',
 }: DealDetailsSheetProps) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('details');
