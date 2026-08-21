@@ -164,7 +164,7 @@ export function ChatContainer({ className }: ChatContainerProps) {
 
       {/* Right-bar fixa (desktop) */}
       {selectedContact && showDetailPanel && (
-        <div className="hidden lg:flex lg:flex-shrink-0 w-[400px] xl:w-[420px] min-w-0">
+        <div className="hidden lg:flex lg:flex-shrink-0 w-[360px] xl:w-[400px] min-w-0">
           <ErrorBoundary fallback={<div className="p-6 text-sm text-muted-foreground">Erro ao carregar o painel.</div>}>
             <ChatRightBar
               contact={selectedContact}
