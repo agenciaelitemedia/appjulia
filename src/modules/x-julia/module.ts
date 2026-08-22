@@ -110,6 +110,15 @@ export const X_JULIA_MENU_ITEMS = [
     route: '/x-julia/limites',
     displayOrder: 11,
   },
+  {
+    code: 'x_julia_metrics',
+    name: 'Métricas X-Julia',
+    description: 'Agregados diários de atendimentos, custo com IA e conversão',
+    icon: 'BarChart3',
+    route: '/x-julia/metricas',
+    displayOrder: 12,
+  },
+
 ] as const;
 
 export type XJModuleCode = (typeof X_JULIA_MENU_ITEMS)[number]['code'];
