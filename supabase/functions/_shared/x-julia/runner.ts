@@ -162,6 +162,8 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
           cost_usd: Math.round((Number((session as any).cost_usd ?? 0) + callCost) * 1_000_000) / 1_000_000,
         });
       }
+      // Contador do escritório (dia BRT) usado pelo disjuntor de custo.
+      if (callCost) await bumpUsage(supabase, String(session.client_id), callCost, 0);
     }
 
     if (!completion.toolCalls.length) {
