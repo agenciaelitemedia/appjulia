@@ -11149,12 +11149,14 @@ export type Database = {
           p_from?: string
           p_has_crm_builder?: boolean
           p_has_ticket?: boolean
+          p_hide_snoozed?: boolean
           p_limit?: number
           p_offset?: number
           p_owner?: string
           p_owners?: string[]
           p_priority?: string
           p_queue_ids?: string[]
+          p_restrict_open_to?: string[]
           p_search?: string
           p_sla_status?: string[]
           p_sort?: string
