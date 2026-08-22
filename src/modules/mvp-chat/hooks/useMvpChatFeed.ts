@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchMvpChatFeed } from '../api/fetchMvpChatFeed';
 import { useMvpChatRealtime } from './useMvpChatRealtime';
-import type { MvpChatCounters, MvpChatFilters, MvpChatRowData, MvpChatTimings } from '../api/types';
+import type { MvpChatCounters, MvpChatFilters, MvpChatRowData, MvpChatTab, MvpChatTimings } from '../api/types';
 
 const PAGE_SIZE = 30;
 /** Espera antes de revalidar após um evento que pode afetar o filtro ativo. */
 const REFETCH_DEBOUNCE_MS = 4000;
-/** Intervalo mínimo entre revalidações automáticas (não conta o botão Recarregar). */
+/** Intervalo mínimo entre revalidações automáticas da lista visível. */
 const MIN_REVALIDATE_INTERVAL_MS = 15000;
+/** Intervalo mínimo quando a lista está em segundo plano (aba não ativa). */
+const MIN_REVALIDATE_INTERVAL_BG_MS = 45000;
+/** Idade a partir da qual reabrir a aba dispara revalidação silenciosa. */
+const STALE_AFTER_MS = 30000;
 
 /** Campos cuja mudança pode tirar/entrar a conversa no filtro ativo. */
-const FILTER_FIELDS = ['status', 'queue_id', 'assigned_to', 'assigned_user_id', 'priority'] as const;
+const FILTER_FIELDS = ['queue_id', 'assigned_to', 'assigned_user_id', 'priority'] as const;
 
 interface State {
   rows: MvpChatRowData[];
@@ -33,12 +37,33 @@ function whenOf(r: MvpChatRowData) {
   return new Date(r.last_message_at ?? r.conversation_updated_at ?? 0).getTime();
 }
 
+/** A conversa pertence a esta lista? */
+function matchesTab(status: string | null | undefined, tab: MvpChatTab) {
+  if (!tab) return true;
+  if (tab === 'resolved_closed') return status === 'resolved' || status === 'closed';
+  return status === tab;
+}
+
+export interface UseMvpChatFeedOptions {
+  /** Aba/lista desta instância. */
+  status: MvpChatTab;
+  /** Quando false, a lista não carrega nem revalida (aba nunca aberta). */
+  enabled?: boolean;
+  /** Lista em segundo plano: nunca mostra loading e revalida com folga. */
+  background?: boolean;
+}
+
 /**
- * Feed do MVP: 1 request por página + patches incrementais via Realtime.
- * Revalidações automáticas são silenciosas (não escondem a lista) e limitadas
- * por debounce + intervalo mínimo; a aba oculta não revalida.
+ * Uma lista do MVP (uma aba): 1 request por página + patches incrementais via
+ * Realtime. Revalidações automáticas são silenciosas, com debounce e intervalo
+ * mínimo; aba do navegador oculta não revalida.
  */
-export function useMvpChatFeed(clientId: string | null, filters: MvpChatFilters) {
+export function useMvpChatFeed(
+  clientId: string | null,
+  filters: MvpChatFilters,
+  options: UseMvpChatFeedOptions,
+) {
+  const { status, enabled = true, background = false } = options;
   const [state, setState] = useState<State>(INITIAL);
   const [liveEvents, setLiveEvents] = useState(0);
   const reqId = useRef(0);
@@ -46,7 +71,13 @@ export function useMvpChatFeed(clientId: string | null, filters: MvpChatFilters)
   const pendingRevalidate = useRef(false);
   const rowsRef = useRef<MvpChatRowData[]>([]);
   rowsRef.current = state.rows;
-  const key = useMemo(() => JSON.stringify(filters), [filters]);
+  const backgroundRef = useRef(background);
+  backgroundRef.current = background;
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+
+  const effectiveFilters = useMemo<MvpChatFilters>(() => ({ ...filters, status }), [filters, status]);
+  const key = useMemo(() => JSON.stringify(effectiveFilters), [effectiveFilters]);
 
   const load = useCallback(async (
     offset: number,
@@ -55,17 +86,18 @@ export function useMvpChatFeed(clientId: string | null, filters: MvpChatFilters)
   ) => {
     if (!clientId) return;
     const { refresh = false, silent = false } = opts;
+    const showLoading = mode === 'replace' && !silent && !backgroundRef.current;
     const id = ++reqId.current;
     lastLoadAt.current = Date.now();
     setState((s) => ({
       ...s,
-      loading: mode === 'replace' && !silent,
-      revalidating: silent,
+      loading: showLoading,
+      revalidating: !showLoading && mode === 'replace',
       loadingMore: mode === 'append',
       error: null,
     }));
     try {
-      const res = await fetchMvpChatFeed({ clientId, filters, limit: PAGE_SIZE, offset, refresh });
+      const res = await fetchMvpChatFeed({ clientId, filters: effectiveFilters, limit: PAGE_SIZE, offset, refresh });
       if (id !== reqId.current) return;
       setState((s) => ({
         rows: mode === 'append' ? [...s.rows, ...res.rows] : res.rows,
@@ -93,7 +125,24 @@ export function useMvpChatFeed(clientId: string | null, filters: MvpChatFilters)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, key]);
 
-  useEffect(() => { void load(0, 'replace'); }, [load]);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /* --------- carga inicial / recarga por filtro / reabertura da aba --------- */
+  const loadedKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!clientId || !enabled) return;
+    if (loadedKey.current !== key) {
+      loadedKey.current = key;
+      void loadRef.current(0, 'replace');
+      return;
+    }
+    // aba reaberta com dados já carregados: revalida em silêncio se estiver velho
+    if (Date.now() - lastLoadAt.current > STALE_AFTER_MS) {
+      void loadRef.current(0, 'replace', { silent: true });
+    }
+  }, [clientId, enabled, key]);
 
   const loadMore = useCallback(() => {
     if (state.loading || state.loadingMore || !state.hasMore) return;
@@ -103,24 +152,21 @@ export function useMvpChatFeed(clientId: string | null, filters: MvpChatFilters)
   const refresh = useCallback(() => { void load(0, 'replace', { refresh: true }); }, [load]);
 
   /* ------------------------------ tempo real ------------------------------ */
-  const loadRef = useRef(load);
-  loadRef.current = load;
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const runRevalidate = useCallback(() => {
+    if (!enabledRef.current) { pendingRevalidate.current = true; return; }
     if (typeof document !== 'undefined' && document.hidden) {
       pendingRevalidate.current = true;
       return;
     }
+    const minInterval = backgroundRef.current ? MIN_REVALIDATE_INTERVAL_BG_MS : MIN_REVALIDATE_INTERVAL_MS;
     const since = Date.now() - lastLoadAt.current;
-    if (since < MIN_REVALIDATE_INTERVAL_MS) {
-      // agenda para o fim da janela mínima, sem disparar request agora
+    if (since < minInterval) {
       pendingRevalidate.current = true;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         pendingRevalidate.current = false;
         void loadRef.current(0, 'replace', { silent: true });
-      }, MIN_REVALIDATE_INTERVAL_MS - since);
+      }, minInterval - since);
       return;
     }
     pendingRevalidate.current = false;
@@ -134,18 +180,23 @@ export function useMvpChatFeed(clientId: string | null, filters: MvpChatFilters)
 
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
-  // volta o foco: uma única revalidação se ficou algo pendente
+  // volta o foco / a aba reativa: uma única revalidação se ficou algo pendente
   useEffect(() => {
     const onVisible = () => {
-      if (!document.hidden && pendingRevalidate.current) runRevalidate();
+      if (!document.hidden && enabledRef.current && pendingRevalidate.current) runRevalidate();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [runRevalidate]);
 
+  useEffect(() => {
+    if (enabled && pendingRevalidate.current) runRevalidate();
+  }, [enabled, runRevalidate]);
+
   const onMessage = useCallback((msg: any) => {
     if (!msg?.conversation_id) return;
     const known = rowsRef.current.some((r) => r.conversation_id === msg.conversation_id);
+    if (!known) return; // conversa fora desta lista: nada a patchear aqui
     setState((s) => {
       const idx = s.rows.findIndex((r) => r.conversation_id === msg.conversation_id);
       if (idx < 0) return s;
@@ -161,60 +212,70 @@ export function useMvpChatFeed(clientId: string | null, filters: MvpChatFilters)
       };
       const rows = [...s.rows];
       rows[idx] = patched;
-      // reordena quando a ordenação é temporal
       rows.sort((a, b) => whenOf(b) - whenOf(a));
       const counters = s.counters
         ? { ...s.counters, unread: fromMe ? s.counters.unread : (s.counters.unread ?? 0) + 1 }
         : s.counters;
       return { ...s, rows, counters };
     });
-    if (!known) {
-      setLiveEvents((n) => n + 1);
-      scheduleRefetch();
-    }
-  }, [scheduleRefetch]);
+  }, []);
 
   const onConversation = useCallback((conv: any, eventType: 'INSERT' | 'UPDATE', old?: any) => {
     if (!conv?.id) return;
     const current = rowsRef.current.find((r) => r.conversation_id === conv.id);
     const known = !!current;
 
-    if (known) {
+    const nextStatus = conv.status === 'pending' && (conv.assigned_to ?? '') !== '' ? 'open' : conv.status;
+    const belongs = matchesTab(nextStatus, status);
+
+    // saiu desta lista: remove a linha na hora, sem request
+    if (known && !belongs) {
       setState((s) => {
-        const idx = s.rows.findIndex((r) => r.conversation_id === conv.id);
-        if (idx < 0) return s;
-        const row = s.rows[idx];
-        const status = conv.status === 'pending' && (conv.assigned_to ?? '') !== '' ? 'open' : conv.status;
-        const rows = [...s.rows];
-        rows[idx] = {
-          ...row,
-          status: (status ?? row.status) as MvpChatRowData['status'],
-          assigned_to: conv.assigned_to ?? null,
-          assigned_user_id: conv.assigned_user_id ?? null,
-          priority: conv.priority ?? row.priority,
-          queue_id: conv.queue_id ?? row.queue_id,
-          protocol: conv.protocol ?? row.protocol,
-          first_response_at: conv.first_response_at ?? row.first_response_at,
-          resolved_at: conv.resolved_at ?? null,
-          closed_at: conv.closed_at ?? null,
-          snoozed_until: conv.snoozed_until ?? null,
-          active_ticket_id: conv.active_ticket_id ?? null,
-          conversation_updated_at: conv.updated_at ?? row.conversation_updated_at,
-        };
+        const rows = s.rows.filter((r) => r.conversation_id !== conv.id);
+        if (rows.length === s.rows.length) return s;
         return { ...s, rows };
       });
+      return;
     }
 
-    // conversa nova: pode entrar na lista
-    if (eventType === 'INSERT' || !known) {
+    // entrou nesta lista (ou conversa nova): precisa buscar a linha hidratada
+    if (!known) {
+      if (!belongs) return;
       setLiveEvents((n) => n + 1);
+      scheduleRefetch();
+      return;
+    }
+
+    setState((s) => {
+      const idx = s.rows.findIndex((r) => r.conversation_id === conv.id);
+      if (idx < 0) return s;
+      const row = s.rows[idx];
+      const rows = [...s.rows];
+      rows[idx] = {
+        ...row,
+        status: (nextStatus ?? row.status) as MvpChatRowData['status'],
+        assigned_to: conv.assigned_to ?? null,
+        assigned_user_id: conv.assigned_user_id ?? null,
+        priority: conv.priority ?? row.priority,
+        queue_id: conv.queue_id ?? row.queue_id,
+        protocol: conv.protocol ?? row.protocol,
+        first_response_at: conv.first_response_at ?? row.first_response_at,
+        resolved_at: conv.resolved_at ?? null,
+        closed_at: conv.closed_at ?? null,
+        snoozed_until: conv.snoozed_until ?? null,
+        active_ticket_id: conv.active_ticket_id ?? null,
+        conversation_updated_at: conv.updated_at ?? row.conversation_updated_at,
+      };
+      return { ...s, rows };
+    });
+
+    if (eventType === 'INSERT') {
       scheduleRefetch();
       return;
     }
 
     // atualização de conversa conhecida: só revalida se um campo de filtro mudou
     const before = old && Object.keys(old).length > 0 ? old : {
-      status: current!.status,
       queue_id: current!.queue_id,
       assigned_to: current!.assigned_to,
       assigned_user_id: current!.assigned_user_id,
@@ -224,7 +285,7 @@ export function useMvpChatFeed(clientId: string | null, filters: MvpChatFilters)
       (f) => (before as any)[f] !== undefined && (before as any)[f] !== conv[f],
     );
     if (filterChanged) scheduleRefetch();
-  }, [scheduleRefetch]);
+  }, [scheduleRefetch, status]);
 
   const onContact = useCallback((ct: any) => {
     if (!ct?.id) return;
@@ -249,3 +310,5 @@ export function useMvpChatFeed(clientId: string | null, filters: MvpChatFilters)
 
   return { ...state, loadMore, refresh, pageSize: PAGE_SIZE, liveEvents };
 }
+
+export type MvpChatFeed = ReturnType<typeof useMvpChatFeed>;
