@@ -160,17 +160,52 @@ interface LegacyEntry {
   stale?: boolean;
 }
 
+/** Resumo compacto e seguro dos parâmetros (sem PII de busca completa). */
+function summarizeParams(b: Filters, extra: Record<string, unknown> = {}) {
+  return {
+    client_id: String(b.client_id ?? ""),
+    queue_ids: b.queue_ids?.length ?? 0,
+    status: b.status ?? null,
+    tab: b.tab ?? null,
+    owner: b.owner ? "set" : null,
+    owners: b.owners?.length ?? 0,
+    unassigned: b.unassigned ?? null,
+    search_len: b.search ? String(b.search).trim().length : 0,
+    from: b.from ?? null,
+    to: b.to ?? null,
+    tag_ids: b.tag_ids?.length ?? 0,
+    priority: b.priority ?? null,
+    has_ticket: b.has_ticket ?? null,
+    has_crm_builder: b.has_crm_builder ?? null,
+    sla_status: b.sla_status?.length ?? 0,
+    julia_stage: b.julia_stage ?? null,
+    julia_stage_ids: b.julia_stage_ids?.length ?? 0,
+    julia_mode: b.julia_mode ?? null,
+    has_campaign: b.has_campaign ?? null,
+    sort: b.sort ?? "recent",
+    limit: b.limit ?? null,
+    offset: b.offset ?? null,
+    refresh: b.refresh ?? false,
+    ...extra,
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const t0 = Date.now();
+  const reqId = crypto.randomUUID().slice(0, 8);
   let body: Filters;
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    console.error(`[mvp-chat-list-feed][${reqId}] invalid JSON body`);
+    return json({ error: "Invalid JSON body", req_id: reqId }, 400);
   }
-  if (!body?.client_id) return json({ error: "client_id is required" }, 400);
+  if (!body?.client_id) {
+    console.error(`[mvp-chat-list-feed][${reqId}] missing client_id; keys=${Object.keys(body ?? {}).join(",")}`);
+    return json({ error: "client_id is required", req_id: reqId }, 400);
+  }
 
   const limit = Math.min(Math.max(Number(body.limit ?? 30), 1), 200);
   const offset = Math.max(Number(body.offset ?? 0), 0);
@@ -182,11 +217,20 @@ serve(async (req) => {
     body.julia_stage || stageIds.length || body.julia_mode || body.has_campaign != null,
   );
 
+  console.log(
+    `[mvp-chat-list-feed][${reqId}] request`,
+    JSON.stringify(summarizeParams(body, {
+      options_mode: (body as any).options === true,
+      needs_post_filter: needsPostFilter,
+    })),
+  );
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false } },
   );
+
 
   /* --------------------- modo "options": listas de filtros ------------------ */
   if ((body as any).options === true) {
