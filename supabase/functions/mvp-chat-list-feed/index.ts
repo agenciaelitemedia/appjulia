@@ -188,6 +188,32 @@ serve(async (req) => {
     { auth: { persistSession: false } },
   );
 
+  /* --------------------- modo "options": listas de filtros ------------------ */
+  if ((body as any).options === true) {
+    const [ownersRes, stagesRes] = await Promise.all([
+      supabase
+        .from("chat_conversations")
+        .select("assigned_to")
+        .eq("client_id", String(body.client_id))
+        .not("assigned_to", "is", null)
+        .limit(5000),
+      supabase
+        .from("mvp_chat_legacy_cache")
+        .select("julia_stage_id, julia_stage_name")
+        .eq("client_id", String(body.client_id))
+        .eq("has_julia_card", true)
+        .limit(5000),
+    ]);
+    const owners = [...new Set(((ownersRes.data as any[]) ?? []).map((r) => String(r.assigned_to ?? "")).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b));
+    const stageMap = new Map<string, string>();
+    for (const s of ((stagesRes.data as any[]) ?? [])) {
+      if (s.julia_stage_id != null) stageMap.set(String(s.julia_stage_id), s.julia_stage_name ?? String(s.julia_stage_id));
+    }
+    const stages = [...stageMap].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    return json({ owners, stages });
+  }
+
   /* ---------------------------- SQL A · Supabase --------------------------- */
   const tA = Date.now();
   const { data: feed, error: rpcError } = await supabase.rpc("mvp_chat_list_feed", {
