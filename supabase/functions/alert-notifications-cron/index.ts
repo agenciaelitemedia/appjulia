@@ -731,6 +731,15 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   let sql: ReturnType<typeof postgres> | null = null;
 
+  // Backfill manual opcional: {"window_minutes": 120} amplia a janela nesta rodada.
+  let windowMinutes = RECENT_WINDOW_MIN;
+  try {
+    const body = req.method === "POST" ? await req.json().catch(() => null) : null;
+    const raw = Number(body?.window_minutes);
+    if (Number.isFinite(raw) && raw > 0) windowMinutes = Math.min(Math.round(raw), 1440);
+  } catch (_) { /* body opcional */ }
+
+
   try {
     const { data: configs, error } = await supabase
       .from("alert_notification_configs")
