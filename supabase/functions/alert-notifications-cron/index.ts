@@ -800,9 +800,9 @@ serve(async (req) => {
           ) {
             // Antes de coletar: confere assinaturas pendentes no ZapSign.
             await syncXJContractSignatures(supabase, clientId);
-            const legacy = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
+            const legacy = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds, windowMinutes);
             const xJulia = await fetchXJContractCandidates(
-              supabase, sql, codAgent, clientId, cfg.trigger_key,
+              supabase, sql, codAgent, clientId, cfg.trigger_key, windowMinutes,
             );
             const seenKeys = new Set<string>();
             candidates = [...legacy, ...xJulia].filter((cand) => {
@@ -811,7 +811,7 @@ serve(async (req) => {
               return true;
             });
           } else {
-            candidates = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
+            candidates = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds, windowMinutes);
           }
         } catch (err) {
           console.error(`[alerts] consulta ${cfg.trigger_key} falhou:`, err);
