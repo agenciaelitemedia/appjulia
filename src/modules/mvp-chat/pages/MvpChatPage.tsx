@@ -45,9 +45,9 @@ export default function MvpChatPage() {
   const c = feed.counters;
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] overflow-hidden rounded-xl border bg-card/40 backdrop-blur-sm">
+    <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden border-y bg-card/40 backdrop-blur-sm">
       {/* Coluna 1 — lista de conversas */}
-      <aside className="flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border-r lg:w-[350px]">
+      <aside className="flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border-r lg:w-[400px]">
         <div className="shrink-0 space-y-2 border-b px-2.5 py-2">
           <div className="flex items-center gap-2">
             <MessageSquare className="h-4.5 w-4.5 text-primary" aria-hidden />
@@ -156,7 +156,7 @@ export default function MvpChatPage() {
       </main>
 
       {/* Coluna 3 — detalhes do contato / CRM */}
-      <aside className="hidden h-full w-[320px] shrink-0 overflow-hidden xl:block">
+      <aside className="hidden h-full w-[420px] shrink-0 overflow-hidden xl:block">
         <MvpChatDetailsPanel row={selected} />
       </aside>
     </div>
