@@ -10404,6 +10404,7 @@ export type Database = {
           last_agent_message_at: string | null
           last_customer_message_at: string | null
           origin: string | null
+          paused_at: string | null
           paused_reason: string | null
           phone: string | null
           prompt_tokens: number
@@ -10439,6 +10440,7 @@ export type Database = {
           last_agent_message_at?: string | null
           last_customer_message_at?: string | null
           origin?: string | null
+          paused_at?: string | null
           paused_reason?: string | null
           phone?: string | null
           prompt_tokens?: number
@@ -10474,6 +10476,7 @@ export type Database = {
           last_agent_message_at?: string | null
           last_customer_message_at?: string | null
           origin?: string | null
+          paused_at?: string | null
           paused_reason?: string | null
           phone?: string | null
           prompt_tokens?: number
@@ -10551,6 +10554,78 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      xj_usage_counters: {
+        Row: {
+          client_id: string
+          cost_usd: number
+          created_at: string
+          day_brt: string
+          id: string
+          turns: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          cost_usd?: number
+          created_at?: string
+          day_brt: string
+          id?: string
+          turns?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          cost_usd?: number
+          created_at?: string
+          day_brt?: string
+          id?: string
+          turns?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      xj_usage_limits: {
+        Row: {
+          breach_message: string
+          client_id: string
+          created_at: string
+          daily_cost_usd: number
+          id: string
+          is_active: boolean
+          max_msgs_per_hour_per_client: number
+          max_msgs_per_hour_per_lead: number
+          monthly_cost_usd: number
+          on_breach: string
+          updated_at: string
+        }
+        Insert: {
+          breach_message?: string
+          client_id: string
+          created_at?: string
+          daily_cost_usd?: number
+          id?: string
+          is_active?: boolean
+          max_msgs_per_hour_per_client?: number
+          max_msgs_per_hour_per_lead?: number
+          monthly_cost_usd?: number
+          on_breach?: string
+          updated_at?: string
+        }
+        Update: {
+          breach_message?: string
+          client_id?: string
+          created_at?: string
+          daily_cost_usd?: number
+          id?: string
+          is_active?: boolean
+          max_msgs_per_hour_per_client?: number
+          max_msgs_per_hour_per_lead?: number
+          monthly_cost_usd?: number
+          on_breach?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       xj_zapsign_templates: {
         Row: {
@@ -10944,6 +11019,10 @@ export type Database = {
         }[]
       }
       uazapi_release_stale_locks: { Args: never; Returns: number }
+      xj_bump_usage: {
+        Args: { p_client_id: string; p_cost_usd: number; p_turns: number }
+        Returns: undefined
+      }
       xj_pick_due_followups: {
         Args: { p_limit?: number; p_worker_id?: number }
         Returns: {
@@ -11003,6 +11082,15 @@ export type Database = {
       xj_release_stale_inbound: {
         Args: { p_minutes?: number }
         Returns: number
+      }
+      xj_usage_snapshot: {
+        Args: { p_client_id: string }
+        Returns: {
+          day_cost_usd: number
+          day_turns: number
+          month_cost_usd: number
+          month_turns: number
+        }[]
       }
     }
     Enums: {

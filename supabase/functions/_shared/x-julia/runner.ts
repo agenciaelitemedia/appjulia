@@ -4,6 +4,7 @@
 import { xjReadInbound } from "./documents.ts";
 import { xjComplete } from "./llm.ts";
 import { estimateCost, loadPricingOverrides } from "./pricing.ts";
+import { bumpUsage, checkUsageBreach } from "./limits.ts";
 import { detectMediaInBlock, extractLinks, splitMessageBlocks, xjSend, xjSendComposed } from "./messaging.ts";
 import { buildXJMessages, loadHistory } from "./prompt.ts";
 import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
@@ -31,6 +32,32 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
   if (session.turns > agent.max_turns) {
     await runXJSkill(ctx, "encaminhar_humano", { motivo: "limite de turnos do agente atingido" });
     return { reply: null, stage: session.stage };
+  }
+
+  // 1.1) Disjuntor FinOps: teto de custo do dia/mês e mensagens por hora.
+  const breach = await checkUsageBreach(supabase, String(session.client_id), session.id);
+  if (breach.breached) {
+    await logXJEvent(supabase, session, {
+      kind: "circuit_breaker",
+      status: breach.action === "pause" ? "paused" : "warned",
+      detail: `${breach.reason}: ${breach.detail}`.slice(0, 500),
+    });
+    if (breach.action === "pause") {
+      const alreadyPaused = !!(session as any).paused_at;
+      await updateSession(supabase, session, {
+        is_active: false,
+        paused_at: new Date().toISOString(),
+        paused_reason: `${breach.reason}: ${breach.detail}`.slice(0, 300),
+      });
+      if (!alreadyPaused && breach.message) {
+        const sent = await xjSendComposed(supabase, ctx.queue, session, breach.message);
+        if (!sent.ok) {
+          await logXJEvent(supabase, session, { kind: "send", status: "error", detail: sent.error ?? "falha" });
+        }
+      }
+      ctx.stop = true;
+      return { reply: null, stage: session.stage };
+    }
   }
 
   // 2) Entrada pode ser áudio/imagem/documento — o agente nunca para.
@@ -135,6 +162,8 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
           cost_usd: Math.round((Number((session as any).cost_usd ?? 0) + callCost) * 1_000_000) / 1_000_000,
         });
       }
+      // Contador do escritório (dia BRT) usado pelo disjuntor de custo.
+      if (callCost) await bumpUsage(supabase, String(session.client_id), callCost, 0);
     }
 
     if (!completion.toolCalls.length) {
@@ -333,6 +362,9 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
     detail: finalText.slice(0, 500),
     duration_ms: Date.now() - started,
   });
+  await bumpUsage(supabase, String(session.client_id), 0, 1);
+
+
 
   return { reply: finalText, stage: session.stage };
 }

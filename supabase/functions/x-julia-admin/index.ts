@@ -151,7 +151,64 @@ Deno.serve(async (req) => {
       return json({ ok: true, ...result });
     }
 
-    // Diagnóstico temporário ZapSign
+    // FinOps: limites de custo/mensagens e consumo do escritório.
+    if (action === "usage_get") {
+      const clientId = identity.isAdmin && data?.client_id ? String(data.client_id) : identity.clientId;
+      if (!clientId) return json({ error: "escritório não resolvido" }, 400);
+      const [{ data: limits }, { data: snap }, { data: paused }] = await Promise.all([
+        supabase.from("xj_usage_limits").select("*").eq("client_id", clientId).maybeSingle(),
+        supabase.rpc("xj_usage_snapshot", { p_client_id: clientId }),
+        supabase
+          .from("xj_sessions")
+          .select("id, contact_name, contact_phone, paused_at, paused_reason")
+          .eq("client_id", clientId)
+          .not("paused_at", "is", null)
+          .order("paused_at", { ascending: false })
+          .limit(50),
+      ]);
+      const snapshot = Array.isArray(snap) ? snap[0] : snap;
+      return json({ ok: true, client_id: clientId, limits: limits ?? null, usage: snapshot ?? null, paused_sessions: paused ?? [] });
+    }
+
+    if (action === "usage_limits_save") {
+      const clientId = identity.isAdmin && data?.client_id ? String(data.client_id) : identity.clientId;
+      if (!clientId) return json({ error: "escritório não resolvido" }, 400);
+      const row = {
+        client_id: clientId,
+        daily_cost_usd: Number(data?.daily_cost_usd ?? 5),
+        monthly_cost_usd: Number(data?.monthly_cost_usd ?? 100),
+        max_msgs_per_hour_per_lead: Number(data?.max_msgs_per_hour_per_lead ?? 30),
+        max_msgs_per_hour_per_client: Number(data?.max_msgs_per_hour_per_client ?? 300),
+        on_breach: data?.on_breach === "pause" ? "pause" : "notify_only",
+        breach_message: String(data?.breach_message ?? "").slice(0, 1000) || undefined,
+        is_active: data?.is_active !== false,
+      };
+      const { data: saved, error } = await supabase
+        .from("xj_usage_limits")
+        .upsert(row, { onConflict: "client_id" })
+        .select("*")
+        .maybeSingle();
+      if (error) return json({ error: error.message }, 400);
+      return json({ ok: true, limits: saved });
+    }
+
+    // Retoma uma sessão pausada pelo disjuntor de custo.
+    if (action === "usage_resume_session") {
+      const { data: session } = await supabase
+        .from("xj_sessions")
+        .select("id, client_id")
+        .eq("id", String(data?.session_id ?? ""))
+        .maybeSingle();
+      if (!session) return json({ error: "sessão não encontrada" }, 404);
+      if (!sameTenant(session.client_id)) return json({ error: "sessão de outro escritório" }, 403);
+      const { error } = await supabase
+        .from("xj_sessions")
+        .update({ is_active: true, paused_at: null, paused_reason: null })
+        .eq("id", session.id);
+      if (error) return json({ error: error.message }, 400);
+      return json({ ok: true });
+    }
+
     return json({ error: `ação desconhecida: ${action}` }, 400);
   } catch (error) {
     console.error("[x-julia-admin] erro:", error);

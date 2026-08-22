@@ -61,6 +61,7 @@ const XJAgentsPage = lazy(() => import("./modules/x-julia/pages/AgentsPage"));
 const XJAgentEditorPage = lazy(() => import("./modules/x-julia/pages/AgentEditorPage"));
 const XJOfficesPage = lazy(() => import("./modules/x-julia/pages/OfficesPage"));
 const XJSettingsPage = lazy(() => import("./modules/x-julia/pages/SettingsPage"));
+const XJLimitsPage = lazy(() => import("./modules/x-julia/pages/LimitsPage"));
 const XJCasesPage = lazy(() => import("./modules/x-julia/pages/CasesPage"));
 const XJCrmPage = lazy(() => import("./modules/x-julia/pages/CrmPage"));
 const XJContractsPage = lazy(() => import("./modules/x-julia/pages/ContractsPage"));
@@ -242,6 +243,7 @@ const App = () => (
                   <Route path="/x-julia/agentes" element={<ProtectedRoute module="x_julia_agents"><XJScopeProvider><XJAgentsPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/escritorios" element={<ProtectedRoute module="x_julia_offices"><XJScopeProvider><XJOfficesPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/configuracoes" element={<ProtectedRoute module="x_julia_settings"><XJScopeProvider><XJSettingsPage /></XJScopeProvider></ProtectedRoute>} />
+                  <Route path="/x-julia/limites" element={<ProtectedRoute module="x_julia_limits"><XJScopeProvider><XJLimitsPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/agentes/:agentId" element={<ProtectedRoute module="x_julia_agents"><XJScopeProvider><XJAgentEditorPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/casos" element={<ProtectedRoute module="x_julia_cases"><XJScopeProvider><XJCasesPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/contratos" element={<ProtectedRoute module="x_julia_contracts"><XJScopeProvider><XJContractsPage /></XJScopeProvider></ProtectedRoute>} />
