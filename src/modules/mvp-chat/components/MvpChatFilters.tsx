@@ -8,11 +8,26 @@ import {
   Badge, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Collapsible, CollapsibleContent, CollapsibleTrigger, Popover, PopoverContent, PopoverTrigger,
   Checkbox, ScrollArea, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn,
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+  TeamMemberSelect, useTeamByClient,
 } from '../extend/ui';
+import { useAuth } from '../extend/auth';
 import type { MvpChatFilters as Filters, MvpSlaStatus } from '../api/types';
 import type { OptionItem } from '../hooks/useMvpChatOptions';
 
+/** Badge de canal — mesmas cores/rotulagem do /chat. */
+function channelBadge(type: string) {
+  switch (type) {
+    case 'uazapi': return <Badge variant="outline" className="border-emerald-300 px-1 text-[10px] text-emerald-600">WhatsApp</Badge>;
+    case 'waba': return <Badge variant="outline" className="border-emerald-400 px-1 text-[10px] text-emerald-700">WABA</Badge>;
+    case 'webchat': return <Badge variant="outline" className="border-blue-300 px-1 text-[10px] text-blue-600">WebChat</Badge>;
+    case 'instagram': return <Badge variant="outline" className="border-pink-300 px-1 text-[10px] text-pink-600">Instagram</Badge>;
+    default: return <Badge variant="outline" className="px-1 text-[10px]">{type}</Badge>;
+  }
+}
+
 const ALL = '__all__';
+
 
 const PERIOD_OPTIONS: { value: Filters['period']; label: string }[] = [
   { value: 'all', label: 'Todos' },
