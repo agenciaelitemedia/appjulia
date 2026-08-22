@@ -145,7 +145,7 @@ export default function XJAgentEditorPage() {
     setTestingVoice(true);
     setVoiceTest(null);
     try {
-      const { data, error } = await xjInvoke('x-julia-engine', {
+      const { data, error } = await xjInvoke<{ ok?: boolean; url?: string; error?: string }>('x-julia-engine', {
         body: {
           action: 'test_voice',
           agent_id: agent.id,
