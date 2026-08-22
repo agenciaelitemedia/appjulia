@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '@/contexts/AuthContext';
