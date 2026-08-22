@@ -55,11 +55,17 @@ export default function MvpChatPage() {
           <Badge variant="secondary" className="gap-1 text-[11px]">
             <Radio className="h-3 w-3 animate-pulse text-emerald-500" /> tempo real
           </Badge>
+          {feed.revalidating && (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <RefreshCw className="h-3 w-3 animate-spin" /> atualizando…
+            </span>
+          )}
           {feed.liveEvents > 0 && (
             <Button variant="secondary" size="sm" className="h-8 gap-1 text-[11px]" onClick={feed.refresh}>
               {feed.liveEvents} novidade(s) — atualizar
             </Button>
           )}
+
           <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={feed.refresh} disabled={feed.loading}>
             <RefreshCw className={cn('h-3.5 w-3.5', feed.loading && 'animate-spin')} /> Recarregar
           </Button>
