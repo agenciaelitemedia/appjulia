@@ -2,11 +2,17 @@ import { Search, RotateCcw, X } from 'lucide-react';
 import {
   Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn,
 } from '../extend/ui';
-import type { MvpChatFilters as Filters } from '../api/types';
+import type { MvpChatFilters as Filters, MvpSlaStatus } from '../api/types';
 import { DEFAULT_MVP_FILTERS } from '../api/types';
 import type { OptionItem } from '../hooks/useMvpChatOptions';
 
 const ALL = '__all__';
+
+const SLA_OPTIONS: { value: MvpSlaStatus; label: string; tone: string }[] = [
+  { value: 'breached', label: 'SLA estourado', tone: 'bg-destructive/15 text-destructive' },
+  { value: 'at_risk', label: 'SLA em risco', tone: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
+  { value: 'on_track', label: 'SLA no prazo', tone: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' },
+];
 
 interface Props {
   filters: Filters;
@@ -15,21 +21,18 @@ interface Props {
   queues: OptionItem[];
   tags: OptionItem[];
   juliaStages: { id: string; name: string }[];
+  owners: string[];
 }
 
-export function MvpChatFiltersBar({ filters, onChange, onReset, queues, tags, juliaStages }: Props) {
-  const toggleTag = (id: string) => {
-    const next = filters.tag_ids.includes(id)
-      ? filters.tag_ids.filter((t) => t !== id)
-      : [...filters.tag_ids, id];
-    onChange({ tag_ids: next });
+export function MvpChatFiltersBar({ filters, onChange, onReset, queues, tags, juliaStages, owners }: Props) {
+  const toggleIn = <K extends 'tag_ids' | 'queue_ids' | 'owners' | 'julia_stage_ids'>(field: K, id: string) => {
+    const cur = filters[field] as string[];
+    onChange({ [field]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] } as Partial<Filters>);
   };
 
-  const toggleQueue = (id: string) => {
-    const next = filters.queue_ids.includes(id)
-      ? filters.queue_ids.filter((q) => q !== id)
-      : [...filters.queue_ids, id];
-    onChange({ queue_ids: next });
+  const toggleSla = (v: MvpSlaStatus) => {
+    const cur = filters.sla_status;
+    onChange({ sla_status: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] });
   };
 
   const dirty = JSON.stringify(filters) !== JSON.stringify(DEFAULT_MVP_FILTERS);
@@ -97,20 +100,13 @@ export function MvpChatFiltersBar({ filters, onChange, onReset, queues, tags, ju
           </SelectContent>
         </Select>
 
-        <Select value={filters.julia_stage ?? ALL} onValueChange={(v) => onChange({ julia_stage: v === ALL ? null : v })}>
-          <SelectTrigger className="h-9 w-[170px]"><SelectValue placeholder="Etapa CRM Júlia" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Etapa CRM da Júlia</SelectItem>
-            {juliaStages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-
         <Select value={filters.sort} onValueChange={(v) => onChange({ sort: v as Filters['sort'] })}>
-          <SelectTrigger className="h-9 w-[150px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="recent">Mais recentes</SelectItem>
             <SelectItem value="oldest">Mais antigas</SelectItem>
             <SelectItem value="unread">Não lidas primeiro</SelectItem>
+            <SelectItem value="sla">SLA mais crítico</SelectItem>
           </SelectContent>
         </Select>
 
@@ -151,13 +147,61 @@ export function MvpChatFiltersBar({ filters, onChange, onReset, queues, tags, ju
           Meta Ads
         </Badge>
 
+        <span className="mx-1 text-[11px] text-muted-foreground">SLA:</span>
+        {SLA_OPTIONS.map((o) => (
+          <Badge
+            key={o.value}
+            variant={filters.sla_status.includes(o.value) ? 'default' : 'outline'}
+            className={cn('h-6 cursor-pointer px-2 text-[11px]', !filters.sla_status.includes(o.value) && o.tone)}
+            onClick={() => toggleSla(o.value)}
+          >
+            {o.label}
+          </Badge>
+        ))}
+      </div>
+
+      {owners.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mx-1 text-[11px] text-muted-foreground">Responsáveis:</span>
+          {owners.map((o) => (
+            <Badge
+              key={o}
+              variant={filters.owners.includes(o) ? 'default' : 'outline'}
+              className="h-6 cursor-pointer px-2 text-[11px]"
+              onClick={() => toggleIn('owners', o)}
+            >
+              {o}
+              {filters.owners.includes(o) && <X className="ml-1 h-3 w-3" />}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {juliaStages.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mx-1 text-[11px] text-muted-foreground">Etapas CRM da Júlia:</span>
+          {juliaStages.map((s) => (
+            <Badge
+              key={s.id}
+              variant={filters.julia_stage_ids.includes(s.id) ? 'default' : 'outline'}
+              className="h-6 cursor-pointer px-2 text-[11px]"
+              onClick={() => toggleIn('julia_stage_ids', s.id)}
+            >
+              {s.name}
+              {filters.julia_stage_ids.includes(s.id) && <X className="ml-1 h-3 w-3" />}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1.5">
         {queues.length > 0 && <span className="mx-1 text-[11px] text-muted-foreground">Filas:</span>}
         {queues.map((q) => (
           <Badge
             key={q.id}
             variant={filters.queue_ids.includes(q.id) ? 'default' : 'outline'}
             className="h-6 cursor-pointer px-2 text-[11px]"
-            onClick={() => toggleQueue(q.id)}
+            onClick={() => toggleIn('queue_ids', q.id)}
           >
             {q.name}
             {filters.queue_ids.includes(q.id) && <X className="ml-1 h-3 w-3" />}
@@ -171,7 +215,7 @@ export function MvpChatFiltersBar({ filters, onChange, onReset, queues, tags, ju
             variant="outline"
             className={cn('h-6 cursor-pointer px-2 text-[11px]', filters.tag_ids.includes(t.id) && 'ring-2 ring-ring')}
             style={{ borderColor: t.color ?? undefined, color: t.color ?? undefined }}
-            onClick={() => toggleTag(t.id)}
+            onClick={() => toggleIn('tag_ids', t.id)}
           >
             {t.name}
           </Badge>
