@@ -58,9 +58,12 @@ export async function fetchMvpChatFeed(params: {
       julia_mode: f.julia_mode,
       has_campaign: f.has_campaign,
       sort: f.sort,
+      hide_snoozed: f.hide_snoozed ?? true,
+      restrict_open_to: f.restrict_open_to?.length ? f.restrict_open_to : null,
       limit: params.limit,
       offset: params.offset,
       refresh: params.refresh ?? false,
+
     },
   });
 
