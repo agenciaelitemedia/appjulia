@@ -8,11 +8,26 @@ import {
   Badge, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Collapsible, CollapsibleContent, CollapsibleTrigger, Popover, PopoverContent, PopoverTrigger,
   Checkbox, ScrollArea, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn,
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+  TeamMemberSelect, useTeamByClient,
 } from '../extend/ui';
+import { useAuth } from '../extend/auth';
 import type { MvpChatFilters as Filters, MvpSlaStatus } from '../api/types';
 import type { OptionItem } from '../hooks/useMvpChatOptions';
 
+/** Badge de canal — mesmas cores/rotulagem do /chat. */
+function channelBadge(type: string) {
+  switch (type) {
+    case 'uazapi': return <Badge variant="outline" className="border-emerald-300 px-1 text-[10px] text-emerald-600">WhatsApp</Badge>;
+    case 'waba': return <Badge variant="outline" className="border-emerald-400 px-1 text-[10px] text-emerald-700">WABA</Badge>;
+    case 'webchat': return <Badge variant="outline" className="border-blue-300 px-1 text-[10px] text-blue-600">WebChat</Badge>;
+    case 'instagram': return <Badge variant="outline" className="border-pink-300 px-1 text-[10px] text-pink-600">Instagram</Badge>;
+    default: return <Badge variant="outline" className="px-1 text-[10px]">{type}</Badge>;
+  }
+}
+
 const ALL = '__all__';
+
 
 const PERIOD_OPTIONS: { value: Filters['period']; label: string }[] = [
   { value: 'all', label: 'Todos' },
@@ -125,6 +140,8 @@ export function MvpChatFiltersBar({
   const [open, setOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
+  const { user } = useAuth();
+  const { data: teamMembers = [] } = useTeamByClient();
 
   const toggleIn = <K extends 'tag_ids' | 'queue_ids' | 'owners' | 'julia_stage_ids'>(field: K, id: string) => {
     const cur = filters[field] as string[];
@@ -136,6 +153,11 @@ export function MvpChatFiltersBar({
     onChange({ sla_status: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] });
   };
 
+  const allStagesSelected = juliaStages.length > 0 && filters.julia_stage_ids.length === juliaStages.length;
+  const toggleAllStages = () => {
+    onChange({ julia_stage_ids: allStagesSelected ? [] : juliaStages.map((s) => s.id) });
+  };
+
   const queueLabel =
     filters.queue_ids.length === 0
       ? 'Todas as filas'
@@ -144,7 +166,7 @@ export function MvpChatFiltersBar({
         : `${filters.queue_ids.length} filas`;
 
   const stageLabel =
-    filters.julia_stage_ids.length === 0
+    filters.julia_stage_ids.length === 0 || allStagesSelected
       ? 'Todas as etapas'
       : filters.julia_stage_ids.length === 1
         ? juliaStages.find((s) => s.id === filters.julia_stage_ids[0])?.name ?? '1 etapa'
@@ -154,8 +176,10 @@ export function MvpChatFiltersBar({
   const setOwnerValue = (v: string) => {
     if (v === 'all') onChange({ owners: [], unassigned: null });
     else if (v === 'unassigned') onChange({ owners: [], unassigned: true });
+    else if (v === 'mine') onChange({ owners: user?.name ? [String(user.name)] : [], unassigned: null });
     else onChange({ owners: [v], unassigned: null });
   };
+
 
   const mode: 'all' | 'julia' | 'human' = filters.julia_mode ?? 'all';
 
@@ -164,10 +188,8 @@ export function MvpChatFiltersBar({
     const out: { key: string; label: string; clear: () => void }[] = [];
     const push = (key: string, label: string, clear: () => void) => out.push({ key, label, clear });
 
-    if (filters.status) {
-      const map: Record<string, string> = { pending: 'Aguardando', open: 'Atendimento', resolved_closed: 'Resolvidos/Fechados' };
-      push('status', map[filters.status] ?? filters.status, () => onChange({ status: null }));
-    }
+    // status agora é controlado pelas abas acima da lista (igual /chat)
+
     if (filters.tab) push('tab', filters.tab === 'groups' ? 'Grupos' : 'Individuais', () => onChange({ tab: null }));
     if (filters.priority) push('priority', `Prioridade: ${filters.priority}`, () => onChange({ priority: null }));
     if (filters.unassigned) push('unassigned', 'Sem responsável', () => onChange({ unassigned: null }));
@@ -316,62 +338,61 @@ export function MvpChatFiltersBar({
                 <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-[280px] p-0 z-[60]">
-              <div className="border-b px-2 py-1.5">
-                <button
-                  type="button"
-                  onClick={() => { onChange({ queue_ids: [] }); setQueueOpen(false); }}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent"
-                >
-                  <Check className={cn('h-4 w-4', filters.queue_ids.length === 0 ? 'opacity-100' : 'opacity-0')} />
-                  <Layers className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                  <span className="font-medium">Todas as filas</span>
-                </button>
-              </div>
-              <ScrollArea className="max-h-[260px]">
-                <div className="p-1">
-                  {queues.length === 0 ? (
-                    <p className="px-3 py-4 text-center text-xs text-muted-foreground">Nenhuma fila disponível</p>
-                  ) : (
-                    queues.map((q) => (
-                      <button
-                        key={q.id}
-                        type="button"
-                        onClick={() => toggleIn('queue_ids', q.id)}
-                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
-                      >
-                        <Checkbox checked={filters.queue_ids.includes(q.id)} className="pointer-events-none" />
-                        <span className="flex-1 truncate">{q.name}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
+            <PopoverContent align="start" className="z-[60] w-[280px] p-0">
+              <Command>
+                <CommandInput placeholder="Buscar fila…" className="h-9" />
+                <CommandList className="max-h-[280px]">
+                  <CommandEmpty>Nenhuma fila encontrada.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="__all__ todas as filas"
+                      onSelect={() => { onChange({ queue_ids: [] }); setQueueOpen(false); }}
+                      className="cursor-pointer gap-2"
+                    >
+                      <Check className={cn('h-4 w-4', filters.queue_ids.length === 0 ? 'opacity-100' : 'opacity-0')} />
+                      <Layers className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                      <span className="flex-1 truncate">Todas as filas</span>
+                    </CommandItem>
+                    {[...queues]
+                      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+                      .map((q) => {
+                        const isSel = filters.queue_ids.length === 1 && filters.queue_ids[0] === q.id;
+                        return (
+                          <CommandItem
+                            key={q.id}
+                            value={`${q.name} ${q.channel_type ?? ''}`}
+                            onSelect={() => { onChange({ queue_ids: [q.id] }); setQueueOpen(false); }}
+                            className="cursor-pointer gap-2"
+                          >
+                            <Check className={cn('h-4 w-4', isSel ? 'opacity-100' : 'opacity-0')} />
+                            <span className="flex-1 truncate">{q.name}</span>
+                            {q.channel_type ? channelBadge(q.channel_type) : null}
+                          </CommandItem>
+                        );
+                      })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
             </PopoverContent>
           </Popover>
 
-          <Select value={ownerValue} onValueChange={setOwnerValue}>
-            <SelectTrigger className="h-8 text-xs" aria-label="Responsável">
-              <span className="flex min-w-0 items-center gap-1.5">
-                {ownerValue === 'all' ? (
-                  <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                ) : ownerValue === 'unassigned' ? (
-                  <UserX className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                ) : (
-                  <UserCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                )}
-                <SelectValue placeholder="Atendente" />
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Atendimentos</SelectItem>
-              <SelectItem value="unassigned">Aguardando Atendimento</SelectItem>
-              {owners.map((o) => (
-                <SelectItem key={o} value={o}>{o}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <TeamMemberSelect
+            members={teamMembers}
+            valueKey="name"
+            value={ownerValue}
+            onValueChange={(v) => setOwnerValue(v ?? 'all')}
+            allowUnassigned={false}
+            extraOptions={[
+              { value: 'all', label: 'Todos Atendimentos', icon: Users },
+              { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
+              { value: 'unassigned', label: 'Aguardando Atendimento', icon: UserX },
+            ]}
+            placeholder="Atendente"
+            size="sm"
+            className="w-full text-xs"
+          />
         </div>
+
 
         {/* Linha 4 — modo (ícones) + etapas */}
         <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-2">
@@ -416,13 +437,14 @@ export function MvpChatFiltersBar({
               <div className="border-b px-2 py-1.5">
                 <button
                   type="button"
-                  onClick={() => onChange({ julia_stage_ids: [] })}
+                  onClick={toggleAllStages}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent"
                 >
-                  <Check className={cn('h-4 w-4', filters.julia_stage_ids.length === 0 ? 'opacity-100' : 'opacity-0')} />
-                  <span className="font-medium">Todas as etapas</span>
+                  <Checkbox checked={allStagesSelected} className="pointer-events-none" />
+                  <span className="font-medium">{allStagesSelected ? 'Desmarcar todas' : 'Selecionar todas'}</span>
                 </button>
               </div>
+
               <ScrollArea className="max-h-[260px]">
                 <div className="p-1">
                   {juliaStages.length === 0 ? (
@@ -491,19 +513,6 @@ export function MvpChatFiltersBar({
               <div className="thin-scrollbar max-h-[38vh] space-y-3 overflow-y-auto border-t p-2.5">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label htmlFor="f-status" className="text-[10px] uppercase tracking-wide text-muted-foreground">Status</Label>
-                    <Select value={filters.status ?? ALL} onValueChange={(v) => onChange({ status: v === ALL ? null : (v as Filters['status']) })}>
-                      <SelectTrigger id="f-status" className="h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={ALL}>Todos</SelectItem>
-                        <SelectItem value="pending">Aguardando</SelectItem>
-                        <SelectItem value="open">Atendimento</SelectItem>
-                        <SelectItem value="resolved_closed">Resolvidos/Fechados</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
                     <Label htmlFor="f-priority" className="text-[10px] uppercase tracking-wide text-muted-foreground">Prioridade</Label>
                     <Select value={filters.priority ?? ALL} onValueChange={(v) => onChange({ priority: v === ALL ? null : v })}>
                       <SelectTrigger id="f-priority" className="h-8 text-xs"><SelectValue placeholder="Prioridade" /></SelectTrigger>
@@ -517,6 +526,7 @@ export function MvpChatFiltersBar({
                     </Select>
                   </div>
                 </div>
+
 
                 <Group label="Marcadores">
                   <Chip label="Sem responsável" active={!!filters.unassigned} onToggle={() => onChange({ unassigned: filters.unassigned ? null : true })} />

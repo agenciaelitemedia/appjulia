@@ -8,6 +8,7 @@ import { MvpChatRow } from '../components/MvpChatRow';
 import { MvpChatFiltersBar } from '../components/MvpChatFilters';
 import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
 import { MvpChatDetailsPanel } from '../components/MvpChatDetailsPanel';
+import { MvpChatStatusTabs } from '../components/MvpChatStatusTabs';
 import { DEFAULT_MVP_FILTERS, type MvpChatFilters, type MvpChatRowData } from '../api/types';
 
 export default function MvpChatPage() {
@@ -81,7 +82,21 @@ export default function MvpChatPage() {
           )}
         </div>
 
-        <div className="thin-scrollbar min-h-[120px] flex-1 overflow-y-auto px-1 py-1">
+        <MvpChatStatusTabs
+          value={filters.status}
+          onChange={(v) => patch({ status: v })}
+          counters={c ? { pending: c.pending, open: c.open } : null}
+        />
+
+        <div
+          className={cn(
+            'thin-scrollbar relative min-h-[120px] flex-1 overflow-y-auto px-1 py-1',
+            "before:sticky before:top-0 before:z-10 before:block before:h-[2px] before:-mb-[2px] before:content-['']",
+            filters.status === 'pending' && 'before:bg-amber-500/70',
+            filters.status === 'open' && 'before:bg-emerald-500/70',
+            filters.status !== 'pending' && filters.status !== 'open' && 'before:bg-transparent',
+          )}
+        >
           {feed.error && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {feed.error}

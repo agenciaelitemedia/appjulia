@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../extend/db';
 
-export interface OptionItem { id: string; name: string; color?: string | null }
+export interface OptionItem { id: string; name: string; color?: string | null; channel_type?: string | null }
 
 /**
  * Listas dos filtros: filas e etiquetas (Supabase direto) + responsáveis e
@@ -18,12 +18,12 @@ export function useMvpChatOptions(clientId: string | null) {
     let alive = true;
     (async () => {
       const [q, t, opts] = await Promise.all([
-        supabase.from('queues').select('id, name').eq('client_id', clientId).eq('is_deleted', false).order('name'),
+        supabase.from('queues').select('id, name, channel_type').eq('client_id', clientId).eq('is_deleted', false).order('name'),
         supabase.from('chat_tags').select('id, name, color').eq('client_id', clientId).order('name'),
         supabase.functions.invoke('mvp-chat-list-feed', { body: { client_id: clientId, options: true } }),
       ]);
       if (!alive) return;
-      setQueues(((q.data as any[]) || []).map((r) => ({ id: r.id, name: r.name })));
+      setQueues(((q.data as any[]) || []).map((r) => ({ id: r.id, name: r.name, channel_type: r.channel_type })));
       setTags(((t.data as any[]) || []).map((r) => ({ id: r.id, name: r.name, color: r.color })));
       const data = (opts as any)?.data ?? null;
       setOwners(Array.isArray(data?.owners) ? data.owners : []);

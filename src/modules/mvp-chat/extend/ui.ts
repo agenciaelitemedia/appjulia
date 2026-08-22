@@ -19,3 +19,7 @@ export { Label } from '@/components/ui/label';
 export { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 export { Checkbox } from '@/components/ui/checkbox';
 export { ScrollArea } from '@/components/ui/scroll-area';
+
+export { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+export { TeamMemberSelect } from '@/components/TeamMemberSelect';
+export { useTeamByClient } from '@/hooks/useTeamByClient';
