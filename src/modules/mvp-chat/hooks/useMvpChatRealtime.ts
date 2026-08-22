@@ -1,51 +1,42 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { supabase } from '../extend/db';
+import { useMvpChatRealtimeHub, type MvpRealtimeHandlers } from './useMvpChatRealtimeHub';
 
-interface Handlers {
-  /** Mensagem nova em uma conversa já visível (ou não). */
-  onMessage: (payload: any) => void;
-  /** Conversa criada/atualizada. `old` vem quando REPLICA IDENTITY FULL está ativa. */
-  onConversation: (payload: any, eventType: 'INSERT' | 'UPDATE', old?: any) => void;
-  /** Contato atualizado (prévia, não lidas, nome). */
-  onContact: (payload: any) => void;
-}
+type Handlers = MvpRealtimeHandlers;
 
 /**
- * Um único canal Realtime para o feed do MVP. Criado no mount e removido no
- * unmount — nada de canal por linha.
+ * Tempo real do feed do MVP. Dentro do `MvpChatRealtimeProvider` apenas se
+ * registra no canal compartilhado; fora dele, abre o próprio canal (fallback).
  */
 export function useMvpChatRealtime(clientId: string | null, handlers: Handlers) {
+  const hub = useMvpChatRealtimeHub();
+  const ref = useRef(handlers);
+  ref.current = handlers;
+
   useEffect(() => {
-    if (!clientId) return;
+    if (!hub) return;
+    return hub.subscribe({
+      onMessage: (p) => ref.current.onMessage(p),
+      onConversation: (p, t, o) => ref.current.onConversation(p, t, o),
+      onContact: (p) => ref.current.onContact(p),
+    });
+  }, [hub]);
+
+  useEffect(() => {
+    if (hub || !clientId) return;
 
     const channel = supabase
       .channel(`mvp-chat-feed-${clientId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-        (payload) => handlers.onMessage(payload.new),
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_conversations', filter: `client_id=eq.${clientId}` },
-        (payload) => handlers.onConversation(payload.new, 'INSERT'),
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'chat_conversations', filter: `client_id=eq.${clientId}` },
-        (payload) => handlers.onConversation(payload.new, 'UPDATE', payload.old),
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'chat_contacts', filter: `client_id=eq.${clientId}` },
-        (payload) => handlers.onContact(payload.new),
-      )
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        (payload) => ref.current.onMessage(payload.new))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_conversations', filter: `client_id=eq.${clientId}` },
+        (payload) => ref.current.onConversation(payload.new, 'INSERT'))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_conversations', filter: `client_id=eq.${clientId}` },
+        (payload) => ref.current.onConversation(payload.new, 'UPDATE', payload.old))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_contacts', filter: `client_id=eq.${clientId}` },
+        (payload) => ref.current.onContact(payload.new))
       .subscribe();
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-    // handlers vêm de refs estáveis na página; só o cliente reinicia o canal
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+    return () => { void supabase.removeChannel(channel); };
+  }, [hub, clientId]);
 }

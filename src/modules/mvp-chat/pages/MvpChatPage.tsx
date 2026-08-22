@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, MessageSquare, Radio } from 'lucide-react';
-import { Badge, Button, MascoteLoader, Skeleton, cn } from '../extend/ui';
+import { Badge, Button, cn } from '../extend/ui';
 import { useAuth } from '../extend/auth';
-import { useMvpChatFeed } from '../hooks/useMvpChatFeed';
+import { MvpChatRealtimeProvider } from '../hooks/useMvpChatRealtimeHub';
+import { useMvpChatTabs, type MvpTabKey } from '../hooks/useMvpChatTabs';
 import { useMvpChatOptions } from '../hooks/useMvpChatOptions';
-import { MvpChatRow } from '../components/MvpChatRow';
+import { MvpChatList } from '../components/MvpChatList';
 import { MvpChatFiltersBar } from '../components/MvpChatFilters';
 import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
 import { MvpChatDetailsPanel } from '../components/MvpChatDetailsPanel';
@@ -15,6 +16,14 @@ export default function MvpChatPage() {
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : null;
 
+  return (
+    <MvpChatRealtimeProvider clientId={clientId}>
+      <MvpChatContent clientId={clientId} />
+    </MvpChatRealtimeProvider>
+  );
+}
+
+function MvpChatContent({ clientId }: { clientId: string | null }) {
   const [filters, setFilters] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
   const [debounced, setDebounced] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
   const [selected, setSelected] = useState<MvpChatRowData | null>(null);
@@ -25,25 +34,13 @@ export default function MvpChatPage() {
     return () => clearTimeout(t);
   }, [filters]);
 
-  const feed = useMvpChatFeed(clientId, debounced);
+  const { active, setActive, feeds, activeFeed, counters } = useMvpChatTabs(clientId, debounced, 'open');
   const { queues, tags, owners, juliaStages } = useMvpChatOptions(clientId);
 
   const patch = useCallback((p: Partial<MvpChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
   const reset = useCallback(() => setFilters(DEFAULT_MVP_FILTERS), []);
 
-  // scroll infinito
-  const sentinel = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el) return;
-    const io = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) feed.loadMore();
-    }, { rootMargin: '240px' });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [feed.loadMore]);
-
-  const c = feed.counters;
+  const c = counters;
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden border-y bg-card/40 backdrop-blur-sm">
@@ -65,7 +62,7 @@ export default function MvpChatPage() {
             tags={tags}
             juliaStages={juliaStages}
             owners={owners}
-            resultCount={feed.rows.length}
+            resultCount={activeFeed.rows.length}
           />
 
           {c && (
@@ -83,54 +80,35 @@ export default function MvpChatPage() {
         </div>
 
         <MvpChatStatusTabs
-          value={filters.status}
-          onChange={(v) => patch({ status: v })}
-          counters={c ? { pending: c.pending, open: c.open } : null}
+          value={active}
+          onChange={(v) => setActive(v as MvpTabKey)}
+          counters={{
+            pending: feeds.pending.counters?.pending ?? c?.pending,
+            open: feeds.open.counters?.open ?? c?.open,
+          }}
         />
 
-        <div
-          className={cn(
-            'thin-scrollbar relative min-h-[120px] flex-1 overflow-y-auto px-1 py-1',
-            "before:sticky before:top-0 before:z-10 before:block before:h-[2px] before:-mb-[2px] before:content-['']",
-            filters.status === 'pending' && 'before:bg-amber-500/70',
-            filters.status === 'open' && 'before:bg-emerald-500/70',
-            filters.status !== 'pending' && filters.status !== 'open' && 'before:bg-transparent',
-          )}
-        >
-          {feed.error && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-              {feed.error}
-            </div>
-          )}
-
-          {feed.loading ? (
-            <div className="space-y-2">
-              <div className="flex justify-center py-6"><MascoteLoader /></div>
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
-            </div>
-          ) : feed.rows.length === 0 ? (
-            <div className="rounded-xl border bg-card/60 p-6 text-center text-sm text-muted-foreground">
-              Nenhuma conversa para os filtros atuais.
-            </div>
-          ) : (
-            <div className="space-y-[2px]">
-              {feed.rows.map((row) => (
-                <MvpChatRow
-                  key={row.conversation_id}
-                  row={row}
-                  selected={selected?.conversation_id === row.conversation_id}
-                  onSelect={setSelected}
-                />
-              ))}
-
-              <div ref={sentinel} className="h-8" />
-              {feed.loadingMore && <div className="flex justify-center py-2"><MascoteLoader /></div>}
-              {!feed.loading && !feed.hasMore && feed.rows.length > 0 && (
-                <p className="pb-4 text-center text-[11px] text-muted-foreground">Fim da lista.</p>
-              )}
-            </div>
-          )}
-        </div>
+        <MvpChatList
+          feed={feeds.pending}
+          visible={active === 'pending'}
+          accent="amber"
+          selectedId={selected?.conversation_id ?? null}
+          onSelect={setSelected}
+        />
+        <MvpChatList
+          feed={feeds.open}
+          visible={active === 'open'}
+          accent="emerald"
+          selectedId={selected?.conversation_id ?? null}
+          onSelect={setSelected}
+        />
+        <MvpChatList
+          feed={feeds.resolved_closed}
+          visible={active === 'resolved_closed'}
+          accent="none"
+          selectedId={selected?.conversation_id ?? null}
+          onSelect={setSelected}
+        />
       </aside>
 
       {/* Coluna 2 — conversa / payload */}
@@ -139,24 +117,24 @@ export default function MvpChatPage() {
           <Badge variant="secondary" className="gap-1 text-[11px]">
             <Radio className="h-3 w-3 animate-pulse text-emerald-500" aria-hidden /> tempo real
           </Badge>
-          {feed.revalidating && (
+          {activeFeed.revalidating && (
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <RefreshCw className="h-3 w-3 animate-spin" aria-hidden /> atualizando…
             </span>
           )}
-          {feed.liveEvents > 0 && (
-            <Button variant="secondary" size="sm" className="h-8 gap-1 text-[11px]" onClick={feed.refresh}>
-              {feed.liveEvents} novidade(s) — atualizar
+          {activeFeed.liveEvents > 0 && (
+            <Button variant="secondary" size="sm" className="h-8 gap-1 text-[11px]" onClick={activeFeed.refresh}>
+              {activeFeed.liveEvents} novidade(s) — atualizar
             </Button>
           )}
 
-          <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={feed.refresh} disabled={feed.loading}>
-            <RefreshCw className={cn('h-3.5 w-3.5', feed.loading && 'animate-spin')} aria-hidden /> Recarregar
+          <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={activeFeed.refresh} disabled={activeFeed.loading}>
+            <RefreshCw className={cn('h-3.5 w-3.5', activeFeed.loading && 'animate-spin')} aria-hidden /> Recarregar
           </Button>
         </div>
 
         <div className="thin-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-          <MvpChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} />
+          <MvpChatPerfPanel timings={activeFeed.timings} requests={activeFeed.requests} rowsLoaded={activeFeed.rows.length} />
 
           {selected ? (
             <pre className="overflow-auto rounded-xl border bg-muted/40 p-3 text-[10px] leading-relaxed">
@@ -178,3 +156,4 @@ export default function MvpChatPage() {
     </div>
   );
 }
+
