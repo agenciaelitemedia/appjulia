@@ -141,7 +141,17 @@ export interface MvpChatFilters {
   has_campaign: boolean | null;
   sla_status: MvpSlaStatus[];
   sort: 'recent' | 'oldest' | 'unread' | 'sla';
+  /**
+   * Escopo de filas acessíveis ao usuário (mesma regra do /chat). Usado quando
+   * nenhuma fila é escolhida manualmente em `queue_ids`.
+   */
+  scope_queue_ids?: string[];
+  /** Esconde conversas adiadas (snooze) — padrão do /chat. */
+  hide_snoozed?: boolean;
+  /** Identidades do usuário quando ele só pode ver `open` atribuído a si. */
+  restrict_open_to?: string[] | null;
 }
+
 
 export const DEFAULT_MVP_FILTERS: MvpChatFilters = {
   queue_ids: [],
