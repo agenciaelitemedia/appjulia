@@ -22,6 +22,17 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 /** Janela de recência: o evento só gera alerta se ficou elegível nos últimos 10 min. */
 const RECENT_WINDOW_MS = 10 * 60_000;
+const RECENT_WINDOW_MIN = Math.round(RECENT_WINDOW_MS / 60_000);
+
+/**
+ * O banco legado grava algumas colunas em hora de Brasília (naive) e outras em UTC,
+ * enquanto NOW() responde em UTC. Comparar direto com NOW() faz o evento parecer
+ * 3h no passado e nunca entrar na janela. Este piso aceita a linha se ela cair na
+ * janela em qualquer um dos dois fusos.
+ */
+const RECENT_FLOOR_SQL =
+  `(LEAST(NOW(), (NOW() AT TIME ZONE 'America/Sao_Paulo')::timestamptz) - INTERVAL '${RECENT_WINDOW_MIN} minutes')`;
+
 
 const SITUACOES: Record<string, string> = {
   no_response: "Lead parou de responder — recuperação",
