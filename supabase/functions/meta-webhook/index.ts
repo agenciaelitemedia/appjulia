@@ -557,20 +557,25 @@ serve(async (req) => {
       }
 
       // ── Assinatura da Meta (x-hub-signature-256) sobre o corpo cru ──
+      // Registro sempre; bloqueio só com META_WEBHOOK_ENFORCE_SIGNATURE=true
+      // (evita derrubar o canal se o app secret em uso divergir).
       const sigCheck = await verifyMetaSignature(req, rawBodyText);
       if (!sigCheck.ok) {
-        console.warn('[meta-webhook] payload recusado:', sigCheck.reason);
+        const enforce = (Deno.env.get('META_WEBHOOK_ENFORCE_SIGNATURE') ?? '').trim().toLowerCase() === 'true';
+        console.warn('[meta-webhook] assinatura inválida:', sigCheck.reason, 'enforce=', enforce);
         await logWebhookRejection(supabase, {
           source: 'meta-webhook',
-          reason: sigCheck.reason!,
+          reason: enforce ? sigCheck.reason! : `${sigCheck.reason}_apenas_registro`,
           ip: clientIpOf(req),
           path: url.pathname,
           detail: rawBodyText.slice(0, 300),
         });
-        return new Response(JSON.stringify({ error: 'invalid signature' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        if (enforce) {
+          return new Response(JSON.stringify({ error: 'invalid signature' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       console.log('Webhook POST received');
