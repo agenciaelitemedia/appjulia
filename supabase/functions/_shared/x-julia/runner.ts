@@ -34,6 +34,32 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
     return { reply: null, stage: session.stage };
   }
 
+  // 1.1) Disjuntor FinOps: teto de custo do dia/mês e mensagens por hora.
+  const breach = await checkUsageBreach(supabase, String(session.client_id), session.id);
+  if (breach.breached) {
+    await logXJEvent(supabase, session, {
+      kind: "circuit_breaker",
+      status: breach.action === "pause" ? "paused" : "warned",
+      detail: `${breach.reason}: ${breach.detail}`.slice(0, 500),
+    });
+    if (breach.action === "pause") {
+      const alreadyPaused = !!(session as any).paused_at;
+      await updateSession(supabase, session, {
+        is_active: false,
+        paused_at: new Date().toISOString(),
+        paused_reason: `${breach.reason}: ${breach.detail}`.slice(0, 300),
+      });
+      if (!alreadyPaused && breach.message) {
+        const sent = await xjSendComposed(supabase, ctx.queue, session, breach.message);
+        if (!sent.ok) {
+          await logXJEvent(supabase, session, { kind: "send", status: "error", detail: sent.error ?? "falha" });
+        }
+      }
+      ctx.stop = true;
+      return { reply: null, stage: session.stage };
+    }
+  }
+
   // 2) Entrada pode ser áudio/imagem/documento — o agente nunca para.
   const userInput = await xjReadInbound(supabase, agent, inbound);
   if (!userInput.trim()) return { reply: null, stage: session.stage };
