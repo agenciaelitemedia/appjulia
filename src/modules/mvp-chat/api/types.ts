@@ -92,9 +92,12 @@ export interface MvpChatCounters {
   resolved: number;
   closed: number;
   unread: number;
+  /** Nº de contatos (conversas líder) no escopo filtrado. */
+  total_contacts?: number;
   sla_breached?: number;
   sla_at_risk?: number;
 }
+
 
 export interface MvpChatTimings {
   total_ms: number;
