@@ -129,13 +129,11 @@ export function MainLayout() {
             "transition-all duration-300",
             isFullWidth ? "lg:ml-0" : (sidebarCollapsed ? "lg:ml-16" : "lg:ml-64")
           )}>
-            {!isFullWidth && (
-              <Header 
-                onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-                isCollapsed={sidebarCollapsed}
-                onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-              />
-            )}
+            <Header 
+              onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+              isCollapsed={isFullWidth ? true : sidebarCollapsed}
+              onCollapse={() => isFullWidth ? setSidebarCollapsed(true) : setSidebarCollapsed(!sidebarCollapsed)}
+            />
             
             <main className={cn(isFullWidth ? "p-0" : "p-4 lg:p-6")}>
               <Outlet />
