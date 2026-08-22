@@ -9238,6 +9238,72 @@ export type Database = {
           },
         ]
       }
+      xj_analytics_daily: {
+        Row: {
+          circuit_breaks: number
+          client_id: string
+          completion_tokens: number
+          contracts_sent: number
+          cost_usd: number
+          created_at: string
+          day: string
+          deals_created: number
+          disqualified: number
+          followups_sent: number
+          handoffs: number
+          id: string
+          llm_errors: number
+          prompt_tokens: number
+          qualified: number
+          sessions_started: number
+          sessions_touched: number
+          turns: number
+          updated_at: string
+        }
+        Insert: {
+          circuit_breaks?: number
+          client_id: string
+          completion_tokens?: number
+          contracts_sent?: number
+          cost_usd?: number
+          created_at?: string
+          day: string
+          deals_created?: number
+          disqualified?: number
+          followups_sent?: number
+          handoffs?: number
+          id?: string
+          llm_errors?: number
+          prompt_tokens?: number
+          qualified?: number
+          sessions_started?: number
+          sessions_touched?: number
+          turns?: number
+          updated_at?: string
+        }
+        Update: {
+          circuit_breaks?: number
+          client_id?: string
+          completion_tokens?: number
+          contracts_sent?: number
+          cost_usd?: number
+          created_at?: string
+          day?: string
+          deals_created?: number
+          disqualified?: number
+          followups_sent?: number
+          handoffs?: number
+          id?: string
+          llm_errors?: number
+          prompt_tokens?: number
+          qualified?: number
+          sessions_started?: number
+          sessions_touched?: number
+          turns?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       xj_appointments: {
         Row: {
           agent_id: string | null
@@ -11122,6 +11188,16 @@ export type Database = {
         Args: { p_minutes?: number }
         Returns: number
       }
+      xj_retention_cleanup: {
+        Args: {
+          p_dlq_days?: number
+          p_events_days?: number
+          p_followups_days?: number
+          p_queue_done_days?: number
+        }
+        Returns: Json
+      }
+      xj_rollup_analytics_daily: { Args: { p_day?: string }; Returns: number }
       xj_usage_snapshot: {
         Args: { p_client_id: string }
         Returns: {
