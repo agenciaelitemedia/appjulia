@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.mvp_chat_list_feed(text, uuid[], text, text, text, boolean, text, timestamptz, timestamptz, uuid[], text, boolean, boolean, text, integer, integer);
