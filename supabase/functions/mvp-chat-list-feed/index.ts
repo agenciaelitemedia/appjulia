@@ -260,7 +260,7 @@ serve(async (req) => {
 
   /* ---------------------------- SQL A · Supabase --------------------------- */
   const tA = Date.now();
-  const { data: feed, error: rpcError } = await supabase.rpc("mvp_chat_list_feed", {
+  const rpcParams = {
     p_client_id: String(body.client_id),
     p_queue_ids: body.queue_ids?.length ? body.queue_ids : null,
     p_status: body.status || null,
@@ -279,13 +279,46 @@ serve(async (req) => {
     p_sort: body.sort || "recent",
     p_limit: needsPostFilter ? HARD_CAP : limit,
     p_offset: needsPostFilter ? 0 : offset,
-  });
+  };
+  const rpcArgNames = Object.keys(rpcParams);
+  const { data: feed, error: rpcError } = await supabase.rpc("mvp_chat_list_feed", rpcParams);
   const msSupabase = Date.now() - tA;
 
   if (rpcError) {
-    console.error("[mvp-chat-list-feed] rpc error", rpcError.message);
-    return json({ error: rpcError.message }, 500);
+    const code = (rpcError as any)?.code ?? null;
+    const details = (rpcError as any)?.details ?? null;
+    const hint = (rpcError as any)?.hint ?? null;
+    // PGRST203 = múltiplas funções candidatas com a mesma assinatura lógica.
+    const ambiguous = code === "PGRST203"
+      || /best candidate function/i.test(String(rpcError.message ?? ""));
+    console.error(
+      `[mvp-chat-list-feed][${reqId}] rpc error`,
+      JSON.stringify({
+        code,
+        message: rpcError.message,
+        details,
+        hint,
+        ambiguous_overload: ambiguous,
+        supabase_ms: msSupabase,
+        arg_count: rpcArgNames.length,
+        arg_names: rpcArgNames,
+        null_args: rpcArgNames.filter((k) => (rpcParams as any)[k] == null),
+        params: summarizeParams(body, { needs_post_filter: needsPostFilter }),
+      }),
+    );
+    if (ambiguous) {
+      console.error(
+        `[mvp-chat-list-feed][${reqId}] existem múltiplas versões de public.mvp_chat_list_feed no banco; ` +
+        `remova as assinaturas antigas (a esperada tem ${rpcArgNames.length} argumentos: ${rpcArgNames.join(", ")})`,
+      );
+    }
+    return json({
+      error: rpcError.message,
+      req_id: reqId,
+      diagnostics: { code, details, hint, ambiguous_overload: ambiguous, arg_names: rpcArgNames },
+    }, 500);
   }
+
 
   let rows: any[] = Array.isArray(feed?.rows) ? feed.rows : [];
   const counters = feed?.counters ?? {};
