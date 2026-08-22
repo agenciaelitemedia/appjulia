@@ -395,7 +395,7 @@ async function fetchCandidates(
          LEFT JOIN sessions s ON s.whatsapp_number::text = c.whatsapp_number::text
         WHERE c.cod_agent::text = $1
           AND c.stage_id::text = ANY($2::varchar[])
-          AND COALESCE(c.stage_entered_at, c.updated_at) >= NOW() - INTERVAL '10 minutes'
+          AND COALESCE(c.stage_entered_at, c.updated_at) >= ${RECENT_FLOOR_SQL}
         ORDER BY COALESCE(c.stage_entered_at, c.updated_at) DESC`,
       [codAgent, stageIds],
     );
