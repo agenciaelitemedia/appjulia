@@ -316,62 +316,61 @@ export function MvpChatFiltersBar({
                 <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-[280px] p-0 z-[60]">
-              <div className="border-b px-2 py-1.5">
-                <button
-                  type="button"
-                  onClick={() => { onChange({ queue_ids: [] }); setQueueOpen(false); }}
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent"
-                >
-                  <Check className={cn('h-4 w-4', filters.queue_ids.length === 0 ? 'opacity-100' : 'opacity-0')} />
-                  <Layers className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                  <span className="font-medium">Todas as filas</span>
-                </button>
-              </div>
-              <ScrollArea className="max-h-[260px]">
-                <div className="p-1">
-                  {queues.length === 0 ? (
-                    <p className="px-3 py-4 text-center text-xs text-muted-foreground">Nenhuma fila disponível</p>
-                  ) : (
-                    queues.map((q) => (
-                      <button
-                        key={q.id}
-                        type="button"
-                        onClick={() => toggleIn('queue_ids', q.id)}
-                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
-                      >
-                        <Checkbox checked={filters.queue_ids.includes(q.id)} className="pointer-events-none" />
-                        <span className="flex-1 truncate">{q.name}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
+            <PopoverContent align="start" className="z-[60] w-[280px] p-0">
+              <Command>
+                <CommandInput placeholder="Buscar fila…" className="h-9" />
+                <CommandList className="max-h-[280px]">
+                  <CommandEmpty>Nenhuma fila encontrada.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="__all__ todas as filas"
+                      onSelect={() => { onChange({ queue_ids: [] }); setQueueOpen(false); }}
+                      className="cursor-pointer gap-2"
+                    >
+                      <Check className={cn('h-4 w-4', filters.queue_ids.length === 0 ? 'opacity-100' : 'opacity-0')} />
+                      <Layers className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                      <span className="flex-1 truncate">Todas as filas</span>
+                    </CommandItem>
+                    {[...queues]
+                      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+                      .map((q) => {
+                        const isSel = filters.queue_ids.length === 1 && filters.queue_ids[0] === q.id;
+                        return (
+                          <CommandItem
+                            key={q.id}
+                            value={`${q.name} ${q.channel_type ?? ''}`}
+                            onSelect={() => { onChange({ queue_ids: [q.id] }); setQueueOpen(false); }}
+                            className="cursor-pointer gap-2"
+                          >
+                            <Check className={cn('h-4 w-4', isSel ? 'opacity-100' : 'opacity-0')} />
+                            <span className="flex-1 truncate">{q.name}</span>
+                            {q.channel_type ? channelBadge(q.channel_type) : null}
+                          </CommandItem>
+                        );
+                      })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
             </PopoverContent>
           </Popover>
 
-          <Select value={ownerValue} onValueChange={setOwnerValue}>
-            <SelectTrigger className="h-8 text-xs" aria-label="Responsável">
-              <span className="flex min-w-0 items-center gap-1.5">
-                {ownerValue === 'all' ? (
-                  <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                ) : ownerValue === 'unassigned' ? (
-                  <UserX className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                ) : (
-                  <UserCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                )}
-                <SelectValue placeholder="Atendente" />
-              </span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Atendimentos</SelectItem>
-              <SelectItem value="unassigned">Aguardando Atendimento</SelectItem>
-              {owners.map((o) => (
-                <SelectItem key={o} value={o}>{o}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <TeamMemberSelect
+            members={teamMembers}
+            valueKey="name"
+            value={ownerValue}
+            onValueChange={(v) => setOwnerValue(v ?? 'all')}
+            allowUnassigned={false}
+            extraOptions={[
+              { value: 'all', label: 'Todos Atendimentos', icon: Users },
+              { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
+              { value: 'unassigned', label: 'Aguardando Atendimento', icon: UserX },
+            ]}
+            placeholder="Atendente"
+            size="sm"
+            className="w-full text-xs"
+          />
         </div>
+
 
         {/* Linha 4 — modo (ícones) + etapas */}
         <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-2">
