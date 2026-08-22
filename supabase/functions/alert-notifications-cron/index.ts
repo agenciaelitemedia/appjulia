@@ -528,9 +528,10 @@ async function fetchXJContractCandidates(
   codAgent: string,
   clientId: string | null,
   triggerKey: string,
+  windowMinutes: number = RECENT_WINDOW_MIN,
 ): Promise<Candidate[]> {
   if (!clientId) return [];
-  const recentFloor = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
+  const recentFloor = new Date(Date.now() - windowMinutes * 60_000).toISOString();
 
   let query = supabase
     .from("xj_contracts")
