@@ -16,3 +16,6 @@ export { SlaBadge } from '@/components/chat/SlaBadge';
 
 export { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 export { Label } from '@/components/ui/label';
+export { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+export { Checkbox } from '@/components/ui/checkbox';
+export { ScrollArea } from '@/components/ui/scroll-area';
