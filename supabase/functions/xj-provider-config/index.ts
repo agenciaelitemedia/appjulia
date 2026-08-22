@@ -5,12 +5,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { XJ_MODEL_CATALOG } from "../_shared/x-julia/pricing.ts";
 import { getProvider } from "../_shared/x-julia/llm.ts";
+import { requireAppIdentity, XJ_GUARD_HEADERS, xjGuardFailed } from "../_shared/x-julia/guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": XJ_GUARD_HEADERS,
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
+
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
