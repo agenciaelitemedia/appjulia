@@ -555,6 +555,23 @@ serve(async (req) => {
         );
       }
 
+      // ── Assinatura da Meta (x-hub-signature-256) sobre o corpo cru ──
+      const sigCheck = await verifyMetaSignature(req, rawBodyText);
+      if (!sigCheck.ok) {
+        console.warn('[meta-webhook] payload recusado:', sigCheck.reason);
+        await logWebhookRejection(supabase, {
+          source: 'meta-webhook',
+          reason: sigCheck.reason!,
+          ip: clientIpOf(req),
+          path: url.pathname,
+          detail: rawBodyText.slice(0, 300),
+        });
+        return new Response(JSON.stringify({ error: 'invalid signature' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       console.log('Webhook POST received');
 
       // ── Extract messages & statuses from Meta payload ──
