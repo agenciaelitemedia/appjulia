@@ -133,7 +133,10 @@ export function MainLayout() {
               onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />
             
-            <main className={cn(isFullWidth ? "p-0" : "p-4 lg:p-6")}>
+            <main className={cn(
+              "flex flex-col",
+              isFullWidth ? "p-0 h-[calc(100vh-3.5rem)] overflow-hidden" : "p-4 lg:p-6"
+            )}>
               <Outlet />
             </main>
           </div>

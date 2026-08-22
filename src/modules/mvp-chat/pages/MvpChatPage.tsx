@@ -45,7 +45,7 @@ export default function MvpChatPage() {
   const c = feed.counters;
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden border-y bg-card/40 backdrop-blur-sm">
+    <div className="flex h-full overflow-hidden border-y bg-card/40 backdrop-blur-sm">
       {/* Coluna 1 — lista de conversas */}
       <aside className="flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border-r lg:w-[400px]">
         <div className="shrink-0 space-y-2 border-b px-2.5 py-2">
