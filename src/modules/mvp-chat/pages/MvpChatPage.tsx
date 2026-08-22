@@ -46,29 +46,31 @@ export default function MvpChatPage() {
   return (
     <div className="flex h-[calc(100vh-6rem)] flex-col gap-4 lg:flex-row">
       {/* Sidebar de conversas — simula a lista do /chat */}
-      <aside className="flex w-full flex-col gap-3 overflow-hidden rounded-xl border bg-card/60 p-3 backdrop-blur-sm lg:w-[350px]">
-        <div className="flex items-center gap-2">
+      <aside className="flex h-full w-full min-h-0 flex-col gap-3 overflow-hidden rounded-xl border bg-card/60 p-3 backdrop-blur-sm lg:w-[350px]">
+        <div className="flex shrink-0 items-center gap-2">
           <MessageSquare className="h-5 w-5 text-primary" />
           <h1 className="text-lg font-bold">MVP Chat</h1>
           <Badge variant="outline" className="ml-auto text-[10px]">protótipo</Badge>
         </div>
 
-        <p className="text-[10px] text-muted-foreground">
+        <p className="shrink-0 text-[10px] text-muted-foreground">
           Query única no servidor + cache + Realtime.
         </p>
 
-        <MvpChatFiltersBar
-          filters={filters}
-          onChange={patch}
-          onReset={reset}
-          queues={queues}
-          tags={tags}
-          juliaStages={juliaStages}
-          owners={owners}
-        />
+        <div className="thin-scrollbar max-h-[38%] shrink-0 overflow-y-auto pr-1">
+          <MvpChatFiltersBar
+            filters={filters}
+            onChange={patch}
+            onReset={reset}
+            queues={queues}
+            tags={tags}
+            juliaStages={juliaStages}
+            owners={owners}
+          />
+        </div>
 
         {c && (
-          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-[10px]">
             <Badge variant="secondary">Total {c.total}</Badge>
             <Badge variant="outline">Aguardando {c.pending}</Badge>
             <Badge variant="outline">Atendimento {c.open}</Badge>
@@ -80,9 +82,10 @@ export default function MvpChatPage() {
           </div>
         )}
 
-        <Separator />
+        <Separator className="shrink-0" />
 
-        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="thin-scrollbar min-h-[200px] flex-1 overflow-y-auto pr-1">
+
           {feed.error && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {feed.error}
