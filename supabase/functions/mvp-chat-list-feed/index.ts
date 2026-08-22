@@ -220,12 +220,73 @@ serve(async (req) => {
   let rows: any[] = Array.isArray(feed?.rows) ? feed.rows : [];
   const counters = feed?.counters ?? {};
 
+  /* ------------- cache do banco legado (invalidação por janela) ------------- */
+  const nowMs = Date.now();
+  const wanted = new Map<string, { phone: unknown; phone_key: string; cod_agent: string; ttl: number }>();
+  for (const r of rows) {
+    const key = phoneKey(r.phone);
+    if (!key) continue;
+    const cod = r.queue_cod_agent ? String(r.queue_cod_agent) : "";
+    const ref = r.last_message_at ?? r.conversation_updated_at;
+    const hot = ref ? nowMs - new Date(ref).getTime() < 864e5 : false;
+    const ttl = hot ? TTL_HOT : TTL_COLD;
+    const k = `${key}|${cod}`;
+    const prev = wanted.get(k);
+    if (!prev || ttl < prev.ttl) wanted.set(k, { phone: r.phone, phone_key: key, cod_agent: cod, ttl });
+  }
+
+  const legacy = new Map<string, LegacyEntry>();
+  const missing: { phone: unknown; phone_key: string; cod_agent: string }[] = [];
+  let cacheHits = 0;
+  let cacheMisses = 0;
+  let msCache = 0;
+  let usedStale = false;
+
+  if (wanted.size > 0) {
+    const tC = Date.now();
+    const phoneKeys = [...new Set([...wanted.values()].map((w) => w.phone_key))];
+    const { data: cached, error: cacheError } = await supabase
+      .from("mvp_chat_legacy_cache")
+      .select(
+        "phone_key, cod_agent, julia_stage_id, julia_stage_name, julia_stage_color, has_julia_card, session_is_active, campaign, fetched_at",
+      )
+      .eq("client_id", String(body.client_id))
+      .in("phone_key", phoneKeys);
+    msCache = Date.now() - tC;
+    if (cacheError) console.warn("[mvp-chat-list-feed] cache read error", cacheError.message);
+
+    const byKey = new Map<string, any>();
+    for (const c of cached ?? []) byKey.set(`${c.phone_key}|${c.cod_agent ?? ""}`, c);
+
+    for (const [k, w] of wanted) {
+      const c = byKey.get(k);
+      const fresh = !!c && nowMs - new Date(c.fetched_at).getTime() < w.ttl * 1000;
+      if (c) {
+        legacy.set(k, {
+          julia_stage_id: c.julia_stage_id ?? null,
+          julia_stage_name: c.julia_stage_name ?? null,
+          julia_stage_color: c.julia_stage_color ?? null,
+          has_julia_card: !!c.has_julia_card,
+          session_is_active: c.session_is_active ?? null,
+          campaign: c.campaign ?? null,
+          stale: !fresh,
+        });
+      }
+      if (body.refresh || !fresh) {
+        missing.push({ phone: w.phone, phone_key: w.phone_key, cod_agent: w.cod_agent });
+        if (!c) cacheMisses++;
+      } else {
+        cacheHits++;
+      }
+    }
+  }
+
   /* ---------------------------- SQL B · externo ---------------------------- */
   const variantSet = new Set<string>();
   const codAgents = new Set<string>();
-  for (const r of rows) {
-    for (const v of phoneVariants(r.phone)) variantSet.add(v);
-    if (r.queue_cod_agent) codAgents.add(String(r.queue_cod_agent));
+  for (const m of missing) {
+    for (const v of phoneVariants(m.phone)) variantSet.add(v);
+    if (m.cod_agent) codAgents.add(m.cod_agent);
   }
   const variants = [...variantSet];
   const codes = [...codAgents];
@@ -236,7 +297,7 @@ serve(async (req) => {
   const sessionByKey = new Map<string, boolean | null>();
   const campaignByKey = new Map<string, any>();
 
-  if (rows.length > 0 && variants.length > 0) {
+  if (missing.length > 0 && variants.length > 0) {
     const tB = Date.now();
     try {
       const sql = getPool();
@@ -308,6 +369,40 @@ serve(async (req) => {
           if (!campaignByKey.has(key)) campaignByKey.set(key, r.payload);
         }
       }
+
+      // grava o resultado fresco no cache (inclusive "sem dado", cache negativo)
+      const upserts = missing.map((m) => {
+        const composite = `${m.phone_key}|${m.cod_agent}`;
+        const stage = stageByKey.get(composite) ?? stageByKey.get(m.phone_key) ?? null;
+        const sessionActive = sessionByKey.has(composite)
+          ? sessionByKey.get(composite)
+          : (sessionByKey.get(m.phone_key) ?? null);
+        const campaign = campaignByKey.get(m.phone_key) ?? null;
+        const entry: LegacyEntry = {
+          julia_stage_id: stage?.stage_id != null ? String(stage.stage_id) : null,
+          julia_stage_name: stage?.stage_name ?? null,
+          julia_stage_color: stage?.stage_color ?? null,
+          has_julia_card: !!stage,
+          session_is_active: sessionActive ?? null,
+          campaign: campaign
+            ? { id: campaign.id, created_at: campaign.created_at, campaign_data: campaign.campaign_data }
+            : null,
+        };
+        legacy.set(composite, entry);
+        return {
+          client_id: String(body.client_id),
+          phone_key: m.phone_key,
+          cod_agent: m.cod_agent,
+          ...entry,
+          fetched_at: new Date().toISOString(),
+        };
+      });
+      if (upserts.length) {
+        const { error: upErr } = await supabase
+          .from("mvp_chat_legacy_cache")
+          .upsert(upserts, { onConflict: "client_id,phone_key,cod_agent" });
+        if (upErr) console.warn("[mvp-chat-list-feed] cache write error", upErr.message);
+      }
     } catch (e) {
       externalError = (e as Error)?.message ?? "external db error";
       console.warn("[mvp-chat-list-feed] external error", externalError);
@@ -318,45 +413,41 @@ serve(async (req) => {
   /* --------------------------------- merge -------------------------------- */
   rows = rows.map((r) => {
     const key = phoneKey(r.phone);
-    const composite = `${key}|${r.queue_cod_agent ?? ""}`;
-    const stage = stageByKey.get(composite) ?? stageByKey.get(key) ?? null;
-    const sessionActive = sessionByKey.has(composite)
-      ? sessionByKey.get(composite)
-      : (sessionByKey.get(key) ?? null);
-    const campaign = campaignByKey.get(key) ?? null;
+    const cod = r.queue_cod_agent ? String(r.queue_cod_agent) : "";
+    const entry = legacy.get(`${key}|${cod}`) ?? legacy.get(`${key}|`) ?? null;
+    if (entry?.stale) usedStale = true;
     return {
       ...r,
       phone_key: key,
-      julia_stage_id: stage?.stage_id ?? null,
-      julia_stage_name: stage?.stage_name ?? null,
-      julia_stage_color: stage?.stage_color ?? null,
-      has_julia_card: !!stage,
-      session_is_active: sessionActive ?? null,
-      campaign: campaign
-        ? {
-          id: campaign.id,
-          created_at: campaign.created_at,
-          campaign_data: campaign.campaign_data,
-        }
-        : null,
+      julia_stage_id: entry?.julia_stage_id ?? null,
+      julia_stage_name: entry?.julia_stage_name ?? null,
+      julia_stage_color: entry?.julia_stage_color ?? null,
+      has_julia_card: entry?.has_julia_card ?? false,
+      session_is_active: entry?.session_is_active ?? null,
+      campaign: entry?.campaign ?? null,
     };
   });
 
   /* ------------------------ filtros pós-merge + página --------------------- */
   if (needsPostFilter) {
     rows = rows.filter((r) => {
-      if (body.julia_stage && String(r.julia_stage_name ?? "") !== body.julia_stage) return false;
+      if (stageIds.length && !stageIds.includes(String(r.julia_stage_id ?? ""))) return false;
+      if (!stageIds.length && body.julia_stage && String(r.julia_stage_name ?? "") !== body.julia_stage) return false;
       if (body.julia_mode === "julia" && r.session_is_active !== true) return false;
       if (body.julia_mode === "human" && r.session_is_active === true) return false;
       if (body.has_campaign === true && !r.campaign) return false;
       if (body.has_campaign === false && r.campaign) return false;
       return true;
     });
-    (counters as any).total = rows.length;
-    (counters as any).pending = rows.filter((r) => r.status === "pending").length;
-    (counters as any).open = rows.filter((r) => r.status === "open").length;
-    (counters as any).resolved = rows.filter((r) => r.status === "resolved").length;
-    (counters as any).closed = rows.filter((r) => r.status === "closed").length;
+    const co = counters as any;
+    co.total = rows.length;
+    co.pending = rows.filter((r) => r.status === "pending").length;
+    co.open = rows.filter((r) => r.status === "open").length;
+    co.resolved = rows.filter((r) => r.status === "resolved").length;
+    co.closed = rows.filter((r) => r.status === "closed").length;
+    co.unread = rows.reduce((s, r) => s + (Number(r.unread_count) || 0), 0);
+    co.sla_breached = rows.filter((r) => r.sla_status === "breached").length;
+    co.sla_at_risk = rows.filter((r) => r.sla_status === "at_risk").length;
     rows = rows.slice(offset, offset + limit);
   }
 
@@ -369,9 +460,14 @@ serve(async (req) => {
     timings: {
       total_ms: Date.now() - t0,
       supabase_ms: msSupabase,
+      cache_ms: msCache,
       external_ms: msExternal,
       external_error: externalError,
-      sql_count: rows.length > 0 && variants.length > 0 ? 2 : 1,
+      external_stale: usedStale,
+      cache_hits: cacheHits,
+      cache_misses: cacheMisses,
+      cache_refreshed: missing.length,
+      sql_count: (missing.length > 0 && variants.length > 0 ? 2 : 1) + (wanted.size > 0 ? 1 : 0),
       rows: rows.length,
     },
   });
