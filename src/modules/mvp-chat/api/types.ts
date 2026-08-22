@@ -170,4 +170,8 @@ export const DEFAULT_MVP_FILTERS: MvpChatFilters = {
   has_campaign: null,
   sla_status: [],
   sort: 'recent',
+  scope_queue_ids: [],
+  hide_snoozed: true,
+  restrict_open_to: null,
+
 };
