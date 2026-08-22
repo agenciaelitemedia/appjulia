@@ -14,6 +14,21 @@ export interface XJSendOptions {
   persistAs?: string;
 }
 
+/**
+ * Resolve o provedor de envio da fila.
+ * Filas do canal oficial nem sempre têm `hub` preenchido — nesse caso o
+ * `channel_type` (waba / whatsapp_waba) ou a presença de credenciais WABA
+ * define o adapter, evitando cair no default uazapi e falhar o envio.
+ */
+export function resolveQueueHub(queue: XJQueueCreds): string {
+  const hub = String(queue.hub ?? "").trim().toLowerCase();
+  if (hub === "uazapi" || hub === "waba") return hub;
+  const ct = String((queue as { channel_type?: string }).channel_type ?? "").trim().toLowerCase();
+  if (ct === "waba" || ct === "whatsapp_waba") return "waba";
+  if (queue.waba_token && queue.waba_number_id && !queue.evo_apikey) return "waba";
+  return "uazapi";
+}
+
 // deno-lint-ignore no-explicit-any
 export async function xjSend(
   supabase: any,
@@ -26,7 +41,7 @@ export async function xjSend(
   if (!session.phone) return { ok: false, error: "contato sem telefone" };
 
   const adapter = createMessagingAdapter({
-    hub: queue.hub ?? "uazapi",
+    hub: resolveQueueHub(queue),
     evo_url: queue.evo_url,
     evo_apikey: queue.evo_apikey,
     waba_token: queue.waba_token,
