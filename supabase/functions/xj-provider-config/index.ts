@@ -288,6 +288,8 @@ Deno.serve(async (req) => {
 
 
       if (action === "save_model_pricing") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const provider = String(body?.provider ?? "").trim();
         const model = String(body?.model ?? "").trim();
         if (!provider || !model) return json({ error: "provider e model são obrigatórios" }, 400);
@@ -309,6 +311,8 @@ Deno.serve(async (req) => {
       }
 
       if (action === "delete_model_pricing") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const provider = String(body?.provider ?? "").trim();
         const model = String(body?.model ?? "").trim();
         if (!provider || !model) return json({ error: "provider e model são obrigatórios" }, 400);
@@ -323,6 +327,8 @@ Deno.serve(async (req) => {
 
       // Popula a tabela com o catálogo padrão do código (não sobrescreve linhas existentes salvo force).
       if (action === "seed_model_pricing") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const force = !!body?.force;
         const rows = Object.entries(XJ_MODEL_CATALOG).map(([key, info]) => {
           const parts = key.split("/");
@@ -358,7 +364,8 @@ Deno.serve(async (req) => {
       if (action === "list_provider_models") {
         const provider = String(body?.provider ?? "").trim();
         if (!provider) return json({ error: "provider é obrigatório" }, 400);
-        const clientId = body?.client_id ? String(body.client_id) : null;
+        const requestedClient = String(body?.client_id ?? "").trim();
+        const clientId = identity.isAdmin && requestedClient ? requestedClient : identity.clientId;
         try {
           const key = await resolveProviderKey(provider, clientId);
           const models = await fetchProviderModels(provider, key);
@@ -371,6 +378,8 @@ Deno.serve(async (req) => {
 
       // Importa modelos vindos do provedor para o catálogo de preços.
       if (action === "import_provider_models") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const provider = String(body?.provider ?? "").trim();
         const models = Array.isArray(body?.models) ? body.models : [];
         if (!provider || !models.length) return json({ error: "provider e models são obrigatórios" }, 400);
