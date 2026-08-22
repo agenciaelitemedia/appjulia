@@ -365,7 +365,7 @@ async function persistMessage(
   const isForwarded = !!(ctx?.forwarded || ctx?.frequently_forwarded);
   const quotedMeta = await resolveQuotedMeta(supabase, agentInfo.client_id, quotedId);
 
-  const { error } = await supabase
+  const { data: inserted, error } = await supabase
     .from('chat_messages')
     .insert({
       contact_id: contactId,
@@ -388,7 +388,9 @@ async function persistMessage(
         : new Date().toISOString(),
       raw_payload: message,
       metadata: quotedMeta ? { quoted_message: quotedMeta } : null,
-    });
+    })
+    .select('id')
+    .maybeSingle();
 
   if (error) {
     if (error.code === '23505') {
@@ -398,7 +400,58 @@ async function persistMessage(
     }
   }
 
-  return contactId;
+  return {
+    contactId,
+    messageId: (inserted as any)?.id ?? null,
+    conversationId,
+    mediaUrl,
+    fileName,
+    caption,
+    text: msgText,
+  };
+}
+
+// ─── X-Julia: enfileira mensagem WABA na fila durável ─────────────
+// Mesmo contrato usado pelo uazapi-chat-webhook: idempotente por message_id,
+// entregue pelo worker x-julia-processor (retry + DLQ). Sem a flag
+// XJ_QUEUE_ENABLED faz a chamada direta ao x-julia-engine.
+async function xjEnqueueWaba(payload: Record<string, unknown>) {
+  const url = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const queueEnabled = (Deno.env.get('XJ_QUEUE_ENABLED') ?? '').trim().toLowerCase() === 'true';
+
+  try {
+    if (queueEnabled) {
+      const { error } = await supabase.from('xj_inbound_queue').upsert(
+        [{
+          client_id: String(payload.client_id ?? ''),
+          message_id: payload.message_id ? String(payload.message_id) : null,
+          payload,
+        }],
+        { onConflict: 'message_id', ignoreDuplicates: true },
+      );
+      if (error) throw error;
+
+      const kick = await fetch(`${url}/functions/v1/x-julia-processor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
+        body: JSON.stringify({ source: 'meta-webhook' }),
+      });
+      if (!kick.ok) console.warn('[meta-webhook] x-julia-processor kick HTTP', kick.status);
+      return;
+    }
+
+    const res = await fetch(`${url}/functions/v1/x-julia-engine`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}`, apikey: serviceKey },
+      body: JSON.stringify({ action: 'run', data: payload }),
+    });
+    if (!res.ok) {
+      console.error('[meta-webhook] x-julia-engine HTTP', res.status, (await res.text().catch(() => '')).slice(0, 300));
+    }
+  } catch (e) {
+    console.error('[meta-webhook] falha ao enfileirar X-Julia:', String(e));
+  }
 }
 
 // ─── Process queue: send pending items to N8N ────────────────────────
