@@ -99,6 +99,9 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           {c && (
             <div className="flex flex-wrap items-center gap-1 text-[10px]">
               <Badge variant="secondary" className="text-[10px]">Total {c.total}</Badge>
+              {c.total_contacts != null && (
+                <Badge variant="outline" className="text-[10px]">Contatos {c.total_contacts}</Badge>
+              )}
               <Badge variant="outline" className="text-[10px]">Aguard. {c.pending}</Badge>
               <Badge variant="outline" className="text-[10px]">Atend. {c.open}</Badge>
               <Badge variant="outline" className="text-[10px]">Resolv. {c.resolved}</Badge>
