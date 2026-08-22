@@ -175,8 +175,12 @@ serve(async (req) => {
   const limit = Math.min(Math.max(Number(body.limit ?? 30), 1), 200);
   const offset = Math.max(Number(body.offset ?? 0), 0);
 
+  const stageIds = (body.julia_stage_ids ?? []).map((s) => String(s)).filter(Boolean);
+
   // Filtros que só podem ser avaliados depois do merge com o banco legado.
-  const needsPostFilter = Boolean(body.julia_stage || body.julia_mode || body.has_campaign != null);
+  const needsPostFilter = Boolean(
+    body.julia_stage || stageIds.length || body.julia_mode || body.has_campaign != null,
+  );
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -192,6 +196,7 @@ serve(async (req) => {
     p_status: body.status || null,
     p_tab: body.tab || null,
     p_owner: body.owner || null,
+    p_owners: body.owners?.length ? body.owners : null,
     p_unassigned: body.unassigned ?? null,
     p_search: body.search || null,
     p_from: body.from || null,
@@ -200,6 +205,7 @@ serve(async (req) => {
     p_priority: body.priority || null,
     p_has_ticket: body.has_ticket ?? null,
     p_has_crm_builder: body.has_crm_builder ?? null,
+    p_sla_status: body.sla_status?.length ? body.sla_status : null,
     p_sort: body.sort || "recent",
     p_limit: needsPostFilter ? HARD_CAP : limit,
     p_offset: needsPostFilter ? 0 : offset,
