@@ -4,6 +4,7 @@
 import { xjReadInbound } from "./documents.ts";
 import { xjComplete } from "./llm.ts";
 import { estimateCost, loadPricingOverrides } from "./pricing.ts";
+import { bumpUsage, checkUsageBreach } from "./limits.ts";
 import { detectMediaInBlock, extractLinks, splitMessageBlocks, xjSend, xjSendComposed } from "./messaging.ts";
 import { buildXJMessages, loadHistory } from "./prompt.ts";
 import { cancelPendingFollowups, scheduleNextFollowup } from "./followups.ts";
