@@ -554,26 +554,32 @@ serve(async (req) => {
     rows = rows.slice(offset, offset + limit);
   }
 
+  const timings = {
+    total_ms: Date.now() - t0,
+    supabase_ms: msSupabase,
+    cache_ms: msCache,
+    external_ms: msExternal,
+    external_error: externalError,
+    external_stale: usedStale,
+    cache_hits: cacheHits,
+    cache_misses: cacheMisses,
+    cache_refreshed: missing.length,
+    sql_count: (missing.length > 0 && variants.length > 0 ? 2 : 1) + (wanted.size > 0 ? 1 : 0),
+    rows: rows.length,
+  };
+
+  console.log(`[mvp-chat-list-feed][${reqId}] ok`, JSON.stringify(timings));
+
   return json({
     rows,
     counters,
+    req_id: reqId,
     has_more: needsPostFilter
       ? offset + rows.length < Number((counters as any).total ?? 0)
       : rows.length === limit,
-    timings: {
-      total_ms: Date.now() - t0,
-      supabase_ms: msSupabase,
-      cache_ms: msCache,
-      external_ms: msExternal,
-      external_error: externalError,
-      external_stale: usedStale,
-      cache_hits: cacheHits,
-      cache_misses: cacheMisses,
-      cache_refreshed: missing.length,
-      sql_count: (missing.length > 0 && variants.length > 0 ? 2 : 1) + (wanted.size > 0 ? 1 : 0),
-      rows: rows.length,
-    },
+    timings,
   });
+
 });
 
 function json(payload: unknown, status = 200) {
