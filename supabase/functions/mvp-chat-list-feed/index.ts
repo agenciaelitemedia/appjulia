@@ -504,11 +504,11 @@ serve(async (req) => {
         const { error: upErr } = await supabase
           .from("mvp_chat_legacy_cache")
           .upsert(upserts, { onConflict: "client_id,phone_key,cod_agent" });
-        if (upErr) console.warn("[mvp-chat-list-feed] cache write error", upErr.message);
+        if (upErr) console.warn(`[mvp-chat-list-feed][${reqId}] cache write error`, upErr.message);
       }
     } catch (e) {
       externalError = (e as Error)?.message ?? "external db error";
-      console.warn("[mvp-chat-list-feed] external error", externalError);
+      console.warn(`[mvp-chat-list-feed][${reqId}] external error`, externalError);
     }
     msExternal = Date.now() - tB;
   }
