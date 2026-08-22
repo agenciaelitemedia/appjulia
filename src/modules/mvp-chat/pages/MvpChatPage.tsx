@@ -46,7 +46,7 @@ export default function MvpChatPage() {
   return (
     <div className="flex h-[calc(100vh-6rem)] flex-col gap-4 lg:flex-row">
       {/* Sidebar de conversas — simula a lista do /chat */}
-      <aside className="flex w-full flex-col gap-3 rounded-xl border bg-card/60 p-3 backdrop-blur-sm lg:w-[350px]">
+      <aside className="flex w-full flex-col gap-3 overflow-hidden rounded-xl border bg-card/60 p-3 backdrop-blur-sm lg:w-[350px]">
         <div className="flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-primary" />
           <h1 className="text-lg font-bold">MVP Chat</h1>
@@ -82,7 +82,7 @@ export default function MvpChatPage() {
 
         <Separator />
 
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
           {feed.error && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {feed.error}
