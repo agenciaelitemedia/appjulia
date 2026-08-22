@@ -12,6 +12,8 @@ export interface MvpChatCampaign {
   campaign_data?: Record<string, any> | null;
 }
 
+export type MvpSlaStatus = 'on_track' | 'at_risk' | 'breached' | 'unknown';
+
 /** Uma linha = um card da lista, já 100% hidratado pelo servidor. */
 export interface MvpChatRowData {
   // contato
@@ -49,6 +51,12 @@ export interface MvpChatRowData {
   last_message_from_me: boolean | null;
   conversation_updated_at: string;
 
+  // SLA calculado no servidor
+  sla_status: MvpSlaStatus | null;
+  sla_type: 'frt' | 'nrt' | 'ttr' | null;
+  sla_remaining_minutes: number | null;
+  sla_target_minutes: number | null;
+
   // etiquetas
   tags: MvpChatTag[];
 
@@ -84,13 +92,20 @@ export interface MvpChatCounters {
   resolved: number;
   closed: number;
   unread: number;
+  sla_breached?: number;
+  sla_at_risk?: number;
 }
 
 export interface MvpChatTimings {
   total_ms: number;
   supabase_ms: number;
+  cache_ms?: number;
   external_ms: number;
   external_error: string | null;
+  external_stale?: boolean;
+  cache_hits?: number;
+  cache_misses?: number;
+  cache_refreshed?: number;
   sql_count: number;
   rows: number;
 }
@@ -108,7 +123,8 @@ export interface MvpChatFilters {
   queue_ids: string[];
   status: MvpChatTab;
   tab: 'individual' | 'groups' | null;
-  owner: string | null;
+  /** Responsáveis (multi) — combinável com `unassigned`. */
+  owners: string[];
   unassigned: boolean | null;
   search: string;
   period: 'all' | 'today' | '7d' | '30d' | 'month';
@@ -116,17 +132,19 @@ export interface MvpChatFilters {
   priority: string | null;
   has_ticket: boolean | null;
   has_crm_builder: boolean | null;
-  julia_stage: string | null;
+  /** Etapas do CRM da Júlia (multi, por id). */
+  julia_stage_ids: string[];
   julia_mode: 'julia' | 'human' | null;
   has_campaign: boolean | null;
-  sort: 'recent' | 'oldest' | 'unread';
+  sla_status: MvpSlaStatus[];
+  sort: 'recent' | 'oldest' | 'unread' | 'sla';
 }
 
 export const DEFAULT_MVP_FILTERS: MvpChatFilters = {
   queue_ids: [],
   status: null,
   tab: null,
-  owner: null,
+  owners: [],
   unassigned: null,
   search: '',
   period: 'all',
@@ -134,8 +152,9 @@ export const DEFAULT_MVP_FILTERS: MvpChatFilters = {
   priority: null,
   has_ticket: null,
   has_crm_builder: null,
-  julia_stage: null,
+  julia_stage_ids: [],
   julia_mode: null,
   has_campaign: null,
+  sla_status: [],
   sort: 'recent',
 };
