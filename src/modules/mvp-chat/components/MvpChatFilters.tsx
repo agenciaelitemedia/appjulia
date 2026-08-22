@@ -416,13 +416,14 @@ export function MvpChatFiltersBar({
               <div className="border-b px-2 py-1.5">
                 <button
                   type="button"
-                  onClick={() => onChange({ julia_stage_ids: [] })}
+                  onClick={toggleAllStages}
                   className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent"
                 >
-                  <Check className={cn('h-4 w-4', filters.julia_stage_ids.length === 0 ? 'opacity-100' : 'opacity-0')} />
-                  <span className="font-medium">Todas as etapas</span>
+                  <Checkbox checked={allStagesSelected} className="pointer-events-none" />
+                  <span className="font-medium">{allStagesSelected ? 'Desmarcar todas' : 'Selecionar todas'}</span>
                 </button>
               </div>
+
               <ScrollArea className="max-h-[260px]">
                 <div className="p-1">
                   {juliaStages.length === 0 ? (
