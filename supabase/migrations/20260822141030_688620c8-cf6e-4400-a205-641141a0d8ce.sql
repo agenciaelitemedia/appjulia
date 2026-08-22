@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.mvp_chat_list_feed(text, uuid[], text, text, text, boolean, text, timestamptz, timestamptz, uuid[], text, boolean, boolean, text, integer, integer) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mvp_chat_list_feed(text, uuid[], text, text, text, boolean, text, timestamptz, timestamptz, uuid[], text, boolean, boolean, text, integer, integer) TO service_role;
