@@ -81,7 +81,7 @@ export default function MvpChatPage() {
           )}
         </div>
 
-        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-1 py-1">
+        <div className="thin-scrollbar min-h-[120px] flex-1 overflow-y-auto px-1 py-1">
           {feed.error && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {feed.error}
