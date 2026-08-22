@@ -102,6 +102,14 @@ export const X_JULIA_MENU_ITEMS = [
     route: '/x-julia/configuracoes',
     displayOrder: 9,
   },
+  {
+    code: 'x_julia_limits',
+    name: 'Limites e custos X-Julia',
+    description: 'Teto de gasto com IA, limite de mensagens por hora e sessões pausadas',
+    icon: 'Gauge',
+    route: '/x-julia/limites',
+    displayOrder: 11,
+  },
 ] as const;
 
 export type XJModuleCode = (typeof X_JULIA_MENU_ITEMS)[number]['code'];
@@ -110,6 +118,7 @@ export const X_JULIA_ROUTES = {
   dashboard: '/x-julia',
   offices: '/x-julia/escritorios',
   settings: '/x-julia/configuracoes',
+  limits: '/x-julia/limites',
   agents: '/x-julia/agentes',
   agent: (id: string) => `/x-julia/agentes/${id}`,
   agentPattern: '/x-julia/agentes/:agentId',
