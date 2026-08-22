@@ -128,6 +128,7 @@ export const X_JULIA_ROUTES = {
   offices: '/x-julia/escritorios',
   settings: '/x-julia/configuracoes',
   limits: '/x-julia/limites',
+  metrics: '/x-julia/metricas',
   agents: '/x-julia/agentes',
   agent: (id: string) => `/x-julia/agentes/${id}`,
   agentPattern: '/x-julia/agentes/:agentId',
