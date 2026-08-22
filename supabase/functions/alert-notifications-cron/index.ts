@@ -423,7 +423,7 @@ async function fetchCandidates(
          LEFT JOIN sessions s ON s.whatsapp_number::text = d.whatsapp_number::text
         WHERE d.cod_agent::text = $1
           AND d.status_document = $2
-          AND d.created_at >= NOW() - INTERVAL '10 minutes'
+          AND d.created_at >= ${RECENT_FLOOR_SQL}
         ORDER BY d.cod_document, d.created_at DESC`,
       [codAgent, status],
     );
