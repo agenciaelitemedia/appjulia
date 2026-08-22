@@ -6108,6 +6108,7 @@ export type Database = {
           waba_webhook_last_error: string | null
           waba_webhook_status: string | null
           waba_webhook_subscribed_at: string | null
+          webhook_token: string | null
         }
         Insert: {
           channel_type?: string
@@ -6132,6 +6133,7 @@ export type Database = {
           waba_webhook_last_error?: string | null
           waba_webhook_status?: string | null
           waba_webhook_subscribed_at?: string | null
+          webhook_token?: string | null
         }
         Update: {
           channel_type?: string
@@ -6156,6 +6158,7 @@ export type Database = {
           waba_webhook_last_error?: string | null
           waba_webhook_status?: string | null
           waba_webhook_subscribed_at?: string | null
+          webhook_token?: string | null
         }
         Relationships: []
       }
@@ -8920,6 +8923,42 @@ export type Database = {
           sent_at?: string | null
           status?: string
           waba_id?: string | null
+        }
+        Relationships: []
+      }
+      webhook_rejections: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          detail: string | null
+          id: string
+          ip: string | null
+          path: string | null
+          queue_id: string | null
+          reason: string
+          source: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          detail?: string | null
+          id?: string
+          ip?: string | null
+          path?: string | null
+          queue_id?: string | null
+          reason: string
+          source: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          detail?: string | null
+          id?: string
+          ip?: string | null
+          path?: string | null
+          queue_id?: string | null
+          reason?: string
+          source?: string
         }
         Relationships: []
       }
