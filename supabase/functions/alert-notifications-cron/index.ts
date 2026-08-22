@@ -379,7 +379,10 @@ async function fetchCandidates(
   codAgent: string,
   triggerKey: string,
   stageIds: string[],
+  windowMinutes: number = RECENT_WINDOW_MIN,
 ): Promise<Candidate[]> {
+  const RECENT_FLOOR_SQL = floorSql(windowMinutes);
+
   if (triggerKey === "qualified" || triggerKey === "disqualified") {
     if (stageIds.length === 0) return [];
     const rows = await sql.unsafe(
