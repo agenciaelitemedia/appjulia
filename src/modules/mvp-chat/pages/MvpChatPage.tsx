@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, MessageSquare, Radio } from 'lucide-react';
-import { Badge, Button, MascoteLoader, Separator, Skeleton, cn } from '../extend/ui';
+import { Badge, Button, MascoteLoader, Skeleton, cn } from '../extend/ui';
 import { useAuth } from '../extend/auth';
 import { useMvpChatFeed } from '../hooks/useMvpChatFeed';
 import { useMvpChatOptions } from '../hooks/useMvpChatOptions';
 import { MvpChatRow } from '../components/MvpChatRow';
 import { MvpChatFiltersBar } from '../components/MvpChatFilters';
 import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
+import { MvpChatDetailsPanel } from '../components/MvpChatDetailsPanel';
 import { DEFAULT_MVP_FILTERS, type MvpChatFilters, type MvpChatRowData } from '../api/types';
 
 export default function MvpChatPage() {
@@ -44,20 +45,16 @@ export default function MvpChatPage() {
   const c = feed.counters;
 
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col gap-4 lg:flex-row">
-      {/* Sidebar de conversas — simula a lista do /chat */}
-      <aside className="flex h-full w-full min-h-0 flex-col gap-3 overflow-hidden rounded-xl border bg-card/60 p-3 backdrop-blur-sm lg:w-[350px]">
-        <div className="flex shrink-0 items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-bold">MVP Chat</h1>
-          <Badge variant="outline" className="ml-auto text-[10px]">protótipo</Badge>
-        </div>
+    <div className="flex h-[calc(100vh-6rem)] overflow-hidden rounded-xl border bg-card/40 backdrop-blur-sm">
+      {/* Coluna 1 — lista de conversas */}
+      <aside className="flex h-full w-full min-h-0 shrink-0 flex-col overflow-hidden border-r lg:w-[350px]">
+        <div className="shrink-0 space-y-2 border-b px-2.5 py-2">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="h-4.5 w-4.5 text-primary" aria-hidden />
+            <h1 className="text-base font-bold">MVP Chat</h1>
+            <Badge variant="outline" className="ml-auto text-[10px]">protótipo</Badge>
+          </div>
 
-        <p className="shrink-0 text-[10px] text-muted-foreground">
-          Query única no servidor + cache + Realtime.
-        </p>
-
-        <div className="thin-scrollbar max-h-[38%] shrink-0 overflow-y-auto pr-1">
           <MvpChatFiltersBar
             filters={filters}
             onChange={patch}
@@ -66,26 +63,24 @@ export default function MvpChatPage() {
             tags={tags}
             juliaStages={juliaStages}
             owners={owners}
+            resultCount={feed.rows.length}
           />
+
+          {c && (
+            <div className="flex flex-wrap items-center gap-1 text-[10px]">
+              <Badge variant="secondary" className="text-[10px]">Total {c.total}</Badge>
+              <Badge variant="outline" className="text-[10px]">Aguard. {c.pending}</Badge>
+              <Badge variant="outline" className="text-[10px]">Atend. {c.open}</Badge>
+              <Badge variant="outline" className="text-[10px]">Resolv. {c.resolved}</Badge>
+              <Badge variant="outline" className="text-[10px]">Fech. {c.closed}</Badge>
+              <Badge variant="outline" className="text-[10px]">Não lidas {c.unread}</Badge>
+              <Badge variant="outline" className="text-[10px] text-destructive">SLA! {c.sla_breached ?? 0}</Badge>
+              <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400">Risco {c.sla_at_risk ?? 0}</Badge>
+            </div>
+          )}
         </div>
 
-        {c && (
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-[10px]">
-            <Badge variant="secondary">Total {c.total}</Badge>
-            <Badge variant="outline">Aguardando {c.pending}</Badge>
-            <Badge variant="outline">Atendimento {c.open}</Badge>
-            <Badge variant="outline">Resolvidas {c.resolved}</Badge>
-            <Badge variant="outline">Fechadas {c.closed}</Badge>
-            <Badge variant="outline">Não lidas {c.unread}</Badge>
-            <Badge variant="outline" className="text-destructive">SLA estourado {c.sla_breached ?? 0}</Badge>
-            <Badge variant="outline" className="text-amber-600 dark:text-amber-400">SLA em risco {c.sla_at_risk ?? 0}</Badge>
-          </div>
-        )}
-
-        <Separator className="shrink-0" />
-
-        <div className="thin-scrollbar min-h-[200px] flex-1 overflow-y-auto pr-1">
-
+        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-1 py-1">
           {feed.error && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {feed.error}
@@ -122,15 +117,15 @@ export default function MvpChatPage() {
         </div>
       </aside>
 
-      {/* Área principal — simula o painel de conversa/detalhes do /chat */}
-      <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-xl border bg-card/40 p-4 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
+      {/* Coluna 2 — conversa / payload */}
+      <main className="hidden min-w-0 flex-1 flex-col overflow-hidden lg:flex xl:border-r">
+        <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
           <Badge variant="secondary" className="gap-1 text-[11px]">
-            <Radio className="h-3 w-3 animate-pulse text-emerald-500" /> tempo real
+            <Radio className="h-3 w-3 animate-pulse text-emerald-500" aria-hidden /> tempo real
           </Badge>
           {feed.revalidating && (
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <RefreshCw className="h-3 w-3 animate-spin" /> atualizando…
+              <RefreshCw className="h-3 w-3 animate-spin" aria-hidden /> atualizando…
             </span>
           )}
           {feed.liveEvents > 0 && (
@@ -140,23 +135,30 @@ export default function MvpChatPage() {
           )}
 
           <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={feed.refresh} disabled={feed.loading}>
-            <RefreshCw className={cn('h-3.5 w-3.5', feed.loading && 'animate-spin')} /> Recarregar
+            <RefreshCw className={cn('h-3.5 w-3.5', feed.loading && 'animate-spin')} aria-hidden /> Recarregar
           </Button>
         </div>
 
-        <MvpChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} />
+        <div className="thin-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+          <MvpChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} />
 
-        {selected ? (
-          <pre className="max-h-full flex-1 overflow-auto rounded-xl border bg-muted/40 p-3 text-[10px] leading-relaxed">
-            {JSON.stringify(selected, null, 2)}
-          </pre>
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
-            <MessageSquare className="h-10 w-10 opacity-40" />
-            <p className="text-sm">Selecione uma conversa na lista para ver os detalhes.</p>
-          </div>
-        )}
+          {selected ? (
+            <pre className="overflow-auto rounded-xl border bg-muted/40 p-3 text-[10px] leading-relaxed">
+              {JSON.stringify(selected, null, 2)}
+            </pre>
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+              <MessageSquare className="h-10 w-10 opacity-40" aria-hidden />
+              <p className="text-sm">Selecione uma conversa na lista para ver os detalhes.</p>
+            </div>
+          )}
+        </div>
       </main>
+
+      {/* Coluna 3 — detalhes do contato / CRM */}
+      <aside className="hidden h-full w-[320px] shrink-0 overflow-hidden xl:block">
+        <MvpChatDetailsPanel row={selected} />
+      </aside>
     </div>
   );
 }
