@@ -132,6 +132,10 @@ interface Filters {
   has_ticket?: boolean | null;
   has_crm_builder?: boolean | null;
   sla_status?: string[] | null;
+  /** Esconde conversas adiadas (snooze). Padrão: true (igual ao /chat). */
+  hide_snoozed?: boolean | null;
+  /** Identidades do usuário quando ele só pode ver 'open' atribuído a si. */
+  restrict_open_to?: string[] | null;
   /** Filtros que dependem do banco legado (aplicados após o merge). */
   julia_stage?: string | null;
   julia_stage_ids?: (string | number)[] | null;
@@ -178,6 +182,8 @@ function summarizeParams(b: Filters, extra: Record<string, unknown> = {}) {
     has_ticket: b.has_ticket ?? null,
     has_crm_builder: b.has_crm_builder ?? null,
     sla_status: b.sla_status?.length ?? 0,
+    hide_snoozed: b.hide_snoozed ?? true,
+    restrict_open_to: b.restrict_open_to?.length ?? 0,
     julia_stage: b.julia_stage ?? null,
     julia_stage_ids: b.julia_stage_ids?.length ?? 0,
     julia_mode: b.julia_mode ?? null,
@@ -277,6 +283,8 @@ serve(async (req) => {
     p_has_crm_builder: body.has_crm_builder ?? null,
     p_sla_status: body.sla_status?.length ? body.sla_status : null,
     p_sort: body.sort || "recent",
+    p_hide_snoozed: body.hide_snoozed ?? true,
+    p_restrict_open_to: body.restrict_open_to?.length ? body.restrict_open_to : null,
     p_limit: needsPostFilter ? HARD_CAP : limit,
     p_offset: needsPostFilter ? 0 : offset,
   };
