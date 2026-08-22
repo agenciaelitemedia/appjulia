@@ -362,6 +362,9 @@ export async function runXJTurn(ctx: XJRunContext): Promise<{ reply: string | nu
     detail: finalText.slice(0, 500),
     duration_ms: Date.now() - started,
   });
+  await bumpUsage(supabase, String(session.client_id), 0, 1);
+
+
 
   return { reply: finalText, stage: session.stage };
 }
