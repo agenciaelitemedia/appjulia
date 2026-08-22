@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
 import { applyXJPricingOverrides } from '../modelCatalog';
+import { xjInvoke } from '../lib/xjInvoke';
 
 export interface XJProviderSetting {
   provider: string;
@@ -57,7 +58,7 @@ export function useXJProviderConfig(clientId?: string | null) {
       const path = clientId
         ? `xj-provider-config?client_id=${encodeURIComponent(String(clientId))}`
         : 'xj-provider-config';
-      const { data, error } = await supabase.functions.invoke(path, { method: 'GET' });
+      const { data, error } = await xjInvoke(path, { method: 'GET' });
       if (error) return { providers: [], client_keys: [], model_pricing: [] };
       const parsed = (data as XJProviderConfigResponse) ?? { providers: [], client_keys: [], model_pricing: [] };
       applyXJPricingOverrides(parsed.model_pricing ?? []);
@@ -78,7 +79,7 @@ export function useXJProviderConfigMutations() {
       enabled_models: string[];
       default_key?: string;
     }) => {
-      const { error } = await supabase.functions.invoke('xj-provider-config', {
+      const { error } = await xjInvoke('xj-provider-config', {
         method: 'POST',
         body: { action: 'save_provider', ...input },
       });
@@ -98,7 +99,7 @@ export function useXJProviderConfigMutations() {
       kind: 'llm' | 'voice';
       api_key: string;
     }) => {
-      const { error } = await supabase.functions.invoke('xj-provider-config', {
+      const { error } = await xjInvoke('xj-provider-config', {
         method: 'POST',
         body: { action: 'save_client_key', ...input },
       });
@@ -128,7 +129,7 @@ export function useXJModelPricingMutations() {
       note?: string | null;
       is_active?: boolean;
     }) => {
-      const { error } = await supabase.functions.invoke('xj-provider-config', {
+      const { error } = await xjInvoke('xj-provider-config', {
         method: 'POST',
         body: { action: 'save_model_pricing', ...input },
       });
@@ -143,7 +144,7 @@ export function useXJModelPricingMutations() {
 
   const deletePricing = useMutation({
     mutationFn: async (input: { provider: string; model: string }) => {
-      const { error } = await supabase.functions.invoke('xj-provider-config', {
+      const { error } = await xjInvoke('xj-provider-config', {
         method: 'POST',
         body: { action: 'delete_model_pricing', ...input },
       });
@@ -158,7 +159,7 @@ export function useXJModelPricingMutations() {
 
   const seedPricing = useMutation({
     mutationFn: async (input?: { force?: boolean }) => {
-      const { error } = await supabase.functions.invoke('xj-provider-config', {
+      const { error } = await xjInvoke('xj-provider-config', {
         method: 'POST',
         body: { action: 'seed_model_pricing', force: !!input?.force },
       });
@@ -173,7 +174,7 @@ export function useXJModelPricingMutations() {
 
   const fetchProviderModels = useMutation<XJRemoteModel[], any, { provider: string; client_id?: string | null }>({
     mutationFn: async (input) => {
-      const { data, error } = await supabase.functions.invoke('xj-provider-config', {
+      const { data, error } = await xjInvoke('xj-provider-config', {
         method: 'POST',
         body: { action: 'list_provider_models', ...input },
       });
@@ -189,7 +190,7 @@ export function useXJModelPricingMutations() {
 
   const importProviderModels = useMutation({
     mutationFn: async (input: { provider: string; models: XJRemoteModel[] }) => {
-      const { data, error } = await supabase.functions.invoke('xj-provider-config', {
+      const { data, error } = await xjInvoke('xj-provider-config', {
         method: 'POST',
         body: { action: 'import_provider_models', ...input },
       });

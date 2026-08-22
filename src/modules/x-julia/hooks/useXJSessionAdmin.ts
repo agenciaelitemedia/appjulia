@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
+import { xjInvoke } from '../lib/xjInvoke';
 
 function useInvalidate() {
   const queryClient = useQueryClient();
@@ -88,7 +89,7 @@ export function useXJSessionAdmin() {
   /** Muda a etapa e o agente age na hora, conduzindo aquela etapa. */
   const advanceStage = useMutation({
     mutationFn: async ({ sessionId, stage }: { sessionId: string; stage: string }) => {
-      const { data, error } = await supabase.functions.invoke('x-julia-engine', {
+      const { data, error } = await xjInvoke('x-julia-engine', {
         body: { action: 'advance_stage', data: { session_id: sessionId, stage } },
       });
       if (error) throw error;
@@ -106,7 +107,7 @@ export function useXJSessionAdmin() {
   /** Força um turno do agente mantendo a etapa atual (continuar agora). */
   const continueNow = useMutation({
     mutationFn: async (sessionId: string) => {
-      const { data, error } = await supabase.functions.invoke('x-julia-engine', {
+      const { data, error } = await xjInvoke('x-julia-engine', {
         body: { action: 'continue_now', data: { session_id: sessionId } },
       });
       if (error) throw error;

@@ -49,6 +49,7 @@ import { useXJOffices } from '../hooks/useXJOffices';
 import { useXJZapsignTemplate } from '../hooks/useXJZapsign';
 import { ZapSignWizardDialog } from '../components/ZapSignWizardDialog';
 import { toast } from 'sonner';
+import { xjInvoke } from '../lib/xjInvoke';
 
 /** Seleção do caso jurídico que o agente especialista atende (1 agente por caso). */
 function SpecialistCaseSelect({
@@ -144,7 +145,7 @@ export default function XJAgentEditorPage() {
     setTestingVoice(true);
     setVoiceTest(null);
     try {
-      const { data, error } = await supabase.functions.invoke('x-julia-engine', {
+      const { data, error } = await xjInvoke('x-julia-engine', {
         body: {
           action: 'test_voice',
           agent_id: agent.id,

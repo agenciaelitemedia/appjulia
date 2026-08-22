@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '../extend/db';
 import { useXJEffectiveClientId } from '../context/XJScopeContext';
 import type { XJDeal, XJPipeline } from '../types';
+import { xjInvoke } from '../lib/xjInvoke';
 
 export function useXJPipelines() {
   const { clientId } = useXJEffectiveClientId();
@@ -99,7 +100,7 @@ export function useXJSyncCrmBuilder() {
   return useMutation({
     mutationFn: async () => {
       if (!clientId) throw new Error('escritório não identificado');
-      const { data, error } = await supabase.functions.invoke('x-julia-admin', {
+      const { data, error } = await xjInvoke('x-julia-admin', {
         body: { action: 'crm_sync_builder', data: { client_id: String(clientId) } },
       });
       if (error) throw error;
