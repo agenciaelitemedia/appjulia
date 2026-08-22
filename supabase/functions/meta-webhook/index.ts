@@ -4,6 +4,7 @@ import { resolveQueueByWabaNumberId, resolveQueueId } from "../_shared/resolve-q
 import { logDroppedMessage } from "../_shared/droppedLogger.ts";
 import { resolveQuotedMeta } from "../_shared/quotedMessage.ts";
 import { fetchWhatsappProfile, fetchWabaProfileWithUazapiFallback, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
+import { clientIpOf, logWebhookRejection, verifyMetaSignature } from "../_shared/webhookAuth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
