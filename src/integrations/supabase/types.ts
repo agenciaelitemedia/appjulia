@@ -11143,51 +11143,29 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: number
       }
-      mvp_chat_list_feed:
-        | {
-            Args: {
-              p_client_id: string
-              p_from?: string
-              p_has_crm_builder?: boolean
-              p_has_ticket?: boolean
-              p_limit?: number
-              p_offset?: number
-              p_owner?: string
-              p_priority?: string
-              p_queue_ids?: string[]
-              p_search?: string
-              p_sort?: string
-              p_status?: string
-              p_tab?: string
-              p_tag_ids?: string[]
-              p_to?: string
-              p_unassigned?: boolean
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_client_id: string
-              p_from?: string
-              p_has_crm_builder?: boolean
-              p_has_ticket?: boolean
-              p_limit?: number
-              p_offset?: number
-              p_owner?: string
-              p_owners?: string[]
-              p_priority?: string
-              p_queue_ids?: string[]
-              p_search?: string
-              p_sla_status?: string[]
-              p_sort?: string
-              p_status?: string
-              p_tab?: string
-              p_tag_ids?: string[]
-              p_to?: string
-              p_unassigned?: boolean
-            }
-            Returns: Json
-          }
+      mvp_chat_list_feed: {
+        Args: {
+          p_client_id: string
+          p_from?: string
+          p_has_crm_builder?: boolean
+          p_has_ticket?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_owner?: string
+          p_owners?: string[]
+          p_priority?: string
+          p_queue_ids?: string[]
+          p_search?: string
+          p_sla_status?: string[]
+          p_sort?: string
+          p_status?: string
+          p_tab?: string
+          p_tag_ids?: string[]
+          p_to?: string
+          p_unassigned?: boolean
+        }
+        Returns: Json
+      }
       refresh_team_performance_mvs: { Args: never; Returns: undefined }
       release_wavoip_devices_from_plan: {
         Args: { p_user_plan_id: string }
