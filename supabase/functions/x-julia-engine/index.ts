@@ -17,10 +17,15 @@ import {
   type XJActivation,
 } from "../_shared/x-julia/activation.ts";
 import type { XJInboundMessage, XJQueueCreds } from "../_shared/x-julia/types.ts";
+import {
+  requireInternalOrAppIdentity,
+  requireInternalSecret,
+  XJ_GUARD_HEADERS,
+} from "../_shared/x-julia/guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": XJ_GUARD_HEADERS,
 };
 
 function json(body: unknown, status = 200) {
@@ -42,6 +47,16 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const action = body.action ?? "run";
     const data = body.data ?? body;
+
+    // Comandos de painel exigem sessão do app; o turno do lead é chamada interna.
+    const PANEL_ACTIONS = ["ping", "test_voice", "advance_stage", "continue_now"];
+    if (PANEL_ACTIONS.includes(String(action))) {
+      const caller = await requireInternalOrAppIdentity(req);
+      if ("error" in caller) return json({ error: caller.error }, (caller as any).status ?? 401);
+    } else {
+      const denied = requireInternalSecret(req);
+      if (denied) return json({ error: denied.error }, denied.status);
+    }
 
     if (action === "ping") return json({ ok: true, module: "x-julia" });
 

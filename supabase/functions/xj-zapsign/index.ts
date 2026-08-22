@@ -5,6 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resolveZapsignToken, slugifyClientFolder, zapsignCreateTemplate, zapsignCreateDocFromTemplate, ZAPSIGN_DEFAULT_TOKEN } from "../_shared/x-julia/zapsign.ts";
 import { resolveSystemContractField } from "../_shared/x-julia/datetime.ts";
+import { requireAppIdentity, XJ_GUARD_HEADERS, xjGuardFailed } from "../_shared/x-julia/guard.ts";
 
 /** Valores fictícios usados no documento de teste, por campo do catálogo. */
 const SAMPLE_VALUES: Record<string, string> = {
@@ -24,7 +25,7 @@ const SAMPLE_VALUES: Record<string, string> = {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": XJ_GUARD_HEADERS,
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
@@ -42,6 +43,13 @@ function json(body: unknown, status = 200) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // Guarda de identidade: função de painel, exige sessão válida do aplicativo.
+  const identity = await requireAppIdentity(req);
+  if (xjGuardFailed(identity)) return json({ error: identity.error }, identity.status);
+  /** Escritório sempre resolvido no servidor; admin pode agir em outro. */
+  const tenant = (requested?: unknown) =>
+    identity.isAdmin && String(requested ?? "").trim() ? String(requested).trim() : identity.clientId;
 
   try {
     if (req.method === "GET") {
@@ -79,7 +87,7 @@ Deno.serve(async (req) => {
       }
 
       if (action === "upload_template") {
-        const clientId = String(body?.client_id ?? "").trim();
+        const clientId = tenant(body?.client_id);
         const clientName = String(body?.client_name ?? "").trim();
         const caseId = String(body?.case_id ?? "").trim();
         const agentId = body?.agent_id ? String(body.agent_id) : null;

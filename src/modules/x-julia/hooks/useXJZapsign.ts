@@ -5,6 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
+import { xjInvoke } from '../lib/xjInvoke';
 
 export interface XJZapsignVariable {
   variable: string;
@@ -38,7 +39,7 @@ export function useXJZapsignTemplate(caseId?: string | null) {
     enabled: !!caseId,
     staleTime: 30_000,
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke(
+      const { data, error } = await xjInvoke(
         `xj-zapsign?case_id=${encodeURIComponent(String(caseId))}`,
         { method: 'GET' },
       );
@@ -54,7 +55,7 @@ export function useXJZapsignMutations() {
 
   const validateToken = useMutation<{ ok: boolean; error?: string }, any, { token: string }>({
     mutationFn: async (input) => {
-      const { data, error } = await supabase.functions.invoke('xj-zapsign', {
+      const { data, error } = await xjInvoke('xj-zapsign', {
         method: 'POST',
         body: { action: 'validate_token', ...input },
       });
@@ -78,7 +79,7 @@ export function useXJZapsignMutations() {
     }
   >({
     mutationFn: async (input) => {
-      const { data, error } = await supabase.functions.invoke('xj-zapsign', {
+      const { data, error } = await xjInvoke('xj-zapsign', {
         method: 'POST',
         body: { action: 'upload_template', ...input },
       });
@@ -102,7 +103,7 @@ export function useXJZapsignMutations() {
     { id: string; case_id: string; field_mapping: Record<string, string> }
   >({
     mutationFn: async (input) => {
-      const { data, error } = await supabase.functions.invoke('xj-zapsign', {
+      const { data, error } = await xjInvoke('xj-zapsign', {
         method: 'POST',
         body: { action: 'save_mapping', id: input.id, field_mapping: input.field_mapping },
       });
@@ -130,7 +131,7 @@ export function useXJZapsignMutations() {
     { id: string; field_mapping: Record<string, string>; token?: string }
   >({
     mutationFn: async (input) => {
-      const { data, error } = await supabase.functions.invoke('xj-zapsign', {
+      const { data, error } = await xjInvoke('xj-zapsign', {
         method: 'POST',
         body: { action: 'test_mapping', ...input },
       });
@@ -145,7 +146,7 @@ export function useXJZapsignMutations() {
 
   const deactivateTemplate = useMutation<XJZapsignTemplate, any, { id: string; case_id: string }>({
     mutationFn: async (input) => {
-      const { data, error } = await supabase.functions.invoke('xj-zapsign', {
+      const { data, error } = await xjInvoke('xj-zapsign', {
         method: 'POST',
         body: { action: 'deactivate_template', id: input.id },
       });

@@ -9,10 +9,11 @@ import { xjGenerateContract } from "../_shared/x-julia/contracts.ts";
 import { xjSynthesize } from "../_shared/x-julia/tts.ts";
 import { syncAllDealsToBuilder } from "../_shared/x-julia/crm.ts";
 import { XJ_TOOLS } from "../_shared/x-julia/skills.ts";
+import { requireAppIdentity, XJ_GUARD_HEADERS, xjGuardFailed } from "../_shared/x-julia/guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": XJ_GUARD_HEADERS,
 };
 
 function json(body: unknown, status = 200) {
@@ -30,6 +31,14 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
+  // Guarda de identidade: função de painel, exige sessão válida do aplicativo.
+  const identity = await requireAppIdentity(req);
+  if (xjGuardFailed(identity)) return json({ error: identity.error }, identity.status);
+
+  /** Recusa acesso a recursos de outro escritório (admin passa). */
+  const sameTenant = (clientId: unknown) =>
+    identity.isAdmin || String(clientId ?? "") === identity.clientId;
+
   try {
     const { action, data } = await req.json();
 
@@ -37,6 +46,7 @@ Deno.serve(async (req) => {
     if (action === "simulate") {
       const { data: agent } = await supabase.from("xj_agents").select("*").eq("id", data.agent_id).maybeSingle();
       if (!agent) return json({ error: "agente não encontrado" }, 404);
+      if (!sameTenant(agent.client_id)) return json({ error: "agente de outro escritório" }, 403);
 
       const legalCase = data.case_id
         ? (await supabase.from("xj_legal_cases").select("*").eq("id", data.case_id).maybeSingle()).data
@@ -101,7 +111,7 @@ Deno.serve(async (req) => {
 
     if (action === "voice_preview") {
       const result = await xjSynthesize(supabase, {
-        clientId: String(data.client_id ?? "0"),
+        clientId: identity.isAdmin && data?.client_id ? String(data.client_id) : identity.clientId,
         text: String(data.text ?? "Olá! Sou a assistente do escritório."),
         provider: String(data.provider ?? "elevenlabs"),
         voiceId: data.voice_id ?? null,
@@ -118,6 +128,7 @@ Deno.serve(async (req) => {
         .eq("id", data.session_id)
         .maybeSingle();
       if (!session) return json({ error: "sessão não encontrada" }, 404);
+      if (!sameTenant(session.client_id)) return json({ error: "sessão de outro escritório" }, 403);
       const { data: agent } = await supabase.from("xj_agents").select("*").eq("id", session.agent_id).maybeSingle();
       const legalCase = session.case_id
         ? (await supabase.from("xj_legal_cases").select("*").eq("id", session.case_id).maybeSingle()).data
@@ -134,8 +145,8 @@ Deno.serve(async (req) => {
 
     // Sincronização manual do CRM X-Julia com o quadro "CRM da Julia" no CRM Builder.
     if (action === "crm_sync_builder") {
-      const clientId = String(data?.client_id ?? "");
-      if (!clientId) return json({ error: "client_id obrigatório" }, 400);
+      const clientId = identity.isAdmin && data?.client_id ? String(data.client_id) : identity.clientId;
+      if (!clientId) return json({ error: "escritório não resolvido" }, 400);
       const result = await syncAllDealsToBuilder(supabase, clientId);
       return json({ ok: true, ...result });
     }

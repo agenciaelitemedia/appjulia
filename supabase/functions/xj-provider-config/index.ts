@@ -5,12 +5,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { XJ_MODEL_CATALOG } from "../_shared/x-julia/pricing.ts";
 import { getProvider } from "../_shared/x-julia/llm.ts";
+import { requireAppIdentity, XJ_GUARD_HEADERS, xjGuardFailed } from "../_shared/x-julia/guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": XJ_GUARD_HEADERS,
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
+
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -173,10 +175,18 @@ async function fetchProviderModels(providerId: string, apiKey: string): Promise<
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  // Guarda de identidade: sem sessão válida do painel, nada é lido nem gravado.
+  const identity = await requireAppIdentity(req);
+  if (xjGuardFailed(identity)) return json({ error: identity.error }, identity.status);
+  const adminOnly = () => (identity.isAdmin ? null : json({ error: "ação restrita ao administrador" }, 403));
+
   try {
     if (req.method === "GET") {
+      // O client_id do chamador é ignorado: usa-se o resolvido no servidor.
+      // Admin pode inspecionar outro escritório explicitamente.
       const url = new URL(req.url);
-      const clientId = url.searchParams.get("client_id");
+      const requested = (url.searchParams.get("client_id") ?? "").trim();
+      const clientId = identity.isAdmin && requested ? requested : identity.clientId;
 
       const { data: settings, error } = await supabase
         .from("xj_provider_settings")
@@ -219,6 +229,8 @@ Deno.serve(async (req) => {
       const action = String(body?.action ?? "");
 
       if (action === "save_provider") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const provider = String(body?.provider ?? "").trim();
         const kind = String(body?.kind ?? "llm").trim();
         if (!provider || !["llm", "voice", "contract"].includes(kind)) {
@@ -244,7 +256,9 @@ Deno.serve(async (req) => {
       }
 
       if (action === "save_client_key") {
-        const clientId = String(body?.client_id ?? "").trim();
+        // Escritório sempre vem da sessão; admin pode agir em outro explicitamente.
+        const requested = String(body?.client_id ?? "").trim();
+        const clientId = identity.isAdmin && requested ? requested : identity.clientId;
         const provider = String(body?.provider ?? "").trim();
         const kind = String(body?.kind ?? "llm").trim();
         const apiKey = String(body?.api_key ?? "").trim();
@@ -272,7 +286,10 @@ Deno.serve(async (req) => {
         return json({ ok: true, masked: mask(apiKey) });
       }
 
+
       if (action === "save_model_pricing") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const provider = String(body?.provider ?? "").trim();
         const model = String(body?.model ?? "").trim();
         if (!provider || !model) return json({ error: "provider e model são obrigatórios" }, 400);
@@ -294,6 +311,8 @@ Deno.serve(async (req) => {
       }
 
       if (action === "delete_model_pricing") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const provider = String(body?.provider ?? "").trim();
         const model = String(body?.model ?? "").trim();
         if (!provider || !model) return json({ error: "provider e model são obrigatórios" }, 400);
@@ -308,6 +327,8 @@ Deno.serve(async (req) => {
 
       // Popula a tabela com o catálogo padrão do código (não sobrescreve linhas existentes salvo force).
       if (action === "seed_model_pricing") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const force = !!body?.force;
         const rows = Object.entries(XJ_MODEL_CATALOG).map(([key, info]) => {
           const parts = key.split("/");
@@ -343,7 +364,8 @@ Deno.serve(async (req) => {
       if (action === "list_provider_models") {
         const provider = String(body?.provider ?? "").trim();
         if (!provider) return json({ error: "provider é obrigatório" }, 400);
-        const clientId = body?.client_id ? String(body.client_id) : null;
+        const requestedClient = String(body?.client_id ?? "").trim();
+        const clientId = identity.isAdmin && requestedClient ? requestedClient : identity.clientId;
         try {
           const key = await resolveProviderKey(provider, clientId);
           const models = await fetchProviderModels(provider, key);
@@ -356,6 +378,8 @@ Deno.serve(async (req) => {
 
       // Importa modelos vindos do provedor para o catálogo de preços.
       if (action === "import_provider_models") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const provider = String(body?.provider ?? "").trim();
         const models = Array.isArray(body?.models) ? body.models : [];
         if (!provider || !models.length) return json({ error: "provider e models são obrigatórios" }, 400);

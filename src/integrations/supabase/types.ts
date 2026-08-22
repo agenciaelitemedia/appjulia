@@ -9959,13 +9959,16 @@ export type Database = {
           created_at: string
           error_message: string | null
           id: string
+          locked_at: string | null
           resolved_content: Json | null
+          retry_count: number
           run_at: string
           sent_at: string | null
           session_id: string
           status: string
           step_id: string | null
           updated_at: string
+          worker_id: number | null
         }
         Insert: {
           attempt?: number
@@ -9974,13 +9977,16 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          locked_at?: string | null
           resolved_content?: Json | null
+          retry_count?: number
           run_at: string
           sent_at?: string | null
           session_id: string
           status?: string
           step_id?: string | null
           updated_at?: string
+          worker_id?: number | null
         }
         Update: {
           attempt?: number
@@ -9989,13 +9995,16 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          locked_at?: string | null
           resolved_content?: Json | null
+          retry_count?: number
           run_at?: string
           sent_at?: string | null
           session_id?: string
           status?: string
           step_id?: string | null
           updated_at?: string
+          worker_id?: number | null
         }
         Relationships: [
           {
@@ -10884,6 +10893,37 @@ export type Database = {
         }[]
       }
       uazapi_release_stale_locks: { Args: never; Returns: number }
+      xj_pick_due_followups: {
+        Args: { p_limit?: number; p_worker_id?: number }
+        Returns: {
+          attempt: number
+          cadence_id: string | null
+          client_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          locked_at: string | null
+          resolved_content: Json | null
+          retry_count: number
+          run_at: string
+          sent_at: string | null
+          session_id: string
+          status: string
+          step_id: string | null
+          updated_at: string
+          worker_id: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "xj_followups"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      xj_release_stale_followups: {
+        Args: { p_minutes?: number }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
