@@ -16,9 +16,11 @@ export function CRMTotalizers({ cards, stages }: CRMTotalizersProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-1">
       {/* Stage cards */}
-      {stages.map((stage) => {
+      {stages.map((stage, index) => {
         const count = getCountForStage(stage.id);
-        const pct = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
+        const pctTotal = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
+        const prevCount = index > 0 ? getCountForStage(stages[index - 1].id) : 0;
+        const pctPrev = index > 0 && prevCount > 0 ? (count / prevCount) * 100 : 0;
         return (
           <Card
             key={stage.id}
@@ -29,12 +31,17 @@ export function CRMTotalizers({ cards, stages }: CRMTotalizersProps) {
               <div className="flex items-baseline gap-1">
                 <p className="text-base font-bold leading-tight">{count}</p>
                 <span className="text-[10px] font-medium text-muted-foreground leading-tight">
-                  ({pct.toFixed(1).replace('.', ',')}%)
+                  {pctTotal.toFixed(1).replace('.', ',')}% tot
                 </span>
               </div>
+              {index > 0 && (
+                <p className="text-[10px] font-medium text-muted-foreground leading-tight">
+                  {pctPrev.toFixed(1).replace('.', ',')}% da anterior
+                </p>
+              )}
               <p
                 className="text-[10px] text-muted-foreground line-clamp-1 leading-tight"
-                title={`${stage.name} — ${pct.toFixed(1).replace('.', ',')}% do total`}
+                title={`${stage.name} — ${pctTotal.toFixed(1).replace('.', ',')}% do total`}
               >
                 {stage.name}
               </p>
@@ -53,3 +60,4 @@ export function CRMTotalizers({ cards, stages }: CRMTotalizersProps) {
     </div>
   );
 }
+
