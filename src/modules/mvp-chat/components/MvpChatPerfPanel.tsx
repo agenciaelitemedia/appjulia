@@ -1,4 +1,4 @@
-import { Database, Server, Timer, Layers, AlertTriangle } from 'lucide-react';
+import { Database, Server, Timer, Layers, AlertTriangle, Zap } from 'lucide-react';
 import { Badge, cn } from '../extend/ui';
 import type { MvpChatTimings } from '../api/types';
 
@@ -21,17 +21,27 @@ function Metric({ icon: Icon, label, value, tone }: { icon: any; label: string; 
 }
 
 export function MvpChatPerfPanel({ timings, requests, rowsLoaded }: Props) {
+  const hits = timings?.cache_hits ?? 0;
+  const misses = timings?.cache_misses ?? 0;
+  const refreshed = timings?.cache_refreshed ?? 0;
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Metric icon={Timer} label="Tempo total" value={timings ? `${timings.total_ms} ms` : '—'} />
       <Metric icon={Database} label="Supabase (1 SQL)" value={timings ? `${timings.supabase_ms} ms` : '—'} />
-      <Metric icon={Server} label="Banco legado (1 SQL)" value={timings ? `${timings.external_ms} ms` : '—'} />
+      <Metric icon={Zap} label="Cache legado" value={timings ? `${timings.cache_ms ?? 0} ms · ${hits} hits / ${misses} miss` : '—'} />
+      <Metric icon={Server} label="Banco legado" value={timings ? `${timings.external_ms} ms · ${refreshed} chaves` : '—'} />
       <Metric icon={Layers} label="SQL por página" value={timings ? String(timings.sql_count) : '—'} />
       <Metric icon={Layers} label="Requests HTTP" value={String(requests)} />
       <Badge variant="outline" className="h-8 px-3 text-[11px]">{rowsLoaded} cards carregados</Badge>
+      {timings?.external_stale && !timings?.external_error && (
+        <Badge variant="secondary" className="h-8 gap-1 bg-sky-500/15 px-3 text-[11px] text-sky-600 dark:text-sky-400">
+          <Zap className="h-3.5 w-3.5" /> Badges da Júlia servidas do cache
+        </Badge>
+      )}
       {timings?.external_error && (
         <Badge variant="secondary" className="h-8 gap-1 bg-amber-500/15 px-3 text-[11px] text-amber-600 dark:text-amber-400">
-          <AlertTriangle className="h-3.5 w-3.5" /> Banco legado indisponível — badges da Júlia omitidas
+          <AlertTriangle className="h-3.5 w-3.5" /> Banco legado indisponível — usando o último cache
         </Badge>
       )}
     </div>

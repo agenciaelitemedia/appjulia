@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshCw, MessageSquare } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { RefreshCw, MessageSquare, Radio } from 'lucide-react';
 import { Badge, Button, MascoteLoader, Separator, Skeleton, cn } from '../extend/ui';
 import { useAuth } from '../extend/auth';
 import { useMvpChatFeed } from '../hooks/useMvpChatFeed';
@@ -24,15 +24,7 @@ export default function MvpChatPage() {
   }, [filters]);
 
   const feed = useMvpChatFeed(clientId, debounced);
-  const { queues, tags } = useMvpChatOptions(clientId);
-
-  const juliaStages = useMemo(() => {
-    const map = new Map<string, string>();
-    feed.rows.forEach((r) => {
-      if (r.julia_stage_name && r.julia_stage_id != null) map.set(String(r.julia_stage_id), r.julia_stage_name);
-    });
-    return Array.from(map, ([id, name]) => ({ id, name }));
-  }, [feed.rows]);
+  const { queues, tags, owners, juliaStages } = useMvpChatOptions(clientId);
 
   const patch = useCallback((p: Partial<MvpChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
   const reset = useCallback(() => setFilters(DEFAULT_MVP_FILTERS), []);
@@ -60,6 +52,14 @@ export default function MvpChatPage() {
             <h1 className="text-xl font-bold">MVP — Lista de conversas (query única)</h1>
           </div>
           <Badge variant="outline" className="text-[11px]">protótipo</Badge>
+          <Badge variant="secondary" className="gap-1 text-[11px]">
+            <Radio className="h-3 w-3 animate-pulse text-emerald-500" /> tempo real
+          </Badge>
+          {feed.liveEvents > 0 && (
+            <Button variant="secondary" size="sm" className="h-8 gap-1 text-[11px]" onClick={feed.refresh}>
+              {feed.liveEvents} novidade(s) — atualizar
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={feed.refresh} disabled={feed.loading}>
             <RefreshCw className={cn('h-3.5 w-3.5', feed.loading && 'animate-spin')} /> Recarregar
           </Button>
@@ -67,8 +67,9 @@ export default function MvpChatPage() {
 
         <p className="text-xs text-muted-foreground">
           Cada página da lista faz <strong>1 chamada HTTP</strong> → 1 SQL no Supabase (conversa líder + etiquetas +
-          ticket + CRM Builder) e 1 SQL no banco legado (CRM da Júlia, sessão e Meta Ads). Todos os filtros são
-          aplicados no servidor, então a paginação e os totalizadores ficam sempre coerentes.
+          ticket + CRM Builder + SLA) e, só para as chaves vencidas, 1 SQL no banco legado (CRM da Júlia, sessão e Meta
+          Ads) — o resto vem do cache server-side. Todos os filtros são aplicados no servidor e as mensagens novas
+          chegam por Realtime, sem recarregar a lista.
         </p>
 
         <MvpChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} />
@@ -80,6 +81,7 @@ export default function MvpChatPage() {
           queues={queues}
           tags={tags}
           juliaStages={juliaStages}
+          owners={owners}
         />
 
         {c && (
@@ -90,6 +92,8 @@ export default function MvpChatPage() {
             <Badge variant="outline">Resolvidas {c.resolved}</Badge>
             <Badge variant="outline">Fechadas {c.closed}</Badge>
             <Badge variant="outline">Não lidas {c.unread}</Badge>
+            <Badge variant="outline" className="text-destructive">SLA estourado {c.sla_breached ?? 0}</Badge>
+            <Badge variant="outline" className="text-amber-600 dark:text-amber-400">SLA em risco {c.sla_at_risk ?? 0}</Badge>
           </div>
         )}
 
