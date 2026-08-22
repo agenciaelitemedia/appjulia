@@ -914,14 +914,38 @@ Deno.serve(async (req) => {
     // Resolve queue to get client_id
     const { data: queue, error: queueError } = await supabase
       .from('queues')
-      .select('id, client_id, channel_type, name, evo_url, evo_apikey, waba_token, waba_number_id')
+      .select('id, client_id, channel_type, name, evo_url, evo_apikey, waba_token, waba_number_id, webhook_token')
       .eq('id', queueId)
       .single();
 
     if (queueError || !queue) {
       console.error('[uazapi-chat-webhook] Queue not found:', queueId);
+      await logWebhookRejection(supabase, {
+        source: 'uazapi-chat-webhook',
+        reason: 'fila_inexistente',
+        queue_id: queueId,
+        ip: clientIpOf(req),
+        path: url.pathname,
+      });
       return respond({ error: 'Queue not found' }, 404);
     }
+
+    // Autenticação do provedor: token compartilhado da fila (quando configurado).
+    const tokenCheck = verifyQueueToken(req, url, (queue as any).webhook_token);
+    if (!tokenCheck.ok) {
+      console.warn('[uazapi-chat-webhook] webhook recusado:', tokenCheck.reason, 'queue=', queueId);
+      await logWebhookRejection(supabase, {
+        source: 'uazapi-chat-webhook',
+        reason: tokenCheck.reason!,
+        queue_id: queueId,
+        client_id: String((queue as any).client_id ?? ''),
+        ip: clientIpOf(req),
+        path: url.pathname,
+      });
+      return respond({ error: 'unauthorized' }, 401);
+    }
+
+
 
     const payload = await req.json();
     // Resolve event name resilient to UaZapi sometimes sending `event` as an
