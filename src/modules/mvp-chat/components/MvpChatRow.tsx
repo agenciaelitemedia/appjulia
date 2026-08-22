@@ -113,6 +113,17 @@ export const MvpChatRow = memo(function MvpChatRow({ row, selected, onSelect }: 
               {STATUS_LABEL[row.status] ?? row.status}
             </Badge>
 
+            {(row.sibling_open_count ?? 0) > 0 && (
+              <Badge
+                variant="outline"
+                className="h-5 px-1.5 text-[10px]"
+                title={`Este contato tem ${row.sibling_open_count} outra(s) conversa(s) aberta(s)`}
+              >
+                +{row.sibling_open_count} conversa{(row.sibling_open_count ?? 0) > 1 ? 's' : ''}
+              </Badge>
+            )}
+
+
             {row.queue_name && (
               <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
                 <Clock className="h-3 w-3" /> {row.queue_name}

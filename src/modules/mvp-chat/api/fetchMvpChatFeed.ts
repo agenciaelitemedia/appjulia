@@ -34,12 +34,16 @@ export async function fetchMvpChatFeed(params: {
   const { from, to } = periodToRange(params.filters.period);
   const f = params.filters;
 
+  const scopeQueues = f.scope_queue_ids ?? [];
+  const queueIds = f.queue_ids.length ? f.queue_ids : (scopeQueues.length ? scopeQueues : null);
+
   const { data, error } = await supabase.functions.invoke('mvp-chat-list-feed', {
     body: {
       client_id: params.clientId,
-      queue_ids: f.queue_ids.length ? f.queue_ids : null,
+      queue_ids: queueIds,
       status: f.status,
       tab: f.tab,
+
       owners: f.owners.length ? f.owners : null,
       unassigned: f.unassigned,
       search: f.search?.trim() || null,
@@ -54,9 +58,12 @@ export async function fetchMvpChatFeed(params: {
       julia_mode: f.julia_mode,
       has_campaign: f.has_campaign,
       sort: f.sort,
+      hide_snoozed: f.hide_snoozed ?? true,
+      restrict_open_to: f.restrict_open_to?.length ? f.restrict_open_to : null,
       limit: params.limit,
       offset: params.offset,
       refresh: params.refresh ?? false,
+
     },
   });
 

@@ -83,6 +83,10 @@ export interface MvpChatRowData {
   has_julia_card: boolean;
   session_is_active: boolean | null;
   campaign: MvpChatCampaign | null;
+
+  /** Outras conversas abertas do mesmo contato (além da exibida). */
+  sibling_open_count?: number;
+
 }
 
 export interface MvpChatCounters {
@@ -92,9 +96,12 @@ export interface MvpChatCounters {
   resolved: number;
   closed: number;
   unread: number;
+  /** Nº de contatos (conversas líder) no escopo filtrado. */
+  total_contacts?: number;
   sla_breached?: number;
   sla_at_risk?: number;
 }
+
 
 export interface MvpChatTimings {
   total_ms: number;
@@ -138,7 +145,17 @@ export interface MvpChatFilters {
   has_campaign: boolean | null;
   sla_status: MvpSlaStatus[];
   sort: 'recent' | 'oldest' | 'unread' | 'sla';
+  /**
+   * Escopo de filas acessíveis ao usuário (mesma regra do /chat). Usado quando
+   * nenhuma fila é escolhida manualmente em `queue_ids`.
+   */
+  scope_queue_ids?: string[];
+  /** Esconde conversas adiadas (snooze) — padrão do /chat. */
+  hide_snoozed?: boolean;
+  /** Identidades do usuário quando ele só pode ver `open` atribuído a si. */
+  restrict_open_to?: string[] | null;
 }
+
 
 export const DEFAULT_MVP_FILTERS: MvpChatFilters = {
   queue_ids: [],
@@ -157,4 +174,8 @@ export const DEFAULT_MVP_FILTERS: MvpChatFilters = {
   has_campaign: null,
   sla_status: [],
   sort: 'recent',
+  scope_queue_ids: [],
+  hide_snoozed: true,
+  restrict_open_to: null,
+
 };
