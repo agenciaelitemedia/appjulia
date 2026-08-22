@@ -125,6 +125,8 @@ export function MvpChatFiltersBar({
   const [open, setOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
+  const { user } = useAuth();
+  const { data: teamMembers = [] } = useTeamByClient();
 
   const toggleIn = <K extends 'tag_ids' | 'queue_ids' | 'owners' | 'julia_stage_ids'>(field: K, id: string) => {
     const cur = filters[field] as string[];
@@ -136,6 +138,11 @@ export function MvpChatFiltersBar({
     onChange({ sla_status: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] });
   };
 
+  const allStagesSelected = juliaStages.length > 0 && filters.julia_stage_ids.length === juliaStages.length;
+  const toggleAllStages = () => {
+    onChange({ julia_stage_ids: allStagesSelected ? [] : juliaStages.map((s) => s.id) });
+  };
+
   const queueLabel =
     filters.queue_ids.length === 0
       ? 'Todas as filas'
@@ -144,7 +151,7 @@ export function MvpChatFiltersBar({
         : `${filters.queue_ids.length} filas`;
 
   const stageLabel =
-    filters.julia_stage_ids.length === 0
+    filters.julia_stage_ids.length === 0 || allStagesSelected
       ? 'Todas as etapas'
       : filters.julia_stage_ids.length === 1
         ? juliaStages.find((s) => s.id === filters.julia_stage_ids[0])?.name ?? '1 etapa'
@@ -154,8 +161,10 @@ export function MvpChatFiltersBar({
   const setOwnerValue = (v: string) => {
     if (v === 'all') onChange({ owners: [], unassigned: null });
     else if (v === 'unassigned') onChange({ owners: [], unassigned: true });
+    else if (v === 'mine') onChange({ owners: user?.name ? [String(user.name)] : [], unassigned: null });
     else onChange({ owners: [v], unassigned: null });
   };
+
 
   const mode: 'all' | 'julia' | 'human' = filters.julia_mode ?? 'all';
 
