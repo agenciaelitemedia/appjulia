@@ -1903,7 +1903,7 @@ Deno.serve(async (req) => {
             payload: ev,
           }));
           // onConflict em message_id: reentrega do provedor não duplica o turno
-          const { error: enqueueErr } = await supabaseAdmin
+          const { error: enqueueErr } = await getSupabase()
             .from('xj_inbound_queue')
             .upsert(rows, { onConflict: 'message_id', ignoreDuplicates: true });
           if (enqueueErr) throw enqueueErr;
