@@ -173,10 +173,18 @@ async function fetchProviderModels(providerId: string, apiKey: string): Promise<
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  // Guarda de identidade: sem sessão válida do painel, nada é lido nem gravado.
+  const identity = await requireAppIdentity(req);
+  if (xjGuardFailed(identity)) return json({ error: identity.error }, identity.status);
+  const adminOnly = () => (identity.isAdmin ? null : json({ error: "ação restrita ao administrador" }, 403));
+
   try {
     if (req.method === "GET") {
+      // O client_id do chamador é ignorado: usa-se o resolvido no servidor.
+      // Admin pode inspecionar outro escritório explicitamente.
       const url = new URL(req.url);
-      const clientId = url.searchParams.get("client_id");
+      const requested = (url.searchParams.get("client_id") ?? "").trim();
+      const clientId = identity.isAdmin && requested ? requested : identity.clientId;
 
       const { data: settings, error } = await supabase
         .from("xj_provider_settings")
@@ -219,6 +227,8 @@ Deno.serve(async (req) => {
       const action = String(body?.action ?? "");
 
       if (action === "save_provider") {
+        const denied = adminOnly();
+        if (denied) return denied;
         const provider = String(body?.provider ?? "").trim();
         const kind = String(body?.kind ?? "llm").trim();
         if (!provider || !["llm", "voice", "contract"].includes(kind)) {
@@ -244,7 +254,9 @@ Deno.serve(async (req) => {
       }
 
       if (action === "save_client_key") {
-        const clientId = String(body?.client_id ?? "").trim();
+        // Escritório sempre vem da sessão; admin pode agir em outro explicitamente.
+        const requested = String(body?.client_id ?? "").trim();
+        const clientId = identity.isAdmin && requested ? requested : identity.clientId;
         const provider = String(body?.provider ?? "").trim();
         const kind = String(body?.kind ?? "llm").trim();
         const apiKey = String(body?.api_key ?? "").trim();
@@ -271,6 +283,7 @@ Deno.serve(async (req) => {
         if (error) return json({ error: error.message }, 500);
         return json({ ok: true, masked: mask(apiKey) });
       }
+
 
       if (action === "save_model_pricing") {
         const provider = String(body?.provider ?? "").trim();
