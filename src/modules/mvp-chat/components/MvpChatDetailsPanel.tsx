@@ -105,7 +105,7 @@ export function MvpChatDetailsPanel({ row }: { row: MvpChatRowData | null }) {
           <Separator />
           <Section icon={Ticket} title="Ticket">
             <Field label="Número" value={row.active_ticket_protocol || row.active_ticket_number} />
-            <Field label="Assunto" value={row.active_ticket_subject} />
+            <Field label="Assunto" value={row.ticket_subject} />
             <Field label="Status" value={row.ticket_status} />
             <Field label="Prioridade" value={row.ticket_priority} />
           </Section>
