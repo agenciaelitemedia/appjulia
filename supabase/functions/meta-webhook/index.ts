@@ -712,6 +712,26 @@ serve(async (req) => {
             // ── Persist to chat tables ──
             if (agentInfo) {
               persistToChat(agentInfo, from, contactName, message, msgType, phoneNumberId, queueInfo)
+                .then((res) => {
+                  // Motor X-Julia no canal oficial (WABA): só mensagens do lead
+                  if (!res?.messageId || !queueInfo) return;
+                  const media = message.image || message.audio || message.video || message.document || message.sticker;
+                  return xjEnqueueWaba({
+                    message_id: res.messageId,
+                    conversation_id: res.conversationId ?? null,
+                    contact_id: res.contactId,
+                    queue_id: queueInfo.id,
+                    client_id: queueInfo.client_id,
+                    channel: 'whatsapp_waba',
+                    phone: from,
+                    contact_name: contactName || null,
+                    message_text: res.text || res.caption || '',
+                    message_type: msgType === 'ptt' ? 'audio' : msgType,
+                    media_url: res.mediaUrl ?? null,
+                    mime_type: media?.mime_type ?? null,
+                    file_name: res.fileName ?? null,
+                  });
+                })
                 .catch(err => console.error('[persistToChat] background error:', err));
             } else {
               // No agent/queue resolved for this phone_number_id → message never
