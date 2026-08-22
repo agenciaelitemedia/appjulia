@@ -14,3 +14,5 @@ export { getMessagePreview } from '@/lib/chat/messagePreview';
 export { evaluateSla, formatRemaining, type SlaEvaluation } from '@/hooks/useChatSlaConfigs';
 export { SlaBadge } from '@/components/chat/SlaBadge';
 
+export { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+export { Label } from '@/components/ui/label';
