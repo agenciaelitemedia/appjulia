@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, MessageSquare, Radio } from 'lucide-react';
 import { Badge, Button, cn } from '../extend/ui';
 import { useAuth } from '../extend/auth';
+import { useAccessibleQueues, isOwnerUser } from '../extend/queues';
 import { MvpChatRealtimeProvider } from '../hooks/useMvpChatRealtimeHub';
 import { useMvpChatTabs, type MvpTabKey } from '../hooks/useMvpChatTabs';
 import { useMvpChatOptions } from '../hooks/useMvpChatOptions';
@@ -24,6 +25,7 @@ export default function MvpChatPage() {
 }
 
 function MvpChatContent({ clientId }: { clientId: string | null }) {
+  const { user, isAdmin } = useAuth();
   const [filters, setFilters] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
   const [debounced, setDebounced] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
   const [selected, setSelected] = useState<MvpChatRowData | null>(null);
@@ -34,7 +36,31 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
     return () => clearTimeout(t);
   }, [filters]);
 
-  const { active, setActive, feeds, activeFeed, counters } = useMvpChatTabs(clientId, debounced, 'open');
+  // Escopo idêntico ao do /chat: filas ativas acessíveis ao usuário + regra de
+  // visibilidade de "em atendimento" para perfis não privilegiados.
+  const { data: accessibleQueues = [], isLoading: queuesLoading } = useAccessibleQueues(false);
+  const scopeQueueIds = useMemo(
+    () => (accessibleQueues as { id: string }[]).map((q) => q.id),
+    [accessibleQueues],
+  );
+  const restrictOpenTo = useMemo<string[] | null>(() => {
+    const privileged = isAdmin || isOwnerUser(user);
+    if (privileged) return null;
+    return [String(user?.id ?? ''), String((user as any)?.name ?? '')].filter(Boolean);
+  }, [isAdmin, user]);
+
+  const scopedFilters = useMemo<MvpChatFilters>(() => ({
+    ...debounced,
+    scope_queue_ids: scopeQueueIds,
+    hide_snoozed: true,
+    restrict_open_to: restrictOpenTo,
+  }), [debounced, scopeQueueIds, restrictOpenTo]);
+
+  const { active, setActive, feeds, activeFeed, counters } = useMvpChatTabs(
+    queuesLoading ? null : clientId,
+    scopedFilters,
+    'open',
+  );
   const { queues, tags, owners, juliaStages } = useMvpChatOptions(clientId);
 
   const patch = useCallback((p: Partial<MvpChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
