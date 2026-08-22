@@ -451,7 +451,7 @@ async function fetchCandidates(
                AND c.cod_agent::text = $1
         WHERE a.cod_agent::text = $1
           AND s.active = FALSE
-          AND s.stoped_at >= NOW() - INTERVAL '1 day'
+          AND s.stoped_at >= LEAST(NOW(), (NOW() AT TIME ZONE 'America/Sao_Paulo')::timestamptz) - INTERVAL '1 day'
           AND (c.stage_id IS NULL)
         ORDER BY s.stoped_at DESC
         LIMIT 50`,
