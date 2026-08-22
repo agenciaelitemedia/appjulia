@@ -116,24 +116,28 @@ export function MainLayout() {
     <PhoneProvider>
       <SidebarProvider isCollapsed={sidebarCollapsed}>
         <div className="min-h-screen bg-background dark:bg-transparent aj-content-glass">
-          <Sidebar 
-            isOpen={sidebarOpen} 
-            onToggle={() => setSidebarOpen(!sidebarOpen)}
-            isCollapsed={sidebarCollapsed}
-            onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          />
-          
-          <div className={cn(
-            "transition-all duration-300",
-            sidebarCollapsed ? "lg:ml-16" : "lg:ml-64"
-          )}>
-            <Header 
-              onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+          {!isFullWidth && (
+            <Sidebar 
+              isOpen={sidebarOpen} 
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
               isCollapsed={sidebarCollapsed}
               onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />
+          )}
+          
+          <div className={cn(
+            "transition-all duration-300",
+            isFullWidth ? "lg:ml-0" : (sidebarCollapsed ? "lg:ml-16" : "lg:ml-64")
+          )}>
+            {!isFullWidth && (
+              <Header 
+                onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+                isCollapsed={sidebarCollapsed}
+                onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+              />
+            )}
             
-            <main className="p-4 lg:p-6">
+            <main className={cn(isFullWidth ? "p-0" : "p-4 lg:p-6")}>
               <Outlet />
             </main>
           </div>
