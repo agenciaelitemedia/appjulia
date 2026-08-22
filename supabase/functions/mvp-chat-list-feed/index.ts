@@ -122,6 +122,7 @@ interface Filters {
   status?: string | null;
   tab?: string | null;
   owner?: string | null;
+  owners?: string[] | null;
   unassigned?: boolean | null;
   search?: string | null;
   from?: string | null;
@@ -130,16 +131,34 @@ interface Filters {
   priority?: string | null;
   has_ticket?: boolean | null;
   has_crm_builder?: boolean | null;
+  sla_status?: string[] | null;
   /** Filtros que dependem do banco legado (aplicados após o merge). */
   julia_stage?: string | null;
+  julia_stage_ids?: (string | number)[] | null;
   julia_mode?: "julia" | "human" | null;
   has_campaign?: boolean | null;
   sort?: string | null;
   limit?: number;
   offset?: number;
+  /** Ignora o cache do banco legado (botão "Recarregar"). */
+  refresh?: boolean | null;
 }
 
 const HARD_CAP = 1500;
+
+/** Janelas de invalidação do cache do banco legado (segundos). */
+const TTL_HOT = 60;      // conversas com mensagem nas últimas 24h
+const TTL_COLD = 600;    // conversas antigas
+
+interface LegacyEntry {
+  julia_stage_id: string | null;
+  julia_stage_name: string | null;
+  julia_stage_color: string | null;
+  has_julia_card: boolean;
+  session_is_active: boolean | null;
+  campaign: any | null;
+  stale?: boolean;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
