@@ -491,19 +491,6 @@ export function MvpChatFiltersBar({
               <div className="thin-scrollbar max-h-[38vh] space-y-3 overflow-y-auto border-t p-2.5">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label htmlFor="f-status" className="text-[10px] uppercase tracking-wide text-muted-foreground">Status</Label>
-                    <Select value={filters.status ?? ALL} onValueChange={(v) => onChange({ status: v === ALL ? null : (v as Filters['status']) })}>
-                      <SelectTrigger id="f-status" className="h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={ALL}>Todos</SelectItem>
-                        <SelectItem value="pending">Aguardando</SelectItem>
-                        <SelectItem value="open">Atendimento</SelectItem>
-                        <SelectItem value="resolved_closed">Resolvidos/Fechados</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
                     <Label htmlFor="f-priority" className="text-[10px] uppercase tracking-wide text-muted-foreground">Prioridade</Label>
                     <Select value={filters.priority ?? ALL} onValueChange={(v) => onChange({ priority: v === ALL ? null : v })}>
                       <SelectTrigger id="f-priority" className="h-8 text-xs"><SelectValue placeholder="Prioridade" /></SelectTrigger>
@@ -517,6 +504,7 @@ export function MvpChatFiltersBar({
                     </Select>
                   </div>
                 </div>
+
 
                 <Group label="Marcadores">
                   <Chip label="Sem responsável" active={!!filters.unassigned} onToggle={() => onChange({ unassigned: filters.unassigned ? null : true })} />
