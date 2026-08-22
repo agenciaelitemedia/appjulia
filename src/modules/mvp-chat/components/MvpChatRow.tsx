@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import { differenceInHours, differenceInMinutes } from 'date-fns';
 import { CheckCheck, Clock, Megaphone, Bot, User, Ticket, Kanban, Users } from 'lucide-react';
 import {
   Avatar, AvatarFallback, AvatarImage, Badge, cn,
@@ -12,20 +13,18 @@ function initials(name?: string | null) {
   return name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
-/** Formatação temporal estilo WhatsApp. */
-function formatWhen(iso?: string | null) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  const yesterday = new Date(now.getTime() - 864e5);
-  if (d.toDateString() === yesterday.toDateString()) return 'Ontem';
-  if (now.getTime() - d.getTime() < 7 * 864e5) {
-    return d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-  }
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+/** Padrão de tempo relativo usado no /chat (Helena-style). */
+function formatRelativeTime(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '';
+  const mins = differenceInMinutes(new Date(), date);
+  if (mins < 1) return 'há pouco tempo';
+  if (mins < 60) return `há ${mins} minuto${mins > 1 ? 's' : ''}`;
+  const hrs = differenceInHours(new Date(), date);
+  if (hrs < 24) return `há ${hrs} hora${hrs > 1 ? 's' : ''}`;
+  const days = Math.floor(hrs / 24);
+  return `há ${days} dia${days > 1 ? 's' : ''}`;
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -95,7 +94,7 @@ export const MvpChatRow = memo(function MvpChatRow({ row, selected, onSelect }: 
               {row.lead_full_name || row.contact_name || row.phone || 'Sem nome'}
             </span>
             <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-              {formatWhen(row.last_message_at || row.conversation_updated_at)}
+              {formatRelativeTime(row.last_message_at || row.conversation_updated_at)}
             </span>
           </div>
 
