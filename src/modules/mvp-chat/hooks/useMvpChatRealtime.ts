@@ -4,8 +4,8 @@ import { supabase } from '../extend/db';
 interface Handlers {
   /** Mensagem nova em uma conversa já visível (ou não). */
   onMessage: (payload: any) => void;
-  /** Conversa criada/atualizada. */
-  onConversation: (payload: any, eventType: 'INSERT' | 'UPDATE') => void;
+  /** Conversa criada/atualizada. `old` vem quando REPLICA IDENTITY FULL está ativa. */
+  onConversation: (payload: any, eventType: 'INSERT' | 'UPDATE', old?: any) => void;
   /** Contato atualizado (prévia, não lidas, nome). */
   onContact: (payload: any) => void;
 }
@@ -33,7 +33,7 @@ export function useMvpChatRealtime(clientId: string | null, handlers: Handlers) 
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'chat_conversations', filter: `client_id=eq.${clientId}` },
-        (payload) => handlers.onConversation(payload.new, 'UPDATE'),
+        (payload) => handlers.onConversation(payload.new, 'UPDATE', payload.old),
       )
       .on(
         'postgres_changes',
