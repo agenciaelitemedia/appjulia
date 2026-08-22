@@ -4,6 +4,7 @@ import { resolveQueueByWabaNumberId, resolveQueueId } from "../_shared/resolve-q
 import { logDroppedMessage } from "../_shared/droppedLogger.ts";
 import { resolveQuotedMeta } from "../_shared/quotedMessage.ts";
 import { fetchWhatsappProfile, fetchWabaProfileWithUazapiFallback, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
+import { clientIpOf, logWebhookRejection, verifyMetaSignature } from "../_shared/webhookAuth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -553,6 +554,28 @@ serve(async (req) => {
           JSON.stringify({ logs: error ? [] : data }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+
+      // ── Assinatura da Meta (x-hub-signature-256) sobre o corpo cru ──
+      // Registro sempre; bloqueio só com META_WEBHOOK_ENFORCE_SIGNATURE=true
+      // (evita derrubar o canal se o app secret em uso divergir).
+      const sigCheck = await verifyMetaSignature(req, rawBodyText);
+      if (!sigCheck.ok) {
+        const enforce = (Deno.env.get('META_WEBHOOK_ENFORCE_SIGNATURE') ?? '').trim().toLowerCase() === 'true';
+        console.warn('[meta-webhook] assinatura inválida:', sigCheck.reason, 'enforce=', enforce);
+        await logWebhookRejection(supabase, {
+          source: 'meta-webhook',
+          reason: enforce ? sigCheck.reason! : `${sigCheck.reason}_apenas_registro`,
+          ip: clientIpOf(req),
+          path: url.pathname,
+          detail: rawBodyText.slice(0, 300),
+        });
+        if (enforce) {
+          return new Response(JSON.stringify({ error: 'invalid signature' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
       }
 
       console.log('Webhook POST received');
