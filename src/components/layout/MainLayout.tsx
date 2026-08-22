@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,6 +65,8 @@ export function MainLayout() {
   });
   const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
   const { data: agentsData, isLoading: agentsLoading } = useMyAgents();
+  const location = useLocation();
+  const isFullWidth = location.pathname.startsWith('/mvp-chat');
 
   // Persiste a preferência do sidebar entre recarregamentos
   useEffect(() => {
@@ -114,24 +116,26 @@ export function MainLayout() {
     <PhoneProvider>
       <SidebarProvider isCollapsed={sidebarCollapsed}>
         <div className="min-h-screen bg-background dark:bg-transparent aj-content-glass">
-          <Sidebar 
-            isOpen={sidebarOpen} 
-            onToggle={() => setSidebarOpen(!sidebarOpen)}
-            isCollapsed={sidebarCollapsed}
-            onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          />
-          
-          <div className={cn(
-            "transition-all duration-300",
-            sidebarCollapsed ? "lg:ml-16" : "lg:ml-64"
-          )}>
-            <Header 
-              onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+          {!isFullWidth && (
+            <Sidebar 
+              isOpen={sidebarOpen} 
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
               isCollapsed={sidebarCollapsed}
               onCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />
+          )}
+          
+          <div className={cn(
+            "transition-all duration-300",
+            isFullWidth ? "lg:ml-0" : (sidebarCollapsed ? "lg:ml-16" : "lg:ml-64")
+          )}>
+            <Header 
+              onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+              isCollapsed={isFullWidth ? true : sidebarCollapsed}
+              onCollapse={() => isFullWidth ? setSidebarCollapsed(true) : setSidebarCollapsed(!sidebarCollapsed)}
+            />
             
-            <main className="p-4 lg:p-6">
+            <main className={cn(isFullWidth ? "p-0" : "p-4 lg:p-6")}>
               <Outlet />
             </main>
           </div>
