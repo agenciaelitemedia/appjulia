@@ -124,3 +124,6 @@ verify_jwt = false
 
 [functions.wavoip-fetch-recording]
 verify_jwt = false
+
+[functions.x-julia-tick]
+verify_jwt = false

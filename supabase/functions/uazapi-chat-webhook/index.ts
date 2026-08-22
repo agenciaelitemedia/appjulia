@@ -1886,7 +1886,49 @@ Deno.serve(async (req) => {
     }
 
     // Motor X-Julia (agente autônomo) em background — não bloqueia o webhook.
-    if (xjEvents.length > 0) {
+    // Com XJ_QUEUE_ENABLED=true a mensagem vai para a fila durável
+    // (xj_inbound_queue, idempotente por message_id) e o worker x-julia-processor
+    // entrega ao motor com retry e DLQ. Sem a flag, mantém a chamada direta.
+    const xjQueueEnabled = (Deno.env.get('XJ_QUEUE_ENABLED') ?? '').trim().toLowerCase() === 'true';
+
+    if (xjEvents.length > 0 && xjQueueEnabled) {
+      const xjQueuePromise = (async () => {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        try {
+          const rows = xjEvents.map((ev) => ({
+            client_id: String((ev as any).client_id ?? ''),
+            // manual_outbound não tem id próprio: fica sem chave de idempotência
+            message_id: (ev as any).message_id ? String((ev as any).message_id) : null,
+            payload: ev,
+          }));
+          // onConflict em message_id: reentrega do provedor não duplica o turno
+          const { error: enqueueErr } = await getSupabase()
+            .from('xj_inbound_queue')
+            .upsert(rows, { onConflict: 'message_id', ignoreDuplicates: true });
+          if (enqueueErr) throw enqueueErr;
+
+          const kick = await fetch(`${supabaseUrl}/functions/v1/x-julia-processor`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${serviceKey}`,
+              apikey: serviceKey,
+            },
+            body: JSON.stringify({ source: 'uazapi-chat-webhook' }),
+          });
+          if (!kick.ok) {
+            // sem problema: o pg_cron processa a fila no próximo ciclo
+            console.warn('[uazapi-chat-webhook] x-julia-processor kick HTTP', kick.status);
+          }
+        } catch (e) {
+          console.error('[uazapi-chat-webhook] falha ao enfileirar X-Julia:', String(e));
+        }
+      })();
+      EdgeRuntime.waitUntil(xjQueuePromise);
+    }
+
+    if (xjEvents.length > 0 && !xjQueueEnabled) {
       const xjPromise = (async () => {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
         const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;

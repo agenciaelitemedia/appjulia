@@ -10030,6 +10030,57 @@ export type Database = {
           },
         ]
       }
+      xj_inbound_queue: {
+        Row: {
+          attempts: number
+          client_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          locked_at: string | null
+          max_attempts: number
+          message_id: string | null
+          payload: Json
+          processed_at: string | null
+          run_at: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          client_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          locked_at?: string | null
+          max_attempts?: number
+          message_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          run_at?: string
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          client_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          locked_at?: string | null
+          max_attempts?: number
+          message_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          run_at?: string
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Relationships: []
+      }
       xj_legal_cases: {
         Row: {
           category: string
@@ -10920,7 +10971,36 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      xj_pick_inbound: {
+        Args: { p_limit?: number; p_worker_id: string }
+        Returns: {
+          attempts: number
+          client_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          locked_at: string | null
+          max_attempts: number
+          message_id: string | null
+          payload: Json
+          processed_at: string | null
+          run_at: string
+          status: string
+          updated_at: string
+          worker_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "xj_inbound_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       xj_release_stale_followups: {
+        Args: { p_minutes?: number }
+        Returns: number
+      }
+      xj_release_stale_inbound: {
         Args: { p_minutes?: number }
         Returns: number
       }
