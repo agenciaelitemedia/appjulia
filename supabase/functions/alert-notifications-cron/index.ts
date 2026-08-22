@@ -22,6 +22,19 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 /** Janela de recência: o evento só gera alerta se ficou elegível nos últimos 10 min. */
 const RECENT_WINDOW_MS = 10 * 60_000;
+const RECENT_WINDOW_MIN = Math.round(RECENT_WINDOW_MS / 60_000);
+
+/**
+ * O banco legado grava algumas colunas em hora de Brasília (naive) e outras em UTC,
+ * enquanto NOW() responde em UTC. Comparar direto com NOW() faz o evento parecer
+ * 3h no passado e nunca entrar na janela. Este piso aceita a linha se ela cair na
+ * janela em qualquer um dos dois fusos.
+ */
+function floorSql(minutes: number = RECENT_WINDOW_MIN): string {
+  const m = Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : RECENT_WINDOW_MIN;
+  return `(LEAST(NOW(), (NOW() AT TIME ZONE 'America/Sao_Paulo')::timestamptz) - INTERVAL '${m} minutes')`;
+}
+
 
 const SITUACOES: Record<string, string> = {
   no_response: "Lead parou de responder — recuperação",
@@ -368,7 +381,10 @@ async function fetchCandidates(
   codAgent: string,
   triggerKey: string,
   stageIds: string[],
+  windowMinutes: number = RECENT_WINDOW_MIN,
 ): Promise<Candidate[]> {
+  const RECENT_FLOOR_SQL = floorSql(windowMinutes);
+
   if (triggerKey === "qualified" || triggerKey === "disqualified") {
     if (stageIds.length === 0) return [];
     const rows = await sql.unsafe(
@@ -384,7 +400,7 @@ async function fetchCandidates(
          LEFT JOIN sessions s ON s.whatsapp_number::text = c.whatsapp_number::text
         WHERE c.cod_agent::text = $1
           AND c.stage_id::text = ANY($2::varchar[])
-          AND COALESCE(c.stage_entered_at, c.updated_at) >= NOW() - INTERVAL '10 minutes'
+          AND COALESCE(c.stage_entered_at, c.updated_at) >= ${RECENT_FLOOR_SQL}
         ORDER BY COALESCE(c.stage_entered_at, c.updated_at) DESC`,
       [codAgent, stageIds],
     );
@@ -412,7 +428,7 @@ async function fetchCandidates(
          LEFT JOIN sessions s ON s.whatsapp_number::text = d.whatsapp_number::text
         WHERE d.cod_agent::text = $1
           AND d.status_document = $2
-          AND d.created_at >= NOW() - INTERVAL '10 minutes'
+          AND d.created_at >= ${RECENT_FLOOR_SQL}
         ORDER BY d.cod_document, d.created_at DESC`,
       [codAgent, status],
     );
@@ -440,7 +456,7 @@ async function fetchCandidates(
                AND c.cod_agent::text = $1
         WHERE a.cod_agent::text = $1
           AND s.active = FALSE
-          AND s.stoped_at >= NOW() - INTERVAL '1 day'
+          AND s.stoped_at >= LEAST(NOW(), (NOW() AT TIME ZONE 'America/Sao_Paulo')::timestamptz) - INTERVAL '1 day'
           AND (c.stage_id IS NULL)
         ORDER BY s.stoped_at DESC
         LIMIT 50`,
@@ -512,9 +528,10 @@ async function fetchXJContractCandidates(
   codAgent: string,
   clientId: string | null,
   triggerKey: string,
+  windowMinutes: number = RECENT_WINDOW_MIN,
 ): Promise<Candidate[]> {
   if (!clientId) return [];
-  const recentFloor = new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
+  const recentFloor = new Date(Date.now() - windowMinutes * 60_000).toISOString();
 
   let query = supabase
     .from("xj_contracts")
@@ -714,6 +731,15 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   let sql: ReturnType<typeof postgres> | null = null;
 
+  // Backfill manual opcional: {"window_minutes": 120} amplia a janela nesta rodada.
+  let windowMinutes = RECENT_WINDOW_MIN;
+  try {
+    const body = req.method === "POST" ? await req.json().catch(() => null) : null;
+    const raw = Number(body?.window_minutes);
+    if (Number.isFinite(raw) && raw > 0) windowMinutes = Math.min(Math.round(raw), 1440);
+  } catch (_) { /* body opcional */ }
+
+
   try {
     const { data: configs, error } = await supabase
       .from("alert_notification_configs")
@@ -784,9 +810,9 @@ serve(async (req) => {
           ) {
             // Antes de coletar: confere assinaturas pendentes no ZapSign.
             await syncXJContractSignatures(supabase, clientId);
-            const legacy = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
+            const legacy = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds, windowMinutes);
             const xJulia = await fetchXJContractCandidates(
-              supabase, sql, codAgent, clientId, cfg.trigger_key,
+              supabase, sql, codAgent, clientId, cfg.trigger_key, windowMinutes,
             );
             const seenKeys = new Set<string>();
             candidates = [...legacy, ...xJulia].filter((cand) => {
@@ -795,7 +821,7 @@ serve(async (req) => {
               return true;
             });
           } else {
-            candidates = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds);
+            candidates = await fetchCandidates(sql, codAgent, cfg.trigger_key, stageIds, windowMinutes);
           }
         } catch (err) {
           console.error(`[alerts] consulta ${cfg.trigger_key} falhou:`, err);
