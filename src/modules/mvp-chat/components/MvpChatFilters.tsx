@@ -164,10 +164,8 @@ export function MvpChatFiltersBar({
     const out: { key: string; label: string; clear: () => void }[] = [];
     const push = (key: string, label: string, clear: () => void) => out.push({ key, label, clear });
 
-    if (filters.status) {
-      const map: Record<string, string> = { pending: 'Aguardando', open: 'Atendimento', resolved_closed: 'Resolvidos/Fechados' };
-      push('status', map[filters.status] ?? filters.status, () => onChange({ status: null }));
-    }
+    // status agora é controlado pelas abas acima da lista (igual /chat)
+
     if (filters.tab) push('tab', filters.tab === 'groups' ? 'Grupos' : 'Individuais', () => onChange({ tab: null }));
     if (filters.priority) push('priority', `Prioridade: ${filters.priority}`, () => onChange({ priority: null }));
     if (filters.unassigned) push('unassigned', 'Sem responsável', () => onChange({ unassigned: null }));
