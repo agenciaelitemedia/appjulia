@@ -20,14 +20,16 @@ function periodToRange(period: MvpChatFilters['period']): { from: string | null;
 
 /**
  * ÚNICA chamada de dados do MVP: a edge function devolve o card completo
- * (badges de CRM da Júlia, CRM Builder, ticket, Meta Ads, sessão) já filtrado,
- * ordenado e paginado no servidor.
+ * (badges de CRM da Júlia, CRM Builder, ticket, Meta Ads, sessão, SLA) já
+ * filtrado, ordenado e paginado no servidor. Os dados do banco legado passam
+ * por cache server-side com invalidação por janela de tempo.
  */
 export async function fetchMvpChatFeed(params: {
   clientId: string;
   filters: MvpChatFilters;
   limit: number;
   offset: number;
+  refresh?: boolean;
 }): Promise<MvpChatFeedResponse> {
   const { from, to } = periodToRange(params.filters.period);
   const f = params.filters;
@@ -38,7 +40,7 @@ export async function fetchMvpChatFeed(params: {
       queue_ids: f.queue_ids.length ? f.queue_ids : null,
       status: f.status,
       tab: f.tab,
-      owner: f.owner,
+      owners: f.owners.length ? f.owners : null,
       unassigned: f.unassigned,
       search: f.search?.trim() || null,
       from,
@@ -47,12 +49,14 @@ export async function fetchMvpChatFeed(params: {
       priority: f.priority,
       has_ticket: f.has_ticket,
       has_crm_builder: f.has_crm_builder,
-      julia_stage: f.julia_stage,
+      sla_status: f.sla_status.length ? f.sla_status : null,
+      julia_stage_ids: f.julia_stage_ids.length ? f.julia_stage_ids : null,
       julia_mode: f.julia_mode,
       has_campaign: f.has_campaign,
       sort: f.sort,
       limit: params.limit,
       offset: params.offset,
+      refresh: params.refresh ?? false,
     },
   });
 
