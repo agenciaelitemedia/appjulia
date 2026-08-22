@@ -83,6 +83,10 @@ export interface MvpChatRowData {
   has_julia_card: boolean;
   session_is_active: boolean | null;
   campaign: MvpChatCampaign | null;
+
+  /** Outras conversas abertas do mesmo contato (além da exibida). */
+  sibling_open_count?: number;
+
 }
 
 export interface MvpChatCounters {
