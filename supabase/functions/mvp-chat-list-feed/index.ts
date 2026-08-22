@@ -160,17 +160,52 @@ interface LegacyEntry {
   stale?: boolean;
 }
 
+/** Resumo compacto e seguro dos parâmetros (sem PII de busca completa). */
+function summarizeParams(b: Filters, extra: Record<string, unknown> = {}) {
+  return {
+    client_id: String(b.client_id ?? ""),
+    queue_ids: b.queue_ids?.length ?? 0,
+    status: b.status ?? null,
+    tab: b.tab ?? null,
+    owner: b.owner ? "set" : null,
+    owners: b.owners?.length ?? 0,
+    unassigned: b.unassigned ?? null,
+    search_len: b.search ? String(b.search).trim().length : 0,
+    from: b.from ?? null,
+    to: b.to ?? null,
+    tag_ids: b.tag_ids?.length ?? 0,
+    priority: b.priority ?? null,
+    has_ticket: b.has_ticket ?? null,
+    has_crm_builder: b.has_crm_builder ?? null,
+    sla_status: b.sla_status?.length ?? 0,
+    julia_stage: b.julia_stage ?? null,
+    julia_stage_ids: b.julia_stage_ids?.length ?? 0,
+    julia_mode: b.julia_mode ?? null,
+    has_campaign: b.has_campaign ?? null,
+    sort: b.sort ?? "recent",
+    limit: b.limit ?? null,
+    offset: b.offset ?? null,
+    refresh: b.refresh ?? false,
+    ...extra,
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const t0 = Date.now();
+  const reqId = crypto.randomUUID().slice(0, 8);
   let body: Filters;
   try {
     body = await req.json();
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    console.error(`[mvp-chat-list-feed][${reqId}] invalid JSON body`);
+    return json({ error: "Invalid JSON body", req_id: reqId }, 400);
   }
-  if (!body?.client_id) return json({ error: "client_id is required" }, 400);
+  if (!body?.client_id) {
+    console.error(`[mvp-chat-list-feed][${reqId}] missing client_id; keys=${Object.keys(body ?? {}).join(",")}`);
+    return json({ error: "client_id is required", req_id: reqId }, 400);
+  }
 
   const limit = Math.min(Math.max(Number(body.limit ?? 30), 1), 200);
   const offset = Math.max(Number(body.offset ?? 0), 0);
@@ -182,11 +217,20 @@ serve(async (req) => {
     body.julia_stage || stageIds.length || body.julia_mode || body.has_campaign != null,
   );
 
+  console.log(
+    `[mvp-chat-list-feed][${reqId}] request`,
+    JSON.stringify(summarizeParams(body, {
+      options_mode: (body as any).options === true,
+      needs_post_filter: needsPostFilter,
+    })),
+  );
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { auth: { persistSession: false } },
   );
+
 
   /* --------------------- modo "options": listas de filtros ------------------ */
   if ((body as any).options === true) {
@@ -216,7 +260,7 @@ serve(async (req) => {
 
   /* ---------------------------- SQL A · Supabase --------------------------- */
   const tA = Date.now();
-  const { data: feed, error: rpcError } = await supabase.rpc("mvp_chat_list_feed", {
+  const rpcParams = {
     p_client_id: String(body.client_id),
     p_queue_ids: body.queue_ids?.length ? body.queue_ids : null,
     p_status: body.status || null,
@@ -235,13 +279,46 @@ serve(async (req) => {
     p_sort: body.sort || "recent",
     p_limit: needsPostFilter ? HARD_CAP : limit,
     p_offset: needsPostFilter ? 0 : offset,
-  });
+  };
+  const rpcArgNames = Object.keys(rpcParams);
+  const { data: feed, error: rpcError } = await supabase.rpc("mvp_chat_list_feed", rpcParams);
   const msSupabase = Date.now() - tA;
 
   if (rpcError) {
-    console.error("[mvp-chat-list-feed] rpc error", rpcError.message);
-    return json({ error: rpcError.message }, 500);
+    const code = (rpcError as any)?.code ?? null;
+    const details = (rpcError as any)?.details ?? null;
+    const hint = (rpcError as any)?.hint ?? null;
+    // PGRST203 = múltiplas funções candidatas com a mesma assinatura lógica.
+    const ambiguous = code === "PGRST203"
+      || /best candidate function/i.test(String(rpcError.message ?? ""));
+    console.error(
+      `[mvp-chat-list-feed][${reqId}] rpc error`,
+      JSON.stringify({
+        code,
+        message: rpcError.message,
+        details,
+        hint,
+        ambiguous_overload: ambiguous,
+        supabase_ms: msSupabase,
+        arg_count: rpcArgNames.length,
+        arg_names: rpcArgNames,
+        null_args: rpcArgNames.filter((k) => (rpcParams as any)[k] == null),
+        params: summarizeParams(body, { needs_post_filter: needsPostFilter }),
+      }),
+    );
+    if (ambiguous) {
+      console.error(
+        `[mvp-chat-list-feed][${reqId}] existem múltiplas versões de public.mvp_chat_list_feed no banco; ` +
+        `remova as assinaturas antigas (a esperada tem ${rpcArgNames.length} argumentos: ${rpcArgNames.join(", ")})`,
+      );
+    }
+    return json({
+      error: rpcError.message,
+      req_id: reqId,
+      diagnostics: { code, details, hint, ambiguous_overload: ambiguous, arg_names: rpcArgNames },
+    }, 500);
   }
+
 
   let rows: any[] = Array.isArray(feed?.rows) ? feed.rows : [];
   const counters = feed?.counters ?? {};
@@ -427,11 +504,11 @@ serve(async (req) => {
         const { error: upErr } = await supabase
           .from("mvp_chat_legacy_cache")
           .upsert(upserts, { onConflict: "client_id,phone_key,cod_agent" });
-        if (upErr) console.warn("[mvp-chat-list-feed] cache write error", upErr.message);
+        if (upErr) console.warn(`[mvp-chat-list-feed][${reqId}] cache write error`, upErr.message);
       }
     } catch (e) {
       externalError = (e as Error)?.message ?? "external db error";
-      console.warn("[mvp-chat-list-feed] external error", externalError);
+      console.warn(`[mvp-chat-list-feed][${reqId}] external error`, externalError);
     }
     msExternal = Date.now() - tB;
   }
@@ -477,26 +554,32 @@ serve(async (req) => {
     rows = rows.slice(offset, offset + limit);
   }
 
+  const timings = {
+    total_ms: Date.now() - t0,
+    supabase_ms: msSupabase,
+    cache_ms: msCache,
+    external_ms: msExternal,
+    external_error: externalError,
+    external_stale: usedStale,
+    cache_hits: cacheHits,
+    cache_misses: cacheMisses,
+    cache_refreshed: missing.length,
+    sql_count: (missing.length > 0 && variants.length > 0 ? 2 : 1) + (wanted.size > 0 ? 1 : 0),
+    rows: rows.length,
+  };
+
+  console.log(`[mvp-chat-list-feed][${reqId}] ok`, JSON.stringify(timings));
+
   return json({
     rows,
     counters,
+    req_id: reqId,
     has_more: needsPostFilter
       ? offset + rows.length < Number((counters as any).total ?? 0)
       : rows.length === limit,
-    timings: {
-      total_ms: Date.now() - t0,
-      supabase_ms: msSupabase,
-      cache_ms: msCache,
-      external_ms: msExternal,
-      external_error: externalError,
-      external_stale: usedStale,
-      cache_hits: cacheHits,
-      cache_misses: cacheMisses,
-      cache_refreshed: missing.length,
-      sql_count: (missing.length > 0 && variants.length > 0 ? 2 : 1) + (wanted.size > 0 ? 1 : 0),
-      rows: rows.length,
-    },
+    timings,
   });
+
 });
 
 function json(payload: unknown, status = 200) {
