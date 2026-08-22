@@ -18,7 +18,7 @@ interface XJInvokeOptions {
 /** Lê o usuário autenticado do armazenamento local (mesma fonte do AuthContext). */
 function readAppUser(): { id?: string | number; email?: string } | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.n);
+    const raw = localStorage.getItem(STORAGE_KEYS.AUTH_USER);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
