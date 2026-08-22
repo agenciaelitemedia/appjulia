@@ -142,12 +142,12 @@ export interface MvpChatFilters {
 
 export const DEFAULT_MVP_FILTERS: MvpChatFilters = {
   queue_ids: [],
-  status: null,
+  status: 'open',
   tab: null,
   owners: [],
   unassigned: null,
   search: '',
-  period: 'all',
+  period: '7d',
   tag_ids: [],
   priority: null,
   has_ticket: null,
