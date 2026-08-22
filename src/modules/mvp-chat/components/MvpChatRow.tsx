@@ -94,7 +94,7 @@ export const MvpChatRow = memo(function MvpChatRow({ row, selected, onSelect }: 
               {row.lead_full_name || row.contact_name || row.phone || 'Sem nome'}
             </span>
             <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
-              {formatWhen(row.last_message_at || row.conversation_updated_at)}
+              {formatRelativeTime(row.last_message_at || row.conversation_updated_at)}
             </span>
           </div>
 
