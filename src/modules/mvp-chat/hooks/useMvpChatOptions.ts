@@ -18,7 +18,7 @@ export function useMvpChatOptions(clientId: string | null) {
     let alive = true;
     (async () => {
       const [q, t, opts] = await Promise.all([
-        supabase.from('queues').select('id, name, channel_type').eq('client_id', clientId).eq('is_deleted', false).order('name'),
+        supabase.from('queues').select('id, name, channel_type').eq('client_id', clientId).eq('is_deleted', false).eq('is_active', true).order('name'),
         supabase.from('chat_tags').select('id, name, color').eq('client_id', clientId).order('name'),
         supabase.functions.invoke('mvp-chat-list-feed', { body: { client_id: clientId, options: true } }),
       ]);

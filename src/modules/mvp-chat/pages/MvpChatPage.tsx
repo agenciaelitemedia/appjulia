@@ -61,7 +61,12 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
     scopedFilters,
     'open',
   );
-  const { queues, tags, owners, juliaStages } = useMvpChatOptions(clientId);
+  const { queues: allQueues, tags, owners, juliaStages } = useMvpChatOptions(clientId);
+  // Só filas dentro do escopo acessível ao usuário aparecem no filtro.
+  const queues = useMemo(
+    () => (scopeQueueIds.length ? allQueues.filter((q) => scopeQueueIds.includes(q.id)) : allQueues),
+    [allQueues, scopeQueueIds],
+  );
 
   const patch = useCallback((p: Partial<MvpChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
   const reset = useCallback(() => setFilters(DEFAULT_MVP_FILTERS), []);
