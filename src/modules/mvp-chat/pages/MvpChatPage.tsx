@@ -10,9 +10,12 @@ import { useMvpChatOptions } from '../hooks/useMvpChatOptions';
 import { MvpChatList } from '../components/MvpChatList';
 import { MvpChatFiltersBar } from '../components/MvpChatFilters';
 import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
-import { MvpChatDetailsPanel } from '../components/MvpChatDetailsPanel';
 import { MvpChatStatusTabs } from '../components/MvpChatStatusTabs';
 import { MvpSnoozedPanel } from '../components/MvpSnoozedPanel';
+import { MvpChatConversation } from '../components/MvpChatConversation';
+import { MvpChatRightBar } from '../components/MvpChatRightBar';
+import { WhatsAppDataProvider } from '../extend/chat';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../extend/ui';
 import { DEFAULT_MVP_FILTERS, type MvpChatFilters, type MvpChatRowData } from '../api/types';
 
 export default function MvpChatPage() {
