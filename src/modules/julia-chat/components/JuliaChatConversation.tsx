@@ -15,14 +15,14 @@ import {
   type SelectedQueue,
 } from '../extend/chat';
 
-export interface MvpChatTarget {
+export interface JuliaChatTarget {
   contactId: string;
   queueId: string | null;
   conversationId: string | null;
 }
 
 interface Props {
-  target: MvpChatTarget | null;
+  target: JuliaChatTarget | null;
   onClose: () => void;
 }
 
@@ -32,7 +32,7 @@ interface Props {
  * `ChatSidePanel` → `ScopedChat`: hidrata fila, contato e conversa e sincroniza
  * o `WhatsAppDataProvider` isolado do módulo.
  */
-export function MvpChatConversation({ target, onClose }: Props) {
+export function JuliaChatConversation({ target, onClose }: Props) {
   const { data: queueAccess } = useUserQueueAccess();
   const queueId = target?.queueId ?? null;
   const hasQueueAccess = !queueId
@@ -63,7 +63,7 @@ export function MvpChatConversation({ target, onClose }: Props) {
   return <ScopedConversation key={target.contactId} target={target} onClose={onClose} />;
 }
 
-function ScopedConversation({ target, onClose }: { target: MvpChatTarget; onClose: () => void }) {
+function ScopedConversation({ target, onClose }: { target: JuliaChatTarget; onClose: () => void }) {
   const { contactId, queueId, conversationId } = target;
   const {
     selectedContact,
@@ -85,7 +85,7 @@ function ScopedConversation({ target, onClose }: { target: MvpChatTarget; onClos
   const [showTimeoutFallback, setShowTimeoutFallback] = useState(false);
 
   const { data: queueRow } = useQuery({
-    queryKey: ['mvp-chat-queue', queueId],
+    queryKey: ['julia-chat-queue', queueId],
     enabled: !!queueId,
     staleTime: 60_000,
     queryFn: async (): Promise<SelectedQueue | null> => {
@@ -114,7 +114,7 @@ function ScopedConversation({ target, onClose }: { target: MvpChatTarget; onClos
     error: contactError,
     refetch: refetchContact,
   } = useQuery({
-    queryKey: ['mvp-chat-contact', contactId],
+    queryKey: ['julia-chat-contact', contactId],
     enabled: !!contactId,
     staleTime: 60_000,
     queryFn: async (): Promise<ChatContact | null> => {
@@ -131,7 +131,7 @@ function ScopedConversation({ target, onClose }: { target: MvpChatTarget; onClos
   });
 
   const { data: rowConversation } = useQuery({
-    queryKey: ['mvp-chat-conversation', conversationId],
+    queryKey: ['julia-chat-conversation', conversationId],
     enabled: !!conversationId,
     staleTime: 30_000,
     queryFn: async (): Promise<ChatConversation | null> => {

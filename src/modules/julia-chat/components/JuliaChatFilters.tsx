@@ -14,8 +14,8 @@ import {
 } from '../extend/ui';
 import { useAuth } from '../extend/auth';
 import { useAgentQueueLimits } from '../extend/queues';
-import type { MvpChatFilters as Filters, MvpSlaStatus } from '../api/types';
-import type { OptionItem } from '../hooks/useMvpChatOptions';
+import type { JuliaChatFilters as Filters, JuliaSlaStatus } from '../api/types';
+import type { OptionItem } from '../hooks/useJuliaChatOptions';
 
 /** Badge de canal — mesmas cores/rotulagem do /chat. */
 function channelBadge(type: string) {
@@ -47,7 +47,7 @@ const SORT_OPTIONS: { value: Filters['sort']; label: string; icon: typeof ArrowD
   { value: 'sla', label: 'SLA mais crítico', icon: ArrowDownUp },
 ];
 
-const SLA_OPTIONS: { value: MvpSlaStatus; label: string; tone: string }[] = [
+const SLA_OPTIONS: { value: JuliaSlaStatus; label: string; tone: string }[] = [
   { value: 'breached', label: 'SLA estourado', tone: 'text-destructive border-destructive/40' },
   { value: 'at_risk', label: 'SLA em risco', tone: 'text-amber-600 dark:text-amber-400 border-amber-500/40' },
   { value: 'on_track', label: 'SLA no prazo', tone: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40' },
@@ -139,7 +139,7 @@ interface Props {
   onOpenSnoozed?: () => void;
 }
 
-export function MvpChatFiltersBar({
+export function JuliaChatFiltersBar({
   filters, onChange, onReset, queues, tags, juliaStages, owners, resultCount,
   snoozedCount = 0, onOpenSnoozed,
 }: Props) {
@@ -164,7 +164,7 @@ export function MvpChatFiltersBar({
     onChange({ [field]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] } as Partial<Filters>);
   };
 
-  const toggleSla = (v: MvpSlaStatus) => {
+  const toggleSla = (v: JuliaSlaStatus) => {
     const cur = filters.sla_status;
     onChange({ sla_status: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] });
   };
@@ -245,7 +245,7 @@ export function MvpChatFiltersBar({
           <div className="relative min-w-0 flex-1">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
-              id="mvp-chat-search"
+              id="julia-chat-search"
               aria-label="Buscar conversas"
               value={filters.search}
               onChange={(e) => onChange({ search: e.target.value })}
@@ -547,7 +547,7 @@ export function MvpChatFiltersBar({
                 size="sm"
                 className="h-7 w-full justify-start gap-1.5 px-2 text-xs"
                 aria-expanded={open}
-                aria-controls="mvp-chat-filters-panel"
+                aria-controls="julia-chat-filters-panel"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
                 <span>Mais filtros</span>
@@ -579,7 +579,7 @@ export function MvpChatFiltersBar({
             )}
 
             <CollapsibleContent
-              id="mvp-chat-filters-panel"
+              id="julia-chat-filters-panel"
               className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border bg-popover shadow-xl"
             >
               <div className="thin-scrollbar max-h-[75vh] space-y-3 overflow-y-auto p-2.5">

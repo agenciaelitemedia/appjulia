@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { supabase } from '../extend/db';
 
-export interface MvpRealtimeHandlers {
+export interface JuliaRealtimeHandlers {
   onMessage: (payload: any) => void;
   onConversation: (payload: any, eventType: 'INSERT' | 'UPDATE', old?: any) => void;
   onContact: (payload: any) => void;
@@ -9,7 +9,7 @@ export interface MvpRealtimeHandlers {
 
 interface HubApi {
   /** Registra handlers e devolve a função de remoção. */
-  subscribe: (h: MvpRealtimeHandlers) => () => void;
+  subscribe: (h: JuliaRealtimeHandlers) => () => void;
 }
 
 const HubContext = createContext<HubApi | null>(null);
@@ -18,8 +18,8 @@ const HubContext = createContext<HubApi | null>(null);
  * Um único canal Realtime por página, compartilhado entre as listas das abas.
  * Evita 3 assinaturas duplicadas (uma por aba).
  */
-export function MvpChatRealtimeProvider({ clientId, children }: { clientId: string | null; children: ReactNode }) {
-  const handlersRef = useRef<Set<MvpRealtimeHandlers>>(new Set());
+export function JuliaChatRealtimeProvider({ clientId, children }: { clientId: string | null; children: ReactNode }) {
+  const handlersRef = useRef<Set<JuliaRealtimeHandlers>>(new Set());
 
   const api = useMemo<HubApi>(() => ({
     subscribe: (h) => {
@@ -31,14 +31,14 @@ export function MvpChatRealtimeProvider({ clientId, children }: { clientId: stri
   useEffect(() => {
     if (!clientId) return;
 
-    const each = (fn: (h: MvpRealtimeHandlers) => void) => {
+    const each = (fn: (h: JuliaRealtimeHandlers) => void) => {
       handlersRef.current.forEach((h) => {
         try { fn(h); } catch { /* nunca derruba o canal por erro de handler */ }
       });
     };
 
     const channel = supabase
-      .channel(`mvp-chat-feed-${clientId}`)
+      .channel(`julia-chat-feed-${clientId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' },
         (p) => each((h) => h.onMessage(p.new)))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_conversations', filter: `client_id=eq.${clientId}` },
@@ -55,6 +55,6 @@ export function MvpChatRealtimeProvider({ clientId, children }: { clientId: stri
   return <HubContext.Provider value={api}>{children}</HubContext.Provider>;
 }
 
-export function useMvpChatRealtimeHub() {
+export function useJuliaChatRealtimeHub() {
   return useContext(HubContext);
 }

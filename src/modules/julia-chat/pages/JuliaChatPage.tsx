@@ -3,38 +3,38 @@ import { RefreshCw, MessageSquare, Radio } from 'lucide-react';
 import { Badge, Button, cn } from '../extend/ui';
 import { useAuth } from '../extend/auth';
 import { useAccessibleQueues, isOwnerUser, useQueueConnectionStatusesBatch } from '../extend/queues';
-import { MvpChatRealtimeProvider } from '../hooks/useMvpChatRealtimeHub';
-import { useMvpChatTabs, type MvpTabKey } from '../hooks/useMvpChatTabs';
-import { useMvpSnoozed } from '../hooks/useMvpSnoozed';
-import { useMvpChatOptions } from '../hooks/useMvpChatOptions';
-import { MvpChatList } from '../components/MvpChatList';
-import { MvpChatFiltersBar } from '../components/MvpChatFilters';
-import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
-import { MvpChatStatusTabs } from '../components/MvpChatStatusTabs';
-import { MvpSnoozedPanel } from '../components/MvpSnoozedPanel';
-import { MvpNewConversationFooter } from '../components/MvpNewConversationFooter';
-import { MvpChatConversation } from '../components/MvpChatConversation';
-import { MvpChatRightBar } from '../components/MvpChatRightBar';
+import { JuliaChatRealtimeProvider } from '../hooks/useJuliaChatRealtimeHub';
+import { useJuliaChatTabs, type JuliaTabKey } from '../hooks/useJuliaChatTabs';
+import { useJuliaSnoozed } from '../hooks/useJuliaSnoozed';
+import { useJuliaChatOptions } from '../hooks/useJuliaChatOptions';
+import { JuliaChatList } from '../components/JuliaChatList';
+import { JuliaChatFiltersBar } from '../components/JuliaChatFilters';
+import { JuliaChatPerfPanel } from '../components/JuliaChatPerfPanel';
+import { JuliaChatStatusTabs } from '../components/JuliaChatStatusTabs';
+import { JuliaSnoozedPanel } from '../components/JuliaSnoozedPanel';
+import { JuliaNewConversationFooter } from '../components/JuliaNewConversationFooter';
+import { JuliaChatConversation } from '../components/JuliaChatConversation';
+import { JuliaChatRightBar } from '../components/JuliaChatRightBar';
 import { WhatsAppDataProvider } from '../extend/chat';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../extend/ui';
-import { DEFAULT_MVP_FILTERS, type MvpChatFilters, type MvpChatRowData } from '../api/types';
+import { DEFAULT_MVP_FILTERS, type JuliaChatFilters, type JuliaChatRowData } from '../api/types';
 
-export default function MvpChatPage() {
+export default function JuliaChatPage() {
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : null;
 
   return (
-    <MvpChatRealtimeProvider clientId={clientId}>
-      <MvpChatContent clientId={clientId} />
-    </MvpChatRealtimeProvider>
+    <JuliaChatRealtimeProvider clientId={clientId}>
+      <JuliaChatContent clientId={clientId} />
+    </JuliaChatRealtimeProvider>
   );
 }
 
-function MvpChatContent({ clientId }: { clientId: string | null }) {
+function JuliaChatContent({ clientId }: { clientId: string | null }) {
   const { user, isAdmin } = useAuth();
-  const [filters, setFilters] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
-  const [debounced, setDebounced] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
-  const [selected, setSelected] = useState<MvpChatRowData | null>(null);
+  const [filters, setFilters] = useState<JuliaChatFilters>(DEFAULT_MVP_FILTERS);
+  const [debounced, setDebounced] = useState<JuliaChatFilters>(DEFAULT_MVP_FILTERS);
+  const [selected, setSelected] = useState<JuliaChatRowData | null>(null);
   const [snoozedPanelOpen, setSnoozedPanelOpen] = useState(false);
 
   // debounce só na busca; os demais filtros aplicam imediatamente
@@ -66,31 +66,31 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
     return [String(user?.id ?? ''), String((user as any)?.name ?? '')].filter(Boolean);
   }, [isAdmin, user]);
 
-  const scopedFilters = useMemo<MvpChatFilters>(() => ({
+  const scopedFilters = useMemo<JuliaChatFilters>(() => ({
     ...debounced,
     scope_queue_ids: scopeQueueIds,
     hide_snoozed: debounced.hide_snoozed ?? true,
     restrict_open_to: restrictOpenTo,
   }), [debounced, scopeQueueIds, restrictOpenTo]);
 
-  const { active, setActive, feeds, activeFeed, counters } = useMvpChatTabs(
+  const { active, setActive, feeds, activeFeed, counters } = useJuliaChatTabs(
     queuesLoading ? null : clientId,
     scopedFilters,
     'open',
   );
-  const { queues: allQueues, tags, owners, juliaStages } = useMvpChatOptions(clientId);
+  const { queues: allQueues, tags, owners, juliaStages } = useJuliaChatOptions(clientId);
   // Só filas dentro do escopo acessível ao usuário aparecem no filtro.
   const queues = useMemo(
     () => (scopeQueueIds.length ? allQueues.filter((q) => scopeQueueIds.includes(q.id)) : allQueues),
     [allQueues, scopeQueueIds],
   );
 
-  const patch = useCallback((p: Partial<MvpChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
+  const patch = useCallback((p: Partial<JuliaChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
   const reset = useCallback(() => setFilters(DEFAULT_MVP_FILTERS), []);
 
   // Conversas adiadas ativas: buscadas direto no banco (mesma regra do /chat),
   // independentes da paginação do feed (que oculta adiados por padrão).
-  const { snoozedItems, refetchSnoozed } = useMvpSnoozed(clientId, scopeQueueIds);
+  const { snoozedItems, refetchSnoozed } = useJuliaSnoozed(clientId, scopeQueueIds);
   const snoozedCount = snoozedItems.length;
 
   const c = counters;
@@ -110,7 +110,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
             <Badge variant="outline" className="ml-auto text-[10px]">protótipo</Badge>
           </div>
 
-          <MvpChatFiltersBar
+          <JuliaChatFiltersBar
             filters={filters}
             onChange={patch}
             onReset={reset}
@@ -125,9 +125,9 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
         </div>
 
 
-        <MvpChatStatusTabs
+        <JuliaChatStatusTabs
           value={active}
-          onChange={(v) => setActive(v as MvpTabKey)}
+          onChange={(v) => setActive(v as JuliaTabKey)}
           loading={activeFeed.loading}
           counters={{
             pending: feeds.pending.counters?.pending ?? c?.pending,
@@ -135,7 +135,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           }}
         />
 
-        <MvpChatList
+        <JuliaChatList
           feed={feeds.pending}
           visible={active === 'pending'}
           tab="pending"
@@ -144,7 +144,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           disconnectedQueueIds={disconnectedQueueIds}
           onSelect={setSelected}
         />
-        <MvpChatList
+        <JuliaChatList
           feed={feeds.open}
           visible={active === 'open'}
           tab="open"
@@ -153,7 +153,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           disconnectedQueueIds={disconnectedQueueIds}
           onSelect={setSelected}
         />
-        <MvpChatList
+        <JuliaChatList
           feed={feeds.resolved_closed}
           visible={active === 'resolved_closed'}
           tab="resolved_closed"
@@ -163,7 +163,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           onSelect={setSelected}
         />
 
-        <MvpNewConversationFooter
+        <JuliaNewConversationFooter
           queues={accessibleQueues as any[]}
           queueConnectionMap={queueConnectionMap}
           clientId={clientId}
@@ -172,7 +172,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
 
       {/* Colunas 2 e 3 — conversa real + right-bar (provider isolado do MVP) */}
       <WhatsAppDataProvider>
-        <MvpConversationColumns
+        <JuliaConversationColumns
           selected={selected}
           onClearSelection={() => setSelected(null)}
           feed={activeFeed}
@@ -180,7 +180,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
       </WhatsAppDataProvider>
 
 
-      <MvpSnoozedPanel
+      <JuliaSnoozedPanel
         open={snoozedPanelOpen}
         onOpenChange={setSnoozedPanelOpen}
         items={snoozedItems}
@@ -211,14 +211,14 @@ function useIsBelowLg() {
  * Colunas 2 e 3 do MVP, dentro do `WhatsAppDataProvider` isolado: a conversa
  * real (header + timeline + input do chat principal) e a right-bar.
  */
-function MvpConversationColumns({
+function JuliaConversationColumns({
   selected,
   onClearSelection,
   feed,
 }: {
-  selected: MvpChatRowData | null;
+  selected: JuliaChatRowData | null;
   onClearSelection: () => void;
-  feed: ReturnType<typeof useMvpChatTabs>['activeFeed'];
+  feed: ReturnType<typeof useJuliaChatTabs>['activeFeed'];
 }) {
   const isBelowLg = useIsBelowLg();
   const [diagOpen, setDiagOpen] = useState(false);
@@ -266,14 +266,14 @@ function MvpConversationColumns({
           </div>
           <CollapsibleContent>
             <div className="px-3 pb-2">
-              <MvpChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} />
+              <JuliaChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} />
             </div>
           </CollapsibleContent>
         </Collapsible>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {target ? (
-            <MvpChatConversation target={target} onClose={onClearSelection} />
+            <JuliaChatConversation target={target} onClose={onClearSelection} />
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
               <MessageSquare className="h-10 w-10 opacity-40" aria-hidden />
@@ -284,7 +284,7 @@ function MvpConversationColumns({
       </main>
 
       <aside className="hidden h-full w-[380px] shrink-0 overflow-hidden lg:block xl:w-[400px] empty:hidden">
-        <MvpChatRightBar row={selected} isBelowLg={isBelowLg} />
+        <JuliaChatRightBar row={selected} isBelowLg={isBelowLg} />
       </aside>
     </>
   );

@@ -4,7 +4,7 @@ import { CalendarClock, Loader2, Play, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
 import { useAuth } from '../extend/auth';
-import type { MvpChatRowData } from '../api/types';
+import type { JuliaChatRowData } from '../api/types';
 
 function initials(name?: string | null) {
   if (!name) return '?';
@@ -23,8 +23,8 @@ function formatPhoneDisplay(raw: string): string {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  items: MvpChatRowData[];
-  onSelect?: (row: MvpChatRowData) => void;
+  items: JuliaChatRowData[];
+  onSelect?: (row: JuliaChatRowData) => void;
   onResumed?: () => void;
 }
 
@@ -48,7 +48,7 @@ function formatAbsolute(target: Date): string {
   });
 }
 
-export function MvpSnoozedPanel({ open, onOpenChange, items, onSelect, onResumed }: Props) {
+export function JuliaSnoozedPanel({ open, onOpenChange, items, onSelect, onResumed }: Props) {
   const { user } = useAuth();
   const [resumingId, setResumingId] = useState<string | null>(null);
   const [snoozedByMap, setSnoozedByMap] = useState<Record<string, string>>({});
@@ -89,12 +89,12 @@ export function MvpSnoozedPanel({ open, onOpenChange, items, onSelect, onResumed
     };
   }, [open, sorted, snoozedByMap]);
 
-  const handleOpenConversation = (item: MvpChatRowData) => {
+  const handleOpenConversation = (item: JuliaChatRowData) => {
     onSelect?.(item);
     onOpenChange(false);
   };
 
-  const handleResume = async (item: MvpChatRowData) => {
+  const handleResume = async (item: JuliaChatRowData) => {
     if (resumingId) return;
     setResumingId(item.conversation_id);
     try {

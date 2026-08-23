@@ -1,15 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../extend/db';
-import { useMvpChatRealtimeHub, type MvpRealtimeHandlers } from './useMvpChatRealtimeHub';
+import { useJuliaChatRealtimeHub, type JuliaRealtimeHandlers } from './useJuliaChatRealtimeHub';
 
-type Handlers = MvpRealtimeHandlers;
+type Handlers = JuliaRealtimeHandlers;
 
 /**
- * Tempo real do feed do MVP. Dentro do `MvpChatRealtimeProvider` apenas se
+ * Tempo real do feed do MVP. Dentro do `JuliaChatRealtimeProvider` apenas se
  * registra no canal compartilhado; fora dele, abre o próprio canal (fallback).
  */
-export function useMvpChatRealtime(clientId: string | null, handlers: Handlers) {
-  const hub = useMvpChatRealtimeHub();
+export function useJuliaChatRealtime(clientId: string | null, handlers: Handlers) {
+  const hub = useJuliaChatRealtimeHub();
   const ref = useRef(handlers);
   ref.current = handlers;
 
@@ -26,7 +26,7 @@ export function useMvpChatRealtime(clientId: string | null, handlers: Handlers) 
     if (hub || !clientId) return;
 
     const channel = supabase
-      .channel(`mvp-chat-feed-${clientId}`)
+      .channel(`julia-chat-feed-${clientId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' },
         (payload) => ref.current.onMessage(payload.new))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_conversations', filter: `client_id=eq.${clientId}` },

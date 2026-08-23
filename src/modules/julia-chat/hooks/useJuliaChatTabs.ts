@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMvpChatFeed, type MvpChatFeed } from './useMvpChatFeed';
-import type { MvpChatFilters, MvpChatTab } from '../api/types';
+import { useJuliaChatFeed, type JuliaChatFeed } from './useJuliaChatFeed';
+import type { JuliaChatFilters, JuliaChatTab } from '../api/types';
 
-export type MvpTabKey = 'pending' | 'open' | 'resolved_closed';
+export type JuliaTabKey = 'pending' | 'open' | 'resolved_closed';
 
 /** Atraso para "aquecer" a aba irmã, evitando rajada de requests na entrada. */
 const WARMUP_DELAY_MS = 600;
@@ -13,8 +13,8 @@ const WARMUP_DELAY_MS = 600;
  * - `resolved_closed` só carrega na primeira ativação (e revalida ao reabrir).
  * Os filtros valem para as 3 listas ao mesmo tempo.
  */
-export function useMvpChatTabs(clientId: string | null, filters: MvpChatFilters, initialTab: MvpTabKey = 'open') {
-  const [active, setActive] = useState<MvpTabKey>(initialTab);
+export function useJuliaChatTabs(clientId: string | null, filters: JuliaChatFilters, initialTab: JuliaTabKey = 'open') {
+  const [active, setActive] = useState<JuliaTabKey>(initialTab);
   const [warm, setWarm] = useState(false);
   const [closedTouched, setClosedTouched] = useState(initialTab === 'resolved_closed');
 
@@ -29,31 +29,31 @@ export function useMvpChatTabs(clientId: string | null, filters: MvpChatFilters,
     if (active === 'resolved_closed') setClosedTouched(true);
   }, [active]);
 
-  const pending = useMvpChatFeed(clientId, filters, {
-    status: 'pending' as MvpChatTab,
+  const pending = useJuliaChatFeed(clientId, filters, {
+    status: 'pending' as JuliaChatTab,
     enabled: active === 'pending' || warm,
     background: active !== 'pending',
   });
 
-  const open = useMvpChatFeed(clientId, filters, {
-    status: 'open' as MvpChatTab,
+  const open = useJuliaChatFeed(clientId, filters, {
+    status: 'open' as JuliaChatTab,
     enabled: active === 'open' || warm,
     background: active !== 'open',
   });
 
-  const closed = useMvpChatFeed(clientId, filters, {
-    status: 'resolved_closed' as MvpChatTab,
+  const closed = useJuliaChatFeed(clientId, filters, {
+    status: 'resolved_closed' as JuliaChatTab,
     enabled: closedTouched,
     background: active !== 'resolved_closed',
   });
 
   const feeds = useMemo(() => ({ pending, open, resolved_closed: closed }), [pending, open, closed]);
-  const activeFeed: MvpChatFeed = feeds[active];
+  const activeFeed: JuliaChatFeed = feeds[active];
 
   // contadores: usam os counters de qualquer lista já carregada (são globais)
   const lastCounters = useRef(activeFeed.counters);
   const counters = activeFeed.counters ?? pending.counters ?? open.counters ?? closed.counters ?? lastCounters.current;
   lastCounters.current = counters;
 
-  return { active, setActive: setActive as (t: MvpTabKey) => void, feeds, activeFeed, counters };
+  return { active, setActive: setActive as (t: JuliaTabKey) => void, feeds, activeFeed, counters };
 }

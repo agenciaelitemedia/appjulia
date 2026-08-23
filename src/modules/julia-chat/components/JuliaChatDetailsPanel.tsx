@@ -1,6 +1,6 @@
 import { Info, Phone, Users, Kanban, Ticket, Megaphone, Bot, User } from 'lucide-react';
 import { Badge, Separator, cn } from '../extend/ui';
-import type { MvpChatRowData } from '../api/types';
+import type { JuliaChatRowData } from '../api/types';
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Aguardando', open: 'Atendimento', resolved: 'Resolvida', closed: 'Fechada',
@@ -27,7 +27,7 @@ function Section({ icon: Icon, title, children }: { icon: any; title: string; ch
   );
 }
 
-export function MvpChatDetailsPanel({ row }: { row: MvpChatRowData | null }) {
+export function JuliaChatDetailsPanel({ row }: { row: JuliaChatRowData | null }) {
   if (!row) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">

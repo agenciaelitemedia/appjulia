@@ -4,17 +4,17 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../extend/ui';
-import { MvpChatRow } from './MvpChatRow';
-import type { MvpChatFeed } from '../hooks/useMvpChatFeed';
-import type { MvpChatRowData } from '../api/types';
+import { JuliaChatRow } from './JuliaChatRow';
+import type { JuliaChatFeed } from '../hooks/useJuliaChatFeed';
+import type { JuliaChatRowData } from '../api/types';
 
 interface Props {
-  feed: MvpChatFeed;
+  feed: JuliaChatFeed;
   /** Aba visível? A inativa fica montada (com `hidden`) para preservar scroll. */
   visible: boolean;
   accent: 'amber' | 'emerald' | 'none';
   selectedId: string | null;
-  onSelect: (row: MvpChatRowData) => void;
+  onSelect: (row: JuliaChatRowData) => void;
   /** Filas offline (mesma regra do /chat): conversa fica destacada e bloqueada. */
   disconnectedQueueIds?: Set<string>;
   /** Aba de origem — define as ações do badge de responsável no card. */
@@ -22,13 +22,13 @@ interface Props {
 }
 
 /** Lista de uma aba — estado, scroll e paginação próprios. */
-export function MvpChatList({
+export function JuliaChatList({
   feed, visible, accent, selectedId, onSelect, disconnectedQueueIds, tab,
 }: Props) {
   const sentinel = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef(feed.loadMore);
   loadMoreRef.current = feed.loadMore;
-  const [offlineRow, setOfflineRow] = useState<MvpChatRowData | null>(null);
+  const [offlineRow, setOfflineRow] = useState<JuliaChatRowData | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -41,10 +41,10 @@ export function MvpChatList({
     return () => io.disconnect();
   }, [visible]);
 
-  const isDisconnected = (row: MvpChatRowData) =>
+  const isDisconnected = (row: JuliaChatRowData) =>
     !!row.queue_id && !!disconnectedQueueIds?.has(row.queue_id);
 
-  const handleSelect = (row: MvpChatRowData) => {
+  const handleSelect = (row: JuliaChatRowData) => {
     if (isDisconnected(row)) {
       setOfflineRow(row);
       return;
@@ -82,7 +82,7 @@ export function MvpChatList({
       ) : (
         <div>
           {feed.rows.map((row) => (
-            <MvpChatRow
+            <JuliaChatRow
               key={row.conversation_id}
               row={row}
               accent={accent}

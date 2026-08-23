@@ -1,21 +1,21 @@
 /** Tipos do feed consolidado do JulIA Chat. */
 
-export interface MvpChatTag {
+export interface JuliaChatTag {
   id: string;
   name: string;
   color: string;
 }
 
-export interface MvpChatCampaign {
+export interface JuliaChatCampaign {
   id: string | number;
   created_at?: string | null;
   campaign_data?: Record<string, any> | null;
 }
 
-export type MvpSlaStatus = 'on_track' | 'at_risk' | 'breached' | 'unknown';
+export type JuliaSlaStatus = 'on_track' | 'at_risk' | 'breached' | 'unknown';
 
 /** Uma linha = um card da lista, já 100% hidratado pelo servidor. */
-export interface MvpChatRowData {
+export interface JuliaChatRowData {
   // contato
   contact_id: string;
   contact_name: string | null;
@@ -52,13 +52,13 @@ export interface MvpChatRowData {
   conversation_updated_at: string;
 
   // SLA calculado no servidor
-  sla_status: MvpSlaStatus | null;
+  sla_status: JuliaSlaStatus | null;
   sla_type: 'frt' | 'nrt' | 'ttr' | null;
   sla_remaining_minutes: number | null;
   sla_target_minutes: number | null;
 
   // etiquetas
-  tags: MvpChatTag[];
+  tags: JuliaChatTag[];
 
   // ticket de suporte
   active_ticket_id: string | null;
@@ -82,14 +82,14 @@ export interface MvpChatRowData {
   julia_stage_color: string | null;
   has_julia_card: boolean;
   session_is_active: boolean | null;
-  campaign: MvpChatCampaign | null;
+  campaign: JuliaChatCampaign | null;
 
   /** Outras conversas abertas do mesmo contato (além da exibida). */
   sibling_open_count?: number;
 
 }
 
-export interface MvpChatCounters {
+export interface JuliaChatCounters {
   total: number;
   pending: number;
   open: number;
@@ -103,7 +103,7 @@ export interface MvpChatCounters {
 }
 
 
-export interface MvpChatTimings {
+export interface JuliaChatTimings {
   total_ms: number;
   supabase_ms: number;
   cache_ms?: number;
@@ -117,18 +117,18 @@ export interface MvpChatTimings {
   rows: number;
 }
 
-export interface MvpChatFeedResponse {
-  rows: MvpChatRowData[];
-  counters: MvpChatCounters;
+export interface JuliaChatFeedResponse {
+  rows: JuliaChatRowData[];
+  counters: JuliaChatCounters;
   has_more: boolean;
-  timings: MvpChatTimings;
+  timings: JuliaChatTimings;
 }
 
-export type MvpChatTab = 'pending' | 'open' | 'resolved_closed' | null;
+export type JuliaChatTab = 'pending' | 'open' | 'resolved_closed' | null;
 
-export interface MvpChatFilters {
+export interface JuliaChatFilters {
   queue_ids: string[];
-  status: MvpChatTab;
+  status: JuliaChatTab;
   tab: 'individual' | 'groups' | null;
   /** Responsáveis (multi) — combinável com `unassigned`. */
   owners: string[];
@@ -143,7 +143,7 @@ export interface MvpChatFilters {
   julia_stage_ids: string[];
   julia_mode: 'julia' | 'human' | null;
   has_campaign: boolean | null;
-  sla_status: MvpSlaStatus[];
+  sla_status: JuliaSlaStatus[];
   sort: 'recent' | 'oldest' | 'unread' | 'sla';
   /**
    * Escopo de filas acessíveis ao usuário (mesma regra do /chat). Usado quando
@@ -157,7 +157,7 @@ export interface MvpChatFilters {
 }
 
 
-export const DEFAULT_MVP_FILTERS: MvpChatFilters = {
+export const DEFAULT_MVP_FILTERS: JuliaChatFilters = {
   queue_ids: [],
   status: 'open',
   tab: null,

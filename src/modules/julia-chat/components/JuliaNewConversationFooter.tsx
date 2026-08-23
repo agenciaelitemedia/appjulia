@@ -16,7 +16,7 @@ interface Props {
  * Rodapé "Iniciar nova conversa" do MVP — mesma UX e mesmas regras do rodapé
  * da lista do chat principal (só filas uazapi conectadas entram no dialog).
  */
-export function MvpNewConversationFooter({ queues, queueConnectionMap, clientId }: Props) {
+export function JuliaNewConversationFooter({ queues, queueConnectionMap, clientId }: Props) {
   const { user } = useAuth();
   const [country, setCountry] = useState('55');
   const [phone, setPhone] = useState('');

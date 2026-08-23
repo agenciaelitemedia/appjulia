@@ -67,7 +67,7 @@ const XJCasesPage = lazy(() => import("./modules/x-julia/pages/CasesPage"));
 const XJCrmPage = lazy(() => import("./modules/x-julia/pages/CrmPage"));
 const XJContractsPage = lazy(() => import("./modules/x-julia/pages/ContractsPage"));
 const XJAgendaPage = lazy(() => import("./modules/x-julia/pages/AgendaPage"));
-const MvpChatPage = lazy(() => import("./modules/mvp-chat/pages/MvpChatPage"));
+const JuliaChatPage = lazy(() => import("./modules/julia-chat/pages/JuliaChatPage"));
 
 const CriativosPage = lazy(() => import("./pages/criativos/CriativosPage"));
 const EquipePage = lazy(() => import("./pages/equipe/EquipePage"));
@@ -253,7 +253,7 @@ const App = () => (
                   <Route path="/x-julia/contratos" element={<ProtectedRoute module="x_julia_contracts"><XJScopeProvider><XJContractsPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/agenda" element={<ProtectedRoute module="x_julia_agenda"><XJScopeProvider><XJAgendaPage /></XJScopeProvider></ProtectedRoute>} />
                   {/* JulIA Chat — protótipo de lista de conversas com query única */}
-                  <Route path="/mvp-chat" element={<ProtectedRoute><MvpChatPage /></ProtectedRoute>} />
+                  <Route path="/julia-chat" element={<ProtectedRoute><JuliaChatPage /></ProtectedRoute>} />
                   {/* Escritórios — módulo independente (clientes sem agente da Julia) */}
 
                   <Route path="/escritorios" element={<ProtectedRoute module="escritorios"><OfficesListPage /></ProtectedRoute>} />

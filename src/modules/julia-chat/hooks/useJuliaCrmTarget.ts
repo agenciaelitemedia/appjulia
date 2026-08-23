@@ -6,19 +6,19 @@
 import { useCallback, useState } from 'react';
 import { supabase } from '../extend/db';
 
-export interface MvpCrmTarget {
+export interface JuliaCrmTarget {
   boardId: string | null;
   dealId: string | null;
 }
 
-export function useMvpCrmTarget() {
+export function useJuliaCrmTarget() {
   const [loading, setLoading] = useState(false);
 
   const resolve = useCallback(async (args: {
     clientId: string | null;
     conversationId: string;
     contactId: string;
-  }): Promise<MvpCrmTarget | null> => {
+  }): Promise<JuliaCrmTarget | null> => {
     setLoading(true);
     try {
       const base = () => {

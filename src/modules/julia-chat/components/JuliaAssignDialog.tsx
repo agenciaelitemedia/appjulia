@@ -18,7 +18,7 @@ interface Props {
  * Owner do escritório pode escolher qualquer membro; os demais perfis só
  * podem definir a si mesmos.
  */
-export function MvpAssignDialog({ open, onOpenChange, onConfirm }: Props) {
+export function JuliaAssignDialog({ open, onOpenChange, onConfirm }: Props) {
   const { user, isAdmin } = useAuth();
   const { data: team } = useTeamByClient();
   const { data: assignedCounts } = useChatAssignedCountsByMember();

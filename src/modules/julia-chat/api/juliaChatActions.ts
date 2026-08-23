@@ -38,10 +38,10 @@ async function disableJuliaOnAssign(args: {
         body: { codAgent, sessionId: cleanPhone },
       });
     } catch (e) {
-      console.warn('[mvp-chat] followup-stop falhou', e);
+      console.warn('[julia-chat] followup-stop falhou', e);
     }
   } catch (e) {
-    console.warn('[mvp-chat] disableJulia falhou', e);
+    console.warn('[julia-chat] disableJulia falhou', e);
   }
 }
 

@@ -1,9 +1,9 @@
 import { Database, Server, Timer, Layers, AlertTriangle, Zap } from 'lucide-react';
 import { Badge, cn } from '../extend/ui';
-import type { MvpChatTimings } from '../api/types';
+import type { JuliaChatTimings } from '../api/types';
 
 interface Props {
-  timings: MvpChatTimings | null;
+  timings: JuliaChatTimings | null;
   requests: number;
   rowsLoaded: number;
 }
@@ -20,7 +20,7 @@ function Metric({ icon: Icon, label, value, tone }: { icon: any; label: string; 
   );
 }
 
-export function MvpChatPerfPanel({ timings, requests, rowsLoaded }: Props) {
+export function JuliaChatPerfPanel({ timings, requests, rowsLoaded }: Props) {
   const hits = timings?.cache_hits ?? 0;
   const misses = timings?.cache_misses ?? 0;
   const refreshed = timings?.cache_refreshed ?? 0;

@@ -7,7 +7,7 @@ export interface OptionItem { id: string; name: string; color?: string | null; c
  * Listas dos filtros: filas e etiquetas (Supabase direto) + responsáveis e
  * etapas do CRM da Júlia (edge function, que lê o cache do banco legado).
  */
-export function useMvpChatOptions(clientId: string | null) {
+export function useJuliaChatOptions(clientId: string | null) {
   const [queues, setQueues] = useState<OptionItem[]>([]);
   const [tags, setTags] = useState<OptionItem[]>([]);
   const [owners, setOwners] = useState<string[]>([]);
@@ -20,7 +20,7 @@ export function useMvpChatOptions(clientId: string | null) {
       const [q, t, opts] = await Promise.all([
         supabase.from('queues').select('id, name, channel_type').eq('client_id', clientId).eq('is_deleted', false).eq('is_active', true).order('name'),
         supabase.from('chat_tags').select('id, name, color').eq('client_id', clientId).order('name'),
-        supabase.functions.invoke('mvp-chat-list-feed', { body: { client_id: clientId, options: true } }),
+        supabase.functions.invoke('julia-chat-list-feed', { body: { client_id: clientId, options: true } }),
       ]);
       if (!alive) return;
       setQueues(((q.data as any[]) || []).map((r) => ({ id: r.id, name: r.name, channel_type: r.channel_type })));

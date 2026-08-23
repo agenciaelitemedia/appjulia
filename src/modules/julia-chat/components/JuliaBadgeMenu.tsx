@@ -9,7 +9,7 @@ import {
  * Badge de largura fixa (mesmo visual do card) com setinha e menu de ações.
  * O clique é isolado para não abrir a conversa da linha.
  */
-export function MvpBadgeMenu({
+export function JuliaBadgeMenu({
   icon: Icon, label, width, tone, tooltip, children, align = 'start',
 }: {
   icon?: LucideIcon;

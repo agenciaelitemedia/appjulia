@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchMvpChatFeed } from '../api/fetchMvpChatFeed';
-import { useMvpChatRealtime } from './useMvpChatRealtime';
-import type { MvpChatCounters, MvpChatFilters, MvpChatRowData, MvpChatTab, MvpChatTimings } from '../api/types';
+import { fetchJuliaChatFeed } from '../api/fetchJuliaChatFeed';
+import { useJuliaChatRealtime } from './useJuliaChatRealtime';
+import type { JuliaChatCounters, JuliaChatFilters, JuliaChatRowData, JuliaChatTab, JuliaChatTimings } from '../api/types';
 
 const PAGE_SIZE = 30;
 /** Espera antes de revalidar após um evento que pode afetar o filtro ativo. */
@@ -17,9 +17,9 @@ const STALE_AFTER_MS = 30000;
 const FILTER_FIELDS = ['queue_id', 'assigned_to', 'assigned_user_id', 'priority'] as const;
 
 interface State {
-  rows: MvpChatRowData[];
-  counters: MvpChatCounters | null;
-  timings: MvpChatTimings | null;
+  rows: JuliaChatRowData[];
+  counters: JuliaChatCounters | null;
+  timings: JuliaChatTimings | null;
   hasMore: boolean;
   loading: boolean;
   loadingMore: boolean;
@@ -33,7 +33,7 @@ const INITIAL: State = {
   loading: false, loadingMore: false, revalidating: false, error: null, requests: 0,
 };
 
-function whenOf(r: MvpChatRowData) {
+function whenOf(r: JuliaChatRowData) {
   return new Date(r.last_message_at ?? r.conversation_updated_at ?? 0).getTime();
 }
 
@@ -43,8 +43,8 @@ const SLA_RANK: Record<string, number> = { breached: 0, at_risk: 1, on_track: 2 
  * Comparador equivalente ao `ORDER BY` do servidor, para que os patches de
  * tempo real não embaralhem a lista quando a ordenação não é "mais recentes".
  */
-function comparatorFor(sort: MvpChatFilters['sort']) {
-  return (a: MvpChatRowData, b: MvpChatRowData) => {
+function comparatorFor(sort: JuliaChatFilters['sort']) {
+  return (a: JuliaChatRowData, b: JuliaChatRowData) => {
     let d = 0;
     if (sort === 'oldest') {
       d = whenOf(a) - whenOf(b);
@@ -66,15 +66,15 @@ function comparatorFor(sort: MvpChatFilters['sort']) {
 }
 
 /** A conversa pertence a esta lista? */
-function matchesTab(status: string | null | undefined, tab: MvpChatTab) {
+function matchesTab(status: string | null | undefined, tab: JuliaChatTab) {
   if (!tab) return true;
   if (tab === 'resolved_closed') return status === 'resolved' || status === 'closed';
   return status === tab;
 }
 
-export interface UseMvpChatFeedOptions {
+export interface UseJuliaChatFeedOptions {
   /** Aba/lista desta instância. */
-  status: MvpChatTab;
+  status: JuliaChatTab;
   /** Quando false, a lista não carrega nem revalida (aba nunca aberta). */
   enabled?: boolean;
   /** Lista em segundo plano: nunca mostra loading e revalida com folga. */
@@ -86,10 +86,10 @@ export interface UseMvpChatFeedOptions {
  * Realtime. Revalidações automáticas são silenciosas, com debounce e intervalo
  * mínimo; aba do navegador oculta não revalida.
  */
-export function useMvpChatFeed(
+export function useJuliaChatFeed(
   clientId: string | null,
-  filters: MvpChatFilters,
-  options: UseMvpChatFeedOptions,
+  filters: JuliaChatFilters,
+  options: UseJuliaChatFeedOptions,
 ) {
   const { status, enabled = true, background = false } = options;
   const [state, setState] = useState<State>(INITIAL);
@@ -97,7 +97,7 @@ export function useMvpChatFeed(
   const reqId = useRef(0);
   const lastLoadAt = useRef(0);
   const pendingRevalidate = useRef(false);
-  const rowsRef = useRef<MvpChatRowData[]>([]);
+  const rowsRef = useRef<JuliaChatRowData[]>([]);
   rowsRef.current = state.rows;
   const sortRef = useRef(comparatorFor(filters.sort));
   sortRef.current = comparatorFor(filters.sort);
@@ -106,7 +106,7 @@ export function useMvpChatFeed(
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 
-  const effectiveFilters = useMemo<MvpChatFilters>(() => ({ ...filters, status }), [filters, status]);
+  const effectiveFilters = useMemo<JuliaChatFilters>(() => ({ ...filters, status }), [filters, status]);
   const key = useMemo(() => JSON.stringify(effectiveFilters), [effectiveFilters]);
 
   const load = useCallback(async (
@@ -127,7 +127,7 @@ export function useMvpChatFeed(
       error: null,
     }));
     try {
-      const res = await fetchMvpChatFeed({ clientId, filters: effectiveFilters, limit: PAGE_SIZE, offset, refresh });
+      const res = await fetchJuliaChatFeed({ clientId, filters: effectiveFilters, limit: PAGE_SIZE, offset, refresh });
       if (id !== reqId.current) return;
       setState((s) => ({
         rows: mode === 'append' ? [...s.rows, ...res.rows] : res.rows,
@@ -232,7 +232,7 @@ export function useMvpChatFeed(
       if (idx < 0) return s;
       const row = s.rows[idx];
       const fromMe = !!msg.from_me;
-      const patched: MvpChatRowData = {
+      const patched: JuliaChatRowData = {
         ...row,
         last_message_text: typeof msg.content === 'string' ? msg.content : row.last_message_text,
         last_message_at: msg.created_at ?? new Date().toISOString(),
@@ -283,7 +283,7 @@ export function useMvpChatFeed(
       const rows = [...s.rows];
       rows[idx] = {
         ...row,
-        status: (nextStatus ?? row.status) as MvpChatRowData['status'],
+        status: (nextStatus ?? row.status) as JuliaChatRowData['status'],
         assigned_to: conv.assigned_to ?? null,
         assigned_user_id: conv.assigned_user_id ?? null,
         priority: conv.priority ?? row.priority,
@@ -336,9 +336,9 @@ export function useMvpChatFeed(
     });
   }, []);
 
-  useMvpChatRealtime(clientId, { onMessage, onConversation, onContact });
+  useJuliaChatRealtime(clientId, { onMessage, onConversation, onContact });
 
   return { ...state, loadMore, refresh, pageSize: PAGE_SIZE, liveEvents };
 }
 
-export type MvpChatFeed = ReturnType<typeof useMvpChatFeed>;
+export type JuliaChatFeed = ReturnType<typeof useJuliaChatFeed>;

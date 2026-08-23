@@ -1,19 +1,19 @@
 /**
- * useMvpSnoozed — busca as conversas adiadas ativas direto no banco,
+ * useJuliaSnoozed — busca as conversas adiadas ativas direto no banco,
  * exatamente como o /chat faz (não depende da lista paginada do feed,
  * que esconde adiados por padrão).
  */
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../extend/db';
-import type { MvpChatRowData } from '../api/types';
+import type { JuliaChatRowData } from '../api/types';
 
-export function useMvpSnoozed(clientId: string | null, scopeQueueIds: string[]) {
+export function useJuliaSnoozed(clientId: string | null, scopeQueueIds: string[]) {
   const { data, refetch, isLoading } = useQuery({
-    queryKey: ['mvp-chat-snoozed', clientId, scopeQueueIds.slice().sort().join(',')],
+    queryKey: ['julia-chat-snoozed', clientId, scopeQueueIds.slice().sort().join(',')],
     enabled: !!clientId,
     staleTime: 30_000,
     refetchInterval: 60_000,
-    queryFn: async (): Promise<MvpChatRowData[]> => {
+    queryFn: async (): Promise<JuliaChatRowData[]> => {
       const nowIso = new Date().toISOString();
       let q = supabase
         .from('chat_conversations')
@@ -54,7 +54,7 @@ export function useMvpSnoozed(clientId: string | null, scopeQueueIds: string[]) 
 
       // uma conversa por contato (a de retorno mais próximo)
       const seen = new Set<string>();
-      const out: MvpChatRowData[] = [];
+      const out: JuliaChatRowData[] = [];
       for (const r of rows) {
         if (!r.contact_id || seen.has(r.contact_id)) continue;
         seen.add(r.contact_id);
@@ -109,7 +109,7 @@ export function useMvpSnoozed(clientId: string | null, scopeQueueIds: string[]) 
           queue_cod_agent: null,
           phone_key: null,
           julia_stage_id: null,
-        } as MvpChatRowData);
+        } as JuliaChatRowData);
       }
       return out;
     },

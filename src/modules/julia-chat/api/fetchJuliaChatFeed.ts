@@ -1,7 +1,7 @@
 import { supabase } from '../extend/db';
-import type { MvpChatFeedResponse, MvpChatFilters } from './types';
+import type { JuliaChatFeedResponse, JuliaChatFilters } from './types';
 
-function periodToRange(period: MvpChatFilters['period']): { from: string | null; to: string | null } {
+function periodToRange(period: JuliaChatFilters['period']): { from: string | null; to: string | null } {
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   switch (period) {
@@ -26,20 +26,20 @@ function periodToRange(period: MvpChatFilters['period']): { from: string | null;
  * filtrado, ordenado e paginado no servidor. Os dados do banco legado passam
  * por cache server-side com invalidação por janela de tempo.
  */
-export async function fetchMvpChatFeed(params: {
+export async function fetchJuliaChatFeed(params: {
   clientId: string;
-  filters: MvpChatFilters;
+  filters: JuliaChatFilters;
   limit: number;
   offset: number;
   refresh?: boolean;
-}): Promise<MvpChatFeedResponse> {
+}): Promise<JuliaChatFeedResponse> {
   const { from, to } = periodToRange(params.filters.period);
   const f = params.filters;
 
   const scopeQueues = f.scope_queue_ids ?? [];
   const queueIds = f.queue_ids.length ? f.queue_ids : (scopeQueues.length ? scopeQueues : null);
 
-  const { data, error } = await supabase.functions.invoke('mvp-chat-list-feed', {
+  const { data, error } = await supabase.functions.invoke('julia-chat-list-feed', {
     body: {
       client_id: params.clientId,
       queue_ids: queueIds,
@@ -71,5 +71,5 @@ export async function fetchMvpChatFeed(params: {
 
   if (error) throw new Error(error.message);
   if ((data as any)?.error) throw new Error(String((data as any).error));
-  return data as MvpChatFeedResponse;
+  return data as JuliaChatFeedResponse;
 }

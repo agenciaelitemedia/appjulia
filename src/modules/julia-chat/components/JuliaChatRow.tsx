@@ -20,11 +20,11 @@ import {
 import { useAuth } from '../extend/auth';
 import { isOwnerUser } from '../extend/queues';
 import { PriorityBadge } from '@/components/chat/PriorityBadge';
-import { MvpBadgeMenu } from './MvpBadgeMenu';
-import { MvpAssignDialog } from './MvpAssignDialog';
-import { useMvpCrmTarget } from '../hooks/useMvpCrmTarget';
-import { mvpAssignConversation, mvpReturnToQueue } from '../api/mvpChatActions';
-import type { MvpChatRowData } from '../api/types';
+import { JuliaBadgeMenu } from './JuliaBadgeMenu';
+import { JuliaAssignDialog } from './JuliaAssignDialog';
+import { useJuliaCrmTarget } from '../hooks/useJuliaCrmTarget';
+import { mvpAssignConversation, mvpReturnToQueue } from '../api/juliaChatActions';
+import type { JuliaChatRowData } from '../api/types';
 
 function initials(name?: string | null) {
   if (!name) return '?';
@@ -106,7 +106,7 @@ function FixedBadge({
 
 
 interface Props {
-  row: MvpChatRowData;
+  row: JuliaChatRowData;
   selected?: boolean;
   /** Cor da aba de origem — pinta o fundo do card de forma bem suave. */
   accent?: 'amber' | 'emerald' | 'none';
@@ -114,12 +114,12 @@ interface Props {
   disconnected?: boolean;
   /** Aba de origem — define as ações do badge de responsável. */
   tab?: 'pending' | 'open' | 'resolved_closed';
-  onSelect?: (row: MvpChatRowData) => void;
+  onSelect?: (row: JuliaChatRowData) => void;
   /** Revalida o feed após uma ação no card. */
   onChanged?: () => void;
 }
 
-export const MvpChatRow = memo(function MvpChatRow({
+export const JuliaChatRow = memo(function JuliaChatRow({
   row, selected, accent = 'none', disconnected = false, tab = 'open', onSelect, onChanged,
 }: Props) {
   const navigate = useNavigate();
@@ -132,7 +132,7 @@ export const MvpChatRow = memo(function MvpChatRow({
   const [transferOpen, setTransferOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
-  const { resolve: resolveCrmTarget } = useMvpCrmTarget();
+  const { resolve: resolveCrmTarget } = useJuliaCrmTarget();
 
   const preview = useMemo(
     () => getMessagePreview({ text: row.last_message_text, type: 'text' } as any) || 'Sem mensagens',
@@ -366,7 +366,7 @@ export const MvpChatRow = memo(function MvpChatRow({
             }
           />
 
-          <MvpBadgeMenu
+          <JuliaBadgeMenu
             icon={User}
             label={row.assigned_to || 'Sem responsável'}
             width="w-[116px]"
@@ -398,9 +398,9 @@ export const MvpChatRow = memo(function MvpChatRow({
                 </DropdownMenuItem>
               </>
             )}
-          </MvpBadgeMenu>
+          </JuliaBadgeMenu>
 
-          <MvpBadgeMenu
+          <JuliaBadgeMenu
             icon={Bot}
             label={juliaBadge.label}
             width="w-[116px]"
@@ -414,7 +414,7 @@ export const MvpChatRow = memo(function MvpChatRow({
             ) : (
               <DropdownMenuItem disabled>---</DropdownMenuItem>
             )}
-          </MvpBadgeMenu>
+          </JuliaBadgeMenu>
         </div>
 
         {/* Linha 2 — SLA / CRM / campanha */}
@@ -433,7 +433,7 @@ export const MvpChatRow = memo(function MvpChatRow({
             )}
           </div>
 
-          <MvpBadgeMenu
+          <JuliaBadgeMenu
             icon={Kanban}
             label={crmLabel}
             width="w-[150px]"
@@ -453,9 +453,9 @@ export const MvpChatRow = memo(function MvpChatRow({
             ) : (
               <DropdownMenuItem disabled>---</DropdownMenuItem>
             )}
-          </MvpBadgeMenu>
+          </JuliaBadgeMenu>
 
-          <MvpBadgeMenu
+          <JuliaBadgeMenu
             icon={Megaphone}
             label={row.campaign ? String(campaignTitle) : '---'}
             width="w-[104px]"
@@ -471,7 +471,7 @@ export const MvpChatRow = memo(function MvpChatRow({
             ) : (
               <DropdownMenuItem disabled>---</DropdownMenuItem>
             )}
-          </MvpBadgeMenu>
+          </JuliaBadgeMenu>
 
           {(row.sibling_open_count ?? 0) > 0 && (
             <FixedBadge
@@ -525,7 +525,7 @@ export const MvpChatRow = memo(function MvpChatRow({
     </button>
 
       {/* Diálogos das ações dos badges */}
-      <MvpAssignDialog open={assignOpen} onOpenChange={setAssignOpen} onConfirm={handleAssignConfirm} />
+      <JuliaAssignDialog open={assignOpen} onOpenChange={setAssignOpen} onConfirm={handleAssignConfirm} />
       <TransferDialog open={transferOpen} onOpenChange={setTransferOpen} onTransfer={handleTransferConfirm} />
       <ReturnToQueueDialog
         open={returnOpen}
