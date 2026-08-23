@@ -12,6 +12,7 @@ import { MvpChatFiltersBar } from '../components/MvpChatFilters';
 import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
 import { MvpChatStatusTabs } from '../components/MvpChatStatusTabs';
 import { MvpSnoozedPanel } from '../components/MvpSnoozedPanel';
+import { MvpNewConversationFooter } from '../components/MvpNewConversationFooter';
 import { MvpChatConversation } from '../components/MvpChatConversation';
 import { MvpChatRightBar } from '../components/MvpChatRightBar';
 import { WhatsAppDataProvider } from '../extend/chat';
