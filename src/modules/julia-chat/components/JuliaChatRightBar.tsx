@@ -5,8 +5,8 @@ import { JuliaChatDetailsPanel } from './JuliaChatDetailsPanel';
 import type { JuliaChatRowData } from '../api/types';
 
 /**
- * Coluna 3 do MVP: a right-bar do chat principal (abas Contato / CRM / Lead)
- * quando existe conversa selecionada. Sem seleção, mantém o resumo do MVP.
+ * Coluna 3 do JulIA Chat: a right-bar do chat principal (abas Contato / CRM / Lead)
+ * quando existe conversa selecionada. Sem seleção, mantém o resumo do JulIA Chat.
  * Abaixo de `lg` a barra vira overlay, como no /chat.
  */
 export function JuliaChatRightBar({ row, isBelowLg }: { row: JuliaChatRowData | null; isBelowLg: boolean }) {

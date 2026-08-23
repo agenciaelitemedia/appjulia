@@ -13,7 +13,7 @@ interface Props {
 }
 
 /**
- * Rodapé "Iniciar nova conversa" do MVP — mesma UX e mesmas regras do rodapé
+ * Rodapé "Iniciar nova conversa" do JulIA Chat — mesma UX e mesmas regras do rodapé
  * da lista do chat principal (só filas uazapi conectadas entram no dialog).
  */
 export function JuliaNewConversationFooter({ queues, queueConnectionMap, clientId }: Props) {

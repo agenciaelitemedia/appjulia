@@ -27,7 +27,7 @@ interface Props {
 }
 
 /**
- * Coluna central do MVP: carrega a conversa real com os mesmos componentes do
+ * Coluna central do JulIA Chat: carrega a conversa real com os mesmos componentes do
  * chat principal (header + timeline + input). Segue o padrão já validado em
  * `ChatSidePanel` → `ScopedChat`: hidrata fila, contato e conversa e sincroniza
  * o `WhatsAppDataProvider` isolado do módulo.

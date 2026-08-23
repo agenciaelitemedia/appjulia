@@ -46,7 +46,7 @@ async function disableJuliaOnAssign(args: {
 }
 
 /** Atribui a conversa a um responsável (opcionalmente abrindo o atendimento). */
-export async function mvpAssignConversation(params: {
+export async function juliaAssignConversation(params: {
   conversationId: string;
   assignedTo: string;
   assignedUserId: number | null;
@@ -87,7 +87,7 @@ export async function mvpAssignConversation(params: {
 }
 
 /** Devolve a conversa para a fila — remove responsável e volta para "pending". */
-export async function mvpReturnToQueue(params: {
+export async function juliaReturnToQueue(params: {
   conversationId: string;
   actor: Actor;
   removedAgent?: string | null;

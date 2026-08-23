@@ -1,6 +1,6 @@
 /**
  * extend/chat — reexporta, sem editar, os componentes e o provider do chat
- * principal usados pelo MVP para abrir a conversa real.
+ * principal usados pelo JulIA Chat para abrir a conversa real.
  */
 export {
   WhatsAppDataProvider,

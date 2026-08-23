@@ -5,7 +5,7 @@ import { useJuliaChatRealtimeHub, type JuliaRealtimeHandlers } from './useJuliaC
 type Handlers = JuliaRealtimeHandlers;
 
 /**
- * Tempo real do feed do MVP. Dentro do `JuliaChatRealtimeProvider` apenas se
+ * Tempo real do feed do JulIA Chat. Dentro do `JuliaChatRealtimeProvider` apenas se
  * registra no canal compartilhado; fora dele, abre o próprio canal (fallback).
  */
 export function useJuliaChatRealtime(clientId: string | null, handlers: Handlers) {

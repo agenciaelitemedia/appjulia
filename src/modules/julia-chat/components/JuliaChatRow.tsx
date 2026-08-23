@@ -23,7 +23,7 @@ import { PriorityBadge } from '@/components/chat/PriorityBadge';
 import { JuliaBadgeMenu } from './JuliaBadgeMenu';
 import { JuliaAssignDialog } from './JuliaAssignDialog';
 import { useJuliaCrmTarget } from '../hooks/useJuliaCrmTarget';
-import { mvpAssignConversation, mvpReturnToQueue } from '../api/juliaChatActions';
+import { juliaAssignConversation, juliaReturnToQueue } from '../api/juliaChatActions';
 import type { JuliaChatRowData } from '../api/types';
 
 function initials(name?: string | null) {
@@ -196,7 +196,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
 
   // ---------- Ações ----------
   const assign = async (assignedTo: string, assignedUserId: number | null, openIt: boolean) => {
-    await mvpAssignConversation({
+    await juliaAssignConversation({
       conversationId: row.conversation_id,
       assignedTo,
       assignedUserId,
@@ -244,7 +244,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
 
   const handleReturnConfirm = async (note?: string) => {
     try {
-      await mvpReturnToQueue({
+      await juliaReturnToQueue({
         conversationId: row.conversation_id,
         actor: { name: currentUserName, id: (user as any)?.id ?? null },
         removedAgent: row.assigned_to,

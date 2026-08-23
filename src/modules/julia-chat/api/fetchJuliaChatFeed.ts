@@ -21,7 +21,7 @@ function periodToRange(period: JuliaChatFilters['period']): { from: string | nul
 }
 
 /**
- * ÚNICA chamada de dados do MVP: a edge function devolve o card completo
+ * ÚNICA chamada de dados do JulIA Chat: a edge function devolve o card completo
  * (badges de CRM da Júlia, CRM Builder, ticket, Meta Ads, sessão, SLA) já
  * filtrado, ordenado e paginado no servidor. Os dados do banco legado passam
  * por cache server-side com invalidação por janela de tempo.

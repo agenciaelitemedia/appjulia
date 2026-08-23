@@ -82,7 +82,7 @@ export interface UseJuliaChatFeedOptions {
 }
 
 /**
- * Uma lista do MVP (uma aba): 1 request por página + patches incrementais via
+ * Uma lista do JulIA Chat (uma aba): 1 request por página + patches incrementais via
  * Realtime. Revalidações automáticas são silenciosas, com debounce e intervalo
  * mínimo; aba do navegador oculta não revalida.
  */

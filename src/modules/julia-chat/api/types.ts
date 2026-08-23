@@ -157,7 +157,7 @@ export interface JuliaChatFilters {
 }
 
 
-export const DEFAULT_MVP_FILTERS: JuliaChatFilters = {
+export const DEFAULT_JULIA_FILTERS: JuliaChatFilters = {
   queue_ids: [],
   status: 'open',
   tab: null,

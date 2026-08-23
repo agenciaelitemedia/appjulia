@@ -17,7 +17,7 @@ import { JuliaChatConversation } from '../components/JuliaChatConversation';
 import { JuliaChatRightBar } from '../components/JuliaChatRightBar';
 import { WhatsAppDataProvider } from '../extend/chat';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../extend/ui';
-import { DEFAULT_MVP_FILTERS, type JuliaChatFilters, type JuliaChatRowData } from '../api/types';
+import { DEFAULT_JULIA_FILTERS, type JuliaChatFilters, type JuliaChatRowData } from '../api/types';
 
 export default function JuliaChatPage() {
   const { user } = useAuth();
@@ -32,8 +32,8 @@ export default function JuliaChatPage() {
 
 function JuliaChatContent({ clientId }: { clientId: string | null }) {
   const { user, isAdmin } = useAuth();
-  const [filters, setFilters] = useState<JuliaChatFilters>(DEFAULT_MVP_FILTERS);
-  const [debounced, setDebounced] = useState<JuliaChatFilters>(DEFAULT_MVP_FILTERS);
+  const [filters, setFilters] = useState<JuliaChatFilters>(DEFAULT_JULIA_FILTERS);
+  const [debounced, setDebounced] = useState<JuliaChatFilters>(DEFAULT_JULIA_FILTERS);
   const [selected, setSelected] = useState<JuliaChatRowData | null>(null);
   const [snoozedPanelOpen, setSnoozedPanelOpen] = useState(false);
 
@@ -86,7 +86,7 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
   );
 
   const patch = useCallback((p: Partial<JuliaChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
-  const reset = useCallback(() => setFilters(DEFAULT_MVP_FILTERS), []);
+  const reset = useCallback(() => setFilters(DEFAULT_JULIA_FILTERS), []);
 
   // Conversas adiadas ativas: buscadas direto no banco (mesma regra do /chat),
   // independentes da paginação do feed (que oculta adiados por padrão).
@@ -170,7 +170,7 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
         />
       </aside>
 
-      {/* Colunas 2 e 3 — conversa real + right-bar (provider isolado do MVP) */}
+      {/* Colunas 2 e 3 — conversa real + right-bar (provider isolado do JulIA Chat) */}
       <WhatsAppDataProvider>
         <JuliaConversationColumns
           selected={selected}
@@ -208,7 +208,7 @@ function useIsBelowLg() {
 }
 
 /**
- * Colunas 2 e 3 do MVP, dentro do `WhatsAppDataProvider` isolado: a conversa
+ * Colunas 2 e 3 do JulIA Chat, dentro do `WhatsAppDataProvider` isolado: a conversa
  * real (header + timeline + input do chat principal) e a right-bar.
  */
 function JuliaConversationColumns({
