@@ -1,4 +1,4 @@
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from '../extend/ui';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn, MascoteLoader } from '../extend/ui';
 import type { MvpChatFilters } from '../api/types';
 
 type StatusValue = NonNullable<MvpChatFilters['status']>;
@@ -7,10 +7,12 @@ interface Props {
   value: MvpChatFilters['status'];
   onChange: (v: StatusValue) => void;
   counters?: { pending?: number; open?: number } | null;
+  /** Exibe spinner no contador da aba ativa enquanto carrega. */
+  loading?: boolean;
 }
 
 /** Abas de status — mesmo padrão visual do /chat. */
-export function MvpChatStatusTabs({ value, onChange, counters }: Props) {
+export function MvpChatStatusTabs({ value, onChange, counters, loading }: Props) {
   const tabs: { value: StatusValue; label: string; count?: number; tooltip: string }[] = [
     { value: 'resolved_closed', label: 'Encerradas', tooltip: 'Resolvidas / Encerradas' },
     { value: 'pending', label: 'Aguardando', count: counters?.pending ?? 0, tooltip: 'Conversas aguardando atendimento' },

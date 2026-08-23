@@ -111,6 +111,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
         <MvpChatStatusTabs
           value={active}
           onChange={(v) => setActive(v as MvpTabKey)}
+          loading={activeFeed.loading}
           counters={{
             pending: feeds.pending.counters?.pending ?? c?.pending,
             open: feeds.open.counters?.open ?? c?.open,
