@@ -11,6 +11,7 @@ import { MvpChatFiltersBar } from '../components/MvpChatFilters';
 import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
 import { MvpChatDetailsPanel } from '../components/MvpChatDetailsPanel';
 import { MvpChatStatusTabs } from '../components/MvpChatStatusTabs';
+import { MvpSnoozedPanel } from '../components/MvpSnoozedPanel';
 import { DEFAULT_MVP_FILTERS, type MvpChatFilters, type MvpChatRowData } from '../api/types';
 
 export default function MvpChatPage() {
