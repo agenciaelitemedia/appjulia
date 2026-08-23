@@ -17,11 +17,13 @@ interface Props {
   onSelect: (row: MvpChatRowData) => void;
   /** Filas offline (mesma regra do /chat): conversa fica destacada e bloqueada. */
   disconnectedQueueIds?: Set<string>;
+  /** Aba de origem — define as ações do badge de responsável no card. */
+  tab?: 'pending' | 'open' | 'resolved_closed';
 }
 
 /** Lista de uma aba — estado, scroll e paginação próprios. */
 export function MvpChatList({
-  feed, visible, accent, selectedId, onSelect, disconnectedQueueIds,
+  feed, visible, accent, selectedId, onSelect, disconnectedQueueIds, tab,
 }: Props) {
   const sentinel = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef(feed.loadMore);
@@ -86,6 +88,8 @@ export function MvpChatList({
               accent={accent}
               disconnected={isDisconnected(row)}
               selected={selectedId === row.conversation_id}
+              tab={tab}
+              onChanged={feed.refresh}
               onSelect={handleSelect}
             />
           ))}

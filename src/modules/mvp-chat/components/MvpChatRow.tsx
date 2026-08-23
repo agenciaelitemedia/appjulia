@@ -1,8 +1,11 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { differenceInHours, differenceInMinutes } from 'date-fns';
 import {
   CheckCheck, Clock, Megaphone, Bot, User, Ticket, Kanban, Users,
-  MessageCircle, MessagesSquare, Instagram, Send, Globe, Facebook, Mail, type LucideIcon,
+  MessageCircle, MessagesSquare, Instagram, Send, Globe, Facebook, Mail,
+  UserPlus, UserCog, ArrowRightLeft, Undo2, ExternalLink, type LucideIcon,
 } from 'lucide-react';
 
 
@@ -10,8 +13,17 @@ import {
   Avatar, AvatarFallback, AvatarImage, Badge, cn,
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
   getMessagePreview, evaluateSla, SlaBadge,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  TransferDialog, ReturnToQueueDialog, ContactCampaignCard,
 } from '../extend/ui';
+import { useAuth } from '../extend/auth';
+import { isOwnerUser } from '../extend/queues';
 import { PriorityBadge } from '@/components/chat/PriorityBadge';
+import { MvpBadgeMenu } from './MvpBadgeMenu';
+import { MvpAssignDialog } from './MvpAssignDialog';
+import { useMvpCrmTarget } from '../hooks/useMvpCrmTarget';
+import { mvpAssignConversation, mvpReturnToQueue } from '../api/mvpChatActions';
 import type { MvpChatRowData } from '../api/types';
 
 function initials(name?: string | null) {
@@ -100,12 +112,28 @@ interface Props {
   accent?: 'amber' | 'emerald' | 'none';
   /** Fila da conversa está desconectada (mesma regra do /chat). */
   disconnected?: boolean;
+  /** Aba de origem — define as ações do badge de responsável. */
+  tab?: 'pending' | 'open' | 'resolved_closed';
   onSelect?: (row: MvpChatRowData) => void;
+  /** Revalida o feed após uma ação no card. */
+  onChanged?: () => void;
 }
 
 export const MvpChatRow = memo(function MvpChatRow({
-  row, selected, accent = 'none', disconnected = false, onSelect,
+  row, selected, accent = 'none', disconnected = false, tab = 'open', onSelect, onChanged,
 }: Props) {
+  const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
+  const isOwner = isAdmin || isOwnerUser(user);
+  const currentUserName = (user as any)?.name ? String((user as any).name) : '';
+  const clientId = (user as any)?.client_id ? String((user as any).client_id) : null;
+
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [campaignOpen, setCampaignOpen] = useState(false);
+  const { resolve: resolveCrmTarget } = useMvpCrmTarget();
+
   const preview = useMemo(
     () => getMessagePreview({ text: row.last_message_text, type: 'text' } as any) || 'Sem mensagens',
     [row.last_message_text],
@@ -132,10 +160,11 @@ export const MvpChatRow = memo(function MvpChatRow({
     || (row.campaign?.campaign_data as any)?.title
     || 'Meta Ads';
 
+  const hasJuliaAgent = !!(row.queue_cod_agent && String(row.queue_cod_agent).trim());
+
   /** Badge da Júlia: sem IA (cinza) / etapa ativa (verde) / etapa inativa (vermelho). */
   const juliaBadge = useMemo(() => {
-    const hasAgent = !!(row.queue_cod_agent && String(row.queue_cod_agent).trim());
-    if (!hasAgent) {
+    if (!hasJuliaAgent) {
       return {
         label: 'Sem IA',
         tone: 'border-border bg-muted/60 text-muted-foreground',
@@ -155,7 +184,7 @@ export const MvpChatRow = memo(function MvpChatRow({
       tone: 'border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400',
       tooltip: `Júlia inativa (humano assumiu) · Etapa do CRM da Júlia: ${stage}`,
     };
-  }, [row.queue_cod_agent, row.session_is_active, row.julia_stage_name]);
+  }, [hasJuliaAgent, row.session_is_active, row.julia_stage_name]);
 
   const crmLabel = row.crm_pipeline_name
     ? (row.crm_board_name ? `${row.crm_board_name} - ${row.crm_pipeline_name}` : row.crm_pipeline_name)
@@ -165,10 +194,95 @@ export const MvpChatRow = memo(function MvpChatRow({
 
   const channel = useMemo(() => channelMeta(row.channel_type ?? (row as any).channel), [row.channel_type, (row as any).channel]);
 
+  // ---------- Ações ----------
+  const assign = async (assignedTo: string, assignedUserId: number | null, openIt: boolean) => {
+    await mvpAssignConversation({
+      conversationId: row.conversation_id,
+      assignedTo,
+      assignedUserId,
+      actor: { name: currentUserName, id: (user as any)?.id ?? null },
+      openConversation: openIt,
+      currentStatus: row.status,
+      contactPhone: row.phone,
+      queueId: row.queue_id,
+    });
+    onChanged?.();
+  };
 
+  const handleAssume = async () => {
+    if (!currentUserName) {
+      toast.error('Usuário não identificado.');
+      return;
+    }
+    try {
+      await assign(currentUserName, (user as any)?.id ? Number((user as any).id) : null, true);
+      toast.success('Conversa assumida');
+    } catch (e: any) {
+      toast.error(`Não foi possível assumir: ${e?.message || e}`);
+    }
+  };
 
+  const handleAssignConfirm = async (assignedTo: string, assignedUserId: number | null) => {
+    try {
+      await assign(assignedTo, assignedUserId, true);
+      toast.success(`Responsável definido: ${assignedTo}`);
+    } catch (e: any) {
+      toast.error(`Não foi possível definir: ${e?.message || e}`);
+      throw e;
+    }
+  };
+
+  const handleTransferConfirm = async (assignedTo: string, assignedUserId: number | null) => {
+    try {
+      await assign(assignedTo, assignedUserId, true);
+      toast.success('Conversa transferida');
+    } catch (e: any) {
+      toast.error(`Não foi possível transferir: ${e?.message || e}`);
+      throw e;
+    }
+  };
+
+  const handleReturnConfirm = async (note?: string) => {
+    try {
+      await mvpReturnToQueue({
+        conversationId: row.conversation_id,
+        actor: { name: currentUserName, id: (user as any)?.id ?? null },
+        removedAgent: row.assigned_to,
+        removedUserId: row.assigned_user_id,
+        note,
+      });
+      onChanged?.();
+      toast.success('Conversa devolvida para a fila');
+    } catch (e: any) {
+      toast.error(`Não foi possível devolver: ${e?.message || e}`);
+      throw e;
+    }
+  };
+
+  const goJuliaCrm = () => {
+    const phone = (row.phone || '').replace(/\D/g, '');
+    navigate(phone ? `/crm/leads?whatsapp=${encodeURIComponent(phone)}` : '/crm/leads');
+  };
+
+  const goCrmBuilder = async () => {
+    try {
+      const target = await resolveCrmTarget({
+        clientId,
+        conversationId: row.conversation_id,
+        contactId: row.contact_id,
+      });
+      if (!target?.boardId) {
+        toast.error('Não foi possível localizar o painel do CRM vinculado.');
+        return;
+      }
+      navigate(`/crm-builder/${target.boardId}${target.dealId ? `?deal=${target.dealId}` : ''}`);
+    } catch (e: any) {
+      toast.error(`Erro ao abrir o CRM: ${e?.message || e}`);
+    }
+  };
 
   return (
+    <>
     <button
       type="button"
       onClick={() => onSelect?.(row)}
@@ -252,7 +366,7 @@ export const MvpChatRow = memo(function MvpChatRow({
             }
           />
 
-          <FixedBadge
+          <MvpBadgeMenu
             icon={User}
             label={row.assigned_to || 'Sem responsável'}
             width="w-[116px]"
@@ -260,15 +374,47 @@ export const MvpChatRow = memo(function MvpChatRow({
               ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
               : 'border-border bg-muted/60 text-muted-foreground'}
             tooltip={row.assigned_to ? `Responsável: ${row.assigned_to}` : 'Nenhum atendente atribuído'}
-          />
+          >
+            <DropdownMenuLabel className="text-[11px]">Responsável</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {tab === 'open' ? (
+              <>
+                {isOwner && (
+                  <DropdownMenuItem onSelect={() => setTransferOpen(true)}>
+                    <ArrowRightLeft className="mr-2 h-4 w-4" /> Transferir
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => setReturnOpen(true)}>
+                  <Undo2 className="mr-2 h-4 w-4" /> Devolver para a fila
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <>
+                <DropdownMenuItem onSelect={() => setAssignOpen(true)}>
+                  <UserCog className="mr-2 h-4 w-4" /> Definir Responsável
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => { void handleAssume(); }}>
+                  <UserPlus className="mr-2 h-4 w-4" /> Assumir Conversa
+                </DropdownMenuItem>
+              </>
+            )}
+          </MvpBadgeMenu>
 
-          <FixedBadge
+          <MvpBadgeMenu
             icon={Bot}
             label={juliaBadge.label}
             width="w-[116px]"
             tone={juliaBadge.tone}
             tooltip={juliaBadge.tooltip}
-          />
+          >
+            {hasJuliaAgent ? (
+              <DropdownMenuItem onSelect={goJuliaCrm}>
+                <ExternalLink className="mr-2 h-4 w-4" /> Ir CRM Júlia
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled>---</DropdownMenuItem>
+            )}
+          </MvpBadgeMenu>
         </div>
 
         {/* Linha 2 — SLA / CRM / campanha */}
@@ -287,7 +433,7 @@ export const MvpChatRow = memo(function MvpChatRow({
             )}
           </div>
 
-          <FixedBadge
+          <MvpBadgeMenu
             icon={Kanban}
             label={crmLabel}
             width="w-[150px]"
@@ -299,9 +445,17 @@ export const MvpChatRow = memo(function MvpChatRow({
                 ? `CRM: ${row.crm_board_name ?? '—'} · Etapa: ${row.crm_pipeline_name}`
                 : 'Conversa sem card no CRM Builder'
             }
-          />
+          >
+            {row.crm_pipeline_name ? (
+              <DropdownMenuItem onSelect={() => { void goCrmBuilder(); }}>
+                <ExternalLink className="mr-2 h-4 w-4" /> Ir Painel do CRM
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled>---</DropdownMenuItem>
+            )}
+          </MvpBadgeMenu>
 
-          <FixedBadge
+          <MvpBadgeMenu
             icon={Megaphone}
             label={row.campaign ? String(campaignTitle) : '---'}
             width="w-[104px]"
@@ -309,7 +463,15 @@ export const MvpChatRow = memo(function MvpChatRow({
               ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400'
               : 'border-border bg-muted/60 text-muted-foreground'}
             tooltip={row.campaign ? `Campanha (Meta Ads): ${campaignTitle}` : 'Lead sem campanha de anúncio'}
-          />
+          >
+            {row.campaign ? (
+              <DropdownMenuItem onSelect={() => setCampaignOpen(true)}>
+                <Megaphone className="mr-2 h-4 w-4" /> Ver Campanha
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled>---</DropdownMenuItem>
+            )}
+          </MvpBadgeMenu>
 
           {(row.sibling_open_count ?? 0) > 0 && (
             <FixedBadge
@@ -361,5 +523,32 @@ export const MvpChatRow = memo(function MvpChatRow({
 
 
     </button>
+
+      {/* Diálogos das ações dos badges */}
+      <MvpAssignDialog open={assignOpen} onOpenChange={setAssignOpen} onConfirm={handleAssignConfirm} />
+      <TransferDialog open={transferOpen} onOpenChange={setTransferOpen} onTransfer={handleTransferConfirm} />
+      <ReturnToQueueDialog
+        open={returnOpen}
+        onOpenChange={setReturnOpen}
+        onConfirm={handleReturnConfirm}
+        currentAssignee={row.assigned_to ?? undefined}
+      />
+      {row.campaign && (
+        <Dialog open={campaignOpen} onOpenChange={setCampaignOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Campanha de origem</DialogTitle>
+            </DialogHeader>
+            <ContactCampaignCard
+              row={{
+                id: row.campaign.id,
+                created_at: row.campaign.created_at ?? new Date().toISOString(),
+                campaign_data: row.campaign.campaign_data ?? null,
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 });
