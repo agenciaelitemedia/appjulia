@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, MessageSquare, Radio } from 'lucide-react';
 import { Badge, Button, cn } from '../extend/ui';
 import { useAuth } from '../extend/auth';
-import { useAccessibleQueues, isOwnerUser } from '../extend/queues';
+import { useAccessibleQueues, isOwnerUser, useQueueConnectionStatusesBatch } from '../extend/queues';
 import { MvpChatRealtimeProvider } from '../hooks/useMvpChatRealtimeHub';
 import { useMvpChatTabs, type MvpTabKey } from '../hooks/useMvpChatTabs';
 import { useMvpChatOptions } from '../hooks/useMvpChatOptions';
@@ -43,6 +43,16 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
     () => (accessibleQueues as { id: string }[]).map((q) => q.id),
     [accessibleQueues],
   );
+  // Status de conexão das filas (mesma checagem do /chat).
+  const { statusMap: queueConnectionMap } = useQueueConnectionStatusesBatch(accessibleQueues as any);
+  const disconnectedQueueIds = useMemo(() => {
+    const set = new Set<string>();
+    queueConnectionMap.forEach((connected, queueId) => {
+      if (connected === false) set.add(queueId);
+    });
+    return set;
+  }, [queueConnectionMap]);
+
   const restrictOpenTo = useMemo<string[] | null>(() => {
     const privileged = isAdmin || isOwnerUser(user);
     if (privileged) return null;
@@ -52,7 +62,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
   const scopedFilters = useMemo<MvpChatFilters>(() => ({
     ...debounced,
     scope_queue_ids: scopeQueueIds,
-    hide_snoozed: true,
+    hide_snoozed: debounced.hide_snoozed ?? true,
     restrict_open_to: restrictOpenTo,
   }), [debounced, scopeQueueIds, restrictOpenTo]);
 
@@ -127,6 +137,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           visible={active === 'pending'}
           accent="amber"
           selectedId={selected?.conversation_id ?? null}
+          disconnectedQueueIds={disconnectedQueueIds}
           onSelect={setSelected}
         />
         <MvpChatList
@@ -134,6 +145,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           visible={active === 'open'}
           accent="emerald"
           selectedId={selected?.conversation_id ?? null}
+          disconnectedQueueIds={disconnectedQueueIds}
           onSelect={setSelected}
         />
         <MvpChatList
@@ -141,6 +153,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           visible={active === 'resolved_closed'}
           accent="none"
           selectedId={selected?.conversation_id ?? null}
+          disconnectedQueueIds={disconnectedQueueIds}
           onSelect={setSelected}
         />
       </aside>

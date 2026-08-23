@@ -5,3 +5,5 @@
  */
 export { useAccessibleQueues } from '@/pages/agente/filas/hooks/useQueues';
 export { isOwnerUser } from '@/lib/auth/isOwner';
+export { useQueueConnectionStatusesBatch } from '@/hooks/useQueueConnectionStatusesBatch';
+export { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';

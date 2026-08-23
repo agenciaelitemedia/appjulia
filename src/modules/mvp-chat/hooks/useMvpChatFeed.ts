@@ -37,6 +37,34 @@ function whenOf(r: MvpChatRowData) {
   return new Date(r.last_message_at ?? r.conversation_updated_at ?? 0).getTime();
 }
 
+const SLA_RANK: Record<string, number> = { breached: 0, at_risk: 1, on_track: 2 };
+
+/**
+ * Comparador equivalente ao `ORDER BY` do servidor, para que os patches de
+ * tempo real não embaralhem a lista quando a ordenação não é "mais recentes".
+ */
+function comparatorFor(sort: MvpChatFilters['sort']) {
+  return (a: MvpChatRowData, b: MvpChatRowData) => {
+    let d = 0;
+    if (sort === 'oldest') {
+      d = whenOf(a) - whenOf(b);
+    } else if (sort === 'unread') {
+      d = (b.unread_count ?? 0) - (a.unread_count ?? 0) || whenOf(b) - whenOf(a);
+    } else if (sort === 'sla') {
+      const ra = SLA_RANK[a.sla_status ?? ''] ?? 3;
+      const rb = SLA_RANK[b.sla_status ?? ''] ?? 3;
+      d = ra - rb
+        || (a.sla_remaining_minutes ?? Number.POSITIVE_INFINITY) - (b.sla_remaining_minutes ?? Number.POSITIVE_INFINITY)
+        || whenOf(b) - whenOf(a);
+    } else {
+      d = whenOf(b) - whenOf(a);
+    }
+    if (d !== 0) return d;
+    // desempate determinístico igual ao do servidor
+    return a.conversation_id < b.conversation_id ? 1 : a.conversation_id > b.conversation_id ? -1 : 0;
+  };
+}
+
 /** A conversa pertence a esta lista? */
 function matchesTab(status: string | null | undefined, tab: MvpChatTab) {
   if (!tab) return true;
@@ -71,6 +99,8 @@ export function useMvpChatFeed(
   const pendingRevalidate = useRef(false);
   const rowsRef = useRef<MvpChatRowData[]>([]);
   rowsRef.current = state.rows;
+  const sortRef = useRef(comparatorFor(filters.sort));
+  sortRef.current = comparatorFor(filters.sort);
   const backgroundRef = useRef(background);
   backgroundRef.current = background;
   const enabledRef = useRef(enabled);
@@ -212,7 +242,7 @@ export function useMvpChatFeed(
       };
       const rows = [...s.rows];
       rows[idx] = patched;
-      rows.sort((a, b) => whenOf(b) - whenOf(a));
+      rows.sort(sortRef.current);
       const counters = s.counters
         ? { ...s.counters, unread: fromMe ? s.counters.unread : (s.counters.unread ?? 0) + 1 }
         : s.counters;
@@ -301,7 +331,7 @@ export function useMvpChatFeed(
         last_message_text: ct.last_message_text ?? rows[idx].last_message_text,
         last_message_at: ct.last_message_at ?? rows[idx].last_message_at,
       };
-      rows.sort((a, b) => whenOf(b) - whenOf(a));
+      rows.sort(sortRef.current);
       return { ...s, rows };
     });
   }, []);

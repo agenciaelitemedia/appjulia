@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Search, RotateCcw, X, SlidersHorizontal, ChevronDown, ChevronsUpDown, Check,
   ArrowDownUp, ArrowDown, ArrowUp, CalendarDays, Layers, Users, UserCheck, UserX,
-  ListFilter, Bot, User,
+  ListFilter, Bot, User, CalendarClock, BarChart3, Settings,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   Badge, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Collapsible, CollapsibleContent, CollapsibleTrigger, Popover, PopoverContent, PopoverTrigger,
@@ -12,6 +13,7 @@ import {
   TeamMemberSelect, useTeamByClient,
 } from '../extend/ui';
 import { useAuth } from '../extend/auth';
+import { useAgentQueueLimits } from '../extend/queues';
 import type { MvpChatFilters as Filters, MvpSlaStatus } from '../api/types';
 import type { OptionItem } from '../hooks/useMvpChatOptions';
 
@@ -140,8 +142,19 @@ export function MvpChatFiltersBar({
   const [open, setOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: teamMembers = [] } = useTeamByClient();
+  const navigate = useNavigate();
+  // Mesmas regras do /chat: grupos só com o recurso liberado no plano; métricas
+  // e configurações apenas para admin/titular/colaborador.
+  const { data: queueLimits } = useAgentQueueLimits();
+  const showGroupsTab = !!queueLimits?.allowGroups;
+  const canManageChat = !!isAdmin || user?.role === 'user' || user?.role === 'colaborador';
+  const showSnoozed = filters.hide_snoozed === false;
+
+  useEffect(() => {
+    if (!showGroupsTab && filters.tab === 'groups') onChange({ tab: null });
+  }, [showGroupsTab, filters.tab, onChange]);
 
   const toggleIn = <K extends 'tag_ids' | 'queue_ids' | 'owners' | 'julia_stage_ids'>(field: K, id: string) => {
     const cur = filters[field] as string[];
@@ -281,17 +294,69 @@ export function MvpChatFiltersBar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant={filters.tab === 'groups' ? 'default' : 'ghost'}
+                variant={showSnoozed ? 'default' : 'ghost'}
                 size="icon"
                 className="h-9 w-9 shrink-0"
-                aria-label={filters.tab === 'groups' ? 'Ver individuais' : 'Ver grupos'}
-                onClick={() => onChange({ tab: filters.tab === 'groups' ? null : 'groups' })}
+                aria-label={showSnoozed ? 'Ocultar conversas adiadas' : 'Agenda de retornos (conversas adiadas)'}
+                onClick={() => onChange({ hide_snoozed: showSnoozed ? true : false })}
               >
-                <Users className="h-4 w-4" />
+                <CalendarClock className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{filters.tab === 'groups' ? 'Ver individuais' : 'Ver grupos'}</TooltipContent>
+            <TooltipContent>
+              {showSnoozed ? 'Ocultar conversas adiadas' : 'Agenda de retornos (conversas adiadas)'}
+            </TooltipContent>
           </Tooltip>
+
+          {showGroupsTab && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={filters.tab === 'groups' ? 'default' : 'ghost'}
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  aria-label={filters.tab === 'groups' ? 'Ver individuais' : 'Ver grupos'}
+                  onClick={() => onChange({ tab: filters.tab === 'groups' ? null : 'groups' })}
+                >
+                  <Users className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{filters.tab === 'groups' ? 'Ver individuais' : 'Ver grupos'}</TooltipContent>
+            </Tooltip>
+          )}
+
+          {canManageChat && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    aria-label="Métricas"
+                    onClick={() => navigate('/chat/metricas')}
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Métricas</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    aria-label="Configurações do chat"
+                    onClick={() => navigate('/chat/configuracoes')}
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Configurações do chat</TooltipContent>
+              </Tooltip>
+            </>
+          )}
 
           {dirty && (
             <Tooltip>

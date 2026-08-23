@@ -40,10 +40,16 @@ const STATUS_LABEL: Record<string, string> = {
 interface Props {
   row: MvpChatRowData;
   selected?: boolean;
+  /** Cor da aba de origem — pinta o fundo do card de forma bem suave. */
+  accent?: 'amber' | 'emerald' | 'none';
+  /** Fila da conversa está desconectada (mesma regra do /chat). */
+  disconnected?: boolean;
   onSelect?: (row: MvpChatRowData) => void;
 }
 
-export const MvpChatRow = memo(function MvpChatRow({ row, selected, onSelect }: Props) {
+export const MvpChatRow = memo(function MvpChatRow({
+  row, selected, accent = 'none', disconnected = false, onSelect,
+}: Props) {
   const preview = useMemo(
     () => getMessagePreview({ text: row.last_message_text, type: 'text' } as any) || 'Sem mensagens',
     [row.last_message_text],
@@ -75,9 +81,13 @@ export const MvpChatRow = memo(function MvpChatRow({ row, selected, onSelect }: 
       type="button"
       onClick={() => onSelect?.(row)}
       className={cn(
-        'w-full rounded-xl border-[2px] border-foreground/20 bg-card/70 p-3 text-left backdrop-blur-sm transition-colors',
+        'w-full border-b border-dashed border-foreground/25 p-3 text-left transition-colors',
         'hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        selected && 'border-primary/60 bg-primary/10',
+        accent === 'amber' && 'bg-amber-500/[0.06]',
+        accent === 'emerald' && 'bg-emerald-500/[0.06]',
+        accent === 'none' && 'bg-transparent',
+        selected && 'bg-primary/10',
+        disconnected && 'border-l-4 border-l-destructive/60 !bg-destructive/10 hover:!bg-destructive/15',
       )}
     >
       <div className="flex gap-3">

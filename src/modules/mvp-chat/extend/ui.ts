@@ -23,3 +23,8 @@ export { ScrollArea } from '@/components/ui/scroll-area';
 export { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 export { TeamMemberSelect } from '@/components/TeamMemberSelect';
 export { useTeamByClient } from '@/hooks/useTeamByClient';
+
+export {
+  AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
