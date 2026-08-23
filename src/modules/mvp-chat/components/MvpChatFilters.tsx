@@ -134,10 +134,13 @@ interface Props {
   juliaStages: { id: string; name: string; color?: string | null }[];
   owners: string[];
   resultCount?: number;
+  snoozedCount?: number;
+  onOpenSnoozed?: () => void;
 }
 
 export function MvpChatFiltersBar({
   filters, onChange, onReset, queues, tags, juliaStages, owners, resultCount,
+  snoozedCount = 0, onOpenSnoozed,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -150,7 +153,6 @@ export function MvpChatFiltersBar({
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!queueLimits?.allowGroups;
   const canManageChat = !!isAdmin || user?.role === 'user' || user?.role === 'colaborador';
-  const showSnoozed = filters.hide_snoozed === false;
 
   useEffect(() => {
     if (!showGroupsTab && filters.tab === 'groups') onChange({ tab: null });
@@ -294,18 +296,21 @@ export function MvpChatFiltersBar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant={showSnoozed ? 'default' : 'ghost'}
+                variant="ghost"
                 size="icon"
-                className="h-9 w-9 shrink-0"
-                aria-label={showSnoozed ? 'Ocultar conversas adiadas' : 'Agenda de retornos (conversas adiadas)'}
-                onClick={() => onChange({ hide_snoozed: showSnoozed ? true : false })}
+                className="relative h-9 w-9 shrink-0"
+                aria-label="Agenda de retornos (conversas adiadas)"
+                onClick={() => onOpenSnoozed?.()}
               >
                 <CalendarClock className="h-4 w-4" />
+                {snoozedCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-medium text-white">
+                    {snoozedCount}
+                  </span>
+                )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {showSnoozed ? 'Ocultar conversas adiadas' : 'Agenda de retornos (conversas adiadas)'}
-            </TooltipContent>
+            <TooltipContent>Agenda de retornos (conversas adiadas)</TooltipContent>
           </Tooltip>
 
           {showGroupsTab && (
@@ -358,16 +363,14 @@ export function MvpChatFiltersBar({
             </>
           )}
 
-          {dirty && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Limpar filtros" onClick={onReset}>
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Limpar filtros</TooltipContent>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Limpar filtros" onClick={onReset}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Limpar filtros</TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Linha 2 — período (pills) */}

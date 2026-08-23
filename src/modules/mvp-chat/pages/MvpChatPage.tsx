@@ -11,6 +11,7 @@ import { MvpChatFiltersBar } from '../components/MvpChatFilters';
 import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
 import { MvpChatDetailsPanel } from '../components/MvpChatDetailsPanel';
 import { MvpChatStatusTabs } from '../components/MvpChatStatusTabs';
+import { MvpSnoozedPanel } from '../components/MvpSnoozedPanel';
 import { DEFAULT_MVP_FILTERS, type MvpChatFilters, type MvpChatRowData } from '../api/types';
 
 export default function MvpChatPage() {
@@ -29,6 +30,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
   const [filters, setFilters] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
   const [debounced, setDebounced] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
   const [selected, setSelected] = useState<MvpChatRowData | null>(null);
+  const [snoozedPanelOpen, setSnoozedPanelOpen] = useState(false);
 
   // debounce só na busca; os demais filtros aplicam imediatamente
   useEffect(() => {
@@ -81,6 +83,28 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
   const patch = useCallback((p: Partial<MvpChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
   const reset = useCallback(() => setFilters(DEFAULT_MVP_FILTERS), []);
 
+  // Conversas adiadas ativas (mesma regra do /chat): uma por contato, futuras.
+  const snoozedItems = useMemo(() => {
+    const now = Date.now();
+    const seen = new Set<string>();
+    const out: MvpChatRowData[] = [];
+    const allRows = [
+      ...feeds.pending.rows,
+      ...feeds.open.rows,
+      ...feeds.resolved_closed.rows,
+    ];
+    for (const row of allRows) {
+      if (!row.snoozed_until) continue;
+      const t = new Date(row.snoozed_until).getTime();
+      if (!(t > now)) continue;
+      if (seen.has(row.contact_id)) continue;
+      seen.add(row.contact_id);
+      out.push(row);
+    }
+    return out;
+  }, [feeds.pending.rows, feeds.open.rows, feeds.resolved_closed.rows]);
+  const snoozedCount = snoozedItems.length;
+
   const c = counters;
 
   return (
@@ -104,6 +128,8 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
             juliaStages={juliaStages}
             owners={owners}
             resultCount={activeFeed.rows.length}
+            snoozedCount={snoozedCount}
+            onOpenSnoozed={() => setSnoozedPanelOpen(true)}
           />
         </div>
 
@@ -186,6 +212,13 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
       <aside className="hidden h-full w-[420px] shrink-0 overflow-hidden xl:block">
         <MvpChatDetailsPanel row={selected} />
       </aside>
+
+      <MvpSnoozedPanel
+        open={snoozedPanelOpen}
+        onOpenChange={setSnoozedPanelOpen}
+        items={snoozedItems}
+        onSelect={setSelected}
+      />
     </div>
   );
 }
