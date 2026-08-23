@@ -6,6 +6,7 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
   getMessagePreview, evaluateSla, SlaBadge,
 } from '../extend/ui';
+import { PriorityBadge } from '@/components/chat/PriorityBadge';
 import type { MvpChatRowData } from '../api/types';
 
 function initials(name?: string | null) {
