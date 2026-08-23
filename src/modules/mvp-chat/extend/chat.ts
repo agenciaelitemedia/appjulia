@@ -15,3 +15,4 @@ export { ErrorBoundary } from '@/components/ErrorBoundary';
 export { useUserQueueAccess } from '@/hooks/useUserQueueAccess';
 export type { ChatMessage, ChatContact } from '@/types/chat';
 export type { ChatConversation } from '@/types/conversation';
+export { NewConversationDialog } from '@/components/chat/NewConversationDialog';

@@ -12,6 +12,7 @@ import { MvpChatFiltersBar } from '../components/MvpChatFilters';
 import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
 import { MvpChatStatusTabs } from '../components/MvpChatStatusTabs';
 import { MvpSnoozedPanel } from '../components/MvpSnoozedPanel';
+import { MvpNewConversationFooter } from '../components/MvpNewConversationFooter';
 import { MvpChatConversation } from '../components/MvpChatConversation';
 import { MvpChatRightBar } from '../components/MvpChatRightBar';
 import { WhatsAppDataProvider } from '../extend/chat';
@@ -160,6 +161,12 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           selectedId={selected?.conversation_id ?? null}
           disconnectedQueueIds={disconnectedQueueIds}
           onSelect={setSelected}
+        />
+
+        <MvpNewConversationFooter
+          queues={accessibleQueues as any[]}
+          queueConnectionMap={queueConnectionMap}
+          clientId={clientId}
         />
       </aside>
 
