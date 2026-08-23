@@ -1,11 +1,12 @@
 /**
- * Módulo JulIA Chat — protótipo isolado da lista de conversas em /julia-chat.
- * Não altera nenhum arquivo do chat atual: consome apenas a edge function
- * `julia-chat-list-feed` (1 request por página).
+ * Módulo JulIA Chat — chat oficial do sistema, servido em /chat.
+ * Lista de conversas em 1 request (edge function `julia-chat-list-feed`)
+ * e árvore de componentes de conversa isolada em `./chat`.
+ * O chat antigo permanece apenas em /chat-old (backup temporário).
  */
 export const JULIA_CHAT_MODULE = {
-  code: 'mvp_chat',
-  name: 'JulIA Chat (protótipo)',
-  route: '/julia-chat',
+  code: 'chat',
+  name: 'JulIA Chat',
+  route: '/chat',
   icon: 'MessageSquare',
 } as const;
