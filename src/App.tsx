@@ -203,7 +203,10 @@ const App = () => (
                   <Route path="/configuracoes" element={<ProtectedRoute module="configuracoes"><ConfiguracoesPage /></ProtectedRoute>} />
                   <Route path="/agente/followup" element={<ProtectedRoute module="followup"><FollowupPage /></ProtectedRoute>} />
                   <Route path="/video/queue" element={<VideoQueuePage />} />
-                  <Route path="/chat" element={<ChatPage />} />
+                  {/* Chat oficial — JulIA Chat */}
+                  <Route path="/chat" element={<JuliaChatPage />} />
+                  {/* Backup temporário do chat antigo (sem item de menu) */}
+                  <Route path="/chat-old" element={<ChatPage />} />
                   <Route path="/chat/canais" element={<ChatChannelsPage />} />
                   <Route path="/chat/metricas" element={<ChatMetricsPage />} />
                   <Route path="/chat/automacoes" element={<ChatAutomationsPage />} />
