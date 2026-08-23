@@ -536,7 +536,7 @@ export function MvpChatFiltersBar({
 
         {/* Demais filtros — colapsados */}
         <Collapsible open={open} onOpenChange={setOpen}>
-          <div className="rounded-lg border bg-card/50">
+          <div className="relative rounded-lg border bg-card/50">
             <CollapsibleTrigger asChild>
               <Button
                 variant="ghost"
