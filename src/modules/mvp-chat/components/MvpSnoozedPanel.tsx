@@ -1,10 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, Avatar, AvatarFallback, AvatarImage, Badge, Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn } from '../extend/ui';
-import { CalendarClock, Loader2, Play } from 'lucide-react';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, Avatar, AvatarFallback, AvatarImage, Badge, Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn, getMessagePreview } from '../extend/ui';
+import { CalendarClock, Loader2, Play, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
 import { useAuth } from '../extend/auth';
 import type { MvpChatRowData } from '../api/types';
+
+function initials(name?: string | null) {
+  if (!name) return '?';
+  return name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
+}
+
+/** Exibe telefone BR legível: (11) 98765-4321 */
+function formatPhoneDisplay(raw: string): string {
+  const d = raw.replace(/\D/g, '').replace(/^55/, '');
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return raw;
+}
+
 
 interface Props {
   open: boolean;
