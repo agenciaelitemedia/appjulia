@@ -1,5 +1,5 @@
 /**
- * Ações do MVP Chat sobre a conversa (atribuir / assumir / devolver p/ fila).
+ * Ações do JulIA Chat sobre a conversa (atribuir / assumir / devolver p/ fila).
  * Espelha as regras já usadas no /chat (WhatsAppDataContext + ChatHeader),
  * mas isoladas no módulo para não alterar nada do chat principal.
  */
