@@ -1,4 +1,4 @@
-// MVP /mvp-chat — feed consolidado da lista de conversas.
+// JulIA Chat (/chat) — feed consolidado da lista de conversas.
 //
 // Objetivo: 1 round-trip HTTP do frontend devolve o card COMPLETO (badges de
 // CRM da Julia, CRM Builder, ticket, Meta Ads, sessão Julia, SLA) já filtrado,
@@ -205,11 +205,11 @@ serve(async (req) => {
   try {
     body = await req.json();
   } catch {
-    console.error(`[mvp-chat-list-feed][${reqId}] invalid JSON body`);
+    console.error(`[julia-chat-list-feed][${reqId}] invalid JSON body`);
     return json({ error: "Invalid JSON body", req_id: reqId }, 400);
   }
   if (!body?.client_id) {
-    console.error(`[mvp-chat-list-feed][${reqId}] missing client_id; keys=${Object.keys(body ?? {}).join(",")}`);
+    console.error(`[julia-chat-list-feed][${reqId}] missing client_id; keys=${Object.keys(body ?? {}).join(",")}`);
     return json({ error: "client_id is required", req_id: reqId }, 400);
   }
 
@@ -224,7 +224,7 @@ serve(async (req) => {
   );
 
   console.log(
-    `[mvp-chat-list-feed][${reqId}] request`,
+    `[julia-chat-list-feed][${reqId}] request`,
     JSON.stringify(summarizeParams(body, {
       options_mode: (body as any).options === true,
       needs_post_filter: needsPostFilter,
@@ -300,7 +300,7 @@ serve(async (req) => {
     const ambiguous = code === "PGRST203"
       || /best candidate function/i.test(String(rpcError.message ?? ""));
     console.error(
-      `[mvp-chat-list-feed][${reqId}] rpc error`,
+      `[julia-chat-list-feed][${reqId}] rpc error`,
       JSON.stringify({
         code,
         message: rpcError.message,
@@ -316,7 +316,7 @@ serve(async (req) => {
     );
     if (ambiguous) {
       console.error(
-        `[mvp-chat-list-feed][${reqId}] existem múltiplas versões de public.mvp_chat_list_feed no banco; ` +
+        `[julia-chat-list-feed][${reqId}] existem múltiplas versões de public.mvp_chat_list_feed no banco; ` +
         `remova as assinaturas antigas (a esperada tem ${rpcArgNames.length} argumentos: ${rpcArgNames.join(", ")})`,
       );
     }
@@ -364,7 +364,7 @@ serve(async (req) => {
       .eq("client_id", String(body.client_id))
       .in("phone_key", phoneKeys);
     msCache = Date.now() - tC;
-    if (cacheError) console.warn("[mvp-chat-list-feed] cache read error", cacheError.message);
+    if (cacheError) console.warn("[julia-chat-list-feed] cache read error", cacheError.message);
 
     const byKey = new Map<string, any>();
     for (const c of cached ?? []) byKey.set(`${c.phone_key}|${c.cod_agent ?? ""}`, c);
@@ -512,11 +512,11 @@ serve(async (req) => {
         const { error: upErr } = await supabase
           .from("mvp_chat_legacy_cache")
           .upsert(upserts, { onConflict: "client_id,phone_key,cod_agent" });
-        if (upErr) console.warn(`[mvp-chat-list-feed][${reqId}] cache write error`, upErr.message);
+        if (upErr) console.warn(`[julia-chat-list-feed][${reqId}] cache write error`, upErr.message);
       }
     } catch (e) {
       externalError = (e as Error)?.message ?? "external db error";
-      console.warn(`[mvp-chat-list-feed][${reqId}] external error`, externalError);
+      console.warn(`[julia-chat-list-feed][${reqId}] external error`, externalError);
     }
     msExternal = Date.now() - tB;
   }
@@ -576,7 +576,7 @@ serve(async (req) => {
     rows: rows.length,
   };
 
-  console.log(`[mvp-chat-list-feed][${reqId}] ok`, JSON.stringify(timings));
+  console.log(`[julia-chat-list-feed][${reqId}] ok`, JSON.stringify(timings));
 
   return json({
     rows,
