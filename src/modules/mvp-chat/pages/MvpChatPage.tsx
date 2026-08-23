@@ -212,6 +212,13 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
       <aside className="hidden h-full w-[420px] shrink-0 overflow-hidden xl:block">
         <MvpChatDetailsPanel row={selected} />
       </aside>
+
+      <MvpSnoozedPanel
+        open={snoozedPanelOpen}
+        onOpenChange={setSnoozedPanelOpen}
+        items={snoozedItems}
+        onSelect={setSelected}
+      />
     </div>
   );
 }
