@@ -194,7 +194,7 @@ export const MvpChatRow = memo(function MvpChatRow({
             label={row.queue_name || 'Sem fila'}
             width="w-[112px]"
             tone={row.queue_name
-              ? 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400'
+              ? 'border-emerald-600/40 bg-emerald-600/15 text-emerald-700 dark:text-emerald-400'
               : 'border-border bg-muted/60 text-muted-foreground'}
             tooltip={
               row.queue_name
@@ -226,7 +226,7 @@ export const MvpChatRow = memo(function MvpChatRow({
         <div className="flex items-center gap-1">
           <div className="w-[92px] shrink-0">
             {showSla ? (
-              <SlaBadge evaluation={sla} compact className="w-full rounded-full border border-transparent" />
+              <SlaBadge evaluation={sla} compact className="w-full rounded-full border border-current/40" />
             ) : (
               <FixedBadge
                 icon={Clock}
