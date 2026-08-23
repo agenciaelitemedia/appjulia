@@ -32,15 +32,38 @@ function formatRelativeTime(dateStr?: string | null): string {
   return `há ${days} dia${days > 1 ? 's' : ''}`;
 }
 
-const STATUS_STYLE: Record<string, string> = {
-  pending: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-  open: 'bg-primary/15 text-primary',
-  resolved: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  closed: 'bg-muted text-muted-foreground',
-};
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Aguardando', open: 'Atendimento', resolved: 'Resolvida', closed: 'Fechada',
-};
+/** Badge de largura fixa, texto truncado e tooltip detalhado. */
+function FixedBadge({
+  icon: Icon, label, width, tone, tooltip,
+}: {
+  icon: LucideIcon;
+  label: string;
+  width: string;
+  tone: string;
+  tooltip: string;
+}) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              'inline-flex h-5 shrink-0 items-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
+              width,
+              tone,
+            )}
+          >
+            <Icon className="h-3 w-3 shrink-0" aria-hidden />
+            <span className="truncate">{label}</span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[240px] text-xs">{tooltip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+
 
 interface Props {
   row: MvpChatRowData;
