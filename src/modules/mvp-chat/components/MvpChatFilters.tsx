@@ -574,8 +574,12 @@ export function MvpChatFiltersBar({
               </div>
             )}
 
-            <CollapsibleContent id="mvp-chat-filters-panel">
-              <div className="thin-scrollbar max-h-[38vh] space-y-3 overflow-y-auto border-t p-2.5">
+            <CollapsibleContent
+              id="mvp-chat-filters-panel"
+              className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border bg-popover shadow-xl"
+            >
+              <div className="thin-scrollbar max-h-[75vh] space-y-3 overflow-y-auto p-2.5">
+
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label htmlFor="f-priority" className="text-[10px] uppercase tracking-wide text-muted-foreground">Prioridade</Label>
