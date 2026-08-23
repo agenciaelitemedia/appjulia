@@ -194,7 +194,7 @@ export const MvpChatRow = memo(function MvpChatRow({
             label={row.queue_name || 'Sem fila'}
             width="w-[112px]"
             tone={row.queue_name
-              ? 'border-emerald-600/40 bg-emerald-600/15 text-emerald-700 dark:text-emerald-400'
+              ? 'border-emerald-500/50 bg-emerald-800/30 text-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300'
               : 'border-border bg-muted/60 text-muted-foreground'}
             tooltip={
               row.queue_name
