@@ -128,6 +128,8 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
             juliaStages={juliaStages}
             owners={owners}
             resultCount={activeFeed.rows.length}
+            snoozedCount={snoozedCount}
+            onOpenSnoozed={() => setSnoozedPanelOpen(true)}
           />
         </div>
 
