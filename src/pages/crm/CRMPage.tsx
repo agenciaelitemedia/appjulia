@@ -18,6 +18,19 @@ import { CRMCard } from './types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod';
 
+/**
+ * Núcleo comparável de um telefone BR: remove máscara, o DDI 55 e o nono
+ * dígito, de modo que 5534991633679 (13), 34991633679 (11), 553491633679 (12)
+ * e 3491633679 (10) casem entre si na busca.
+ */
+function phoneCore(raw: string | null | undefined): string {
+  let d = String(raw ?? '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.startsWith('55') && d.length >= 12) d = d.slice(2);
+  if (d.length === 11 && d[2] === '9') d = d.slice(0, 2) + d.slice(3);
+  return d;
+}
+
 export default function CRMPage() {
   const { user: authUser } = useAuth();
   const queryClient = useQueryClient();
@@ -96,9 +109,11 @@ export default function CRMPage() {
 
     if (filters.search) {
       const search = filters.search.toLowerCase();
+      const searchCore = phoneCore(filters.search);
       result = result.filter(
         (card) =>
           card.contact_name?.toLowerCase().includes(search) ||
+          (!!searchCore && phoneCore(card.whatsapp_number).includes(searchCore)) ||
           card.whatsapp_number?.includes(filters.search) ||
           card.business_name?.toLowerCase().includes(search) ||
           card.helena_count_id?.toLowerCase().includes(search)
