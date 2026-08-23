@@ -105,7 +105,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
 
           <div className="flex items-center gap-2">
             <MessageSquare className="h-4.5 w-4.5 text-primary" aria-hidden />
-            <h1 className="text-base font-bold">MVP Chat</h1>
+            <h1 className="text-base font-bold">JulIA&nbsp;Chat</h1>
             <Badge variant="outline" className="ml-auto text-[10px]">protótipo</Badge>
           </div>
 
