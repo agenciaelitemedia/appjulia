@@ -106,6 +106,9 @@ export const MvpChatRow = memo(function MvpChatRow({
             <span className="ml-auto shrink-0 text-[11px] text-muted-foreground">
               {formatRelativeTime(row.last_message_at || row.conversation_updated_at)}
             </span>
+            {row.last_message_from_me && (
+              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
           </div>
 
           <div className="mt-0.5 flex items-center gap-2">
