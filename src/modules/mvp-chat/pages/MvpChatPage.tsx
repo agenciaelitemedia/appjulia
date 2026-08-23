@@ -10,9 +10,12 @@ import { useMvpChatOptions } from '../hooks/useMvpChatOptions';
 import { MvpChatList } from '../components/MvpChatList';
 import { MvpChatFiltersBar } from '../components/MvpChatFilters';
 import { MvpChatPerfPanel } from '../components/MvpChatPerfPanel';
-import { MvpChatDetailsPanel } from '../components/MvpChatDetailsPanel';
 import { MvpChatStatusTabs } from '../components/MvpChatStatusTabs';
 import { MvpSnoozedPanel } from '../components/MvpSnoozedPanel';
+import { MvpChatConversation } from '../components/MvpChatConversation';
+import { MvpChatRightBar } from '../components/MvpChatRightBar';
+import { WhatsAppDataProvider } from '../extend/chat';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../extend/ui';
 import { DEFAULT_MVP_FILTERS, type MvpChatFilters, type MvpChatRowData } from '../api/types';
 
 export default function MvpChatPage() {
@@ -94,7 +97,10 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
   return (
     <div className="flex h-full min-h-0 overflow-hidden border-y bg-card/40 backdrop-blur-sm">
       {/* Coluna 1 — lista de conversas */}
-      <aside className="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r lg:w-[400px]">
+      <aside className={cn(
+        'flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r lg:w-[400px]',
+        selected && 'hidden lg:flex',
+      )}>
         <div className="relative z-20 shrink-0 space-y-2 border-b px-2.5 py-2">
 
           <div className="flex items-center gap-2">
@@ -157,48 +163,15 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
         />
       </aside>
 
-      {/* Coluna 2 — conversa / payload */}
-      <main className="hidden min-w-0 flex-1 flex-col overflow-hidden lg:flex xl:border-r">
-        <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
-          <Badge variant="secondary" className="gap-1 text-[11px]">
-            <Radio className="h-3 w-3 animate-pulse text-emerald-500" aria-hidden /> tempo real
-          </Badge>
-          {activeFeed.revalidating && (
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <RefreshCw className="h-3 w-3 animate-spin" aria-hidden /> atualizando…
-            </span>
-          )}
-          {activeFeed.liveEvents > 0 && (
-            <Button variant="secondary" size="sm" className="h-8 gap-1 text-[11px]" onClick={activeFeed.refresh}>
-              {activeFeed.liveEvents} novidade(s) — atualizar
-            </Button>
-          )}
+      {/* Colunas 2 e 3 — conversa real + right-bar (provider isolado do MVP) */}
+      <WhatsAppDataProvider>
+        <MvpConversationColumns
+          selected={selected}
+          onClearSelection={() => setSelected(null)}
+          feed={activeFeed}
+        />
+      </WhatsAppDataProvider>
 
-          <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={activeFeed.refresh} disabled={activeFeed.loading}>
-            <RefreshCw className={cn('h-3.5 w-3.5', activeFeed.loading && 'animate-spin')} aria-hidden /> Recarregar
-          </Button>
-        </div>
-
-        <div className="thin-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-          <MvpChatPerfPanel timings={activeFeed.timings} requests={activeFeed.requests} rowsLoaded={activeFeed.rows.length} />
-
-          {selected ? (
-            <pre className="overflow-auto rounded-xl border bg-muted/40 p-3 text-[10px] leading-relaxed">
-              {JSON.stringify(selected, null, 2)}
-            </pre>
-          ) : (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-              <MessageSquare className="h-10 w-10 opacity-40" aria-hidden />
-              <p className="text-sm">Selecione uma conversa na lista para ver os detalhes.</p>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Coluna 3 — detalhes do contato / CRM */}
-      <aside className="hidden h-full w-[420px] shrink-0 overflow-hidden xl:block">
-        <MvpChatDetailsPanel row={selected} />
-      </aside>
 
       <MvpSnoozedPanel
         open={snoozedPanelOpen}
@@ -211,3 +184,101 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
   );
 }
 
+
+/** true quando a viewport é menor que o breakpoint `lg` (1024px). */
+function useIsBelowLg() {
+  const [below, setBelow] = useState(() =>
+    typeof window === 'undefined' ? false : window.innerWidth < 1024,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1023px)');
+    const onChange = () => setBelow(mql.matches);
+    onChange();
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return below;
+}
+
+/**
+ * Colunas 2 e 3 do MVP, dentro do `WhatsAppDataProvider` isolado: a conversa
+ * real (header + timeline + input do chat principal) e a right-bar.
+ */
+function MvpConversationColumns({
+  selected,
+  onClearSelection,
+  feed,
+}: {
+  selected: MvpChatRowData | null;
+  onClearSelection: () => void;
+  feed: ReturnType<typeof useMvpChatTabs>['activeFeed'];
+}) {
+  const isBelowLg = useIsBelowLg();
+  const [diagOpen, setDiagOpen] = useState(false);
+
+  const target = selected
+    ? {
+        contactId: selected.contact_id,
+        queueId: selected.queue_id ?? null,
+        conversationId: selected.conversation_id ?? null,
+      }
+    : null;
+
+  return (
+    <>
+      <main className={cn('min-w-0 flex-1 flex-col overflow-hidden lg:flex', target ? 'flex' : 'hidden')}>
+        <Collapsible open={diagOpen} onOpenChange={setDiagOpen} className="shrink-0 border-b">
+          <div className="flex items-center gap-2 px-3 py-1.5">
+            <Badge variant="secondary" className="gap-1 text-[11px]">
+              <Radio className="h-3 w-3 animate-pulse text-emerald-500" aria-hidden /> tempo real
+            </Badge>
+            {feed.revalidating && (
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <RefreshCw className="h-3 w-3 animate-spin" aria-hidden /> atualizando…
+              </span>
+            )}
+            {feed.liveEvents > 0 && (
+              <Button variant="secondary" size="sm" className="h-7 gap-1 text-[11px]" onClick={feed.refresh}>
+                {feed.liveEvents} novidade(s) — atualizar
+              </Button>
+            )}
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="ml-auto h-7 gap-1 text-[11px]">
+                Diagnóstico
+              </Button>
+            </CollapsibleTrigger>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 text-[11px]"
+              onClick={feed.refresh}
+              disabled={feed.loading}
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', feed.loading && 'animate-spin')} aria-hidden /> Recarregar
+            </Button>
+          </div>
+          <CollapsibleContent>
+            <div className="px-3 pb-2">
+              <MvpChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {target ? (
+            <MvpChatConversation target={target} onClose={onClearSelection} />
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+              <MessageSquare className="h-10 w-10 opacity-40" aria-hidden />
+              <p className="text-sm">Selecione uma conversa na lista para abrir o atendimento.</p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <aside className="hidden h-full w-[380px] shrink-0 overflow-hidden lg:block xl:w-[400px] empty:hidden">
+        <MvpChatRightBar row={selected} isBelowLg={isBelowLg} />
+      </aside>
+    </>
+  );
+}
