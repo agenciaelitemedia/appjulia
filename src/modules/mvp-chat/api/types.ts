@@ -1,4 +1,4 @@
-/** Tipos do feed consolidado do MVP Chat. */
+/** Tipos do feed consolidado do JulIA Chat. */
 
 export interface MvpChatTag {
   id: string;
