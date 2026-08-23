@@ -121,7 +121,7 @@ export const MvpChatRow = memo(function MvpChatRow({
           </div>
 
           {/* Badges — todos já vêm resolvidos do servidor (sem pop-in) */}
-          <div className="mt-2 flex flex-wrap items-center gap-1">
+          <div className="mt-2 flex w-full flex-wrap items-center gap-1">
             <Badge variant="secondary" className={cn('h-5 px-1.5 text-[10px] font-medium', STATUS_STYLE[row.status])}>
               {STATUS_LABEL[row.status] ?? row.status}
             </Badge>
@@ -135,7 +135,6 @@ export const MvpChatRow = memo(function MvpChatRow({
                 +{row.sibling_open_count} conversa{(row.sibling_open_count ?? 0) > 1 ? 's' : ''}
               </Badge>
             )}
-
 
             {row.queue_name && (
               <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
@@ -216,10 +215,6 @@ export const MvpChatRow = memo(function MvpChatRow({
             ))}
 
             {row.status !== 'closed' && row.status !== 'resolved' && <SlaBadge evaluation={sla} compact />}
-
-            {row.last_message_from_me && (
-              <CheckCheck className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-            )}
           </div>
         </div>
       </div>
