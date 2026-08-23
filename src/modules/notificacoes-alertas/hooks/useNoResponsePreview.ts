@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { externalDb, supabase } from '../extend/db';
-import { getMessagePreview } from '@/lib/chat/messagePreview';
+import { getMessagePreview } from '@/modules/julia-chat/chat/lib/messagePreview';
 import { getBrPhoneVariants } from '@/lib/phoneVariants';
 
 export interface NoResponsePreviewItem {

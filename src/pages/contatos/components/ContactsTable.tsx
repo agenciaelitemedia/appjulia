@@ -25,11 +25,11 @@ import {
 } from '@/components/ui/tooltip';
 import { EditContactDialog } from './EditContactDialog';
 import { DeleteContactDialog } from './DeleteContactDialog';
-import { MediaLightbox } from '@/components/chat/MediaLightbox';
+import { MediaLightbox } from '@/modules/julia-chat/chat/components/MediaLightbox';
 import type { ContactRow } from '../hooks/useContactsList';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { setPendingSelection } from '@/lib/chat/pendingSelection';
+import { setPendingSelection } from '@/modules/julia-chat/chat/lib/pendingSelection';
 import { toast } from 'sonner';
 
 interface Props {

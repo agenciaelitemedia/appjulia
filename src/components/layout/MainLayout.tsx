@@ -66,7 +66,7 @@ export function MainLayout() {
   const { isAuthenticated, isLoading, isAdmin, user } = useAuth();
   const { data: agentsData, isLoading: agentsLoading } = useMyAgents();
   const location = useLocation();
-  const isFullWidth = location.pathname.startsWith('/mvp-chat');
+  const isFullWidth = location.pathname === '/chat' || location.pathname === '/chat-old';
 
   // Persiste a preferência do sidebar entre recarregamentos
   useEffect(() => {

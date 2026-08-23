@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { normalizeUrl } from '@/lib/chat/linkPreview';
+import { normalizeUrl } from '@/modules/julia-chat/chat/lib/linkPreview';
 
 export interface LinkPreviewData {
   url: string;

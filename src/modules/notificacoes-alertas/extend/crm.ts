@@ -10,10 +10,10 @@ export type { CRMCard, CRMStage } from '@/pages/crm/types';
 export { useCRMAgents, useTeamForAgent } from '@/pages/crm/hooks/useCRMData';
 export { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
 export { getInitialDates, getSavedAgentCodes } from '@/hooks/usePersistedPeriod';
-export { ChatSidePanel } from '@/components/chat/ChatSidePanel';
+export { ChatSidePanel } from '@/modules/julia-chat/chat/components/ChatSidePanel';
 export { useAgentChatTarget } from '@/hooks/useAgentChatTarget';
 export { useAgentAliases } from '@/hooks/useAgentAliases';
 export { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
-export { WavoipCallButton } from '@/components/chat/WavoipCallButton';
+export { WavoipCallButton } from '@/modules/julia-chat/chat/components/WavoipCallButton';
 export { usePhone, PhoneProvider } from '@/contexts/PhoneContext';
 

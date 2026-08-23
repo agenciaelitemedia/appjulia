@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { ChatSidePanelTarget } from '@/components/chat/ChatSidePanel';
+import type { ChatSidePanelTarget } from '@/modules/julia-chat/chat/components/ChatSidePanel';
 import type { SupportTicket } from '../types';
 
 /**

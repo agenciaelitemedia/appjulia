@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSoundAlertSettings } from '@/hooks/useSoundAlertSettings';
-import { isAudioActive } from '@/lib/chat/audioActivity';
+import { isAudioActive } from '@/modules/julia-chat/chat/lib/audioActivity';
 
 const SOUND_URL = '/som/nova-mensagem.mp3';
 const THROTTLE_MS = 2000;

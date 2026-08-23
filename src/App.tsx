@@ -7,7 +7,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UaZapiProvider } from "@/contexts/UaZapiContext";
 import { WavoipProvider } from "@/contexts/WavoipContext";
@@ -67,7 +67,7 @@ const XJCasesPage = lazy(() => import("./modules/x-julia/pages/CasesPage"));
 const XJCrmPage = lazy(() => import("./modules/x-julia/pages/CrmPage"));
 const XJContractsPage = lazy(() => import("./modules/x-julia/pages/ContractsPage"));
 const XJAgendaPage = lazy(() => import("./modules/x-julia/pages/AgendaPage"));
-const MvpChatPage = lazy(() => import("./modules/mvp-chat/pages/MvpChatPage"));
+const JuliaChatPage = lazy(() => import("./modules/julia-chat/pages/JuliaChatPage"));
 
 const CriativosPage = lazy(() => import("./pages/criativos/CriativosPage"));
 const EquipePage = lazy(() => import("./pages/equipe/EquipePage"));
@@ -77,26 +77,26 @@ const MetaTestPage = lazy(() => import("./pages/admin/meta-test/MetaTestPage"));
 const ModulosPage = lazy(() => import("./pages/admin/modulos/ModulosPage"));
 const VideoQueuePage = lazy(() => import("./pages/video/VideoQueuePage"));
 const ChatPage = lazy(() => import("./pages/chat/ChatPage"));
-const ChatChannelsPage = lazy(() => import("./pages/chat/ChatChannelsPage"));
-const ChatMetricsPage = lazy(() => import("./pages/chat/ChatMetricsPage"));
-const ChatAutomationsPage = lazy(() => import("./pages/chat/ChatAutomationsPage"));
-const ChatWebhooksPage = lazy(() => import("./pages/chat/ChatWebhooksPage"));
-const ChatSlaConfigPage = lazy(() => import("./pages/chat/ChatSlaConfigPage"));
-const ChatSettingsPage = lazy(() => import("./pages/chat/ChatSettingsPage"));
-const ChatApiKeysPage = lazy(() => import("./pages/chat/ChatApiKeysPage"));
-const ChatKnowledgeBasePage = lazy(() => import("./pages/chat/ChatKnowledgeBasePage"));
-const ChatCsatPage = lazy(() => import("./pages/chat/ChatCsatPage"));
-const ChatBotsPage = lazy(() => import("./pages/chat/ChatBotsPage"));
-const ChatCampaignsPage = lazy(() => import("./pages/chat/ChatCampaignsPage"));
-const ChatBotBuilderPage = lazy(() => import("./pages/chat/ChatBotBuilderPage"));
-const ChatRoutingPage = lazy(() => import("./pages/chat/ChatRoutingPage"));
-const ChatInboxViewsPage = lazy(() => import("./pages/chat/ChatInboxViewsPage"));
-const ChatReportsPage = lazy(() => import("./pages/chat/ChatReportsPage"));
-const ChatAIAutoreplyPage = lazy(() => import("./pages/chat/ChatAIAutoreplyPage"));
-const ChatIntegrationsPage = lazy(() => import("./pages/chat/ChatIntegrationsPage"));
-const ChatTelephonyPage = lazy(() => import("./pages/chat/ChatTelephonyPage"));
-const ChatMarketingAdvancedPage = lazy(() => import("./pages/chat/ChatMarketingAdvancedPage"));
-const ChatComplianceCenterPage = lazy(() => import("./pages/chat/ChatComplianceCenterPage"));
+const ChatChannelsPage = lazy(() => import("./modules/julia-chat/pages/config/ChatChannelsPage"));
+const ChatMetricsPage = lazy(() => import("./modules/julia-chat/pages/config/ChatMetricsPage"));
+const ChatAutomationsPage = lazy(() => import("./modules/julia-chat/pages/config/ChatAutomationsPage"));
+const ChatWebhooksPage = lazy(() => import("./modules/julia-chat/pages/config/ChatWebhooksPage"));
+const ChatSlaConfigPage = lazy(() => import("./modules/julia-chat/pages/config/ChatSlaConfigPage"));
+const ChatSettingsPage = lazy(() => import("./modules/julia-chat/pages/config/ChatSettingsPage"));
+const ChatApiKeysPage = lazy(() => import("./modules/julia-chat/pages/config/ChatApiKeysPage"));
+const ChatKnowledgeBasePage = lazy(() => import("./modules/julia-chat/pages/config/ChatKnowledgeBasePage"));
+const ChatCsatPage = lazy(() => import("./modules/julia-chat/pages/config/ChatCsatPage"));
+const ChatBotsPage = lazy(() => import("./modules/julia-chat/pages/config/ChatBotsPage"));
+const ChatCampaignsPage = lazy(() => import("./modules/julia-chat/pages/config/ChatCampaignsPage"));
+const ChatBotBuilderPage = lazy(() => import("./modules/julia-chat/pages/config/ChatBotBuilderPage"));
+const ChatRoutingPage = lazy(() => import("./modules/julia-chat/pages/config/ChatRoutingPage"));
+const ChatInboxViewsPage = lazy(() => import("./modules/julia-chat/pages/config/ChatInboxViewsPage"));
+const ChatReportsPage = lazy(() => import("./modules/julia-chat/pages/config/ChatReportsPage"));
+const ChatAIAutoreplyPage = lazy(() => import("./modules/julia-chat/pages/config/ChatAIAutoreplyPage"));
+const ChatIntegrationsPage = lazy(() => import("./modules/julia-chat/pages/config/ChatIntegrationsPage"));
+const ChatTelephonyPage = lazy(() => import("./modules/julia-chat/pages/config/ChatTelephonyPage"));
+const ChatMarketingAdvancedPage = lazy(() => import("./modules/julia-chat/pages/config/ChatMarketingAdvancedPage"));
+const ChatComplianceCenterPage = lazy(() => import("./modules/julia-chat/pages/config/ChatComplianceCenterPage"));
 const AdvboxIntegrationPage = lazy(() => import("./pages/advbox/IntegrationPage"));
 const AdvboxNotificationRulesPage = lazy(() => import("./pages/advbox/NotificationRulesPage"));
 const AdvboxProcessesPage = lazy(() => import("./pages/advbox/ProcessesPage"));
@@ -203,7 +203,10 @@ const App = () => (
                   <Route path="/configuracoes" element={<ProtectedRoute module="configuracoes"><ConfiguracoesPage /></ProtectedRoute>} />
                   <Route path="/agente/followup" element={<ProtectedRoute module="followup"><FollowupPage /></ProtectedRoute>} />
                   <Route path="/video/queue" element={<VideoQueuePage />} />
-                  <Route path="/chat" element={<ChatPage />} />
+                  {/* Chat oficial — JulIA Chat */}
+                  <Route path="/chat" element={<JuliaChatPage />} />
+                  {/* Backup temporário do chat antigo (sem item de menu) */}
+                  <Route path="/chat-old" element={<ChatPage />} />
                   <Route path="/chat/canais" element={<ChatChannelsPage />} />
                   <Route path="/chat/metricas" element={<ChatMetricsPage />} />
                   <Route path="/chat/automacoes" element={<ChatAutomationsPage />} />
@@ -252,8 +255,9 @@ const App = () => (
                   <Route path="/x-julia/casos" element={<ProtectedRoute module="x_julia_cases"><XJScopeProvider><XJCasesPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/contratos" element={<ProtectedRoute module="x_julia_contracts"><XJScopeProvider><XJContractsPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/agenda" element={<ProtectedRoute module="x_julia_agenda"><XJScopeProvider><XJAgendaPage /></XJScopeProvider></ProtectedRoute>} />
-                  {/* JulIA Chat — protótipo de lista de conversas com query única */}
-                  <Route path="/mvp-chat" element={<ProtectedRoute><MvpChatPage /></ProtectedRoute>} />
+                  {/* Rotas antigas do protótipo → chat oficial */}
+                  <Route path="/julia-chat" element={<Navigate to="/chat" replace />} />
+                  <Route path="/mvp-chat" element={<Navigate to="/chat" replace />} />
                   {/* Escritórios — módulo independente (clientes sem agente da Julia) */}
 
                   <Route path="/escritorios" element={<ProtectedRoute module="escritorios"><OfficesListPage /></ProtectedRoute>} />

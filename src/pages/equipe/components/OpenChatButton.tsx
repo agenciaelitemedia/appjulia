@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ChatSidePanel } from '@/components/chat/ChatSidePanel';
+import { ChatSidePanel } from '@/modules/julia-chat/chat/components/ChatSidePanel';
 import { useChatTargetByConversation, useChatTargetByPhone } from '../hooks/useChatTarget';
 
 type Props =

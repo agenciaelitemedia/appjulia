@@ -1,0 +1,1929 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Search, MessageCircle, Users, Layers, Bot, User, UserCheck, UserX, ListFilter, CheckCheck, UserCircle, ChevronsUpDown, CalendarDays, CalendarClock, Settings, BarChart3, ArrowDownUp, ArrowDown, ArrowUp, X, Check } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { TeamMemberSelect } from '@/components/TeamMemberSelect';
+import { TagsManagerDialog } from './TagsManagerDialog';
+import { NewConversationDialog } from './NewConversationDialog';
+import { SnoozedConversationsPanel } from './SnoozedConversationsPanel';
+import { MessageSquarePlus } from 'lucide-react';
+import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
+import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { ChatContactItem } from './ChatContactItem';
+import { Badge } from '@/components/ui/badge';
+import { useAccessibleQueues } from '@/pages/agente/filas/hooks/useQueues';
+import { useQueueConnectionStatusesBatch } from '@/hooks/useQueueConnectionStatusesBatch';
+import { useAgentQueueLimits } from '@/pages/agente/filas/hooks/useAgentQueueLimits';
+import { useChatSlaConfigs, evaluateSla, type SlaStatus, type SlaEvaluation } from '@/hooks/useChatSlaConfigs';
+import { useConversationsLastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
+import { useQueueAgentLinks } from '@/hooks/useQueueAgentLink';
+import { useAgentSessionStatusesBatch } from '@/hooks/useAgentSessionStatusesBatch';
+import { normalizeBrPhone } from '@/lib/phoneNormalize';
+import { useCRMStages } from '@/pages/crm/hooks/useCRMData';
+import { useMyAgents } from '@/pages/agente/meus-agentes/hooks/useMyAgents';
+import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
+// import { useCRMStageByPhone } from '@/hooks/useCRMStageByPhone';
+import { useCRMBuilderLinkedConversations } from '@/hooks/useCRMBuilderLinkedConversations';
+import { useTicketLinkedConversations } from '@/hooks/useTicketLinkedConversations';
+// import { useContactsCampaignsMap } from '@/modules/julia-chat/chat/components/hooks/useContactCampaigns';
+import { useChatBootstrap } from '@/modules/julia-chat/chat/components/hooks/useChatBootstrap';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
+import { buildAssigneeIndex, resolveAssigneeName } from '@/hooks/useAssigneeNameResolver';
+import { externalDb } from '@/lib/externalDb';
+import { useChatContactsByIds } from '@/hooks/useChatContactsByIds';
+import { startOfDay, subDays, startOfMonth, subMonths } from 'date-fns';
+import type { ConversationFilterStatus } from '@/types/conversation';
+import type { ChatContact } from '@/types/chat';
+import { cn } from '@/lib/utils';
+import { isOwnerUser } from '@/lib/auth/isOwner';
+
+type ConversationModeFilter = 'all' | 'julia' | 'human';
+type AssigneeFilter = 'all' | 'mine' | 'unassigned';
+type PeriodFilter = 'all' | 'today' | 'yesterday' | 'last7days' | 'thisMonth' | 'last3Months';
+
+const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
+  { value: 'last7days', label: '7 dias' },
+  { value: 'thisMonth', label: 'Mês atual' },
+  { value: 'last3Months', label: '3 meses' },
+];
+
+function getDateRange(p: PeriodFilter): { from: Date; to: Date } | null {
+  if (p === 'all') return null;
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  switch (p) {
+    case 'today': return { from: todayStart, to: now };
+    case 'yesterday': {
+      const yStart = subDays(todayStart, 1);
+      return { from: yStart, to: todayStart };
+    }
+    case 'last7days': return { from: subDays(todayStart, 7), to: now };
+    case 'thisMonth': return { from: startOfMonth(now), to: now };
+    case 'last3Months': return { from: subMonths(todayStart, 3), to: now };
+  }
+}
+
+export interface ChatListProps {
+  onOpenTicketPanel?: (
+    contact: ChatContact,
+    mode: 'create' | 'detail',
+    ticketId?: string,
+    conversation?: any,
+  ) => void;
+}
+
+export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
+  const {
+    filteredContacts,
+    selectedContactId,
+    activeTab,
+    searchQuery,
+    isLoading,
+    isSyncing,
+    selectContact,
+    setActiveTab,
+    setSearchQuery,
+    syncContacts,
+    totalUnreadCount,
+    groupUnreadCount,
+    selectedQueue,
+    setSelectedQueue,
+    conversationStatusFilter,
+    setConversationStatusFilter,
+    conversations,
+    conversationTagsMap,
+    contacts,
+    hasMoreContacts,
+    isLoadingMoreContacts,
+    loadMoreContacts,
+    periodFilter,
+    setPeriodFilter,
+    sortOrder,
+    setSortOrder,
+  } = useWhatsAppData();
+  const { data: queueLimits } = useAgentQueueLimits();
+  // O ícone para alternar para Grupos depende apenas de ALLOW_GROUPS.
+  // SHOW_GROUPS_TAB é uma flag legada e não bloqueia mais a exibição do ícone.
+  const showGroupsTab = !!queueLimits?.allowGroups;
+  const { hasMoreConversations, loadMoreConversations } = useWhatsAppData();
+
+  useEffect(() => {
+    if (!showGroupsTab && activeTab === 'groups') {
+      setActiveTab('individual');
+    }
+  }, [showGroupsTab, activeTab, setActiveTab]);
+
+  const navigate = useNavigate();
+  const { user, isAdmin, hasPermission } = useAuth();
+  const clientId = user?.client_id ? String(user.client_id) : '';
+  const { data: queues = [] } = useAccessibleQueues();
+  const { configs: slaConfigs } = useChatSlaConfigs();
+  // Permissões calculadas UMA vez aqui (evita useAuth/hasPermission em cada
+  // uma das 50+ linhas visíveis — antes causava re-render em cascata).
+  const isPrivilegedRole = user?.role === 'admin' || user?.role === 'colaborador';
+  const canViewTickets = hasPermission('support_tickets', 'view') || isPrivilegedRole;
+  const canCreateTickets = hasPermission('support_tickets', 'create') || isPrivilegedRole;
+  const [modeFilter, setModeFilter] = useState<ConversationModeFilter>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
+  const [stageIds, setStageIds] = useState<number[]>([]);
+  const [stagePopoverOpen, setStagePopoverOpen] = useState(false);
+  const [queuePopoverOpen, setQueuePopoverOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState(searchQuery);
+  const [showTagsManager, setShowTagsManager] = useState(false);
+  const [newConvOpen, setNewConvOpen] = useState(false);
+  const [footerCountry, setFooterCountry] = useState('55');
+  const [footerPhone, setFooterPhone] = useState('');
+  const [snoozedPanelOpen, setSnoozedPanelOpen] = useState(false);
+
+  // Contagem de conversas adiadas ativas (usa `conversations` do contexto).
+  const snoozedCount = React.useMemo(() => {
+    const now = Date.now();
+    const seen = new Set<string>();
+    let n = 0;
+    for (const c of conversations) {
+      const su = (c as { snoozed_until?: string | null }).snoozed_until;
+      if (!su) continue;
+      if (new Date(su).getTime() <= now) continue;
+      if (seen.has(c.contact_id)) continue;
+      seen.add(c.contact_id);
+      n += 1;
+    }
+    return n;
+  }, [conversations]);
+
+  // Pagination for server-side search — kept per (activeTab, conversationStatusFilter)
+  // so switching tabs preserves how much each one has loaded and the counter
+  // stays coherent with the visible list.
+  const SEARCH_PAGE_SIZE = 50;
+  const [searchPages, setSearchPages] = useState<Record<string, number>>({});
+
+  // Sync local draft when external search query is reset elsewhere
+  useEffect(() => {
+    setSearchDraft(searchQuery);
+  }, [searchQuery]);
+
+  const submitSearch = React.useCallback(() => {
+    setSearchQuery(searchDraft.trim());
+  }, [searchDraft, setSearchQuery]);
+
+  const clearSearch = React.useCallback(() => {
+    setSearchDraft('');
+    setSearchQuery('');
+  }, [setSearchQuery]);
+
+  // ────────────────────────────────────────────────────────────────────
+  // Server-side search — when the user submits a search term, query the
+  // database directly so we are not limited to the contacts already
+  // paginated in memory. While the request is in flight we show a loading
+  // state in place of the conversation list.
+  // ────────────────────────────────────────────────────────────────────
+  const trimmedSearch = (searchQuery || '').trim();
+  const isSearching = trimmedSearch.length >= 2;
+
+  // Key used to scope pagination per tab/status combo
+  const searchPageKey = `${activeTab}|${conversationStatusFilter}`;
+  const searchPage = searchPages[searchPageKey] ?? 1;
+  const incrementSearchPage = React.useCallback(() => {
+    setSearchPages((prev) => ({
+      ...prev,
+      [searchPageKey]: (prev[searchPageKey] ?? 1) + 1,
+    }));
+  }, [searchPageKey]);
+
+  // Reset all per-tab pagination whenever the search term changes
+  useEffect(() => {
+    setSearchPages({});
+  }, [trimmedSearch]);
+
+  const { data: searchResults, isFetching: isSearchFetching } = useQuery({
+    queryKey: ['chat-list-search', clientId, trimmedSearch, searchPageKey, searchPage],
+    enabled: isSearching && !!clientId,
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      const term = trimmedSearch.replace(/[%,]/g, ' ').trim();
+      if (!term) return { contacts: [] as typeof contacts, conversations: [] as typeof conversations, total: 0 };
+      const digits = term.replace(/\D/g, '');
+      const orParts: string[] = [`name.ilike.%${term}%`];
+      if (digits.length >= 3) orParts.push(`phone.ilike.%${digits}%`);
+      const upper = searchPage * SEARCH_PAGE_SIZE - 1;
+      const { data: matched, error, count } = await supabase
+        .from('chat_contacts')
+        .select(
+          'id,client_id,cod_agent,channel_source,channel_type,remote_jid,phone,name,avatar,is_group,is_archived,is_muted,unread_count,last_message_at,last_message_text,created_at,updated_at',
+          { count: 'exact' }
+        )
+        .eq('client_id', clientId)
+        .or(orParts.join(','))
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .range(0, upper);
+      if (error) throw error;
+      const matchedContacts = (matched || []) as unknown as typeof contacts;
+      const ids = matchedContacts.map((c) => c.id);
+      let convs: typeof conversations = [];
+      if (ids.length > 0) {
+        const { data: cdata } = await supabase
+          .from('chat_conversations')
+          .select('id,contact_id,client_id,queue_id,status,priority,assigned_to,cod_agent,updated_at,created_at,opened_at,first_response_at,resolved_at,closed_at,snoozed_until,channel,protocol,close_note')
+          .eq('client_id', clientId)
+          .in('contact_id', ids)
+          .order('updated_at', { ascending: false });
+        convs = ((cdata || []) as unknown as typeof conversations);
+      }
+      return { contacts: matchedContacts, conversations: convs, total: count ?? matchedContacts.length };
+    },
+  });
+
+  // Infinite scroll refs — sentinel at the bottom of the list triggers
+  // loadMoreContacts when it enters the viewport.
+  const listRef = useRef<HTMLDivElement>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement>(null);
+  // Sentinel for auto-loading more conversations (badges stay in sync)
+  const convSentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sentinel = bottomSentinelRef.current;
+    const root = listRef.current;
+    if (!sentinel || !root) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMoreContacts && !isLoadingMoreContacts) {
+          loadMoreContacts();
+        }
+      },
+      { root, threshold: 0.1, rootMargin: '120px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreContacts, isLoadingMoreContacts, loadMoreContacts]);
+
+  // Auto-load more conversations when the list sentinel is visible
+  useEffect(() => {
+    const sentinel = convSentinelRef.current;
+    const root = listRef.current;
+    if (!sentinel || !root) return;
+    if (isSearching) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && hasMoreConversations) {
+          loadMoreConversations();
+        }
+      },
+      { root, threshold: 0, rootMargin: '400px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreConversations, loadMoreConversations, isSearching]);
+  const activeQueues = queues.filter(q => q.is_active && !q.is_deleted);
+  // Connection status (uazapi/waba) per queue — used to flag conversations
+  // whose queue is offline and to block sends behind a warning popup.
+  const { statusMap: queueConnectionMap } = useQueueConnectionStatusesBatch(activeQueues);
+
+  // Default = "Todas as filas" (selectedQueue null). No auto-select.
+
+  // SLA status per contact (worst across that contact's open conversations)
+  const openConvIds = React.useMemo(
+    () => conversations.filter(c => ['pending', 'open'].includes(c.status)).map(c => c.id),
+    [conversations],
+  );
+  const { metaMap: lastMsgMetaMap, getMeta: getLastMsgMeta } = useConversationsLastMessageMeta(openConvIds);
+
+  // Avalia SLA UMA vez por conversa aqui em batch e mantém a `SlaEvaluation`
+  // completa (não só o status). ChatContactItem recebe a avaliação pronta
+  // via prop — não precisa mais executar `evaluateSla` nem `useChatSlaConfigs`
+  // por linha. Guarda a pior avaliação por contato.
+  const { slaStatusByContact, slaEvalByConversation } = React.useMemo(() => {
+    const statusMap = new Map<string, SlaStatus>();
+    const evalMap = new Map<string, SlaEvaluation>();
+    const rank: Record<SlaStatus, number> = { breached: 3, at_risk: 2, on_track: 1, unknown: 0 };
+    conversations.forEach((conv) => {
+      if (!['pending', 'open'].includes(conv.status)) return;
+      const meta = lastMsgMetaMap.get(conv.id);
+      const evalRes = evaluateSla(
+        {
+          status: conv.status,
+          priority: conv.priority,
+          opened_at: conv.opened_at,
+          first_response_at: conv.first_response_at || null,
+          resolved_at: conv.resolved_at || null,
+          closed_at: conv.closed_at || null,
+          last_customer_message_at: meta?.last_customer_message_at ?? null,
+          last_message_from_me: meta?.last_message_from_me ?? null,
+        },
+        slaConfigs
+      );
+      evalMap.set(conv.id, evalRes);
+      const prev = statusMap.get(conv.contact_id);
+      if (!prev || rank[evalRes.status] > rank[prev]) {
+        statusMap.set(conv.contact_id, evalRes.status);
+      }
+    });
+    return { slaStatusByContact: statusMap, slaEvalByConversation: evalMap };
+  }, [conversations, slaConfigs, lastMsgMetaMap]);
+
+  const breachedCount = React.useMemo(
+    () => Array.from(slaStatusByContact.values()).filter((s) => s === 'breached').length,
+    [slaStatusByContact]
+  );
+  const atRiskCount = React.useMemo(
+    () => Array.from(slaStatusByContact.values()).filter((s) => s === 'at_risk').length,
+    [slaStatusByContact]
+  );
+
+  // Sort conversations once (newest first) — reused by multiple memos to avoid
+  // re-sorting on every dependency change. Uses Date.parse once per item to
+  // skip Date allocations in the comparator.
+  const sortedConversations = React.useMemo(() => {
+    const withTs = conversations.map((c) => ({
+      c,
+      ts: Date.parse(c.updated_at || c.created_at || '') || 0,
+    }));
+    withTs.sort((a, b) => b.ts - a.ts);
+    return withTs.map((x) => x.c);
+  }, [conversations]);
+
+  // Map contact_id -> { codAgent, queueId } from most recent conversation
+  const convMetaByContact = React.useMemo(() => {
+    const map = new Map<string, { codAgent?: string; queueId?: string; assignedTo?: string | null }>();
+    sortedConversations.forEach((conv) => {
+      if (!map.has(conv.contact_id)) {
+        map.set(conv.contact_id, {
+          codAgent: conv.cod_agent || undefined,
+          queueId: conv.queue_id || undefined,
+          assignedTo: conv.assigned_to || null,
+        });
+      }
+    });
+    return map;
+  }, [sortedConversations]);
+
+  // Pre-group all conversations by contact (already sorted DESC by date) so
+  // the row renderer can pick the most recent + first-with-queue in O(1)
+  // instead of doing `conversations.filter(...).sort(...)` per row.
+  const convsByContact = React.useMemo(() => {
+    const map = new Map<string, typeof sortedConversations>();
+    for (const conv of sortedConversations) {
+      const arr = map.get(conv.contact_id);
+      if (arr) arr.push(conv);
+      else map.set(conv.contact_id, [conv]);
+    }
+    return map;
+  }, [sortedConversations]);
+
+  // Batch-load queue → agent links for all visible queues
+  const queueIds = React.useMemo(() => {
+    const set = new Set<string>();
+    convMetaByContact.forEach((m) => { if (m.queueId) set.add(m.queueId); });
+    return Array.from(set);
+  }, [convMetaByContact]);
+  const { data: queueAgentMap, isLoading: queueAgentLoading } = useQueueAgentLinks(queueIds);
+
+  // Pre-hydrate phones for every contact referenced by `conversations` that
+  // is not yet present in the local `contacts` cache. Without this, leads
+  // beyond the current pagination window would render in the list (via
+  // `useChatContactsByIds` later) but be excluded from the CRM-stage batch
+  // until the user clicked them — producing the "Sem etapa" flash that only
+  // resolved on click.
+  const conversationContactIdsMissingPhone = React.useMemo(() => {
+    const have = new Set<string>();
+    contacts.forEach((c) => have.add(c.id));
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const conv of sortedConversations) {
+      const cid = conv.contact_id;
+      if (have.has(cid) || seen.has(cid)) continue;
+      seen.add(cid);
+      out.push(cid);
+    }
+    return out;
+  }, [sortedConversations, contacts]);
+  const { data: hydratedConvContacts = [] } = useChatContactsByIds(
+    conversationContactIdsMissingPhone,
+  );
+
+  // Phone map keyed by contact_id — includes both the locally paginated
+  // contacts AND the conversation-driven hydration above, so every visible
+  // (or about-to-be-visible) lead has a phone available for stage / session
+  // batching from the very first render.
+  const contactPhoneById = React.useMemo(() => {
+    const map = new Map<string, string | null>();
+    contacts.forEach((c) => map.set(c.id, c.phone || null));
+    hydratedConvContacts.forEach((c) => {
+      if (!map.has(c.id)) map.set(c.id, c.phone || null);
+    });
+    return map;
+  }, [contacts, hydratedConvContacts]);
+
+  // Build (whatsapp, codAgent) pairs from CONVERSATIONS — not from contacts —
+  // so every conversation in memory enters the session-status batch even
+  // before its chat_contacts row has been paginated. Without this, a
+  // conversation whose contact is not yet loaded would be classified as
+  // "human" purely because we couldn't look up its session.
+  const sessionPairs = React.useMemo(() => {
+    const pairs: { whatsappNumber: string; codAgent: string }[] = [];
+    const seen = new Set<string>();
+    sortedConversations.forEach((conv) => {
+      if (!conv.queue_id) return;
+      const link = queueAgentMap?.get(conv.queue_id);
+      if (!link?.hasAgent || !link.codAgent) return;
+      const phone = (contactPhoneById.get(conv.contact_id) || '').replace(/\D/g, '');
+      if (!phone) return;
+      const key = `${phone}:${link.codAgent}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      pairs.push({ whatsappNumber: phone, codAgent: link.codAgent });
+    });
+    return pairs;
+  }, [sortedConversations, queueAgentMap, contactPhoneById]);
+
+  const { data: sessionActiveMap, isFetching: sessionStatusesFetching } =
+    useAgentSessionStatusesBatch(sessionPairs);
+
+  // Resolve session.active for a (contactId, queueLink) pair. Returns:
+  //  - true: Julia ativa
+  //  - false: Julia inativa (humano assumiu)
+  //  - undefined: unknown / no session loaded yet
+  const getSessionActive = React.useCallback(
+    (phone: string | null | undefined, codAgent: string | null | undefined): boolean | undefined => {
+      if (!phone || !codAgent) return undefined;
+      // Normalize to canonical BR form (13 digits with 9th digit) to match the
+      // map keys, which are indexed under all phone variants by the hook.
+      const normalized = normalizeBrPhone(phone) || phone.replace(/\D/g, '');
+      return sessionActiveMap?.get(`${normalized}:${codAgent}`);
+    },
+    [sessionActiveMap]
+  );
+
+  // Derive primary cod_agent for team-members fetch
+  const { data: userAgents = [] } = useQuery({
+    queryKey: ['chat-user-agents', user?.id],
+    queryFn: () => externalDb.getUserAgents<{ cod_agent: string }>(user!.id as number),
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: agentsData } = useMyAgents();
+  const allAgents = [
+    ...(agentsData?.myAgents || []),
+    ...(agentsData?.monitoredAgents || []),
+  ];
+  const { data: teamMembers = [] } = useTeamByClient();
+  const { data: stages = [] } = useCRMStages();
+  const { aliasMap } = useAgentAliases();
+
+  const assigneeIndex = React.useMemo(() => buildAssigneeIndex(teamMembers), [teamMembers]);
+
+  // cod_agent → business name (fallback when no alias configured)
+  const agentBusinessNameMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    allAgents.forEach(a => {
+      if (a.cod_agent) {
+        const name = a.client_name || getDefaultAlias(a.business_name) || '';
+        if (name) map.set(String(a.cod_agent), name);
+      }
+    });
+    return map;
+  }, [allAgents, getDefaultAlias]);
+
+  // (phone, codAgent) → CRM Julia stage map.
+  // Buscar por par evita pegar etapa de outro agente quando o mesmo
+  // telefone tem cards em mais de uma operação Julia.
+  //
+  // IMPORTANT: a base é a UNIÃO de `filteredContacts` (cache local) com
+  // todos os contatos referenciados por `sortedConversations` (incluindo
+  // os hidratados via `useChatContactsByIds` acima). Antes, a base era só
+  // `filteredContacts`, então leads fora da paginação local entravam na
+  // lista visível sem etapa e só recebiam o badge correto quando o clique
+  // hidratava o contato e disparava um novo batch.
+  const allPhoneAgentPairs = React.useMemo(() => {
+    const seen = new Set<string>();
+    const out: { phone: string; codAgent: string }[] = [];
+    const pushPair = (phone: string, codAgent: string) => {
+      const key = `${phone}|${codAgent}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ phone, codAgent });
+    };
+    // 1) Base local — contatos já paginados/visíveis.
+    for (const c of filteredContacts) {
+      const phone = (c.phone || '').replace(/\D/g, '');
+      if (!phone) continue;
+      const meta = convMetaByContact.get(c.id);
+      const queueLink = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+      const codAgent = queueLink?.hasAgent ? (queueLink.codAgent || '') : '';
+      pushPair(phone, codAgent);
+    }
+    // 2) Cobertura completa — qualquer conversa em memória cujo contato
+    //    ainda não esteja paginado mas já tenha telefone resolvido pela
+    //    hidratação acima. Garante que o badge da etapa da Júlia já vem
+    //    pronto na primeira pintura, sem depender do clique no lead.
+    for (const conv of sortedConversations) {
+      const phone = (contactPhoneById.get(conv.contact_id) || '').replace(/\D/g, '');
+      if (!phone) continue;
+      const queueLink = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+      const codAgent = queueLink?.hasAgent ? (queueLink.codAgent || '') : '';
+      pushPair(phone, codAgent);
+    }
+    return out;
+  }, [filteredContacts, sortedConversations, contactPhoneById, convMetaByContact, queueAgentMap]);
+  const { data: crmBuilderMap } = useCRMBuilderLinkedConversations();
+  const { data: ticketLinkMap } = useTicketLinkedConversations();
+  // Meta Ads: mapa telefone → campanha para decorar a lista sem 1 query/linha.
+  // Inclui contatos paginados + qualquer telefone já resolvido pelas conversas
+  // em memória, para pré-aquecer a busca antes do usuário rolar.
+  const campaignPhones = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const c of filteredContacts) if (c.phone) set.add(c.phone);
+    for (const c of searchResults?.contacts ?? []) if (c.phone) set.add(c.phone);
+    for (const conv of sortedConversations) {
+      const p = contactPhoneById.get(conv.contact_id);
+      if (p) set.add(p);
+    }
+    return Array.from(set);
+  }, [filteredContacts, searchResults?.contacts, sortedConversations, contactPhoneById]);
+  // Fase 2 · aggregator: 1 round-trip HTTP para CRM stages + Meta Ads
+  // (as 2 consultas mais pesadas do /chat). Ambas rodam em paralelo
+  // dentro da mesma conexão do pool no edge function. Sessions Julia
+  // continuam via `useAgentSessionStatusesBatch` porque seu ciclo de
+  // vida está atrelado a `sessionPairs`, montado antes do callback
+  // `getSessionActive`.
+  const {
+    campaignByPhone,
+    stageByPhone,
+    stageByPhoneFetching,
+  } = useChatBootstrap({
+    campaignPhones,
+    crmPairs: allPhoneAgentPairs,
+    sessionPairs: [],
+  });
+
+  const stageSet = React.useMemo(() => new Set(stageIds), [stageIds]);
+  const allStagesSelected = stages.length > 0 && stageIds.length === stages.length;
+  const stageLabel = React.useMemo(() => {
+    if (stageIds.length === 0 || allStagesSelected) return 'Todas as etapas';
+    if (stageIds.length === 1) {
+      const s = stages.find((x) => x.id === stageIds[0]);
+      return s?.name ?? '1 etapa';
+    }
+    return `${stageIds.length} etapas`;
+  }, [stageIds, stages, allStagesSelected]);
+
+  const toggleStage = (id: number) => {
+    if (stageSet.has(id)) setStageIds(stageIds.filter((x) => x !== id));
+    else setStageIds([...stageIds, id]);
+  };
+  const toggleAllStages = () => {
+    setStageIds(allStagesSelected ? [] : stages.map((s) => s.id));
+  };
+
+  // Tri-state classification: 'julia' | 'human' | 'unknown'.
+  // 'unknown' is returned while we are still waiting for queueAgentMap or for
+  // the session-status batch to resolve this specific (phone, codAgent) pair.
+  // Items with mode === 'unknown' are EXCLUDED from both the "Julia" and
+  // "Atendimento humano" filters, preventing the visual leak where a Julia
+  // conversation briefly shows up under "humano" until its session loads.
+  type ConvMode = Exclude<ConversationModeFilter, 'all'> | 'unknown';
+
+  const getContactMode = React.useCallback(
+    (contactId: string): ConvMode => {
+      const meta = convMetaByContact.get(contactId);
+      const queueId = meta?.queueId;
+      const hasMapEntry = !!(queueAgentMap && queueId && queueAgentMap.has(queueId));
+      if (queueAgentLoading && queueId && !hasMapEntry) return 'unknown';
+      const queueLink = queueId ? queueAgentMap?.get(queueId) : undefined;
+      if (!queueLink) {
+        return queueId && queueAgentLoading ? 'unknown' : 'human';
+      }
+      if (!queueLink.hasAgent) return 'human';
+      const phone = contactPhoneById.get(contactId);
+      if (!phone) return sessionStatusesFetching ? 'unknown' : 'unknown';
+      const active = getSessionActive(phone, queueLink.codAgent);
+      if (active === undefined) return sessionStatusesFetching ? 'unknown' : 'human';
+      return active ? 'julia' : 'human';
+    },
+    [convMetaByContact, queueAgentMap, queueAgentLoading, contactPhoneById, getSessionActive, sessionStatusesFetching]
+  );
+
+  const getConversationMode = React.useCallback(
+    (conv: typeof conversations[number]): ConvMode => {
+      const cqid = conv.queue_id;
+      const hasMapEntry = !!(queueAgentMap && cqid && queueAgentMap.has(cqid));
+      if (queueAgentLoading && cqid && !hasMapEntry) return 'unknown';
+      const queueLink = cqid ? queueAgentMap?.get(cqid) : undefined;
+      if (!queueLink) {
+        return cqid && queueAgentLoading ? 'unknown' : 'human';
+      }
+      if (!queueLink.hasAgent) return 'human';
+      const phone = contactPhoneById.get(conv.contact_id);
+      if (!phone) return 'unknown';
+      const active = getSessionActive(phone, queueLink.codAgent);
+      if (active === undefined) return sessionStatusesFetching ? 'unknown' : 'human';
+      return active ? 'julia' : 'human';
+    },
+    [conversations, queueAgentMap, queueAgentLoading, contactPhoneById, getSessionActive, sessionStatusesFetching]
+  );
+
+  // Reusable client-side filters (owner, period, stage, sla, mode).
+  // Does NOT include: tab Individual/Grupos, search, or conversationStatusFilter.
+  // Tab + search are applied separately so we can build count bases that
+  // ignore the active status tab (pending/open) but still respect them.
+  const applyClientFilters = React.useCallback(
+    (list: typeof filteredContacts) => {
+      let result = list;
+      if (ownerFilter !== 'all') {
+        const selectedMember = teamMembers.find((m) => String(m.id) === ownerFilter);
+        result = result.filter((c) => {
+          const assigned = convMetaByContact.get(c.id)?.assignedTo;
+          if (ownerFilter === 'unassigned') return !assigned;
+          if (ownerFilter === 'mine') {
+            if (!assigned) return false;
+            return assigned === String(user?.id) || assigned === user?.name;
+          }
+          if (!assigned) return false;
+          return assigned === ownerFilter || (selectedMember && assigned === selectedMember.name);
+        });
+      }
+      if (periodFilter !== 'all') {
+        const range = getDateRange(periodFilter);
+        if (range) {
+          result = result.filter((c) => {
+            const ts = c.last_message_at || (c as any).updated_at;
+            if (!ts) return false;
+            const d = new Date(ts);
+            if (Number.isNaN(d.getTime())) return false;
+            return d >= range.from && d <= range.to;
+          });
+        }
+      }
+      if (stageIds.length > 0 && stageByPhone) {
+        result = result.filter((c) => {
+          const norm = (c.phone || '').replace(/\D/g, '');
+          if (!norm) return false;
+          const meta = convMetaByContact.get(c.id);
+          const link = meta?.queueId ? queueAgentMap?.get(meta.queueId) : undefined;
+          const codAgent = link?.hasAgent ? link.codAgent : null;
+          const info = (codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm);
+          return info ? stageIds.includes(info.stageId) : false;
+        });
+      }
+      if (modeFilter !== 'all') {
+        result = result.filter((c) => getContactMode(c.id) === modeFilter);
+      }
+      return result;
+    },
+    [ownerFilter, teamMembers, convMetaByContact, queueAgentMap, user?.id, user?.name, periodFilter, stageIds, stageByPhone, modeFilter, getContactMode]
+  );
+
+  // Count conversations by status — scoped to the active tab (Individual / Groups)
+  // so badges match what the user actually sees in the list.
+  const isGroupByContactId = React.useMemo(() => {
+    const map = new Map<string, boolean>();
+    contacts.forEach((c) => map.set(c.id, !!c.is_group));
+    hydratedConvContacts.forEach((c) => {
+      if (!map.has(c.id)) map.set(c.id, !!c.is_group);
+    });
+    return map;
+  }, [contacts, hydratedConvContacts]);
+
+  const matchesActiveTab = React.useCallback(
+    (contactId: string) => {
+      const known = isGroupByContactId.get(contactId);
+      if (!showGroupsTab) {
+        // Esconder até hidratar para não vazar grupos na lista individual.
+        if (known === undefined) return false;
+        return known === false;
+      }
+      if (activeTab === 'individual') {
+        if (known === undefined) return false;
+        return known === false;
+      }
+      if (activeTab === 'groups') {
+        return known === true;
+      }
+      return true;
+    },
+    [isGroupByContactId, activeTab, showGroupsTab]
+  );
+
+  // Map contact_id -> conversation status (most-recent conversation per contact).
+  const statusByContact = React.useMemo(() => {
+    const map = new Map<string, string>();
+    sortedConversations.forEach((c) => {
+      if (!map.has(c.contact_id)) map.set(c.contact_id, c.status);
+    });
+    return map;
+  }, [sortedConversations]);
+
+  // "Em Atendimento" restriction for non-privileged roles:
+  // users that are NOT admin/colaborador/user only see open conversations
+  // assigned to themselves. Pending (Em Aberto) remains visible to everyone
+  // with queue access so they can claim new chats.
+  const isPrivileged = isAdmin || isOwnerUser(user);
+  const restrictOpenToMine = !isPrivileged;
+  const isVisibleByOpenScope = React.useCallback(
+    (contactId: string) => {
+      if (!restrictOpenToMine) return true;
+      const status = statusByContact.get(contactId);
+      if (status !== 'open') return true;
+      const assigned = convMetaByContact.get(contactId)?.assignedTo;
+      if (!assigned) return false;
+      return assigned === String(user?.id) || assigned === user?.name;
+    },
+    [restrictOpenToMine, statusByContact, convMetaByContact, user?.id, user?.name]
+  );
+
+  // Defer search input so that fast typing does not block list/count derivation.
+  const deferredSearch = React.useDeferredValue(searchQuery);
+
+  // Base list for tab badges — ignores `conversationStatusFilter` so that both
+  // "Em Abertos" and "Em Atendimento" badges always show their real values
+  // regardless of which tab is currently selected. Applies all OTHER filters
+  // (Individual/Grupos tab, search, owner, period, stage, sla, mode).
+  // Snoozed contacts are hidden to match the context's default behavior.
+  const baseForCounts = React.useMemo(() => {
+    const now = Date.now();
+    const snoozedContactIds = new Set(
+      conversations
+        .filter((c) => {
+          const conv = c as { snoozed_until?: string | null };
+          return conv.snoozed_until && new Date(conv.snoozed_until).getTime() > now;
+        })
+        .map((c) => c.contact_id)
+    );
+    const q = deferredSearch.trim().toLowerCase();
+    const base = contacts.filter((c) => {
+      if (snoozedContactIds.has(c.id)) return false;
+      if (!matchesActiveTab(c.id)) return false;
+      if (q) {
+        const matches =
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.phone || '').toLowerCase().includes(q);
+        if (!matches) return false;
+      }
+      return true;
+    });
+    return applyClientFilters(base).filter((c) => isVisibleByOpenScope(c.id));
+  }, [contacts, conversations, deferredSearch, matchesActiveTab, applyClientFilters, isVisibleByOpenScope]);
+
+  // Single pass over the count base — produces both counts in the same render
+  // tick. Counts now reflect filters but NOT the active status tab, so each
+  // badge always displays its true value.
+  // ─────────────────────────────────────────────────────────────────────
+  // Totalizers — counted directly over the FULL `conversations` universe
+  // (loaded server-side without contact pagination), so badges reflect the
+  // real total of pending/open tickets matching the active filters,
+  // regardless of how many contacts were already paginated into the list.
+  // ─────────────────────────────────────────────────────────────────────
+  const { pendingConvCount, openConvCount, closedConvCount } = React.useMemo(() => {
+    let pending = 0;
+    let open = 0;
+    let closed = 0;
+
+    // Pre-build helpers
+    const contactById = new Map<string, typeof contacts[number]>();
+    contacts.forEach((c) => contactById.set(c.id, c));
+
+    const q = deferredSearch.trim().toLowerCase();
+    const range = getDateRange(periodFilter);
+    const selectedMember =
+      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
+        ? teamMembers.find((m) => String(m.id) === ownerFilter)
+        : undefined;
+    const now = Date.now();
+
+    for (const conv of conversations) {
+      // Status must be pending/open/resolved/closed
+      if (!['pending', 'open', 'resolved', 'closed'].includes(conv.status)) continue;
+
+      // Snooze filter (always hidden by default in the list)
+      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
+      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
+
+      // Tab Individual / Grupos
+      if (!matchesActiveTab(conv.contact_id)) continue;
+
+      // Open-scope restriction (non-privileged users only see their own open)
+      if (!isVisibleByOpenScope(conv.contact_id)) continue;
+
+      // Period filter — use conversation.updated_at as activity proxy
+      if (range) {
+        const ts = conv.updated_at || conv.created_at;
+        if (!ts) continue;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
+      }
+
+      // Owner filter
+      if (ownerFilter !== 'all') {
+        const assigned = conv.assigned_to;
+        if (ownerFilter === 'unassigned') {
+          if (assigned) continue;
+        } else if (ownerFilter === 'mine') {
+          if (!assigned) continue;
+          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
+        } else {
+          if (!assigned) continue;
+          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
+        }
+      }
+
+      // Stage filter (by contact phone)
+      if (stageIds.length > 0 && stageByPhone) {
+        const contact = contactById.get(conv.contact_id);
+        const norm = (contact?.phone || '').replace(/\D/g, '');
+        const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const codAgent = link?.hasAgent ? link.codAgent : null;
+        const info = norm
+          ? ((codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm))
+          : undefined;
+        if (!info || !stageIds.includes(info.stageId)) continue;
+      }
+
+      // Mode filter (Julia/humano)
+      if (modeFilter !== 'all') {
+        if (getConversationMode(conv) !== modeFilter) continue;
+      }
+
+      // Search filter — match against the contact's name/phone if loaded
+      if (q) {
+        const contact = contactById.get(conv.contact_id);
+        const name = (contact?.name || '').toLowerCase();
+        const phone = (contact?.phone || '').toLowerCase();
+        if (!name.includes(q) && !phone.includes(q)) continue;
+      }
+
+      // Classificação efetiva: conversa com responsável conta como "Em Atendimento"
+      // mesmo quando o status físico ainda for 'pending' (camada de segurança
+      // contra atrasos do trigger/realtime).
+      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+      const effectiveStatus =
+        conv.status === 'pending' && hasAssignee ? 'open' :
+        conv.status === 'open' && !hasAssignee ? 'pending' :
+        conv.status;
+      if (effectiveStatus === 'pending') pending++;
+      else if (effectiveStatus === 'open') open++;
+      else if (effectiveStatus === 'resolved' || effectiveStatus === 'closed') closed++;
+    }
+
+    return { pendingConvCount: pending, openConvCount: open, closedConvCount: closed };
+  }, [
+    conversations, contacts, deferredSearch, periodFilter, ownerFilter, teamMembers,
+    user?.id, user?.name, stageIds, stageByPhone, queueAgentMap,
+    modeFilter, getConversationMode, matchesActiveTab, isVisibleByOpenScope,
+  ]);
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Visible list — derived from the SAME `conversations` universe and
+  // SAME predicates used by the badges above. Guarantees that whatever
+  // the badges count is exactly what the user sees in the list.
+  //
+  // Strategy:
+  //  • For pending/open status filters: walk sortedConversations, keep
+  //    only those whose effective status matches the active tab AND that
+  //    pass every filter, then dedupe by contact_id.
+  //  • For 'all' / resolved / closed: fall back to the legacy contact
+  //    based filter (filteredContacts already restricts by status).
+  // ─────────────────────────────────────────────────────────────────────
+  const { visibleContacts, missingContactIds } = React.useMemo(() => {
+    if (conversationStatusFilter !== 'pending' && conversationStatusFilter !== 'open') {
+      return {
+        visibleContacts: applyClientFilters(filteredContacts).filter((c) => isVisibleByOpenScope(c.id)),
+        missingContactIds: [] as string[],
+      };
+    }
+
+    const contactById = new Map<string, typeof contacts[number]>();
+    contacts.forEach((c) => contactById.set(c.id, c));
+
+    const q = deferredSearch.trim().toLowerCase();
+    const range = getDateRange(periodFilter);
+    const selectedMember =
+      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
+        ? teamMembers.find((m) => String(m.id) === ownerFilter)
+        : undefined;
+    const now = Date.now();
+
+    const seen = new Set<string>();
+    const list: typeof contacts = [];
+    const missing: string[] = [];
+
+    for (const conv of sortedConversations) {
+      if (conv.status !== 'pending' && conv.status !== 'open') continue;
+      if (seen.has(conv.contact_id)) continue;
+
+      // Effective status (pending+assignee → open)
+      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+      const effectiveStatus =
+        conv.status === 'pending' && hasAssignee ? 'open' :
+        conv.status === 'open' && !hasAssignee ? 'pending' :
+        conv.status;
+      if (effectiveStatus !== conversationStatusFilter) continue;
+
+      // Snooze
+      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
+      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
+
+      if (!matchesActiveTab(conv.contact_id)) continue;
+      if (!isVisibleByOpenScope(conv.contact_id)) continue;
+
+      // Period
+      if (range) {
+        const ts = conv.updated_at || conv.created_at;
+        if (!ts) continue;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
+      }
+
+      // Owner
+      if (ownerFilter !== 'all') {
+        const assigned = conv.assigned_to;
+        if (ownerFilter === 'unassigned') {
+          if (assigned) continue;
+        } else if (ownerFilter === 'mine') {
+          if (!assigned) continue;
+          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
+        } else {
+          if (!assigned) continue;
+          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
+        }
+      }
+
+      const contact = contactById.get(conv.contact_id);
+
+      // Stage
+      if (stageIds.length > 0 && stageByPhone) {
+        const norm = (contact?.phone || '').replace(/\D/g, '');
+        const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const codAgent = link?.hasAgent ? link.codAgent : null;
+        const info = norm
+          ? ((codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm))
+          : undefined;
+        if (!info || !stageIds.includes(info.stageId)) continue;
+      }
+
+      // Mode (Julia / humano)
+      if (modeFilter !== 'all') {
+        if (getConversationMode(conv) !== modeFilter) continue;
+      }
+
+      // Search
+      if (q) {
+        const name = (contact?.name || '').toLowerCase();
+        const phone = (contact?.phone || '').toLowerCase();
+        if (!name.includes(q) && !phone.includes(q)) continue;
+      }
+
+      seen.add(conv.contact_id);
+      if (contact) {
+        list.push(contact);
+      } else {
+        missing.push(conv.contact_id);
+      }
+    }
+
+    return { visibleContacts: list, missingContactIds: missing };
+  }, [
+    conversationStatusFilter, sortedConversations, contacts, deferredSearch,
+    periodFilter, ownerFilter, teamMembers, user?.id, user?.name,
+    stageIds, stageByPhone, queueAgentMap, modeFilter,
+    getConversationMode, matchesActiveTab, isVisibleByOpenScope,
+    applyClientFilters, filteredContacts,
+  ]);
+
+  // Fetch contacts not yet in the local cache (matched the filters but
+  // were beyond the current contact pagination window).
+  const { data: fetchedMissing = [] } = useChatContactsByIds(missingContactIds);
+
+  const finalVisibleContacts = React.useMemo(() => {
+    if (fetchedMissing.length === 0) return visibleContacts;
+    const byId = new Map(visibleContacts.map((c) => [c.id, c]));
+    fetchedMissing.forEach((c) => { if (!byId.has(c.id)) byId.set(c.id, c); });
+    // Preserve original order (sortedConversations order) — re-sort by
+    // the convsByContact map order which already follows desc updated_at.
+    return Array.from(byId.values()).sort((a, b) => {
+      const aTs = Date.parse(a.last_message_at || a.updated_at || '') || 0;
+      const bTs = Date.parse(b.last_message_at || b.updated_at || '') || 0;
+      return sortOrder === 'oldest' ? aTs - bTs : bTs - aTs;
+    });
+  }, [visibleContacts, fetchedMissing, sortOrder]);
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Search mode — apply the SAME filters used by the default list/badges
+  // (active tab, conversation status, mode, owner, queue, stage, period,
+  // open-scope) over the server-side search universe so the user sees the
+  // results split by tab, just like outside the search.
+  // ─────────────────────────────────────────────────────────────────────
+  const searchView = React.useMemo(() => {
+    if (!isSearching || !searchResults) {
+      return null as null | {
+        contacts: typeof contacts;
+        convsByContact: Map<string, typeof sortedConversations>;
+        pendingCount: number;
+        openCount: number;
+        closedCount: number;
+      };
+    }
+    const resContacts = searchResults.contacts ?? [];
+    const resConvs = searchResults.conversations ?? [];
+
+    const contactById = new Map<string, typeof contacts[number]>();
+    resContacts.forEach((c) => contactById.set(c.id, c));
+
+    // Sort search conversations newest-first
+    const sortedSearchConvs = [...resConvs].sort((a, b) => {
+      const aTs = Date.parse(a.updated_at || a.created_at || '') || 0;
+      const bTs = Date.parse(b.updated_at || b.created_at || '') || 0;
+      return bTs - aTs;
+    });
+
+    const range = getDateRange(periodFilter);
+    const selectedMember =
+      ownerFilter !== 'all' && ownerFilter !== 'mine' && ownerFilter !== 'unassigned'
+        ? teamMembers.find((m) => String(m.id) === ownerFilter)
+        : undefined;
+    const now = Date.now();
+
+    let pending = 0;
+    let open = 0;
+    let closed = 0;
+
+    // conversations that pass all non-status filters
+    const passingConvsByContact = new Map<string, typeof sortedConversations>();
+    const visibleByStatus = new Set<string>(); // contact ids matching current status filter
+
+    for (const conv of sortedSearchConvs) {
+      if (!['pending', 'open', 'resolved', 'closed'].includes(conv.status)) continue;
+
+      const snoozedUntil = (conv as { snoozed_until?: string | null }).snoozed_until;
+      if (snoozedUntil && new Date(snoozedUntil).getTime() > now) continue;
+
+      if (!matchesActiveTab(conv.contact_id)) continue;
+      if (!isVisibleByOpenScope(conv.contact_id)) continue;
+
+      // Queue filter (active queue selection)
+      if (selectedQueue?.id) {
+        if (conv.queue_id !== selectedQueue.id) continue;
+      }
+
+      if (range) {
+        const ts = conv.updated_at || conv.created_at;
+        if (!ts) continue;
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime()) || d < range.from || d > range.to) continue;
+      }
+
+      if (ownerFilter !== 'all') {
+        const assigned = conv.assigned_to;
+        if (ownerFilter === 'unassigned') {
+          if (assigned) continue;
+        } else if (ownerFilter === 'mine') {
+          if (!assigned) continue;
+          if (assigned !== String(user?.id) && assigned !== user?.name) continue;
+        } else {
+          if (!assigned) continue;
+          if (assigned !== ownerFilter && (!selectedMember || assigned !== selectedMember.name)) continue;
+        }
+      }
+
+      const contact = contactById.get(conv.contact_id);
+
+      if (stageIds.length > 0 && stageByPhone) {
+        const norm = (contact?.phone || '').replace(/\D/g, '');
+        const link = conv.queue_id ? queueAgentMap?.get(conv.queue_id) : undefined;
+        const codAgent = link?.hasAgent ? link.codAgent : null;
+        const info = norm
+          ? ((codAgent && stageByPhone.get(`${norm}|${codAgent}`)) || stageByPhone.get(norm))
+          : undefined;
+        if (!info || !stageIds.includes(info.stageId)) continue;
+      }
+
+      if (modeFilter !== 'all') {
+        if (getConversationMode(conv) !== modeFilter) continue;
+      }
+
+      // Conversation passes all non-status filters — register it
+      const arr = passingConvsByContact.get(conv.contact_id);
+      if (arr) arr.push(conv);
+      else passingConvsByContact.set(conv.contact_id, [conv]);
+
+      // Effective status (pending+assignee → open) — only count once per contact
+      // for the badges (use the most recent matching conv, which is the first).
+      if (arr) continue;
+      const hasAssignee = !!(conv.assigned_to && String(conv.assigned_to).trim() !== '');
+      const effective = conv.status === 'pending' && hasAssignee ? 'open' : conv.status;
+      if (effective === 'pending') pending++;
+      else if (effective === 'open') open++;
+      else if (effective === 'resolved' || effective === 'closed') closed++;
+
+      // Match against current conversationStatusFilter
+      const matchesStatus =
+        conversationStatusFilter === 'all'
+          ? true
+          : conversationStatusFilter === 'resolved_closed'
+            ? effective === 'resolved' || effective === 'closed'
+            : effective === conversationStatusFilter;
+      if (matchesStatus) visibleByStatus.add(conv.contact_id);
+    }
+
+    // Build visible contact list ordered by sortOrder
+    const visibleList: typeof contacts = [];
+    visibleByStatus.forEach((cid) => {
+      const c = contactById.get(cid);
+      if (c) visibleList.push(c);
+    });
+    visibleList.sort((a, b) => {
+      const aTs = Date.parse(a.last_message_at || a.updated_at || '') || 0;
+      const bTs = Date.parse(b.last_message_at || b.updated_at || '') || 0;
+      return sortOrder === 'oldest' ? aTs - bTs : bTs - aTs;
+    });
+
+    return {
+      contacts: visibleList,
+      convsByContact: passingConvsByContact,
+      pendingCount: pending,
+      openCount: open,
+      closedCount: closed,
+    };
+  }, [
+    isSearching, searchResults, contacts, sortedConversations,
+    matchesActiveTab, isVisibleByOpenScope, selectedQueue, periodFilter,
+    ownerFilter, teamMembers, user?.id, user?.name, stageIds, stageByPhone,
+    modeFilter, getConversationMode, conversationStatusFilter, sortOrder,
+  ]);
+
+  const displayContacts = isSearching
+    ? (searchView?.contacts ?? [])
+    : finalVisibleContacts;
+
+  const displayConvsByContact = isSearching
+    ? (searchView?.convsByContact ?? new Map<string, typeof sortedConversations>())
+    : convsByContact;
+
+  // Override badge counts when searching so the tabs reflect search totals
+  const effPendingConvCount = isSearching ? (searchView?.pendingCount ?? 0) : pendingConvCount;
+  const effOpenConvCount = isSearching ? (searchView?.openCount ?? 0) : openConvCount;
+  const effClosedConvCount = isSearching ? (searchView?.closedCount ?? 0) : closedConvCount;
+
+  // Search pagination metadata for footer UI
+  const searchTotal = searchResults?.total ?? 0;
+  const searchLoaded = searchResults?.contacts?.length ?? 0;
+  const hasMoreSearch = isSearching && searchLoaded < searchTotal;
+
+  // Per-tab/status counters for footer (independent for each status tab)
+  const activeTabTotal =
+    conversationStatusFilter === 'pending'
+      ? effPendingConvCount
+      : conversationStatusFilter === 'open'
+        ? effOpenConvCount
+        : effClosedConvCount;
+  const activeTabLoaded = displayContacts.length;
+
+  // Handlers estáveis por contato — evita gerar arrow functions inline dentro
+  // do map do virtualizer (que invalidam o React.memo do ChatContactItem a
+  // cada scroll/render, mesmo sem mudança de dados).
+  const clickHandlerByContact = React.useMemo(() => {
+    const m = new Map<string, () => void>();
+    displayContacts.forEach((c) => m.set(c.id, () => selectContact(c.id)));
+    return m;
+  }, [displayContacts, selectContact]);
+
+  const openTicketHandlerByContact = React.useMemo(() => {
+    if (!onOpenTicketPanel) return null;
+    const m = new Map<string, (mode: 'create' | 'detail', ticketId?: string) => void>();
+    displayContacts.forEach((c) => {
+      const convs = displayConvsByContact.get(c.id) || [];
+      const conv = convs[0];
+      m.set(c.id, (mode, ticketId) => onOpenTicketPanel(c, mode, ticketId, conv));
+    });
+    return m;
+  }, [displayContacts, displayConvsByContact, onOpenTicketPanel]);
+
+  // Virtual scroll — only renders items in the visible viewport.
+  // estimateSize ≈ base item height (3 info rows + tags). measureElement
+  // corrects actual heights so taller items (with tags) still display correctly.
+  const rowVirtualizer = useVirtualizer({
+    count: displayContacts.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 102,
+    overscan: 12,
+    getItemKey: (index) => displayContacts[index]?.id ?? index,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
+
+  const channelBadge = (type: string) => {
+    switch (type) {
+      case 'uazapi': return <Badge variant="outline" className="text-[10px] px-1 text-emerald-600 border-emerald-300">WhatsApp</Badge>;
+      case 'waba': return <Badge variant="outline" className="text-[10px] px-1 text-emerald-700 border-emerald-400">WABA</Badge>;
+      case 'webchat': return <Badge variant="outline" className="text-[10px] px-1 text-blue-600 border-blue-300">WebChat</Badge>;
+      case 'instagram': return <Badge variant="outline" className="text-[10px] px-1 text-pink-600 border-pink-300">Instagram</Badge>;
+      default: return <Badge variant="outline" className="text-[10px] px-1">{type}</Badge>;
+    }
+  };
+
+  return (
+    <div className="h-full w-full min-w-0 flex flex-col aj-chat-list overflow-hidden">
+      {/* Header - Helena style */}
+      <div className="border-b">
+        {/* Status pills row */}
+        <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+          {/* Right side actions */}
+          <div className="ml-auto flex items-center gap-1" />
+        </div>
+        <TagsManagerDialog open={showTagsManager} onOpenChange={setShowTagsManager} />
+
+        {/* Search bar with filter icons */}
+        <div className="px-4 pb-2">
+          <div className="relative flex items-center gap-1">
+            <div className="relative flex-1">
+              <Input
+                placeholder="Buscar atendimento"
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitSearch();
+                  }
+                }}
+                className="pl-3 pr-16 h-9 bg-muted/50 border border-border/60 focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              {(searchDraft || searchQuery) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-8 top-1/2 -translate-y-1/2 h-7 w-7"
+                  onClick={clearSearch}
+                  title="Limpar busca"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                onClick={submitSearch}
+                title="Buscar"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 flex-shrink-0"
+                  title="Ordenar conversas"
+                >
+                  <ArrowDownUp className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-48 p-1">
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('newest')}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-muted text-left',
+                    sortOrder === 'newest' && 'bg-muted font-medium'
+                  )}
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                  Mais recentes primeiro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortOrder('oldest')}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md hover:bg-muted text-left',
+                    sortOrder === 'oldest' && 'bg-muted font-medium'
+                  )}
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                  Mais antigas primeiro
+                </button>
+              </PopoverContent>
+            </Popover>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 flex-shrink-0 relative"
+              onClick={() => setSnoozedPanelOpen(true)}
+              title="Agenda de retornos (conversas adiadas)"
+            >
+              <CalendarClock className="h-4 w-4" />
+              {snoozedCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 text-[9px] bg-amber-500 text-white rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-1">
+                  {snoozedCount}
+                </span>
+              )}
+            </Button>
+            {showGroupsTab && (
+              <Button
+                variant={activeTab === 'groups' ? 'default' : 'ghost'}
+                size="icon"
+                className="h-9 w-9 flex-shrink-0 relative"
+                onClick={() => setActiveTab(activeTab === 'groups' ? 'individual' : 'groups')}
+                title={activeTab === 'groups' ? 'Ver individuais' : 'Ver grupos'}
+              >
+                <Users className="h-4 w-4" />
+                {activeTab !== 'groups' && groupUnreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 text-[9px] bg-primary text-primary-foreground rounded-full min-w-[15px] h-[15px] flex items-center justify-center px-1">
+                    {groupUnreadCount}
+                  </span>
+                )}
+              </Button>
+            )}
+            {(isAdmin || user?.role === 'user' || user?.role === 'colaborador') && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 flex-shrink-0"
+                  onClick={() => navigate('/chat/metricas')}
+                  title="Métricas"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 flex-shrink-0"
+                  onClick={() => navigate('/chat/configuracoes')}
+                  title="Configurações do chat"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Período (pills) - sempre visível, fora do painel de filtros */}
+        <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {PERIOD_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setPeriodFilter(opt.value)}
+              className={cn(
+                'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors',
+                periodFilter === opt.value
+                  ? 'bg-foreground/10 text-foreground border-foreground/20'
+                  : 'bg-transparent text-muted-foreground border-border hover:bg-muted'
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Linha: Filas + Atendentes lado a lado */}
+        <div className="px-4 pb-2 grid grid-cols-2 gap-2">
+          {activeQueues.length > 0 ? (
+            <Popover open={queuePopoverOpen} onOpenChange={setQueuePopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full h-8 justify-between text-xs font-normal px-2.5"
+                >
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate">
+                      {selectedQueue?.name || 'Todas as filas'}
+                    </span>
+                  </span>
+                  <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[280px] p-0 z-[60]" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar fila…" className="h-9" />
+                  <CommandList className="max-h-[280px]">
+                    <CommandEmpty>Nenhuma fila encontrada.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="__all__ todas as filas"
+                        onSelect={() => {
+                          setSelectedQueue(null);
+                          setQueuePopoverOpen(false);
+                        }}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Check className={cn('h-4 w-4', !selectedQueue ? 'opacity-100' : 'opacity-0')} />
+                        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="flex-1 truncate">Todas as filas</span>
+                      </CommandItem>
+                      {[...activeQueues]
+                        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+                        .map((queue) => {
+                          const isSel = selectedQueue?.id === queue.id;
+                          return (
+                            <CommandItem
+                              key={queue.id}
+                              value={`${queue.name} ${queue.channel_type}`}
+                              onSelect={() => {
+                                setSelectedQueue({
+                                  id: queue.id,
+                                  name: queue.name,
+                                  channel_type: queue.channel_type,
+                                  hub: queue.hub,
+                                  evo_url: queue.evo_url,
+                                  evo_apikey: queue.evo_apikey,
+                                  evo_instance: queue.evo_instance,
+                                });
+                                setQueuePopoverOpen(false);
+                              }}
+                              className="cursor-pointer gap-2"
+                            >
+                              <Check className={cn('h-4 w-4', isSel ? 'opacity-100' : 'opacity-0')} />
+                              <span className="flex-1 truncate">{queue.name}</span>
+                              {channelBadge(queue.channel_type)}
+                            </CommandItem>
+                          );
+                        })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          ) : <div />}
+          <TeamMemberSelect
+            members={(isAdmin || user?.role === 'user' || user?.role === 'colaborador') ? teamMembers : []}
+            valueKey="id"
+            value={ownerFilter}
+            onValueChange={(v) => setOwnerFilter(v ?? 'all')}
+            allowUnassigned={false}
+            extraOptions={[
+              { value: 'all', label: 'Todos Atendimentos', icon: Users },
+              { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
+              { value: 'unassigned', label: 'Aguardando Atendimento', icon: UserX },
+            ]}
+            placeholder="Atendente"
+            size="sm"
+            className="w-full text-xs"
+          />
+        </div>
+
+        {/* Linha destaque: Modo (icones) + Etapas */}
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2 p-2 rounded-md border border-primary/30 bg-primary/5">
+            <TooltipProvider delayDuration={200}>
+              <ToggleGroup
+                type="single"
+                value={modeFilter}
+                onValueChange={(val) => { if (val) setModeFilter(val as ConversationModeFilter); }}
+                size="sm"
+                className="justify-start gap-1 shrink-0"
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="all"
+                      aria-label="Todos os modos"
+                      className={cn(
+                        "h-8 w-8 p-0 rounded-md border transition-colors",
+                        modeFilter === 'all'
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary hover:text-primary-foreground"
+                          : "bg-transparent text-muted-foreground border-border hover:bg-muted",
+                      )}
+                    >
+                      <ListFilter className="h-3.5 w-3.5" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Todos os modos</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="julia"
+                      aria-label="Julia IA ativa"
+                      className={cn(
+                        "h-8 w-8 p-0 rounded-md border transition-colors",
+                        modeFilter === 'julia'
+                          ? "bg-emerald-600 text-primary-foreground border-emerald-600 hover:bg-emerald-600 hover:text-primary-foreground"
+                          : "bg-transparent text-muted-foreground border-border hover:bg-muted",
+                      )}
+                    >
+                      <Bot className="h-3.5 w-3.5" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Filas com Julia IA ativa</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <ToggleGroupItem
+                      value="human"
+                      aria-label="Atendimento humano"
+                      className={cn(
+                        "h-8 w-8 p-0 rounded-md border transition-colors",
+                        modeFilter === 'human'
+                          ? "bg-amber-600 text-primary-foreground border-amber-600 hover:bg-amber-600 hover:text-primary-foreground"
+                          : "bg-transparent text-muted-foreground border-border hover:bg-muted",
+                      )}
+                    >
+                      <User className="h-3.5 w-3.5" />
+                    </ToggleGroupItem>
+                  </TooltipTrigger>
+                  <TooltipContent>Atendimento humano (Julia inativa)</TooltipContent>
+                </Tooltip>
+              </ToggleGroup>
+
+              <Popover open={stagePopoverOpen} onOpenChange={setStagePopoverOpen}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="h-8 flex-1 justify-between text-xs font-normal bg-background"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="truncate">{stageLabel}</span>
+                        </span>
+                        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Filtrar por etapas do CRM Julia</TooltipContent>
+                </Tooltip>
+                <PopoverContent className="w-[280px] p-0" align="start">
+                  <div className="px-2 py-1.5 border-b">
+                    <button
+                      onClick={toggleAllStages}
+                      className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5"
+                    >
+                      <Checkbox checked={allStagesSelected} className="pointer-events-none" />
+                      <span className="font-medium">{allStagesSelected ? 'Desmarcar todas' : 'Selecionar todas'}</span>
+                    </button>
+                  </div>
+                  <ScrollArea className="max-h-[260px]">
+                    <div className="p-1">
+                      {stages.length === 0 ? (
+                        <div className="text-xs text-muted-foreground px-3 py-4 text-center">
+                          Nenhuma etapa disponível
+                        </div>
+                      ) : (
+                        stages.map((stage) => (
+                          <button
+                            key={stage.id}
+                            onClick={() => toggleStage(stage.id)}
+                            className="flex items-center gap-2 w-full text-xs hover:bg-accent rounded px-2 py-1.5 text-left"
+                          >
+                            <Checkbox checked={stageSet.has(stage.id)} className="pointer-events-none" />
+                            {stage.color && (
+                              <span
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: stage.color }}
+                              />
+                            )}
+                            <span className="truncate">{stage.name}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            </TooltipProvider>
+          </div>
+        </div>
+
+
+        {/* Individual/Grupos é alternado pelo ícone "Grupos" no cabeçalho. */}
+      </div>
+
+      {/* Status tabs — Aguardando Atendimento / Em Atendimento */}
+      <div className="flex border-b shrink-0">
+        <TooltipProvider delayDuration={200}>
+        {([
+          { value: 'resolved_closed' as const, label: 'Encerradas', icon: null, count: effClosedConvCount, iconOnly: false, tooltip: 'Resolvidas / Encerradas' },
+          { value: 'pending' as const, label: 'Aguardando', count: effPendingConvCount, iconOnly: false, tooltip: 'Conversas aguardando atendimento' },
+          { value: 'open' as const,    label: 'Atendimento', count: effOpenConvCount, iconOnly: false, tooltip: 'Conversas em atendimento ativo' },
+        ]).map(tab => (
+          <Tooltip key={tab.value}>
+            <TooltipTrigger asChild>
+          <button
+            key={tab.value}
+            onClick={() => setConversationStatusFilter(tab.value)}
+            className={cn(
+              'py-2 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 border-b-2 aj-focus-ring',
+              tab.iconOnly ? 'shrink-0 px-3' : 'flex-1',
+              conversationStatusFilter === tab.value
+                ? tab.value === 'pending'
+                  ? 'border-amber-500 text-amber-700 dark:text-amber-400 bg-amber-500/10'
+                  : tab.value === 'open'
+                    ? 'border-emerald-500 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10'
+                    : 'border-primary text-foreground bg-primary/10'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            )}
+          >
+            {tab.iconOnly ? tab.icon : <span className="whitespace-pre-line leading-tight">{tab.label}</span>}
+            {tab.value !== 'resolved_closed' && (
+            <span className={cn(
+              'rounded-full min-w-[18px] h-4 flex items-center justify-center px-1 text-[9px] font-bold',
+              conversationStatusFilter === tab.value
+                ? tab.value === 'pending'
+                  ? 'bg-amber-600 text-primary-foreground'
+                  : tab.value === 'open'
+                    ? 'bg-emerald-600 text-primary-foreground'
+                    : 'bg-primary text-primary-foreground'
+                : 'bg-muted text-muted-foreground'
+            )}>
+              {tab.count >= 99 ? '99+' : tab.count}
+            </span>
+            )}
+          </button>
+            </TooltipTrigger>
+            <TooltipContent>{tab.tooltip}</TooltipContent>
+          </Tooltip>
+        ))}
+        </TooltipProvider>
+      </div>
+      {/* Contact List */}
+      <div ref={listRef} className={cn(
+        "flex-1 overflow-y-auto transition-colors relative",
+        "before:sticky before:top-0 before:z-10 before:block before:h-[2px] before:-mb-[2px] before:content-['']",
+        conversationStatusFilter === 'pending' && 'before:bg-amber-500/70',
+        conversationStatusFilter === 'open' && 'before:bg-emerald-500/70',
+        conversationStatusFilter !== 'pending' && conversationStatusFilter !== 'open' && 'before:bg-transparent',
+      )}>
+        {/* Silent-refetch banner — shown when reloading but the list is
+            already populated, so the user doesn't lose the current view. */}
+        {(isLoading || (isSearching && isSearchFetching && (searchResults?.contacts?.length ?? 0) > 0)) && contacts.length > 0 && (
+          <div className="flex items-center justify-center gap-2 py-1.5 text-[10px] text-muted-foreground bg-muted/30 border-b">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {isSearching ? 'Buscando…' : 'Atualizando…'}
+          </div>
+        )}
+        {modeFilter !== 'all' && (queueAgentLoading || sessionStatusesFetching) && (
+          <div className="flex items-center justify-center gap-2 py-1.5 text-[10px] text-muted-foreground bg-muted/30 border-b">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Classificando conversas…
+          </div>
+        )}
+        {(isLoading && contacts.length === 0) || (isSearching && isSearchFetching && !searchResults) ? (
+          <div className="py-1">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="flex items-start gap-3 px-3 py-3 border-b border-border/50">
+                <Skeleton className="h-12 w-12 rounded-full shrink-0" />
+                <div className="flex-1 space-y-2 min-w-0">
+                  <div className="flex justify-between items-center gap-2">
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-3 w-12" />
+                  </div>
+                  <Skeleton className="h-3 w-3/4" />
+                  <div className="flex gap-1.5 pt-1">
+                    <Skeleton className="h-5 w-16 rounded-sm" />
+                    <Skeleton className="h-5 w-24 rounded-sm" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : displayContacts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+            <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
+            <p className="font-medium">Nenhuma conversa</p>
+            <p className="text-sm mt-1">
+              {searchQuery
+                ? 'Tente uma busca diferente'
+                : 'As mensagens aparecerão aqui quando recebidas'}
+            </p>
+          </div>
+        ) : (
+          <div
+            style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+              const contact = displayContacts[virtualItem.index];
+              const contactConvs = displayConvsByContact.get(contact.id) || [];
+              const conv = contactConvs[0];
+              const queueIdToShow = conv?.queue_id || contactConvs.find(c => c.queue_id)?.queue_id;
+              const convQueue = queueIdToShow ? activeQueues.find(q => q.id === queueIdToShow) : undefined;
+              const queueLink = queueIdToShow ? queueAgentMap?.get(queueIdToShow) : undefined;
+              const isQueueDisconnected =
+                !!queueIdToShow && queueConnectionMap.get(queueIdToShow) === false;
+              const agentCodAgent = queueLink?.hasAgent ? queueLink.codAgent : null;
+              const agentAlias = agentCodAgent
+                ? (aliasMap.get(agentCodAgent) || agentBusinessNameMap.get(agentCodAgent) || null)
+                : null;
+              const normPhone = (contact.phone || '').replace(/\D/g, '');
+              // Prefer exact (phone, agent) match; fall back to most recent
+              // card by phone when the queue's primary agent doesn't match
+              // the agent that owns the card in the CRM. This restores the
+              // previous behavior where every Julia-linked conversation
+              // with any card surfaced its stage.
+              const stageInfo = normPhone
+                ? (agentCodAgent
+                    ? stageByPhone?.get(`${normPhone}|${agentCodAgent}`) ?? stageByPhone?.get(normPhone)
+                    : stageByPhone?.get(normPhone))
+                : undefined;
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={rowVirtualizer.measureElement}
+                  className="px-[1px] pb-[1px]"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <div className="border-[2px] border-foreground/30 rounded-md overflow-hidden">
+                    <ChatContactItem
+                      contact={contact}
+                      isSelected={contact.id === selectedContactId}
+                      onClick={clickHandlerByContact.get(contact.id)!}
+                      conversation={conv}
+                      queueName={convQueue?.name}
+                      assignedAgentName={resolveAssigneeName(conv?.assigned_to, assigneeIndex) || undefined}
+                      index={virtualItem.index}
+                      convTags={conv ? (conversationTagsMap?.[conv.id] || []) : undefined}
+                      agentCodAgent={agentCodAgent}
+                      agentAlias={agentAlias}
+                      stageName={queueLink?.hasAgent ? stageInfo?.stageName : undefined}
+                      stageColor={queueLink?.hasAgent ? stageInfo?.stageColor : undefined}
+                      stageLoading={
+                        queueLink?.hasAgent &&
+                        !stageInfo &&
+                        (!stageByPhone || stageByPhoneFetching)
+                      }
+                      hasCrmCard={
+                        (conv?.id ? !!crmBuilderMap?.byConversation.has(conv.id) : false) ||
+                        !!crmBuilderMap?.byContact.has(contact.id)
+                      }
+                      crmBuilderLink={
+                        (conv?.id ? crmBuilderMap?.byConversation.get(conv.id) : undefined) ??
+                        crmBuilderMap?.byContact.get(contact.id)
+                      }
+                      ticketLink={conv?.id ? ticketLinkMap?.get(conv.id) : undefined}
+                      campaignLink={contact.phone ? campaignByPhone?.get(contact.phone) ?? null : null}
+                      lastMessageMeta={conv ? getLastMsgMeta(conv.id) : undefined}
+                      onOpenTicket={openTicketHandlerByContact?.get(contact.id)}
+                      isQueueDisconnected={isQueueDisconnected}
+                      slaEvaluation={conv ? slaEvalByConversation.get(conv.id) ?? null : null}
+                      canViewTickets={canViewTickets}
+                      canCreateTickets={canCreateTickets}
+                      queueHasAgent={queueLink?.hasAgent}
+                      sessionIsActive={
+                        queueLink?.hasAgent
+                          ? (getSessionActive(contact.phone, agentCodAgent) ?? null)
+                          : null
+                      }
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Infinite scroll loader / sentinel */}
+        {!isSearching && isLoadingMoreContacts && contacts.length > 0 && (
+          <div className="flex justify-center py-3">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {!isSearching && displayContacts.length > 0 && (
+          <div ref={bottomSentinelRef} className="h-1" />
+        )}
+        {/* Conversation auto-load sentinel — placed inside the scroll
+            container so IntersectionObserver triggers on real scroll, not
+            on initial mount. */}
+        {!isSearching && hasMoreConversations && (
+          <div ref={convSentinelRef} className="h-1 w-full" />
+        )}
+        {!isSearching && hasMoreConversations && (
+          <div className="flex justify-center py-3">
+            <button
+              type="button"
+              onClick={() => loadMoreConversations()}
+              className="text-xs text-primary hover:underline"
+            >
+              Carregar mais conversas
+            </button>
+          </div>
+        )}
+        {!isSearching && hasMoreContacts && !isLoadingMoreContacts && displayContacts.length > 0 && (
+          <div className="flex justify-center py-3">
+            <button
+              type="button"
+              onClick={() => loadMoreContacts()}
+              className="text-xs text-primary hover:underline"
+            >
+              Carregar mais conversas ({activeTabLoaded} de {activeTabTotal})
+            </button>
+          </div>
+        )}
+        {!isSearching && !isLoading && !hasMoreContacts && displayContacts.length > 0 && (
+          <div className="text-center text-[10px] text-muted-foreground py-3">
+            Fim da lista ({activeTabTotal} de {activeTabTotal})
+          </div>
+        )}
+
+        {/* Search-mode pagination footer */}
+        {isSearching && searchLoaded > 0 && (
+          <>
+            {isSearchFetching && (
+              <div className="flex justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!isSearchFetching && hasMoreSearch && (
+              <div className="flex justify-center py-3">
+                <button
+                  type="button"
+                  onClick={() => incrementSearchPage()}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Carregar mais ({activeTabLoaded} de {activeTabTotal})
+                </button>
+              </div>
+            )}
+            {!isSearchFetching && !hasMoreSearch && (
+              <div className="text-center text-[10px] text-muted-foreground py-3">
+                Fim da lista ({activeTabTotal} de {activeTabTotal})
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Footer: iniciar nova conversa */}
+      <div className="px-3 py-2 border-t bg-muted/30 shrink-0">
+        <p className="text-[10px] text-muted-foreground mb-1.5">Iniciar nova conversa</p>
+        <div className="flex items-center gap-1.5">
+          <Select value={footerCountry} onValueChange={setFooterCountry}>
+            <SelectTrigger className="h-8 w-[72px] text-xs shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="55" className="text-xs">+55</SelectItem>
+              <SelectItem value="1" className="text-xs">+1</SelectItem>
+              <SelectItem value="351" className="text-xs">+351</SelectItem>
+              <SelectItem value="54" className="text-xs">+54</SelectItem>
+              <SelectItem value="56" className="text-xs">+56</SelectItem>
+            </SelectContent>
+          </Select>
+          <input
+            value={footerPhone}
+            onChange={e => {
+              const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+              let fmt = digits;
+              if (digits.length > 2 && digits.length <= 6) fmt = `(${digits.slice(0,2)}) ${digits.slice(2)}`;
+              else if (digits.length > 6 && digits.length <= 10) fmt = `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+              else if (digits.length > 10) fmt = `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+              setFooterPhone(fmt);
+            }}
+            placeholder="(00) 00000-0000"
+            className="h-8 text-xs flex-1 rounded-md border border-input bg-background px-3 py-1 focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <Button
+            size="sm"
+            className="h-8 text-xs px-3 shrink-0"
+            disabled={footerPhone.replace(/\D/g,'').length < 10}
+            onClick={() => setNewConvOpen(true)}
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5 mr-1" />
+            Conversar
+          </Button>
+        </div>
+      </div>
+
+      <NewConversationDialog
+        open={newConvOpen}
+        onOpenChange={(v) => { setNewConvOpen(v); if (!v) setFooterPhone(''); }}
+        queues={activeQueues.filter(q => q.channel_type === 'uazapi' && queueConnectionMap.get(q.id) === true)}
+        initialPhone={footerCountry + footerPhone.replace(/\D/g,'')}
+        clientId={clientId || undefined}
+        currentUser={user ? { codAgent: user.cod_agent ? String(user.cod_agent) : undefined, name: user?.name || '', id: user?.id } : undefined}
+      />
+      <SnoozedConversationsPanel open={snoozedPanelOpen} onOpenChange={setSnoozedPanelOpen} />
+    </div>
+  );
+}

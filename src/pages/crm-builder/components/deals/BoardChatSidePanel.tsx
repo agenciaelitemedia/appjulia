@@ -1,4 +1,4 @@
-import { ChatSidePanel } from '@/components/chat/ChatSidePanel';
+import { ChatSidePanel } from '@/modules/julia-chat/chat/components/ChatSidePanel';
 import { useDealConversation } from '../../hooks/useDealConversation';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwnerUser } from '@/lib/auth/isOwner';
