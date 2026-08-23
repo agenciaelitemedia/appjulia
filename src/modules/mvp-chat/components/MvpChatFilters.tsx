@@ -153,7 +153,6 @@ export function MvpChatFiltersBar({
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!queueLimits?.allowGroups;
   const canManageChat = !!isAdmin || user?.role === 'user' || user?.role === 'colaborador';
-  const showSnoozed = filters.hide_snoozed === false;
 
   useEffect(() => {
     if (!showGroupsTab && filters.tab === 'groups') onChange({ tab: null });
