@@ -87,7 +87,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
     <div className="flex h-full min-h-0 overflow-hidden border-y bg-card/40 backdrop-blur-sm">
       {/* Coluna 1 — lista de conversas */}
       <aside className="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r lg:w-[400px]">
-        <div className="thin-scrollbar max-h-[60%] shrink-0 space-y-2 overflow-y-auto border-b px-2.5 py-2">
+        <div className="relative z-20 shrink-0 space-y-2 border-b px-2.5 py-2">
 
           <div className="flex items-center gap-2">
             <MessageSquare className="h-4.5 w-4.5 text-primary" aria-hidden />
@@ -105,23 +105,8 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
             owners={owners}
             resultCount={activeFeed.rows.length}
           />
-
-          {c && (
-            <div className="flex flex-wrap items-center gap-1 text-[10px]">
-              <Badge variant="secondary" className="text-[10px]">Total {c.total}</Badge>
-              {c.total_contacts != null && (
-                <Badge variant="outline" className="text-[10px]">Contatos {c.total_contacts}</Badge>
-              )}
-              <Badge variant="outline" className="text-[10px]">Aguard. {c.pending}</Badge>
-              <Badge variant="outline" className="text-[10px]">Atend. {c.open}</Badge>
-              <Badge variant="outline" className="text-[10px]">Resolv. {c.resolved}</Badge>
-              <Badge variant="outline" className="text-[10px]">Fech. {c.closed}</Badge>
-              <Badge variant="outline" className="text-[10px]">Não lidas {c.unread}</Badge>
-              <Badge variant="outline" className="text-[10px] text-destructive">SLA! {c.sla_breached ?? 0}</Badge>
-              <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400">Risco {c.sla_at_risk ?? 0}</Badge>
-            </div>
-          )}
         </div>
+
 
         <MvpChatStatusTabs
           value={active}

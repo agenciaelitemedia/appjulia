@@ -1,6 +1,10 @@
 import { memo, useMemo } from 'react';
 import { differenceInHours, differenceInMinutes } from 'date-fns';
-import { CheckCheck, Clock, Megaphone, Bot, User, Ticket, Kanban, Users } from 'lucide-react';
+import {
+  CheckCheck, Clock, Megaphone, Bot, User, Ticket, Kanban, Users,
+  MessageCircle, MessagesSquare, type LucideIcon,
+} from 'lucide-react';
+
 import {
   Avatar, AvatarFallback, AvatarImage, Badge, cn,
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -28,15 +32,38 @@ function formatRelativeTime(dateStr?: string | null): string {
   return `há ${days} dia${days > 1 ? 's' : ''}`;
 }
 
-const STATUS_STYLE: Record<string, string> = {
-  pending: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-  open: 'bg-primary/15 text-primary',
-  resolved: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  closed: 'bg-muted text-muted-foreground',
-};
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Aguardando', open: 'Atendimento', resolved: 'Resolvida', closed: 'Fechada',
-};
+/** Badge de largura fixa, texto truncado e tooltip detalhado. */
+function FixedBadge({
+  icon: Icon, label, width, tone, tooltip,
+}: {
+  icon: LucideIcon;
+  label: string;
+  width: string;
+  tone: string;
+  tooltip: string;
+}) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              'inline-flex h-5 shrink-0 items-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
+              width,
+              tone,
+            )}
+          >
+            <Icon className="h-3 w-3 shrink-0" aria-hidden />
+            <span className="truncate">{label}</span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[240px] text-xs">{tooltip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+
 
 interface Props {
   row: MvpChatRowData;
@@ -76,6 +103,39 @@ export const MvpChatRow = memo(function MvpChatRow({
   const campaignTitle = (row.campaign?.campaign_data as any)?.campaign_name
     || (row.campaign?.campaign_data as any)?.title
     || 'Meta Ads';
+
+  /** Badge da Júlia: sem IA (cinza) / etapa ativa (verde) / etapa inativa (vermelho). */
+  const juliaBadge = useMemo(() => {
+    const hasAgent = !!(row.queue_cod_agent && String(row.queue_cod_agent).trim());
+    if (!hasAgent) {
+      return {
+        label: 'Sem IA',
+        tone: 'border-border bg-muted/60 text-muted-foreground',
+        tooltip: 'Fila sem agente de IA vinculado — atendimento humano',
+      };
+    }
+    const stage = row.julia_stage_name || 'Sem etapa';
+    if (row.session_is_active === true) {
+      return {
+        label: stage,
+        tone: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+        tooltip: `Júlia ativa · Etapa do CRM da Júlia: ${stage}`,
+      };
+    }
+    return {
+      label: stage,
+      tone: 'border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400',
+      tooltip: `Júlia inativa (humano assumiu) · Etapa do CRM da Júlia: ${stage}`,
+    };
+  }, [row.queue_cod_agent, row.session_is_active, row.julia_stage_name]);
+
+  const crmLabel = row.crm_pipeline_name
+    ? (row.crm_board_name ? `${row.crm_board_name} - ${row.crm_pipeline_name}` : row.crm_pipeline_name)
+    : 'Sem CRM';
+
+  const showSla = row.status !== 'closed' && row.status !== 'resolved' && sla.status !== 'unknown';
+
+
 
   return (
     <button
@@ -125,108 +185,131 @@ export const MvpChatRow = memo(function MvpChatRow({
         </div>
       </div>
 
-      {/* Badges — linha própria, iniciando abaixo do avatar */}
-      <div className="mt-3 flex w-full flex-wrap items-center gap-1">
+      {/* Badges — 3 linhas, iniciando abaixo do avatar */}
+      <div className="mt-2.5 w-full space-y-1">
+        {/* Linha 1 — fila / responsável / IA */}
+        <div className="flex items-center gap-1">
+          <FixedBadge
+            icon={MessageCircle}
+            label={row.queue_name || 'Sem fila'}
+            width="w-[112px]"
+            tone={row.queue_name
+              ? 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400'
+              : 'border-border bg-muted/60 text-muted-foreground'}
+            tooltip={
+              row.queue_name
+                ? `Fila: ${row.queue_name}${row.channel_type ? ` · canal ${row.channel_type}` : ''}`
+                : 'Conversa sem fila vinculada'
+            }
+          />
 
-            <Badge variant="secondary" className={cn('h-5 px-1.5 text-[10px] font-medium', STATUS_STYLE[row.status])}>
-              {STATUS_LABEL[row.status] ?? row.status}
-            </Badge>
+          <FixedBadge
+            icon={User}
+            label={row.assigned_to || 'Sem responsável'}
+            width="w-[112px]"
+            tone={row.assigned_to
+              ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
+              : 'border-border bg-muted/60 text-muted-foreground'}
+            tooltip={row.assigned_to ? `Responsável: ${row.assigned_to}` : 'Nenhum atendente atribuído'}
+          />
 
-            {(row.sibling_open_count ?? 0) > 0 && (
-              <Badge
-                variant="outline"
-                className="h-5 px-1.5 text-[10px]"
-                title={`Este contato tem ${row.sibling_open_count} outra(s) conversa(s) aberta(s)`}
-              >
-                +{row.sibling_open_count} conversa{(row.sibling_open_count ?? 0) > 1 ? 's' : ''}
-              </Badge>
-            )}
+          <FixedBadge
+            icon={Bot}
+            label={juliaBadge.label}
+            width="w-[112px]"
+            tone={juliaBadge.tone}
+            tooltip={juliaBadge.tooltip}
+          />
+        </div>
 
-
-            {row.queue_name && (
-              <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
-                <Clock className="h-3 w-3" /> {row.queue_name}
-              </Badge>
-            )}
-
-            {row.assigned_to ? (
-              <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
-                <User className="h-3 w-3" /> {row.assigned_to}
-              </Badge>
+        {/* Linha 2 — SLA / CRM / campanha */}
+        <div className="flex items-center gap-1">
+          <div className="w-[92px] shrink-0">
+            {showSla ? (
+              <SlaBadge evaluation={sla} compact className="w-full rounded-full border border-transparent" />
             ) : (
-              <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">Sem responsável</Badge>
+              <FixedBadge
+                icon={Clock}
+                label="—"
+                width="w-full"
+                tone="border-border bg-muted/60 text-muted-foreground"
+                tooltip="Sem SLA em acompanhamento para esta conversa"
+              />
             )}
+          </div>
 
-            {row.session_is_active !== null && (
-              <TooltipProvider delayDuration={200}>
+          <FixedBadge
+            icon={Kanban}
+            label={crmLabel}
+            width="w-[150px]"
+            tone={row.crm_pipeline_name
+              ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+              : 'border-border bg-muted/60 text-muted-foreground'}
+            tooltip={
+              row.crm_pipeline_name
+                ? `CRM: ${row.crm_board_name ?? '—'} · Etapa: ${row.crm_pipeline_name}`
+                : 'Conversa sem card no CRM Builder'
+            }
+          />
+
+          <FixedBadge
+            icon={Megaphone}
+            label={row.campaign ? String(campaignTitle) : '---'}
+            width="w-[104px]"
+            tone={row.campaign
+              ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400'
+              : 'border-border bg-muted/60 text-muted-foreground'}
+            tooltip={row.campaign ? `Campanha (Meta Ads): ${campaignTitle}` : 'Lead sem campanha de anúncio'}
+          />
+
+          {(row.sibling_open_count ?? 0) > 0 && (
+            <FixedBadge
+              icon={MessagesSquare}
+              label={`+${row.sibling_open_count}`}
+              width="w-[52px]"
+              tone="border-border bg-muted/60 text-muted-foreground"
+              tooltip={`Este contato tem ${row.sibling_open_count} outra(s) conversa(s) aberta(s)`}
+            />
+          )}
+
+          {row.active_ticket_id && (
+            <FixedBadge
+              icon={Ticket}
+              label={`#${row.active_ticket_number ?? row.active_ticket_protocol ?? '—'}`}
+              width="w-[62px]"
+              tone="border-border bg-muted/60 text-muted-foreground"
+              tooltip={`Ticket de suporte ${row.ticket_status ? `· ${row.ticket_status}` : ''} ${row.ticket_subject ?? ''}`.trim()}
+            />
+          )}
+
+          {row.last_message_from_me && (
+            <CheckCheck className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
+        </div>
+
+        {/* Linha 3 — etiquetas */}
+        {row.tags?.length ? (
+          <div className="flex flex-wrap items-center gap-1">
+            {row.tags.map((t) => (
+              <TooltipProvider key={t.id} delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Badge
-                      variant="secondary"
-                      className={cn('h-5 gap-1 px-1.5 text-[10px]',
-                        row.session_is_active
-                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                          : 'bg-muted text-muted-foreground')}
+                      variant="outline"
+                      className="h-5 max-w-[48%] justify-center overflow-hidden rounded-full px-1.5 text-[10px]"
+                      style={{ borderColor: t.color, color: t.color }}
                     >
-                      <Bot className="h-3 w-3" /> {row.session_is_active ? 'Júlia ativa' : 'Humano'}
+                      <span className="truncate">{t.name}</span>
                     </Badge>
                   </TooltipTrigger>
-                  <TooltipContent>Modo de atendimento (sessão da Júlia)</TooltipContent>
+                  <TooltipContent>Etiqueta: {t.name}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            )}
-
-            {row.julia_stage_name && (
-              <Badge
-                variant="outline"
-                className="h-5 px-1.5 text-[10px]"
-                style={row.julia_stage_color ? { borderColor: row.julia_stage_color, color: row.julia_stage_color } : undefined}
-              >
-                {row.julia_stage_name}
-              </Badge>
-            )}
-
-            {row.crm_pipeline_name && (
-              <Badge
-                variant="outline"
-                className="h-5 gap-1 px-1.5 text-[10px]"
-                style={row.crm_pipeline_color ? { borderColor: row.crm_pipeline_color, color: row.crm_pipeline_color } : undefined}
-              >
-                <Kanban className="h-3 w-3" />
-                {row.crm_board_name ? `${row.crm_board_name} · ${row.crm_pipeline_name}` : row.crm_pipeline_name}
-              </Badge>
-            )}
-
-            {row.active_ticket_id && (
-              <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px]">
-                <Ticket className="h-3 w-3" />
-                #{row.active_ticket_number ?? row.active_ticket_protocol ?? '—'}
-              </Badge>
-            )}
-
-            {row.campaign && (
-              <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-[10px] bg-sky-500/15 text-sky-600 dark:text-sky-400">
-                <Megaphone className="h-3 w-3" /> {String(campaignTitle).slice(0, 24)}
-              </Badge>
-            )}
-
-            {row.tags?.map((t) => (
-              <Badge
-                key={t.id}
-                variant="outline"
-                className="h-5 px-1.5 text-[10px]"
-                style={{ borderColor: t.color, color: t.color }}
-              >
-                {t.name}
-              </Badge>
             ))}
-
-            {row.status !== 'closed' && row.status !== 'resolved' && <SlaBadge evaluation={sla} compact />}
-
-            {row.last_message_from_me && (
-              <CheckCheck className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-            )}
+          </div>
+        ) : null}
       </div>
+
 
     </button>
   );
