@@ -2,8 +2,9 @@ import { memo, useMemo } from 'react';
 import { differenceInHours, differenceInMinutes } from 'date-fns';
 import {
   CheckCheck, Clock, Megaphone, Bot, User, Ticket, Kanban, Users,
-  MessageCircle, MessagesSquare, type LucideIcon,
+  MessageCircle, MessagesSquare, Instagram, Send, Globe, Facebook, Mail, type LucideIcon,
 } from 'lucide-react';
+
 
 import {
   Avatar, AvatarFallback, AvatarImage, Badge, cn,
@@ -32,11 +33,26 @@ function formatRelativeTime(dateStr?: string | null): string {
   return `há ${days} dia${days > 1 ? 's' : ''}`;
 }
 
+function toTitleCase(s: string) {
+  return s.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+/** Ícone do canal de origem exibido sobre a foto do perfil. */
+function channelMeta(channel?: string | null): { Icon: LucideIcon; tone: string; label: string } {
+  const c = (channel || '').toLowerCase();
+  if (c.includes('insta')) return { Icon: Instagram, tone: 'bg-gradient-to-br from-fuchsia-500 to-amber-500 text-white', label: 'Instagram' };
+  if (c.includes('telegram')) return { Icon: Send, tone: 'bg-sky-500 text-white', label: 'Telegram' };
+  if (c.includes('web') || c.includes('site') || c.includes('chat')) return { Icon: Globe, tone: 'bg-slate-600 text-white', label: 'WebChat (site)' };
+  if (c.includes('face') || c.includes('messenger')) return { Icon: Facebook, tone: 'bg-blue-600 text-white', label: 'Facebook' };
+  if (c.includes('mail')) return { Icon: Mail, tone: 'bg-orange-500 text-white', label: 'E-mail' };
+  return { Icon: MessageCircle, tone: 'bg-[#25D366] text-white', label: 'WhatsApp' };
+}
+
 /** Badge de largura fixa, texto truncado e tooltip detalhado. */
 function FixedBadge({
   icon: Icon, label, width, tone, tooltip,
 }: {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   label: string;
   width: string;
   tone: string;
@@ -48,12 +64,12 @@ function FixedBadge({
         <TooltipTrigger asChild>
           <span
             className={cn(
-              'inline-flex h-5 shrink-0 items-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
+              'inline-flex h-5 shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
               width,
               tone,
             )}
           >
-            <Icon className="h-3 w-3 shrink-0" aria-hidden />
+            {Icon ? <Icon className="h-3 w-3 shrink-0" aria-hidden /> : null}
             <span className="truncate">{label}</span>
           </span>
         </TooltipTrigger>
@@ -62,6 +78,7 @@ function FixedBadge({
     </TooltipProvider>
   );
 }
+
 
 
 
@@ -135,6 +152,9 @@ export const MvpChatRow = memo(function MvpChatRow({
 
   const showSla = row.status !== 'closed' && row.status !== 'resolved' && sla.status !== 'unknown';
 
+  const channel = useMemo(() => channelMeta(row.channel_type ?? (row as any).channel), [row.channel_type, (row as any).channel]);
+
+
 
 
   return (
@@ -152,12 +172,30 @@ export const MvpChatRow = memo(function MvpChatRow({
       )}
     >
       <div className="flex gap-3">
-        <Avatar className="h-11 w-11 shrink-0">
-          {row.avatar ? <AvatarImage src={row.avatar} alt={row.contact_name ?? 'Contato'} /> : null}
-          <AvatarFallback className="text-xs font-semibold">
-            {row.is_group ? <Users className="h-4 w-4" /> : initials(row.lead_full_name || row.contact_name)}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative shrink-0">
+          <Avatar className="h-11 w-11">
+            {row.avatar ? <AvatarImage src={row.avatar} alt={row.contact_name ?? 'Contato'} /> : null}
+            <AvatarFallback className="text-xs font-semibold">
+              {row.is_group ? <Users className="h-4 w-4" /> : initials(row.lead_full_name || row.contact_name)}
+            </AvatarFallback>
+          </Avatar>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className={cn(
+                    'absolute -bottom-0.5 -right-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-background',
+                    channel.tone,
+                  )}
+                >
+                  <channel.Icon className="h-2.5 w-2.5" aria-hidden />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">Canal: {channel.label}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
@@ -190,17 +228,17 @@ export const MvpChatRow = memo(function MvpChatRow({
         {/* Linha 1 — fila / responsável / IA */}
         <div className="flex items-center gap-1">
           <FixedBadge
-            icon={MessageCircle}
-            label={row.queue_name || 'Sem fila'}
+            label={row.queue_name ? toTitleCase(row.queue_name) : 'Sem fila'}
             width="w-[112px]"
             tone={row.queue_name
-              ? 'border-emerald-500/50 bg-emerald-800/30 text-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300'
+              ? 'border-transparent bg-[image:var(--gradient-brand)] text-primary-foreground font-bold'
               : 'border-border bg-muted/60 text-muted-foreground'}
             tooltip={
               row.queue_name
                 ? `Fila: ${row.queue_name}${row.channel_type ? ` · canal ${row.channel_type}` : ''}`
                 : 'Conversa sem fila vinculada'
             }
+
           />
 
           <FixedBadge
