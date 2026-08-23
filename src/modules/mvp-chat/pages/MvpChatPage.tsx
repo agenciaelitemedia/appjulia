@@ -30,6 +30,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
   const [filters, setFilters] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
   const [debounced, setDebounced] = useState<MvpChatFilters>(DEFAULT_MVP_FILTERS);
   const [selected, setSelected] = useState<MvpChatRowData | null>(null);
+  const [snoozedPanelOpen, setSnoozedPanelOpen] = useState(false);
 
   // debounce só na busca; os demais filtros aplicam imediatamente
   useEffect(() => {
