@@ -252,7 +252,7 @@ const App = () => (
                   <Route path="/x-julia/casos" element={<ProtectedRoute module="x_julia_cases"><XJScopeProvider><XJCasesPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/contratos" element={<ProtectedRoute module="x_julia_contracts"><XJScopeProvider><XJContractsPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/agenda" element={<ProtectedRoute module="x_julia_agenda"><XJScopeProvider><XJAgendaPage /></XJScopeProvider></ProtectedRoute>} />
-                  {/* MVP Chat — protótipo de lista de conversas com query única */}
+                  {/* JulIA Chat — protótipo de lista de conversas com query única */}
                   <Route path="/mvp-chat" element={<ProtectedRoute><MvpChatPage /></ProtectedRoute>} />
                   {/* Escritórios — módulo independente (clientes sem agente da Julia) */}
 
