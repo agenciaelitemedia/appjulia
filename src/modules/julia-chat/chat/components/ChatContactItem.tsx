@@ -1,0 +1,629 @@
+import React from 'react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
+import { Badge } from '@/components/ui/badge';
+import { Users, MessageCircle, Globe, Instagram, Kanban, Bot, Ticket, LifeBuoy, Eye, Megaphone } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import {
+  ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { AlertTriangle } from 'lucide-react';
+import { differenceInMinutes, differenceInHours } from 'date-fns';
+import type { ChatContact } from '@/types/chat';
+import type { ChatConversation, ChatTag } from '@/types/conversation';
+import type { SlaEvaluation } from '@/hooks/useChatSlaConfigs';
+import type { LastMessageMeta } from '@/hooks/useConversationsLastMessageMeta';
+import { SlaBadge } from '@/components/chat/SlaBadge';
+import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
+import { PriorityBadge } from '@/components/chat/PriorityBadge';
+import { ConversationQuickActions } from '@/components/chat/ConversationQuickActions';
+import { getMessagePreview } from '@/lib/chat/messagePreview';
+import type { CrmBuilderLink } from '@/hooks/useCRMBuilderLinkedConversations';
+import type { TicketConversationLink } from '@/hooks/useTicketLinkedConversations';
+import type { ContactCampaignRow } from '@/components/chat/hooks/useContactCampaigns';
+import { ContactCampaignCard } from '@/components/chat/ContactCampaignCard';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { STATUS_LABEL as TICKET_STATUS_LABEL, STATUS_BADGE as TICKET_STATUS_BADGE, PRIORITY_LABEL as TICKET_PRIORITY_LABEL } from '@/pages/tickets/types';
+
+function toTitleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
+interface ChatContactItemProps {
+  contact: ChatContact;
+  isSelected: boolean;
+  onClick: () => void;
+  conversation?: ChatConversation;
+  queueName?: string;
+  assignedAgentName?: string;
+  index?: number;
+  convTags?: ChatTag[];
+  agentCodAgent?: string | null;
+  agentAlias?: string | null;
+  stageName?: string | null;
+  stageColor?: string | null;
+  /** Mapa de etapas ainda carregando — evita flash de "Sem etapa". */
+  stageLoading?: boolean;
+  hasCrmCard?: boolean;
+  /** Vínculo com card do CRM Builder (Quadro · Etapa). */
+  crmBuilderLink?: CrmBuilderLink;
+  /** Vínculo com ticket de suporte aberto (TICKET #N · status). */
+  ticketLink?: TicketConversationLink;
+  /** Vínculo com anúncio Meta Ads que originou o lead (Meta Ads · nome). */
+  campaignLink?: ContactCampaignRow | null;
+  /** Metadados derivados de chat_messages para avaliar NRT corretamente. */
+  lastMessageMeta?: LastMessageMeta;
+  /** Acionado pelo menu de contexto para abrir/visualizar ticket de suporte. */
+  onOpenTicket?: (mode: 'create' | 'detail', ticketId?: string) => void;
+  /** Quando true, indica que a fila vinculada à conversa está desconectada. */
+  isQueueDisconnected?: boolean;
+  /**
+   * SLA já avaliado pelo pai em batch (evita `useChatSlaConfigs` por linha).
+   * Se omitido, o badge simplesmente não é renderizado.
+   */
+  slaEvaluation?: SlaEvaluation | null;
+  /** Permissões calculadas uma vez pelo pai — evita `useAuth` por linha. */
+  canViewTickets?: boolean;
+  canCreateTickets?: boolean;
+  /** Fila tem agente Julia? Resolvido em batch pelo pai. */
+  queueHasAgent?: boolean;
+  /** Sessão Julia ativa? Resolvido em batch pelo pai. */
+  sessionIsActive?: boolean | null;
+}
+
+function ChannelOverlay({ channel }: { channel?: string }) {
+  const iconClass = 'h-3 w-3 text-white';
+  let bg = 'bg-emerald-500';
+  let icon = <MessageCircle className={iconClass} />;
+
+  switch (channel) {
+    case 'whatsapp_waba':
+      bg = 'bg-emerald-600';
+      break;
+    case 'webchat':
+      bg = 'bg-blue-500';
+      icon = <Globe className={iconClass} />;
+      break;
+    case 'instagram':
+      bg = 'bg-pink-500';
+      icon = <Instagram className={iconClass} />;
+      break;
+  }
+
+  return (
+    <div className={cn('absolute -bottom-0.5 -left-0.5 h-5 w-5 rounded-full flex items-center justify-center border-2 border-background', bg)}>
+      {icon}
+    </div>
+  );
+}
+
+/** Helena-style relative time */
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const mins = differenceInMinutes(new Date(), date);
+  if (mins < 1) return 'há poucos segundos';
+  if (mins < 60) return `há ${mins} minutos`;
+  const hrs = differenceInHours(new Date(), date);
+  if (hrs < 24) return `há ${hrs} hora${hrs > 1 ? 's' : ''}`;
+  const days = Math.floor(hrs / 24);
+  return `há ${days} dia${days > 1 ? 's' : ''}`;
+}
+
+/** Safe single-line preview for the contact list. */
+function MessagePreview({ text }: { text?: string }) {
+  const preview = getMessagePreview({ text: text ?? '' });
+  if (!preview) return null;
+  return <span className="block truncate whitespace-nowrap">{preview}</span>;
+}
+
+/** Single pill */
+function Pill({ label, className }: { label: string; className: string }) {
+  return (
+    <span className={cn(
+      'inline-flex items-center justify-center h-5 px-1.5 text-[9px] font-bold leading-none overflow-hidden whitespace-nowrap text-center',
+      className
+    )}>
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
+export const ChatContactItem = React.memo(function ChatContactItem({
+  contact,
+  isSelected,
+  onClick,
+  conversation,
+  queueName,
+  assignedAgentName,
+  index = 0,
+  convTags,
+  agentCodAgent,
+  agentAlias,
+  stageName,
+  stageColor,
+  stageLoading,
+  hasCrmCard,
+  crmBuilderLink,
+  ticketLink,
+  campaignLink,
+  lastMessageMeta,
+  onOpenTicket,
+  isQueueDisconnected,
+  slaEvaluation = null,
+  canViewTickets = false,
+  canCreateTickets = false,
+  queueHasAgent,
+  sessionIsActive,
+}: ChatContactItemProps) {
+  const initials = contact.name
+    .split(' ')
+    .slice(0, 2)
+    .map(n => n[0])
+    .join('')
+    .toUpperCase();
+
+  const formattedTime = contact.last_message_at
+    ? formatRelativeTime(contact.last_message_at)
+    : null;
+
+  const visibleTags = convTags || [];
+
+  const [showDisconnectedDialog, setShowDisconnectedDialog] = React.useState(false);
+  const [showCampaignDialog, setShowCampaignDialog] = React.useState(false);
+
+  const handleItemClick = React.useCallback(() => {
+    if (isQueueDisconnected) {
+      setShowDisconnectedDialog(true);
+      return;
+    }
+    onClick();
+  }, [isQueueDisconnected, onClick]);
+
+  const itemContent = (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={handleItemClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleItemClick();
+        }
+      }}
+      className={cn(
+        'group w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] min-w-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        isSelected
+          ? 'aj-chat-item-active border-l-transparent'
+          : cn(
+              'border-l-transparent hover:bg-muted/60',
+              index % 2 === 0 ? 'bg-background' : 'bg-muted/25'
+            ),
+        isQueueDisconnected &&
+          '!bg-destructive/10 hover:!bg-destructive/15 border-l-destructive/60',
+      )}
+    >
+      {/* Avatar with channel overlay */}
+      <div className="relative flex-shrink-0 mt-0.5">
+        <Avatar className="h-12 w-12">
+          <SmartAvatarImage src={contact.avatar} alt={contact.name} contactId={contact.id} />
+          <AvatarFallback className="bg-secondary text-secondary-foreground text-sm font-semibold">
+            {contact.is_group ? <Users className="h-4 w-4" /> : initials}
+          </AvatarFallback>
+        </Avatar>
+        <ChannelOverlay channel={conversation?.channel} />
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0 overflow-hidden space-y-1">
+        {/* Row 1: Name (left) + time (right) */}
+        <div className="flex items-center justify-between gap-2 min-w-0 w-full">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
+            <JuliaStatusBadge
+              whatsappNumber={contact.phone}
+              codAgent={conversation?.cod_agent || contact.cod_agent}
+              queueId={conversation?.queue_id || null}
+              assignedTo={conversation?.assigned_to || null}
+              hasQueueAgent={queueHasAgent}
+              sessionIsActive={sessionIsActive}
+            />
+            <span className={cn(
+              'block truncate font-semibold text-sm',
+              contact.unread_count > 0 ? 'text-foreground' : 'text-foreground/80'
+            )}>
+              {contact.name.length > 30 ? contact.name.slice(0, 30).trimEnd() + '…' : contact.name}
+            </span>
+          </div>
+          {formattedTime && (
+            <span className={cn(
+              'text-[11px] whitespace-nowrap flex-shrink-0',
+              contact.unread_count > 0 ? 'text-emerald-600 font-semibold' : 'text-muted-foreground'
+            )}>
+              {formattedTime}
+            </span>
+          )}
+        </div>
+
+        {/* Row 2: Last message preview (left) + unread badge (right) */}
+        <div className="flex items-center justify-between gap-2 min-w-0 w-full text-xs">
+          <div
+            className={cn(
+              'flex-1 min-w-0 overflow-hidden text-[10px]',
+              contact.unread_count > 0 ? 'text-foreground/80' : 'text-muted-foreground'
+            )}
+          >
+            <span className="block truncate whitespace-nowrap">
+              <MessagePreview text={contact.last_message_text || undefined} />
+            </span>
+          </div>
+          {contact.unread_count > 0 ? (
+            <span className="flex-shrink-0 bg-emerald-600 text-primary-foreground text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
+              {contact.unread_count > 99 ? '99+' : contact.unread_count}
+            </span>
+          ) : (
+            <span className="flex-shrink-0 w-5" aria-hidden />
+          )}
+        </div>
+
+        {/* Linha Julia: badge JULIA + cod_agent · alias + badge etapa CRM Julia (lazy) */}
+        {(agentCodAgent || stageName || stageLoading) && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200 flex items-center justify-between gap-1.5 min-w-0 w-full pt-1 mt-0.5 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-sm border border-emerald-100/70 dark:border-emerald-900/40 px-0 py-[2px] my-0">
+                  <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
+                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 whitespace-nowrap flex-shrink-0">
+                      <Bot className="h-2.5 w-2.5 flex-shrink-0" />
+                      JULIA
+                    </span>
+                    {agentCodAgent && (
+                      <span className="text-[10px] text-muted-foreground font-mono truncate min-w-0">
+                        #{agentCodAgent}{agentAlias ? ` · ${agentAlias}` : ''}
+                      </span>
+                    )}
+                  </div>
+                  {agentCodAgent && (
+                    <span
+                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-primary-foreground whitespace-nowrap max-w-[120px] truncate"
+                      style={{
+                        backgroundColor: stageName
+                          ? (stageColor || '#64748b')
+                          : stageLoading ? '#cbd5e1' : '#94a3b8',
+                      }}
+                      title={stageName || (stageLoading ? 'Carregando etapa…' : 'Sem etapa')}
+                    >
+                      {stageName || (stageLoading ? <span className='animate-pulse'>…</span> : 'Sem etapa')}
+                    </span>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <div className="font-semibold mb-1">Agente Julia</div>
+                {agentCodAgent && <div>Código: #{agentCodAgent}</div>}
+                {agentAlias && <div>Alias: {agentAlias}</div>}
+                {stageName && <div>Etapa CRM Julia: {stageName}</div>}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
+        {/* Linha CRM Builder: badge CRM + Quadro · Etapa (lazy) */}
+        {crmBuilderLink && (crmBuilderLink.boardName || crmBuilderLink.pipelineName) && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200 flex items-center justify-between min-w-0 w-full pt-1 mt-0.5 bg-blue-50/40 dark:bg-blue-950/20 rounded-sm border border-blue-100/70 dark:border-blue-900/40 px-0 gap-0 py-[2px] my-0">
+                  <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
+                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-blue-100 text-blue-700 whitespace-nowrap flex-shrink-0">
+                      <Kanban className="h-2.5 w-2.5 flex-shrink-0" />
+                      CRM
+                    </span>
+                    {crmBuilderLink.boardName && (
+                      <span className="text-[10px] text-muted-foreground font-mono truncate min-w-0">
+                        {crmBuilderLink.boardName}
+                      </span>
+                    )}
+                  </div>
+                  {crmBuilderLink.pipelineName && (
+                    <span
+                      className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full text-white whitespace-nowrap"
+                      style={{ backgroundColor: crmBuilderLink.pipelineColor || '#2563eb' }}
+                    >
+                      {crmBuilderLink.pipelineName}
+                    </span>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <div className="font-semibold mb-1">Vinculado ao CRM Builder</div>
+                {crmBuilderLink.boardName && <div>Quadro: {crmBuilderLink.boardName}</div>}
+                {crmBuilderLink.pipelineName && <div>Etapa: {crmBuilderLink.pipelineName}</div>}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
+        {/* Linha Meta Ads: badge META ADS + nome + "Ver Ads" (popup) */}
+        {campaignLink && (
+          <div className="animate-in fade-in slide-in-from-top-1 duration-200 flex items-center justify-between min-w-0 w-full pt-1 mt-0.5 bg-fuchsia-50/40 dark:bg-fuchsia-950/20 rounded-sm border border-fuchsia-100/70 dark:border-fuchsia-900/40 px-0 gap-0 py-[2px] my-0">
+            <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
+              <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300 whitespace-nowrap flex-shrink-0">
+                <Megaphone className="h-2.5 w-2.5 flex-shrink-0" />
+                META ADS
+              </span>
+              <span
+                className="text-[10px] text-muted-foreground truncate min-w-0"
+                title={(campaignLink.campaign_data as any)?.title || 'Campanha'}
+              >
+                {(campaignLink.campaign_data as any)?.title || 'Campanha sem título'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClick(); setShowCampaignDialog(true); }}
+              className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-fuchsia-600 text-white hover:bg-fuchsia-700 whitespace-nowrap"
+            >
+              Ver Ads
+            </button>
+          </div>
+        )}
+
+        {/* Linha Ticket de Suporte: badge TICKET #N + status (lazy) */}
+        {ticketLink && (
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200 flex items-center justify-between min-w-0 w-full pt-1 mt-0.5 bg-red-50/40 dark:bg-red-950/20 rounded-sm border border-red-100/70 dark:border-red-900/40 px-0 gap-0 py-[2px] my-0">
+                  <div className="flex flex-1 items-center gap-1.5 min-w-0 overflow-hidden">
+                    <span className="inline-flex items-center justify-center gap-0.5 h-5 px-1.5 text-[9px] font-bold leading-none rounded bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 whitespace-nowrap flex-shrink-0">
+                      <Ticket className="h-2.5 w-2.5 flex-shrink-0" />
+                      TICKET
+                    </span>
+                    {(ticketLink.protocol || ticketLink.number != null) && (
+                      <span className="text-[10px] text-muted-foreground font-mono truncate min-w-0">
+                        #{ticketLink.protocol ?? ticketLink.number}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      'flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap',
+                      TICKET_STATUS_BADGE[ticketLink.status],
+                    )}
+                  >
+                    {TICKET_STATUS_LABEL[ticketLink.status]}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <div className="font-semibold mb-1">Ticket de suporte aberto</div>
+                {ticketLink.number != null && <div>Número: #{ticketLink.number}</div>}
+                {ticketLink.subject && <div>Assunto: {ticketLink.subject}</div>}
+                <div>Status: {TICKET_STATUS_LABEL[ticketLink.status]}</div>
+                <div>Prioridade: {TICKET_PRIORITY_LABEL[ticketLink.priority]}</div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
+        {/* Row 3: Tags — fila → SLA → atribuído → extras → prioridade (direita) */}
+        <div className="flex items-center gap-1 flex-nowrap min-w-0 overflow-hidden w-full">
+          <div className="flex items-stretch gap-0 flex-shrink-0 mr-2">
+            {queueName && (
+              <Pill
+                label={toTitleCase(queueName)}
+                className="bg-[image:var(--gradient-brand)] text-primary-foreground rounded-l w-[110px]"
+              />
+            )}
+            <Pill
+              label={assignedAgentName ? toTitleCase(assignedAgentName) : 'Não Atribuído'}
+              className={cn(
+                'w-[110px]',
+                'bg-slate-100 text-slate-900',
+                assignedAgentName ? 'font-bold' : '!font-normal',
+                !slaEvaluation && 'rounded-r'
+              )}
+            />
+            {slaEvaluation && (
+              <SlaBadge
+                evaluation={slaEvaluation}
+                compact
+                className={cn('w-[64px]', 'rounded-r')}
+              />
+            )}
+          </div>
+          {conversation && (
+            <div className="ml-auto flex-shrink-0 flex items-center gap-1">
+              <PriorityBadge
+                conversationId={conversation.id}
+                currentPriority={conversation.priority}
+                compact
+              />
+              <ConversationQuickActions
+                conversation={conversation}
+                ticketLink={ticketLink}
+                onOpenTicket={onOpenTicket}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Row 4: Tags (abaixo da linha da fila) */}
+        {visibleTags.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap min-w-0 overflow-hidden w-full">
+            {visibleTags.map(tag => (
+              <span key={tag.id} className="flex-shrink-0 max-w-[120px] truncate">
+                <span
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold text-white truncate max-w-full border border-white/20 shadow-sm"
+                  style={{ backgroundColor: tag.color }}
+                  title={tag.name}
+                >
+                  {tag.name.toUpperCase()}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+
+  const disconnectedDialog = (
+    <AlertDialog open={showDisconnectedDialog} onOpenChange={setShowDisconnectedDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-2">
+            <AlertTriangle className="h-6 w-6 text-destructive" />
+          </div>
+          <AlertDialogTitle className="text-center">Fila desconectada</AlertDialogTitle>
+          <AlertDialogDescription className="text-center">
+            A fila {queueName ? <span className="font-semibold">"{queueName}"</span> : 'desta conversa'} está
+            desconectada no momento. Não será possível enviar mensagens até que a conexão seja restabelecida.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction
+            onClick={() => {
+              setShowDisconnectedDialog(false);
+              onClick();
+            }}
+          >
+            Entendi, abrir conversa
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  const campaignDialog = campaignLink ? (
+    <Dialog open={showCampaignDialog} onOpenChange={setShowCampaignDialog}>
+      <DialogContent
+        className="max-w-md p-0"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DialogHeader className="px-4 pt-4 pb-2">
+          <DialogTitle className="text-sm">Anúncio de origem</DialogTitle>
+        </DialogHeader>
+        <div className="px-4 pb-4">
+          <ContactCampaignCard row={campaignLink} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  ) : null;
+
+  if (!canViewTickets || !onOpenTicket) {
+    return (
+      <>
+        {itemContent}
+        {disconnectedDialog}
+        {campaignDialog}
+      </>
+    );
+  }
+
+  const hasTicket = !!ticketLink;
+
+  return (
+    <>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{itemContent}</ContextMenuTrigger>
+      <ContextMenuContent className="w-60">
+        {hasTicket ? (
+          <>
+            <ContextMenuItem
+              onSelect={() => onOpenTicket('detail', ticketLink!.ticketId)}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Ver ticket #{ticketLink!.number ?? '—'}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onSelect={() => window.open(`/tickets/${ticketLink!.ticketId}`, '_blank', 'noopener')}
+            >
+              <Ticket className="h-4 w-4 mr-2" />
+              Abrir no módulo
+            </ContextMenuItem>
+          </>
+        ) : (
+          canCreateTickets && (
+            <ContextMenuItem onSelect={() => onOpenTicket('create')}>
+              <LifeBuoy className="h-4 w-4 mr-2" />
+              Abrir ticket de suporte
+            </ContextMenuItem>
+          )
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
+    {disconnectedDialog}
+    {campaignDialog}
+    </>
+  );
+}, (prev, next) => {
+  // Custom shallow comparison: avoids re-renders when parent rebuilds
+  // empty arrays / equal objects with new references on every scroll tick.
+  if (prev.isSelected !== next.isSelected) return false;
+  if (prev.onClick !== next.onClick) return false;
+  if (prev.queueName !== next.queueName) return false;
+  if (prev.assignedAgentName !== next.assignedAgentName) return false;
+  if (prev.agentCodAgent !== next.agentCodAgent) return false;
+  if (prev.agentAlias !== next.agentAlias) return false;
+  if (prev.stageName !== next.stageName) return false;
+  if (prev.stageColor !== next.stageColor) return false;
+  if (prev.hasCrmCard !== next.hasCrmCard) return false;
+  if (prev.crmBuilderLink !== next.crmBuilderLink) return false;
+  if (prev.ticketLink?.ticketId !== next.ticketLink?.ticketId) return false;
+  if (prev.ticketLink?.status !== next.ticketLink?.status) return false;
+  if (prev.ticketLink?.number !== next.ticketLink?.number) return false;
+  if (prev.campaignLink?.id !== next.campaignLink?.id) return false;
+  if (prev.onOpenTicket !== next.onOpenTicket) return false;
+  if (prev.isQueueDisconnected !== next.isQueueDisconnected) return false;
+  if (prev.queueHasAgent !== next.queueHasAgent) return false;
+  if (prev.sessionIsActive !== next.sessionIsActive) return false;
+  if (prev.canViewTickets !== next.canViewTickets) return false;
+  if (prev.canCreateTickets !== next.canCreateTickets) return false;
+  if (prev.slaEvaluation?.status !== next.slaEvaluation?.status) return false;
+  if (prev.slaEvaluation?.remainingMinutes !== next.slaEvaluation?.remainingMinutes) return false;
+  if (prev.index !== next.index) return false;
+  if (prev.contact?.id !== next.contact?.id) return false;
+  if (prev.contact?.name !== next.contact?.name) return false;
+  if (prev.contact?.avatar !== next.contact?.avatar) return false;
+  if (prev.contact?.unread_count !== next.contact?.unread_count) return false;
+  if (prev.contact?.last_message_at !== next.contact?.last_message_at) return false;
+  if (prev.contact?.last_message_text !== next.contact?.last_message_text) return false;
+  if (prev.conversation?.id !== next.conversation?.id) return false;
+  if (prev.conversation?.status !== next.conversation?.status) return false;
+  if (prev.conversation?.updated_at !== next.conversation?.updated_at) return false;
+  if (prev.conversation?.priority !== next.conversation?.priority) return false;
+  if (prev.conversation?.assigned_to !== next.conversation?.assigned_to) return false;
+  // convTags: compare length + ids
+  const a = prev.convTags || []; const b = next.convTags || [];
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]?.id !== b[i]?.id || a[i]?.name !== b[i]?.name) return false;
+  }
+  // lastMessageMeta
+  const lm1 = prev.lastMessageMeta; const lm2 = next.lastMessageMeta;
+  if ((lm1 && !lm2) || (!lm1 && lm2)) return false;
+  if (lm1 && lm2) {
+    if (
+      lm1.last_message_at !== lm2.last_message_at ||
+      lm1.last_message_from_me !== lm2.last_message_from_me ||
+      lm1.last_customer_message_at !== lm2.last_customer_message_at
+    ) return false;
+  }
+  return true;
+});
