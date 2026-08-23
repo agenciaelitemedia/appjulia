@@ -97,7 +97,10 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
   return (
     <div className="flex h-full min-h-0 overflow-hidden border-y bg-card/40 backdrop-blur-sm">
       {/* Coluna 1 — lista de conversas */}
-      <aside className="flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r lg:w-[400px]">
+      <aside className={cn(
+        'flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r lg:w-[400px]',
+        selected && 'hidden lg:flex',
+      )}>
         <div className="relative z-20 shrink-0 space-y-2 border-b px-2.5 py-2">
 
           <div className="flex items-center gap-2">
@@ -223,7 +226,7 @@ function MvpConversationColumns({
 
   return (
     <>
-      <main className="hidden min-w-0 flex-1 flex-col overflow-hidden lg:flex">
+      <main className={cn('min-w-0 flex-1 flex-col overflow-hidden lg:flex', target ? 'flex' : 'hidden')}>
         <Collapsible open={diagOpen} onOpenChange={setDiagOpen} className="shrink-0 border-b">
           <div className="flex items-center gap-2 px-3 py-1.5">
             <Badge variant="secondary" className="gap-1 text-[11px]">
@@ -273,7 +276,7 @@ function MvpConversationColumns({
         </div>
       </main>
 
-      <aside className="hidden h-full w-[400px] shrink-0 overflow-hidden xl:block empty:hidden">
+      <aside className="hidden h-full w-[380px] shrink-0 overflow-hidden lg:block xl:w-[400px] empty:hidden">
         <MvpChatRightBar row={selected} isBelowLg={isBelowLg} />
       </aside>
     </>
