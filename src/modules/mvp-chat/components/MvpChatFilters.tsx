@@ -363,16 +363,14 @@ export function MvpChatFiltersBar({
             </>
           )}
 
-          {dirty && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Limpar filtros" onClick={onReset}>
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Limpar filtros</TooltipContent>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Limpar filtros" onClick={onReset}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Limpar filtros</TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Linha 2 — período (pills) */}
