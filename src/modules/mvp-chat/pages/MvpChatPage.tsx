@@ -161,6 +161,12 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
           disconnectedQueueIds={disconnectedQueueIds}
           onSelect={setSelected}
         />
+
+        <MvpNewConversationFooter
+          queues={accessibleQueues as any[]}
+          queueConnectionMap={queueConnectionMap}
+          clientId={clientId}
+        />
       </aside>
 
       {/* Colunas 2 e 3 — conversa real + right-bar (provider isolado do MVP) */}
