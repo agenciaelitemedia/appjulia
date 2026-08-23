@@ -104,6 +104,39 @@ export const MvpChatRow = memo(function MvpChatRow({
     || (row.campaign?.campaign_data as any)?.title
     || 'Meta Ads';
 
+  /** Badge da Júlia: sem IA (cinza) / etapa ativa (verde) / etapa inativa (vermelho). */
+  const juliaBadge = useMemo(() => {
+    const hasAgent = !!(row.queue_cod_agent && String(row.queue_cod_agent).trim());
+    if (!hasAgent) {
+      return {
+        label: 'Sem IA',
+        tone: 'border-border bg-muted/60 text-muted-foreground',
+        tooltip: 'Fila sem agente de IA vinculado — atendimento humano',
+      };
+    }
+    const stage = row.julia_stage_name || 'Sem etapa';
+    if (row.session_is_active === true) {
+      return {
+        label: stage,
+        tone: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+        tooltip: `Júlia ativa · Etapa do CRM da Júlia: ${stage}`,
+      };
+    }
+    return {
+      label: stage,
+      tone: 'border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400',
+      tooltip: `Júlia inativa (humano assumiu) · Etapa do CRM da Júlia: ${stage}`,
+    };
+  }, [row.queue_cod_agent, row.session_is_active, row.julia_stage_name]);
+
+  const crmLabel = row.crm_pipeline_name
+    ? (row.crm_board_name ? `${row.crm_board_name} - ${row.crm_pipeline_name}` : row.crm_pipeline_name)
+    : 'Sem CRM';
+
+  const showSla = row.status !== 'closed' && row.status !== 'resolved' && sla.status !== 'unknown';
+
+
+
   return (
     <button
       type="button"
