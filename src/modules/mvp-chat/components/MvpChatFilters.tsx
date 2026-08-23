@@ -36,6 +36,7 @@ const PERIOD_OPTIONS: { value: Filters['period']; label: string }[] = [
   { value: 'today', label: 'Hoje' },
   { value: '7d', label: '7 dias' },
   { value: '30d', label: '30 dias' },
+  { value: '3m', label: '3 meses' },
   { value: 'month', label: 'Mês atual' },
 ];
 
