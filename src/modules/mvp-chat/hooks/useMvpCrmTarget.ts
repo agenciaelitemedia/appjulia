@@ -21,26 +21,29 @@ export function useMvpCrmTarget() {
   }): Promise<MvpCrmTarget | null> => {
     setLoading(true);
     try {
-      let q = supabase
-        .from('crm_deals')
-        .select('id, board_id, custom_fields, updated_at')
-        .neq('status', 'archived')
-        .order('updated_at', { ascending: false })
-        .limit(50);
-      if (args.clientId) q = q.eq('client_id', args.clientId);
-      const { data, error } = await q;
-      if (error) throw error;
+      const base = () => {
+        let q = supabase
+          .from('crm_deals')
+          .select('id, board_id, updated_at')
+          .neq('status', 'archived')
+          .order('updated_at', { ascending: false })
+          .limit(1);
+        if (args.clientId) q = q.eq('client_id', args.clientId);
+        return q;
+      };
 
-      const rows = (data || []) as Array<{
-        id: string;
-        board_id: string | null;
-        custom_fields?: Record<string, any> | null;
-      }>;
+      // 1) vínculo pela conversa
+      const byConv = await base().eq('custom_fields->links->chat->>conversation_id', args.conversationId);
+      if (byConv.error) throw byConv.error;
+      let hit = byConv.data?.[0] as { id: string; board_id: string | null } | undefined;
 
-      const linkOf = (r: (typeof rows)[number]) => r.custom_fields?.links?.chat ?? {};
-      const byConv = rows.find((r) => linkOf(r).conversation_id === args.conversationId);
-      const byContact = rows.find((r) => linkOf(r).contact_id === args.contactId);
-      const hit = byConv || byContact;
+      // 2) fallback: vínculo pelo contato
+      if (!hit) {
+        const byContact = await base().eq('custom_fields->links->chat->>contact_id', args.contactId);
+        if (byContact.error) throw byContact.error;
+        hit = byContact.data?.[0] as { id: string; board_id: string | null } | undefined;
+      }
+
       if (!hit) return null;
       return { boardId: hit.board_id ?? null, dealId: hit.id };
     } finally {
