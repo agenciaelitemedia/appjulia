@@ -137,8 +137,10 @@ export function MvpSnoozedPanel({ open, onOpenChange, items, onSelect, onResumed
           <TooltipProvider delayDuration={200}>
             {sorted.map((item) => {
               const byName = snoozedByMap[item.conversation_id] || null;
-              const displayName = item.contact_name || item.lead_full_name || item.phone || 'Sem nome';
-              const fallback = displayName.slice(0, 2).toUpperCase();
+              const displayName = item.lead_full_name || item.contact_name || item.phone || 'Sem nome';
+              const preview = item.last_message_text
+                ? getMessagePreview({ text: item.last_message_text, type: 'text' })
+                : 'Sem mensagens';
               return (
                 <div
                   key={item.conversation_id}
@@ -151,7 +153,9 @@ export function MvpSnoozedPanel({ open, onOpenChange, items, onSelect, onResumed
                   >
                     <Avatar className="h-10 w-10 flex-shrink-0">
                       {item.avatar && <AvatarImage src={item.avatar} alt={displayName} />}
-                      <AvatarFallback>{fallback}</AvatarFallback>
+                      <AvatarFallback className="text-xs font-semibold">
+                        {item.is_group ? <Users className="h-4 w-4" /> : initials(displayName)}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
@@ -173,11 +177,15 @@ export function MvpSnoozedPanel({ open, onOpenChange, items, onSelect, onResumed
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      {item.last_message_text && (
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">
-                          {item.last_message_text}
+                      {item.phone && (
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {formatPhoneDisplay(item.phone)}
                         </p>
                       )}
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {preview}
+                      </p>
+
                       <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground flex-wrap">
                         <span>Retorno: {formatAbsolute(new Date(item.snoozed_until!))}</span>
                         {byName && <span>• por {byName}</span>}
