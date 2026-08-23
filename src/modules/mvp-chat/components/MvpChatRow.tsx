@@ -32,11 +32,26 @@ function formatRelativeTime(dateStr?: string | null): string {
   return `há ${days} dia${days > 1 ? 's' : ''}`;
 }
 
+function toTitleCase(s: string) {
+  return s.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+/** Ícone do canal de origem exibido sobre a foto do perfil. */
+function channelMeta(channel?: string | null): { Icon: LucideIcon; tone: string; label: string } {
+  const c = (channel || '').toLowerCase();
+  if (c.includes('insta')) return { Icon: Instagram, tone: 'bg-gradient-to-br from-fuchsia-500 to-amber-500 text-white', label: 'Instagram' };
+  if (c.includes('telegram')) return { Icon: Send, tone: 'bg-sky-500 text-white', label: 'Telegram' };
+  if (c.includes('web') || c.includes('site') || c.includes('chat')) return { Icon: Globe, tone: 'bg-slate-600 text-white', label: 'WebChat (site)' };
+  if (c.includes('face') || c.includes('messenger')) return { Icon: Facebook, tone: 'bg-blue-600 text-white', label: 'Facebook' };
+  if (c.includes('mail')) return { Icon: Mail, tone: 'bg-orange-500 text-white', label: 'E-mail' };
+  return { Icon: MessageCircle, tone: 'bg-[#25D366] text-white', label: 'WhatsApp' };
+}
+
 /** Badge de largura fixa, texto truncado e tooltip detalhado. */
 function FixedBadge({
   icon: Icon, label, width, tone, tooltip,
 }: {
-  icon: LucideIcon;
+  icon?: LucideIcon;
   label: string;
   width: string;
   tone: string;
@@ -48,12 +63,12 @@ function FixedBadge({
         <TooltipTrigger asChild>
           <span
             className={cn(
-              'inline-flex h-5 shrink-0 items-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
+              'inline-flex h-5 shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
               width,
               tone,
             )}
           >
-            <Icon className="h-3 w-3 shrink-0" aria-hidden />
+            {Icon ? <Icon className="h-3 w-3 shrink-0" aria-hidden /> : null}
             <span className="truncate">{label}</span>
           </span>
         </TooltipTrigger>
@@ -62,6 +77,7 @@ function FixedBadge({
     </TooltipProvider>
   );
 }
+
 
 
 
