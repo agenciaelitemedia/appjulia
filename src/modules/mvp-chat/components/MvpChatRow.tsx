@@ -152,6 +152,9 @@ export const MvpChatRow = memo(function MvpChatRow({
 
   const showSla = row.status !== 'closed' && row.status !== 'resolved' && sla.status !== 'unknown';
 
+  const channel = useMemo(() => channelMeta(row.channel_type ?? (row as any).channel), [row.channel_type, (row as any).channel]);
+
+
 
 
   return (
