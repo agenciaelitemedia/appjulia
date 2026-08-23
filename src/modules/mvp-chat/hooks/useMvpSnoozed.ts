@@ -34,7 +34,7 @@ export function useMvpSnoozed(clientId: string | null, scopeQueueIds: string[]) 
       const contactIds = Array.from(new Set(rows.map((r) => r.contact_id).filter(Boolean)));
       const { data: contacts } = await supabase
         .from('chat_contacts')
-        .select('id, name, phone, avatar_url, last_message_preview')
+        .select('id, name, phone, avatar, avatar_storage_path, is_group, unread_count, last_message_at, last_message_text, channel_type, channel_source, lead_full_name, wa_name, wa_verified_name')
         .in('id', contactIds);
       const contactMap = new Map(
         ((contacts ?? []) as Array<Record<string, any>>).map((c) => [c.id, c]),
@@ -61,17 +61,17 @@ export function useMvpSnoozed(clientId: string | null, scopeQueueIds: string[]) 
         const c = contactMap.get(r.contact_id) ?? {};
         out.push({
           contact_id: r.contact_id,
-          contact_name: c.name ?? null,
+          contact_name: c.name ?? c.wa_name ?? c.wa_verified_name ?? null,
           phone: c.phone ?? null,
-          avatar: c.avatar_url ?? null,
-          avatar_storage_path: null,
-          is_group: false,
-          unread_count: 0,
-          last_message_at: null,
-          last_message_text: c.last_message_preview ?? null,
-          channel_source: null,
-          channel_type: null,
-          lead_full_name: null,
+          avatar: c.avatar ?? null,
+          avatar_storage_path: c.avatar_storage_path ?? null,
+          is_group: !!c.is_group,
+          unread_count: c.unread_count ?? 0,
+          last_message_at: c.last_message_at ?? null,
+          last_message_text: c.last_message_text ?? null,
+          channel_source: c.channel_source ?? null,
+          channel_type: c.channel_type ?? null,
+          lead_full_name: c.lead_full_name ?? null,
           conversation_id: r.id,
           queue_id: r.queue_id ?? null,
           queue_name: r.queue_id ? queueMap.get(r.queue_id) ?? null : null,
