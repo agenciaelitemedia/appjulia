@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
+import { SmartAvatarImage } from '@/modules/julia-chat/chat/components/SmartAvatarImage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -18,12 +18,12 @@ import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData
 import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
 import { useQuery } from '@tanstack/react-query';
 import { usePhone } from '@/contexts/PhoneContext';
-import { WavoipCallButton } from '@/components/chat/WavoipCallButton';
+import { WavoipCallButton } from '@/modules/julia-chat/chat/components/WavoipCallButton';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
-import { UpsellCallDialog } from '@/components/chat/UpsellCallDialog';
-import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { UpsellCallDialog } from '@/modules/julia-chat/chat/components/UpsellCallDialog';
+import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, Plus, Trash2, Edit, Zap, Activity, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { AutomationTemplatesDialog } from '@/components/chat/AutomationTemplatesDialog';
+import { AutomationTemplatesDialog } from '@/modules/julia-chat/chat/components/AutomationTemplatesDialog';
 import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 interface Rule {

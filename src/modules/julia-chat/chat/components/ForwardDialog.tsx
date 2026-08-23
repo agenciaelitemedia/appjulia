@@ -4,10 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { SmartAvatarImage } from '@/components/chat/SmartAvatarImage';
+import { SmartAvatarImage } from '@/modules/julia-chat/chat/components/SmartAvatarImage';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Forward, Search, Loader2 } from 'lucide-react';
-import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { toast } from 'sonner';
 import type { ChatMessage } from '@/types/chat';
 

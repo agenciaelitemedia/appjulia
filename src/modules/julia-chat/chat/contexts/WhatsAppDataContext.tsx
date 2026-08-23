@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { externalDb } from '@/lib/externalDb';
 import { getServerNowBRT, ensureServerClock } from '@/lib/serverClock';
 import { webmBlobToOggOpusStrict } from '@/lib/audio/webmToOgg';
-import { getMessagePreview } from '@/lib/chat/messagePreview';
+import { getMessagePreview } from '@/modules/julia-chat/chat/lib/messagePreview';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 import type {
@@ -1510,7 +1510,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     // Persist @mentions if team list provided and we have a conversation
     if (conv && options?.team && options.team.length > 0) {
       try {
-        const { persistMentionsFromNote } = await import('@/lib/chat/mentions');
+        const { persistMentionsFromNote } = await import('@/modules/julia-chat/chat/lib/mentions');
         await persistMentionsFromNote({
           conversation_id: conv.id,
           message_id: noteId,

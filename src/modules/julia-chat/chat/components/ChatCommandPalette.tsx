@@ -36,7 +36,7 @@ import {
   FlaskConical,
   Shield,
 } from 'lucide-react';
-import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { toast } from 'sonner';
 
 interface ChatCommandPaletteProps {

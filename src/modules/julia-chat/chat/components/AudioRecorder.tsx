@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Square, Trash2, Send, Loader2, Play, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { setAudioActivity } from '@/lib/chat/audioActivity';
+import { setAudioActivity } from '@/modules/julia-chat/chat/lib/audioActivity';
 
 interface AudioRecorderProps {
   onSend: (audioBlob: Blob) => Promise<void>;

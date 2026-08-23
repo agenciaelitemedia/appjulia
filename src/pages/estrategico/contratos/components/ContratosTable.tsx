@@ -44,7 +44,7 @@ import { formatDbDateTime, formatTimeDifference } from '@/lib/dateUtils';
 import { WhatsAppMessagesDialog } from '@/pages/crm/components/WhatsAppMessagesDialog';
 import { SessionStatusDialog } from '@/pages/crm/components/SessionStatusDialog';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
-import { ChatSidePanel } from '@/components/chat/ChatSidePanel';
+import { ChatSidePanel } from '@/modules/julia-chat/chat/components/ChatSidePanel';
 import { useAgentChatTarget } from '@/hooks/useAgentChatTarget';
 import { useAgentSessionStatus } from '@/hooks/useAgentSessionStatus';
 import { supabase } from '@/integrations/supabase/client';

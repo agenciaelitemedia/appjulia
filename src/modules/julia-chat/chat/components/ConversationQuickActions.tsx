@@ -11,7 +11,7 @@ import {
 import { TransferDialog } from './TransferDialog';
 import { CSATDialog } from './CSATDialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ChatConversation } from '@/types/conversation';

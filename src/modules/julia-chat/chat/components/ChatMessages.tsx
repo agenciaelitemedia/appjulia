@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Loader2, ChevronDown } from 'lucide-react';
-import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { MessageBubble } from './MessageBubble';
 import { ConversationEvent } from './ConversationEvent';
@@ -14,7 +14,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { ChatMessage, ChatContact } from '@/types/chat';
 import type { ConversationHistoryEntry } from '@/types/conversation';
-import { isEncryptionEnvelope } from '@/lib/chat/envelopeFilter';
+import { isEncryptionEnvelope } from '@/modules/julia-chat/chat/lib/envelopeFilter';
 import { supabase } from '@/integrations/supabase/client';
 import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { useConversationSummaries, type ConversationSummary } from '@/hooks/useConversationSummaries';

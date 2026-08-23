@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tag as TagIcon, Search, Check, Plus, X } from 'lucide-react';
-import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { useQuery, useQueryClient } from '@tanstack/react-query';

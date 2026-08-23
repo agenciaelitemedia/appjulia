@@ -3,7 +3,7 @@ import { PhoneCall } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useWavoip } from '@/contexts/WavoipContext';
 import { cn } from '@/lib/utils';
-import { UpsellCallDialog } from '@/components/chat/UpsellCallDialog';
+import { UpsellCallDialog } from '@/modules/julia-chat/chat/components/UpsellCallDialog';
 import { HeaderZapDialerDialog } from './HeaderZapDialerDialog';
 
 export function HeaderZapCallBadge() {

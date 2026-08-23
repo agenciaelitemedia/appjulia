@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { PanelRightClose, Info, Kanban, Loader2, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
+import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatDealLink } from '@/hooks/useChatDealLink';
 import { ContactDetailPanel } from './ContactDetailPanel';

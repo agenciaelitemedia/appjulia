@@ -19,7 +19,7 @@ import {
 } from '../extend/ui';
 import { useAuth } from '../extend/auth';
 import { isOwnerUser } from '../extend/queues';
-import { PriorityBadge } from '@/components/chat/PriorityBadge';
+import { PriorityBadge } from '@/modules/julia-chat/chat/components/PriorityBadge';
 import { JuliaBadgeMenu } from './JuliaBadgeMenu';
 import { JuliaAssignDialog } from './JuliaAssignDialog';
 import { useJuliaCrmTarget } from '../hooks/useJuliaCrmTarget';

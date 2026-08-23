@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { brPhoneVariants } from '@/lib/phoneNormalize';
-import type { ChatSidePanelTarget } from '@/components/chat/ChatSidePanel';
+import type { ChatSidePanelTarget } from '@/modules/julia-chat/chat/components/ChatSidePanel';
 
 /**
  * Resolve um ChatSidePanelTarget a partir de um conversation_id.

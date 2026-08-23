@@ -13,7 +13,7 @@ import { ContractInfoDialog } from './ContractInfoDialog';
 import { SessionStatusDialog } from './SessionStatusDialog';
 import { VideoCallDialog } from '@/pages/video/components/VideoCallDialog';
 import { PhoneCallDialog } from './PhoneCallDialog';
-import { ChatSidePanel } from '@/components/chat/ChatSidePanel';
+import { ChatSidePanel } from '@/modules/julia-chat/chat/components/ChatSidePanel';
 import { useAgentChatTarget } from '@/hooks/useAgentChatTarget';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';

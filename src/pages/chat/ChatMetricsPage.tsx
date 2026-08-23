@@ -20,7 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useNavigate } from 'react-router-dom';
 import { format, subDays, startOfDay, endOfDay, differenceInMinutes, parseISO, startOfWeek, addWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ChatHeatmap } from '@/components/chat/analytics/ChatHeatmap';
+import { ChatHeatmap } from '@/modules/julia-chat/chat/components/analytics/ChatHeatmap';
 import { generateChatMetricsPdf } from '@/lib/chatPdfReport';
 import { useChatSlaConfigs } from '@/hooks/useChatSlaConfigs';
 import { cn } from '@/lib/utils';

@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { UaZapiClient } from '@/lib/uazapi/client';
 import { supabase } from '@/integrations/supabase/client';
 import { brPhoneVariants } from '@/lib/phoneNormalize';
-import { setPendingSelection } from '@/lib/chat/pendingSelection';
+import { setPendingSelection } from '@/modules/julia-chat/chat/lib/pendingSelection';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 interface Queue {

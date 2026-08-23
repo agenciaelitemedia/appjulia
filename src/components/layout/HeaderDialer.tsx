@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { usePhone } from '@/contexts/PhoneContext';
 import { cn } from '@/lib/utils';
 import { maskPhone } from '@/lib/inputMasks';
-import { UpsellCallDialog } from '@/components/chat/UpsellCallDialog';
+import { UpsellCallDialog } from '@/modules/julia-chat/chat/components/UpsellCallDialog';
 
 const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
 

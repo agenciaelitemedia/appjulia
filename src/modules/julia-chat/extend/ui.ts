@@ -11,9 +11,9 @@ export { Separator } from '@/components/ui/separator';
 export { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 export { cn } from '@/lib/utils';
 export { MascoteLoader } from '@/components/ui/mascote-loader';
-export { getMessagePreview } from '@/lib/chat/messagePreview';
+export { getMessagePreview } from '@/modules/julia-chat/chat/lib/messagePreview';
 export { evaluateSla, formatRemaining, type SlaEvaluation } from '@/hooks/useChatSlaConfigs';
-export { SlaBadge } from '@/components/chat/SlaBadge';
+export { SlaBadge } from '@/modules/julia-chat/chat/components/SlaBadge';
 
 export { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 export { Label } from '@/components/ui/label';
@@ -38,7 +38,7 @@ export {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 export { Textarea } from '@/components/ui/textarea';
-export { TransferDialog } from '@/components/chat/TransferDialog';
-export { ReturnToQueueDialog } from '@/components/chat/ReturnToQueueDialog';
-export { ContactCampaignCard } from '@/components/chat/ContactCampaignCard';
+export { TransferDialog } from '@/modules/julia-chat/chat/components/TransferDialog';
+export { ReturnToQueueDialog } from '@/modules/julia-chat/chat/components/ReturnToQueueDialog';
+export { ContactCampaignCard } from '@/modules/julia-chat/chat/components/ContactCampaignCard';
 export { useChatAssignedCountsByMember } from '@/hooks/useChatAssignedCountsByMember';

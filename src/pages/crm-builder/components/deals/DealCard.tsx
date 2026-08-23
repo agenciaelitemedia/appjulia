@@ -51,7 +51,7 @@ import { usePhone } from '@/contexts/PhoneContext';
 import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
 import { useChatContactConversationStatus } from '../../hooks/useChatContactConversationStatus';
 import { useDealJuliaContext } from '../../hooks/useDealJuliaContext';
-import { NewConversationDialog } from '@/components/chat/NewConversationDialog';
+import { NewConversationDialog } from '@/modules/julia-chat/chat/components/NewConversationDialog';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useAuth } from '@/contexts/AuthContext';
 

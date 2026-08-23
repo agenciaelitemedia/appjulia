@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { InactiveSession } from '@/lib/externalDb';
-import { JuliaStatusBadge } from '@/components/chat/JuliaStatusBadge';
+import { JuliaStatusBadge } from '@/modules/julia-chat/chat/components/JuliaStatusBadge';
 import { formatInactiveLeadDate, getInactiveLeadUrgencyClass } from '../utils/inactiveLeadDate';
 import { useAgentAliases } from '@/hooks/useAgentAliases';
 import { useJuliaAgents } from '@/pages/estrategico/hooks/useJuliaData';

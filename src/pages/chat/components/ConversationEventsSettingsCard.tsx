@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useChatClientSettings } from '@/hooks/useChatClientSettings';
-import { CONVERSATION_EVENT_ACTIONS, getEventConfig } from '@/components/chat/ConversationEvent';
+import { CONVERSATION_EVENT_ACTIONS, getEventConfig } from '@/modules/julia-chat/chat/components/ConversationEvent';
 import type { ConversationHistoryEntry } from '@/types/conversation';
 import { cn } from '@/lib/utils';
 
