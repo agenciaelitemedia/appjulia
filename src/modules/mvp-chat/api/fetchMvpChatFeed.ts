@@ -11,6 +11,8 @@ function periodToRange(period: MvpChatFilters['period']): { from: string | null;
       return { from: new Date(startOfDay.getTime() - 6 * 864e5).toISOString(), to: null };
     case '30d':
       return { from: new Date(startOfDay.getTime() - 29 * 864e5).toISOString(), to: null };
+    case '3m':
+      return { from: new Date(startOfDay.getTime() - 89 * 864e5).toISOString(), to: null };
     case 'month':
       return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(), to: null };
     default:

@@ -134,7 +134,7 @@ export interface MvpChatFilters {
   owners: string[];
   unassigned: boolean | null;
   search: string;
-  period: 'all' | 'today' | '7d' | '30d' | 'month';
+  period: 'all' | 'today' | '7d' | '30d' | '3m' | 'month';
   tag_ids: string[];
   priority: string | null;
   has_ticket: boolean | null;
