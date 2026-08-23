@@ -255,9 +255,8 @@ const App = () => (
                   <Route path="/x-julia/casos" element={<ProtectedRoute module="x_julia_cases"><XJScopeProvider><XJCasesPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/contratos" element={<ProtectedRoute module="x_julia_contracts"><XJScopeProvider><XJContractsPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/agenda" element={<ProtectedRoute module="x_julia_agenda"><XJScopeProvider><XJAgendaPage /></XJScopeProvider></ProtectedRoute>} />
-                  {/* Rotas antigas do protótipo → chat oficial */}
+                  {/* Rota antiga do protótipo → chat oficial */}
                   <Route path="/julia-chat" element={<Navigate to="/chat" replace />} />
-                  <Route path="/mvp-chat" element={<Navigate to="/chat" replace />} />
                   {/* Escritórios — módulo independente (clientes sem agente da Julia) */}
 
                   <Route path="/escritorios" element={<ProtectedRoute module="escritorios"><OfficesListPage /></ProtectedRoute>} />
