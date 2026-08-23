@@ -99,6 +99,8 @@ export function useMvpChatFeed(
   const pendingRevalidate = useRef(false);
   const rowsRef = useRef<MvpChatRowData[]>([]);
   rowsRef.current = state.rows;
+  const sortRef = useRef(comparatorFor(filters.sort));
+  sortRef.current = comparatorFor(filters.sort);
   const backgroundRef = useRef(background);
   backgroundRef.current = background;
   const enabledRef = useRef(enabled);
@@ -240,7 +242,7 @@ export function useMvpChatFeed(
       };
       const rows = [...s.rows];
       rows[idx] = patched;
-      rows.sort((a, b) => whenOf(b) - whenOf(a));
+      rows.sort(sortRef.current);
       const counters = s.counters
         ? { ...s.counters, unread: fromMe ? s.counters.unread : (s.counters.unread ?? 0) + 1 }
         : s.counters;
@@ -329,7 +331,7 @@ export function useMvpChatFeed(
         last_message_text: ct.last_message_text ?? rows[idx].last_message_text,
         last_message_at: ct.last_message_at ?? rows[idx].last_message_at,
       };
-      rows.sort((a, b) => whenOf(b) - whenOf(a));
+      rows.sort(sortRef.current);
       return { ...s, rows };
     });
   }, []);
