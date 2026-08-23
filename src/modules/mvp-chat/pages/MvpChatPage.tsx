@@ -131,6 +131,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
         <MvpChatList
           feed={feeds.pending}
           visible={active === 'pending'}
+          tab="pending"
           accent="amber"
           selectedId={selected?.conversation_id ?? null}
           disconnectedQueueIds={disconnectedQueueIds}
@@ -139,6 +140,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
         <MvpChatList
           feed={feeds.open}
           visible={active === 'open'}
+          tab="open"
           accent="emerald"
           selectedId={selected?.conversation_id ?? null}
           disconnectedQueueIds={disconnectedQueueIds}
@@ -147,6 +149,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
         <MvpChatList
           feed={feeds.resolved_closed}
           visible={active === 'resolved_closed'}
+          tab="resolved_closed"
           accent="none"
           selectedId={selected?.conversation_id ?? null}
           disconnectedQueueIds={disconnectedQueueIds}
