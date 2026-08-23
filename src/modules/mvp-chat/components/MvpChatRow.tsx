@@ -225,17 +225,17 @@ export const MvpChatRow = memo(function MvpChatRow({
         {/* Linha 1 — fila / responsável / IA */}
         <div className="flex items-center gap-1">
           <FixedBadge
-            icon={MessageCircle}
-            label={row.queue_name || 'Sem fila'}
+            label={row.queue_name ? toTitleCase(row.queue_name) : 'Sem fila'}
             width="w-[112px]"
             tone={row.queue_name
-              ? 'border-emerald-500/50 bg-emerald-800/30 text-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300'
+              ? 'border-transparent bg-[image:var(--gradient-brand)] text-primary-foreground font-bold'
               : 'border-border bg-muted/60 text-muted-foreground'}
             tooltip={
               row.queue_name
                 ? `Fila: ${row.queue_name}${row.channel_type ? ` · canal ${row.channel_type}` : ''}`
                 : 'Conversa sem fila vinculada'
             }
+
           />
 
           <FixedBadge
