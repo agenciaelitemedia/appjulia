@@ -110,15 +110,23 @@ export const MvpChatRow = memo(function MvpChatRow({
 
           <div className="mt-0.5 flex items-center gap-2">
             <p className="truncate text-xs text-muted-foreground">{preview}</p>
-            {row.unread_count > 0 && (
-              <span className="ml-auto shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
-                {row.unread_count > 99 ? '99+' : row.unread_count}
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {row.unread_count > 0 && (
+                <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                  {row.unread_count > 99 ? '99+' : row.unread_count}
+                </span>
+              )}
+              <span onClick={(e) => e.stopPropagation()} role="presentation">
+                <PriorityBadge conversationId={row.conversation_id} currentPriority={row.priority} compact />
               </span>
-            )}
+            </div>
           </div>
+        </div>
+      </div>
 
-          {/* Badges — todos já vêm resolvidos do servidor (sem pop-in) */}
-          <div className="mt-2 flex flex-wrap items-center gap-1">
+      {/* Badges — linha própria, iniciando abaixo do avatar */}
+      <div className="mt-3 flex w-full flex-wrap items-center gap-1">
+
             <Badge variant="secondary" className={cn('h-5 px-1.5 text-[10px] font-medium', STATUS_STYLE[row.status])}>
               {STATUS_LABEL[row.status] ?? row.status}
             </Badge>
