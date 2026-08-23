@@ -11,6 +11,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   items: MvpChatRowData[];
   onSelect?: (row: MvpChatRowData) => void;
+  onResumed?: () => void;
 }
 
 function formatRelative(target: Date): string {
@@ -33,7 +34,7 @@ function formatAbsolute(target: Date): string {
   });
 }
 
-export function MvpSnoozedPanel({ open, onOpenChange, items, onSelect }: Props) {
+export function MvpSnoozedPanel({ open, onOpenChange, items, onSelect, onResumed }: Props) {
   const { user } = useAuth();
   const [resumingId, setResumingId] = useState<string | null>(null);
   const [snoozedByMap, setSnoozedByMap] = useState<Record<string, string>>({});
@@ -98,6 +99,7 @@ export function MvpSnoozedPanel({ open, onOpenChange, items, onSelect }: Props) 
         })
         .then();
       toast.success('Conversa retomada');
+      onResumed?.();
     } catch (e) {
       toast.error('Erro ao retomar', {
         description: e instanceof Error ? e.message : String(e),
