@@ -6,7 +6,7 @@ O protótipo `/mvp-chat` passa a ser o chat oficial em `/chat`, com pasta renome
 
 - `/chat` = JulIA Chat (lista em query única + conversa real + right-bar).
 - `/chat-old` = chat atual intacto, com os arquivos antigos que hoje existem.
-- Sub-rotas de configuração seguem em `/chat/canais`, `/chat/metricas`, `/chat/sla`, etc. (sem mudança).
+- Sub-rotas de configuração seguem nas mesmas URLs (`/chat/canais`, `/chat/metricas`, `/chat/sla`, etc.), mas os **arquivos passam para dentro do JulIA Chat** — deixam de morar na pasta do chat antigo (ver Fase 2b).
 - Menu/permissões: o módulo "Chat" continua com o mesmo code e rota `/chat`; nada muda para o usuário em termos de acesso. O item de menu do protótipo (`mvp_chat`, `/mvp-chat`) é removido/desativado.
 - `/mvp-chat` continua respondendo por um período, redirecionando para `/chat`.
 
