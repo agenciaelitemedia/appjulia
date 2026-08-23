@@ -225,9 +225,8 @@ export const MvpChatRow = memo(function MvpChatRow({
             {row.last_message_from_me && (
               <CheckCheck className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
             )}
-          </div>
-        </div>
       </div>
+
     </button>
   );
 });
