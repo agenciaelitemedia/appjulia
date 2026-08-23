@@ -29,3 +29,16 @@ export {
   AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+export {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+export {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+export { Textarea } from '@/components/ui/textarea';
+export { TransferDialog } from '@/components/chat/TransferDialog';
+export { ReturnToQueueDialog } from '@/components/chat/ReturnToQueueDialog';
+export { ContactCampaignCard } from '@/components/chat/ContactCampaignCard';
+export { useChatAssignedCountsByMember } from '@/hooks/useChatAssignedCountsByMember';
