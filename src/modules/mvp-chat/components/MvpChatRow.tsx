@@ -48,6 +48,17 @@ function channelMeta(channel?: string | null): { Icon: LucideIcon; tone: string;
   return { Icon: MessageCircle, tone: 'bg-[#25D366] text-white', label: 'WhatsApp' };
 }
 
+/** Gradiente light do badge de fila de acordo com o canal. */
+function queueToneByChannel(channel?: string | null): string {
+  const c = (channel || '').toLowerCase();
+  if (c.includes('insta')) return 'bg-gradient-to-r from-blue-400 to-cyan-300 text-blue-950';
+  if (c.includes('telegram')) return 'bg-gradient-to-r from-sky-400 to-blue-300 text-sky-950';
+  if (c.includes('web') || c.includes('site') || c.includes('chat')) return 'bg-gradient-to-r from-slate-400 to-gray-300 text-slate-950';
+  if (c.includes('face') || c.includes('messenger')) return 'bg-gradient-to-r from-blue-500 to-indigo-400 text-blue-950';
+  if (c.includes('mail')) return 'bg-gradient-to-r from-orange-400 to-amber-300 text-orange-950';
+  return 'bg-gradient-to-r from-emerald-400 to-green-300 text-emerald-950';
+}
+
 /** Badge de largura fixa, texto truncado e tooltip detalhado. */
 function FixedBadge({
   icon: Icon, label, width, tone, tooltip,
