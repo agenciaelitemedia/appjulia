@@ -6,7 +6,7 @@ O protótipo `/mvp-chat` passa a ser o chat oficial em `/chat`, com pasta renome
 
 - `/chat` = JulIA Chat (lista em query única + conversa real + right-bar).
 - `/chat-old` = chat atual intacto, com os arquivos antigos que hoje existem.
-- Sub-rotas de configuração seguem em `/chat/canais`, `/chat/metricas`, `/chat/sla`, etc. (sem mudança).
+- Sub-rotas de configuração seguem nas mesmas URLs (`/chat/canais`, `/chat/metricas`, `/chat/sla`, etc.), mas os **arquivos passam para dentro do JulIA Chat** — deixam de morar na pasta do chat antigo (ver Fase 2b).
 - Menu/permissões: o módulo "Chat" continua com o mesmo code e rota `/chat`; nada muda para o usuário em termos de acesso. O item de menu do protótipo (`mvp_chat`, `/mvp-chat`) é removido/desativado.
 - `/mvp-chat` continua respondendo por um período, redirecionando para `/chat`.
 
@@ -26,6 +26,15 @@ Objetivo: o JulIA Chat não importar mais nada de `src/components/chat/*`, `src/
 - Permanecem compartilhados (infra do app, não "arquivos antigos do chat"): `@/components/ui/*`, `AuthContext`, `UaZapiContext`/`WavoipContext`/`PhoneContext`, `@/integrations/supabase/client`, `@/lib/externalDb`, `isOwner`, hooks de permissão/fila (`useUserQueueAccess`, `useChatRolePermissions`), `TeamMemberSelect`, tipos em `src/types/*`.
 - `src/modules/julia-chat/extend/*.ts` deixa de reexportar componentes do chat antigo e passa a apontar para as cópias locais; continua reexportando a infra compartilhada acima.
 - Os arquivos originais em `src/components/chat/` e `src/contexts/WhatsAppDataContext.tsx` ficam intocados (são o que o `/chat-old` usa).
+
+### Fase 2b — Páginas das sub-rotas de configuração
+Hoje elas vivem em `src/pages/chat/` (20 páginas + `src/pages/chat/components/` + `waba-templates/`), separadas dos componentes de conversa. Como pertencem ao chat oficial, migram para o módulo novo:
+
+- Mover (não copiar) `src/pages/chat/*` — exceto `ChatPage.tsx`, que é o chat antigo — para `src/modules/julia-chat/pages/config/`, preservando a subpasta `components/` e `waba-templates/`.
+- As 5 páginas que importam de `@/components/chat` (`ChatMetricsPage`, `ChatSettingsPage`, `ChatChannelsPage`, `ChatAutomationsPage`, `ConversationEventsSettingsCard`) passam a importar as cópias locais do módulo.
+- As URLs não mudam: `App.tsx` só troca o caminho dos imports lazy.
+- `src/pages/chat/` fica só com `ChatPage.tsx` (o chat antigo em `/chat-old`), que não depende dessas páginas de configuração.
+
 
 ### Fase 3 — Trocar as rotas
 - `/chat` → `JuliaChatPage` (dentro de `ProtectedRoute`, com a mesma regra de acesso que a rota tem hoje).
