@@ -2302,6 +2302,54 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_legacy_cache: {
+        Row: {
+          campaign: Json | null
+          client_id: string
+          cod_agent: string
+          created_at: string
+          fetched_at: string
+          has_julia_card: boolean
+          id: string
+          julia_stage_color: string | null
+          julia_stage_id: string | null
+          julia_stage_name: string | null
+          phone_key: string
+          session_is_active: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          campaign?: Json | null
+          client_id: string
+          cod_agent?: string
+          created_at?: string
+          fetched_at?: string
+          has_julia_card?: boolean
+          id?: string
+          julia_stage_color?: string | null
+          julia_stage_id?: string | null
+          julia_stage_name?: string | null
+          phone_key: string
+          session_is_active?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          campaign?: Json | null
+          client_id?: string
+          cod_agent?: string
+          created_at?: string
+          fetched_at?: string
+          has_julia_card?: boolean
+          id?: string
+          julia_stage_color?: string | null
+          julia_stage_id?: string | null
+          julia_stage_name?: string | null
+          phone_key?: string
+          session_is_active?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_lgpd_requests: {
         Row: {
           client_id: string
@@ -5280,54 +5328,6 @@ export type Database = {
           updated_at?: string
           url_template?: string
           variables?: Json
-        }
-        Relationships: []
-      }
-      mvp_chat_legacy_cache: {
-        Row: {
-          campaign: Json | null
-          client_id: string
-          cod_agent: string
-          created_at: string
-          fetched_at: string
-          has_julia_card: boolean
-          id: string
-          julia_stage_color: string | null
-          julia_stage_id: string | null
-          julia_stage_name: string | null
-          phone_key: string
-          session_is_active: boolean | null
-          updated_at: string
-        }
-        Insert: {
-          campaign?: Json | null
-          client_id: string
-          cod_agent?: string
-          created_at?: string
-          fetched_at?: string
-          has_julia_card?: boolean
-          id?: string
-          julia_stage_color?: string | null
-          julia_stage_id?: string | null
-          julia_stage_name?: string | null
-          phone_key: string
-          session_is_active?: boolean | null
-          updated_at?: string
-        }
-        Update: {
-          campaign?: Json | null
-          client_id?: string
-          cod_agent?: string
-          created_at?: string
-          fetched_at?: string
-          has_julia_card?: boolean
-          id?: string
-          julia_stage_color?: string | null
-          julia_stage_id?: string | null
-          julia_stage_name?: string | null
-          phone_key?: string
-          session_is_active?: boolean | null
-          updated_at?: string
         }
         Relationships: []
       }
@@ -11019,6 +11019,31 @@ export type Database = {
         Args: { p_cap_seconds?: number; p_from: string; p_to: string }
         Returns: Json
       }
+      chat_list_feed: {
+        Args: {
+          p_client_id: string
+          p_from?: string
+          p_has_crm_builder?: boolean
+          p_has_ticket?: boolean
+          p_hide_snoozed?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_owner?: string
+          p_owners?: string[]
+          p_priority?: string
+          p_queue_ids?: string[]
+          p_restrict_open_to?: string[]
+          p_search?: string
+          p_sla_status?: string[]
+          p_sort?: string
+          p_status?: string
+          p_tab?: string
+          p_tag_ids?: string[]
+          p_to?: string
+          p_unassigned?: boolean
+        }
+        Returns: Json
+      }
       cleanup_user_presence_daily: {
         Args: { p_retention_days?: number }
         Returns: number
@@ -11142,31 +11167,6 @@ export type Database = {
       merge_duplicate_chat_contacts: {
         Args: { p_limit?: number }
         Returns: number
-      }
-      mvp_chat_list_feed: {
-        Args: {
-          p_client_id: string
-          p_from?: string
-          p_has_crm_builder?: boolean
-          p_has_ticket?: boolean
-          p_hide_snoozed?: boolean
-          p_limit?: number
-          p_offset?: number
-          p_owner?: string
-          p_owners?: string[]
-          p_priority?: string
-          p_queue_ids?: string[]
-          p_restrict_open_to?: string[]
-          p_search?: string
-          p_sla_status?: string[]
-          p_sort?: string
-          p_status?: string
-          p_tab?: string
-          p_tag_ids?: string[]
-          p_to?: string
-          p_unassigned?: boolean
-        }
-        Returns: Json
       }
       refresh_team_performance_mvs: { Args: never; Returns: undefined }
       release_wavoip_devices_from_plan: {
