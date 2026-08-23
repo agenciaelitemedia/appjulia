@@ -239,6 +239,7 @@ export const MvpChatRow = memo(function MvpChatRow({
         {/* Linha 1 — fila / responsável / IA */}
         <div className="flex items-center gap-1">
           <FixedBadge
+            icon={channel.Icon}
             label={row.queue_name ? toTitleCase(row.queue_name) : 'Sem fila'}
             width="w-[116px]"
             tone={row.queue_name
@@ -249,7 +250,6 @@ export const MvpChatRow = memo(function MvpChatRow({
                 ? `Fila: ${row.queue_name}${row.channel_type ? ` · canal ${row.channel_type}` : ''}`
                 : 'Conversa sem fila vinculada'
             }
-
           />
 
           <FixedBadge
