@@ -240,7 +240,7 @@ export const MvpChatRow = memo(function MvpChatRow({
         <div className="flex items-center gap-1">
           <FixedBadge
             label={row.queue_name ? toTitleCase(row.queue_name) : 'Sem fila'}
-            width="w-[112px]"
+            width="w-[116px]"
             tone={row.queue_name
               ? cn('border-transparent font-bold', queueToneByChannel(row.channel_type ?? (row as any).channel))
               : 'border-border bg-muted/60 text-muted-foreground'}
@@ -255,7 +255,7 @@ export const MvpChatRow = memo(function MvpChatRow({
           <FixedBadge
             icon={User}
             label={row.assigned_to || 'Sem responsável'}
-            width="w-[112px]"
+            width="w-[116px]"
             tone={row.assigned_to
               ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
               : 'border-border bg-muted/60 text-muted-foreground'}
@@ -265,7 +265,7 @@ export const MvpChatRow = memo(function MvpChatRow({
           <FixedBadge
             icon={Bot}
             label={juliaBadge.label}
-            width="w-[112px]"
+            width="w-[116px]"
             tone={juliaBadge.tone}
             tooltip={juliaBadge.tooltip}
           />
