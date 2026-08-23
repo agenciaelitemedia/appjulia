@@ -248,7 +248,7 @@ serve(async (req) => {
         .not("assigned_to", "is", null)
         .limit(5000),
       supabase
-        .from("mvp_chat_legacy_cache")
+        .from("chat_legacy_cache")
         .select("julia_stage_id, julia_stage_name")
         .eq("client_id", String(body.client_id))
         .eq("has_julia_card", true)
@@ -289,7 +289,7 @@ serve(async (req) => {
     p_offset: needsPostFilter ? 0 : offset,
   };
   const rpcArgNames = Object.keys(rpcParams);
-  const { data: feed, error: rpcError } = await supabase.rpc("mvp_chat_list_feed", rpcParams);
+  const { data: feed, error: rpcError } = await supabase.rpc("chat_list_feed", rpcParams);
   const msSupabase = Date.now() - tA;
 
   if (rpcError) {
@@ -316,7 +316,7 @@ serve(async (req) => {
     );
     if (ambiguous) {
       console.error(
-        `[julia-chat-list-feed][${reqId}] existem múltiplas versões de public.mvp_chat_list_feed no banco; ` +
+        `[julia-chat-list-feed][${reqId}] existem múltiplas versões de public.chat_list_feed no banco; ` +
         `remova as assinaturas antigas (a esperada tem ${rpcArgNames.length} argumentos: ${rpcArgNames.join(", ")})`,
       );
     }
@@ -357,7 +357,7 @@ serve(async (req) => {
     const tC = Date.now();
     const phoneKeys = [...new Set([...wanted.values()].map((w) => w.phone_key))];
     const { data: cached, error: cacheError } = await supabase
-      .from("mvp_chat_legacy_cache")
+      .from("chat_legacy_cache")
       .select(
         "phone_key, cod_agent, julia_stage_id, julia_stage_name, julia_stage_color, has_julia_card, session_is_active, campaign, fetched_at",
       )
@@ -510,7 +510,7 @@ serve(async (req) => {
       });
       if (upserts.length) {
         const { error: upErr } = await supabase
-          .from("mvp_chat_legacy_cache")
+          .from("chat_legacy_cache")
           .upsert(upserts, { onConflict: "client_id,phone_key,cod_agent" });
         if (upErr) console.warn(`[julia-chat-list-feed][${reqId}] cache write error`, upErr.message);
       }
