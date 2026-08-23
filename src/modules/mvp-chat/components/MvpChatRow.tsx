@@ -169,12 +169,30 @@ export const MvpChatRow = memo(function MvpChatRow({
       )}
     >
       <div className="flex gap-3">
-        <Avatar className="h-11 w-11 shrink-0">
-          {row.avatar ? <AvatarImage src={row.avatar} alt={row.contact_name ?? 'Contato'} /> : null}
-          <AvatarFallback className="text-xs font-semibold">
-            {row.is_group ? <Users className="h-4 w-4" /> : initials(row.lead_full_name || row.contact_name)}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative shrink-0">
+          <Avatar className="h-11 w-11">
+            {row.avatar ? <AvatarImage src={row.avatar} alt={row.contact_name ?? 'Contato'} /> : null}
+            <AvatarFallback className="text-xs font-semibold">
+              {row.is_group ? <Users className="h-4 w-4" /> : initials(row.lead_full_name || row.contact_name)}
+            </AvatarFallback>
+          </Avatar>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  className={cn(
+                    'absolute -bottom-0.5 -right-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-background',
+                    channel.tone,
+                  )}
+                >
+                  <channel.Icon className="h-2.5 w-2.5" aria-hidden />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">Canal: {channel.label}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
