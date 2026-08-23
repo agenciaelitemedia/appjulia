@@ -27,6 +27,15 @@ Objetivo: o JulIA Chat não importar mais nada de `src/components/chat/*`, `src/
 - `src/modules/julia-chat/extend/*.ts` deixa de reexportar componentes do chat antigo e passa a apontar para as cópias locais; continua reexportando a infra compartilhada acima.
 - Os arquivos originais em `src/components/chat/` e `src/contexts/WhatsAppDataContext.tsx` ficam intocados (são o que o `/chat-old` usa).
 
+### Fase 2b — Páginas das sub-rotas de configuração
+Hoje elas vivem em `src/pages/chat/` (20 páginas + `src/pages/chat/components/` + `waba-templates/`), separadas dos componentes de conversa. Como pertencem ao chat oficial, migram para o módulo novo:
+
+- Mover (não copiar) `src/pages/chat/*` — exceto `ChatPage.tsx`, que é o chat antigo — para `src/modules/julia-chat/pages/config/`, preservando a subpasta `components/` e `waba-templates/`.
+- As 5 páginas que importam de `@/components/chat` (`ChatMetricsPage`, `ChatSettingsPage`, `ChatChannelsPage`, `ChatAutomationsPage`, `ConversationEventsSettingsCard`) passam a importar as cópias locais do módulo.
+- As URLs não mudam: `App.tsx` só troca o caminho dos imports lazy.
+- `src/pages/chat/` fica só com `ChatPage.tsx` (o chat antigo em `/chat-old`), que não depende dessas páginas de configuração.
+
+
 ### Fase 3 — Trocar as rotas
 - `/chat` → `JuliaChatPage` (dentro de `ProtectedRoute`, com a mesma regra de acesso que a rota tem hoje).
 - `/chat-old` → `ChatPage` atual (`src/pages/chat/ChatPage.tsx`), também protegida.
