@@ -1,6 +1,10 @@
 import { memo, useMemo } from 'react';
 import { differenceInHours, differenceInMinutes } from 'date-fns';
-import { CheckCheck, Clock, Megaphone, Bot, User, Ticket, Kanban, Users } from 'lucide-react';
+import {
+  CheckCheck, Clock, Megaphone, Bot, User, Ticket, Kanban, Users,
+  MessageCircle, MessagesSquare, type LucideIcon,
+} from 'lucide-react';
+
 import {
   Avatar, AvatarFallback, AvatarImage, Badge, cn,
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
