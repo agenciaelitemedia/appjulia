@@ -157,48 +157,15 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
         />
       </aside>
 
-      {/* Coluna 2 — conversa / payload */}
-      <main className="hidden min-w-0 flex-1 flex-col overflow-hidden lg:flex xl:border-r">
-        <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
-          <Badge variant="secondary" className="gap-1 text-[11px]">
-            <Radio className="h-3 w-3 animate-pulse text-emerald-500" aria-hidden /> tempo real
-          </Badge>
-          {activeFeed.revalidating && (
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <RefreshCw className="h-3 w-3 animate-spin" aria-hidden /> atualizando…
-            </span>
-          )}
-          {activeFeed.liveEvents > 0 && (
-            <Button variant="secondary" size="sm" className="h-8 gap-1 text-[11px]" onClick={activeFeed.refresh}>
-              {activeFeed.liveEvents} novidade(s) — atualizar
-            </Button>
-          )}
+      {/* Colunas 2 e 3 — conversa real + right-bar (provider isolado do MVP) */}
+      <WhatsAppDataProvider>
+        <MvpConversationColumns
+          selected={selected}
+          onClearSelection={() => setSelected(null)}
+          feed={activeFeed}
+        />
+      </WhatsAppDataProvider>
 
-          <Button variant="outline" size="sm" className="ml-auto gap-1" onClick={activeFeed.refresh} disabled={activeFeed.loading}>
-            <RefreshCw className={cn('h-3.5 w-3.5', activeFeed.loading && 'animate-spin')} aria-hidden /> Recarregar
-          </Button>
-        </div>
-
-        <div className="thin-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-          <MvpChatPerfPanel timings={activeFeed.timings} requests={activeFeed.requests} rowsLoaded={activeFeed.rows.length} />
-
-          {selected ? (
-            <pre className="overflow-auto rounded-xl border bg-muted/40 p-3 text-[10px] leading-relaxed">
-              {JSON.stringify(selected, null, 2)}
-            </pre>
-          ) : (
-            <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-              <MessageSquare className="h-10 w-10 opacity-40" aria-hidden />
-              <p className="text-sm">Selecione uma conversa na lista para ver os detalhes.</p>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Coluna 3 — detalhes do contato / CRM */}
-      <aside className="hidden h-full w-[420px] shrink-0 overflow-hidden xl:block">
-        <MvpChatDetailsPanel row={selected} />
-      </aside>
 
       <MvpSnoozedPanel
         open={snoozedPanelOpen}
