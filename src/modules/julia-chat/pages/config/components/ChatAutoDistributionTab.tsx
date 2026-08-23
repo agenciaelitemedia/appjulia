@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
-import { ChatRoutingContent } from '@/pages/chat/ChatRoutingPage';
+import { ChatRoutingContent } from '@/modules/julia-chat/pages/config/ChatRoutingPage';
 
 /**
  * Aba "Distribuição Automática" — switch master por client_id

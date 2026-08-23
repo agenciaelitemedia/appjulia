@@ -5,7 +5,7 @@ import { externalDb } from '@/lib/externalDb';
 import { getServerNowBRT, ensureServerClock } from '@/lib/serverClock';
 import { webmBlobToOggOpusStrict } from '@/lib/audio/webmToOgg';
 import { getMessagePreview } from '@/modules/julia-chat/chat/lib/messagePreview';
-import { useAuth } from './AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type {
   ChatContact,
