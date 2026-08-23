@@ -96,9 +96,11 @@ export default function CRMPage() {
 
     if (filters.search) {
       const search = filters.search.toLowerCase();
+      const searchCore = phoneCore(filters.search);
       result = result.filter(
         (card) =>
           card.contact_name?.toLowerCase().includes(search) ||
+          (!!searchCore && phoneCore(card.whatsapp_number).includes(searchCore)) ||
           card.whatsapp_number?.includes(filters.search) ||
           card.business_name?.toLowerCase().includes(search) ||
           card.helena_count_id?.toLowerCase().includes(search)
