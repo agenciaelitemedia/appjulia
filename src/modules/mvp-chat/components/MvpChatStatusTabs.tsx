@@ -43,7 +43,11 @@ export function MvpChatStatusTabs({ value, onChange, counters, loading }: Props)
                   )}
                 >
                   <span className="whitespace-pre-line leading-tight">{tab.label}</span>
-                  {tab.count != null && (
+                  {active && loading ? (
+                    <span className="flex h-4 min-w-[18px] items-center justify-center overflow-hidden rounded-full bg-muted/60">
+                      <MascoteLoader size="xs" className="scale-75" />
+                    </span>
+                  ) : tab.count != null && (
                     <span
                       className={cn(
                         'flex h-4 min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold',
