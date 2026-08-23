@@ -134,10 +134,13 @@ interface Props {
   juliaStages: { id: string; name: string; color?: string | null }[];
   owners: string[];
   resultCount?: number;
+  snoozedCount?: number;
+  onOpenSnoozed?: () => void;
 }
 
 export function MvpChatFiltersBar({
   filters, onChange, onReset, queues, tags, juliaStages, owners, resultCount,
+  snoozedCount = 0, onOpenSnoozed,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
