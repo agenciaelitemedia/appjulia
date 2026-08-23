@@ -8,6 +8,7 @@ export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 export { Skeleton } from '@/components/ui/skeleton';
 export { Separator } from '@/components/ui/separator';
+export { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 export { cn } from '@/lib/utils';
 export { MascoteLoader } from '@/components/ui/mascote-loader';
 export { getMessagePreview } from '@/lib/chat/messagePreview';
