@@ -5,6 +5,7 @@ import { useAuth } from '../extend/auth';
 import { useAccessibleQueues, isOwnerUser, useQueueConnectionStatusesBatch } from '../extend/queues';
 import { MvpChatRealtimeProvider } from '../hooks/useMvpChatRealtimeHub';
 import { useMvpChatTabs, type MvpTabKey } from '../hooks/useMvpChatTabs';
+import { useMvpSnoozed } from '../hooks/useMvpSnoozed';
 import { useMvpChatOptions } from '../hooks/useMvpChatOptions';
 import { MvpChatList } from '../components/MvpChatList';
 import { MvpChatFiltersBar } from '../components/MvpChatFilters';
@@ -83,26 +84,9 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
   const patch = useCallback((p: Partial<MvpChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
   const reset = useCallback(() => setFilters(DEFAULT_MVP_FILTERS), []);
 
-  // Conversas adiadas ativas (mesma regra do /chat): uma por contato, futuras.
-  const snoozedItems = useMemo(() => {
-    const now = Date.now();
-    const seen = new Set<string>();
-    const out: MvpChatRowData[] = [];
-    const allRows = [
-      ...feeds.pending.rows,
-      ...feeds.open.rows,
-      ...feeds.resolved_closed.rows,
-    ];
-    for (const row of allRows) {
-      if (!row.snoozed_until) continue;
-      const t = new Date(row.snoozed_until).getTime();
-      if (!(t > now)) continue;
-      if (seen.has(row.contact_id)) continue;
-      seen.add(row.contact_id);
-      out.push(row);
-    }
-    return out;
-  }, [feeds.pending.rows, feeds.open.rows, feeds.resolved_closed.rows]);
+  // Conversas adiadas ativas: buscadas direto no banco (mesma regra do /chat),
+  // independentes da paginação do feed (que oculta adiados por padrão).
+  const { snoozedItems, refetchSnoozed } = useMvpSnoozed(clientId, scopeQueueIds);
   const snoozedCount = snoozedItems.length;
 
   const c = counters;
@@ -217,6 +201,7 @@ function MvpChatContent({ clientId }: { clientId: string | null }) {
         open={snoozedPanelOpen}
         onOpenChange={setSnoozedPanelOpen}
         items={snoozedItems}
+        onResumed={refetchSnoozed}
         onSelect={setSelected}
       />
     </div>
