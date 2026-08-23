@@ -296,18 +296,21 @@ export function MvpChatFiltersBar({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant={showSnoozed ? 'default' : 'ghost'}
+                variant="ghost"
                 size="icon"
-                className="h-9 w-9 shrink-0"
-                aria-label={showSnoozed ? 'Ocultar conversas adiadas' : 'Agenda de retornos (conversas adiadas)'}
-                onClick={() => onChange({ hide_snoozed: showSnoozed ? true : false })}
+                className="relative h-9 w-9 shrink-0"
+                aria-label="Agenda de retornos (conversas adiadas)"
+                onClick={() => onOpenSnoozed?.()}
               >
                 <CalendarClock className="h-4 w-4" />
+                {snoozedCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-medium text-white">
+                    {snoozedCount}
+                  </span>
+                )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {showSnoozed ? 'Ocultar conversas adiadas' : 'Agenda de retornos (conversas adiadas)'}
-            </TooltipContent>
+            <TooltipContent>Agenda de retornos (conversas adiadas)</TooltipContent>
           </Tooltip>
 
           {showGroupsTab && (
