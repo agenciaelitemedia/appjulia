@@ -28,7 +28,7 @@ export function MvpChatPerfPanel({ timings, requests, rowsLoaded }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Metric icon={Timer} label="Tempo total" value={timings ? `${timings.total_ms} ms` : '—'} />
-      <Metric icon={Database} label="BANCO\u00A0(1 SQL)" value={timings ? `${timings.supabase_ms} ms` : '—'} />
+      <Metric icon={Database} label="BANCO (1 SQL)" value={timings ? `${timings.supabase_ms} ms` : '—'} />
       <Metric icon={Zap} label="Cache legado" value={timings ? `${timings.cache_ms ?? 0} ms · ${hits} hits / ${misses} miss` : '—'} />
       <Metric icon={Server} label="Banco legado" value={timings ? `${timings.external_ms} ms · ${refreshed} chaves` : '—'} />
       <Metric icon={Layers} label="SQL por página" value={timings ? String(timings.sql_count) : '—'} />
