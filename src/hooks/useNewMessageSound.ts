@@ -158,10 +158,16 @@ export function useNewMessageSound() {
             .eq('id', msg.conversation_id)
             .maybeSingle()
             .then(({ data, error }) => {
-              if (error || !data) return;
+              // Se a consulta falhar, não silencia o alerta.
+              if (error || !data) {
+                playAlert();
+                return;
+              }
               const myId = userIdRef.current;
+              const myName = userNameRef.current;
+              const owner = String(data.assigned_to ?? '').trim().toLowerCase();
               const assignedToMe =
-                !!data.assigned_to && !!myId && String(data.assigned_to) === myId;
+                !!owner && ((!!myName && owner === myName) || (!!myId && owner === myId.toLowerCase()));
               if (data.status === 'pending' || assignedToMe) {
                 playAlert();
               }
