@@ -196,17 +196,10 @@ Deno.serve(async (req) => {
         : `CONVERSA (resuma desde o início):\n${transcript}`;
 
       const incStarted = Date.now();
-      const resp = await fetch(resumeAI.endpoint, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${resumeAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(resumeAI.provider) },
-        body: JSON.stringify({
-          model: resumeModel,
-          messages: [
-            { role: "system", content: resumePrompt },
-            { role: "user", content: userContent },
-          ],
-        }),
-      });
+      const { resp, used: incUsed } = await callAIWithFallback(resumeAI, "chat_resume", [
+        { role: "system", content: resumePrompt },
+        { role: "user", content: userContent },
+      ]);
       const incDurationMs = Date.now() - incStarted;
 
       if (resp.status === 429) return json({ error: "Limite de uso da IA atingido." }, 429);
@@ -215,9 +208,9 @@ Deno.serve(async (req) => {
         const t = await resp.text();
         await logAIUsage(supabase, {
           feature: "chat_resume",
-          provider: resumeAI.provider,
-          endpoint: resumeAI.endpoint,
-          model: resumeModel,
+          provider: incUsed.provider,
+          endpoint: incUsed.endpoint,
+          model: incUsed.model,
           status: "failed",
           duration_ms: incDurationMs,
           error_reason: `ai_${resp.status}`,
@@ -230,9 +223,9 @@ Deno.serve(async (req) => {
       const summary = aiData?.choices?.[0]?.message?.content ?? "";
       await logAIUsage(supabase, {
         feature: "chat_resume",
-        provider: resumeAI.provider,
-        endpoint: resumeAI.endpoint,
-        model: resumeModel,
+        provider: incUsed.provider,
+        endpoint: incUsed.endpoint,
+        model: incUsed.model,
         status: "ok",
         duration_ms: incDurationMs,
         usage: aiData?.usage,
@@ -387,17 +380,10 @@ Deno.serve(async (req) => {
       const userContent = `${contextPrefix}CONVERSA:\n${transcript}`;
 
       const fsStarted = Date.now();
-      const resp = await fetch(resumeAI.endpoint, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${resumeAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(resumeAI.provider) },
-        body: JSON.stringify({
-          model: resumeModel,
-          messages: [
-            { role: "system", content: `${resumePrompt}${jsonShapeInstruction}` },
-            { role: "user", content: userContent },
-          ],
-        }),
-      });
+      const { resp, used: fsUsed } = await callAIWithFallback(resumeAI, "chat_resume", [
+        { role: "system", content: `${resumePrompt}${jsonShapeInstruction}` },
+        { role: "user", content: userContent },
+      ]);
       const fsDurationMs = Date.now() - fsStarted;
 
       if (resp.status === 429) return json({ error: "Limite de uso da IA atingido." }, 429);
@@ -406,9 +392,9 @@ Deno.serve(async (req) => {
         const t = await resp.text();
         await logAIUsage(supabase, {
           feature: "chat_resume",
-          provider: resumeAI.provider,
-          endpoint: resumeAI.endpoint,
-          model: resumeModel,
+          provider: fsUsed.provider,
+          endpoint: fsUsed.endpoint,
+          model: fsUsed.model,
           status: "failed",
           duration_ms: fsDurationMs,
           error_reason: `ai_${resp.status}`,
@@ -471,17 +457,10 @@ Deno.serve(async (req) => {
     const assistAI = await resolveAI(supabase, "chat_assist");
     if (!assistAI.apiKey) return json({ error: "IA não configurada (sem chave)." }, 500);
     const assistStarted = Date.now();
-    const resp = await fetch(assistAI.endpoint, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${assistAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(assistAI.provider) },
-      body: JSON.stringify({
-        model: assistAI.model,
-        messages: [
-          { role: "system", content: systemByMode[mode] },
-          { role: "user", content: transcript },
-        ],
-      }),
-    });
+    const { resp, used: assistUsed } = await callAIWithFallback(assistAI, "chat_assist", [
+      { role: "system", content: systemByMode[mode] },
+      { role: "user", content: transcript },
+    ]);
     const assistDurationMs = Date.now() - assistStarted;
 
     if (resp.status === 429) return json({ error: "Limite de uso da IA atingido. Tente em instantes." }, 429);
@@ -504,9 +483,9 @@ Deno.serve(async (req) => {
     const result = data?.choices?.[0]?.message?.content ?? "";
     await logAIUsage(supabase, {
       feature: "chat_assist",
-      provider: assistAI.provider,
-      endpoint: assistAI.endpoint,
-      model: assistAI.model,
+      provider: assistUsed.provider,
+      endpoint: assistUsed.endpoint,
+      model: assistUsed.model,
       status: "ok",
       duration_ms: assistDurationMs,
       usage: data?.usage,
