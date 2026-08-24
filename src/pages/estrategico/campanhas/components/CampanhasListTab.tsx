@@ -26,7 +26,6 @@ const ITEMS_PER_PAGE = 20;
 export function CampanhasListTab({ filters }: CampanhasListTabProps) {
   const [localSearch, setLocalSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('leads');
-  const [isGridView, setIsGridView] = useState(true);
   const [page, setPage] = useState(1);
 
   const { data: campaigns = [], isLoading } = useCampanhasDetails(filters);
