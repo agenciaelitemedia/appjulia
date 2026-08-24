@@ -192,6 +192,7 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
             void refetchSnoozed();
           }}
           feed={activeFeed}
+          activeTab={active}
         />
       </WhatsAppDataProvider>
 
@@ -232,11 +233,13 @@ function JuliaConversationColumns({
   onClearSelection,
   onSnoozed,
   feed,
+  activeTab,
 }: {
   selected: JuliaChatRowData | null;
   onClearSelection: () => void;
   onSnoozed?: (conversationId: string) => void;
   feed: ReturnType<typeof useJuliaChatTabs>['activeFeed'];
+  activeTab: JuliaTabKey;
 }) {
   const isBelowLg = useIsBelowLg();
   const [diagOpen, setDiagOpen] = useState(false);
@@ -284,7 +287,7 @@ function JuliaConversationColumns({
           </div>
           <CollapsibleContent>
             <div className="px-3 pb-2">
-              <JuliaChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} counters={feed.counters} />
+              <JuliaChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} counters={feed.counters} activeTab={activeTab} />
             </div>
           </CollapsibleContent>
         </Collapsible>
