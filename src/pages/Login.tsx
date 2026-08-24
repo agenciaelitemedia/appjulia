@@ -84,7 +84,7 @@ export default function Login() {
   const [remember, setRemember] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, hasPermission } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -95,8 +95,10 @@ export default function Login() {
     });
   }, []);
 
+  const postLoginRoute = hasPermission('chat', 'view') ? '/chat' : '/dashboard';
+
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={postLoginRoute} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
