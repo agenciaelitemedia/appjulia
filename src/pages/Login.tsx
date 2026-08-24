@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { markJustLoggedIn } from '@/components/layout/DisconnectedAgentsAlert';
 import { checkVersionAndReloadIfNeeded } from '@/lib/appVersion';
 import { toast as sonnerToast } from 'sonner';
+import { isOwnerUser } from '@/lib/auth/isOwner';
 
 const WHATSAPP_TIME =
   'https://wa.me/5534988860163?text=Quero%20informa%C3%A7%C3%B5es%20sobre%20a%20Julia%20IA';
@@ -84,7 +85,7 @@ export default function Login() {
   const [remember, setRemember] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login, isAuthenticated, hasPermission } = useAuth();
+  const { login, isAuthenticated, hasPermission, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -95,7 +96,7 @@ export default function Login() {
     });
   }, []);
 
-  const postLoginRoute = hasPermission('chat', 'view') ? '/chat' : '/dashboard';
+  const postLoginRoute = !isOwnerUser(user) && hasPermission('chat', 'view') ? '/chat' : '/dashboard';
 
   if (isAuthenticated) {
     return <Navigate to={postLoginRoute} replace />;
