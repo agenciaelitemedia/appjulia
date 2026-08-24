@@ -192,6 +192,7 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
             void refetchSnoozed();
           }}
           feed={activeFeed}
+          activeTab={active}
         />
       </WhatsAppDataProvider>
 
