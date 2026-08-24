@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   MessageSquare, BarChart2, MessagesSquare, FileText, AudioLines,
   Bot, Headphones, ScrollText, Settings, RotateCcw, Plus, Trash2, Star, KeyRound, Phone,
+  AlertTriangle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
