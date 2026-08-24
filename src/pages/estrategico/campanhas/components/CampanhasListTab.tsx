@@ -91,9 +91,9 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
           <Skeleton className="h-10 flex-1" />
           <Skeleton className="h-10 w-40" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-80" />
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-40 w-full" />
           ))}
         </div>
       </div>
