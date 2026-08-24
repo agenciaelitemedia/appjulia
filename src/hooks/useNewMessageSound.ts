@@ -68,12 +68,20 @@ export function useNewMessageSound() {
         });
     };
 
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') unlock();
+    };
+
     window.addEventListener('pointerdown', unlock, { passive: true });
     window.addEventListener('keydown', unlock);
+    window.addEventListener('focus', unlock);
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       window.removeEventListener('pointerdown', unlock);
       window.removeEventListener('keydown', unlock);
+      window.removeEventListener('focus', unlock);
+      document.removeEventListener('visibilitychange', onVisible);
       audioRef.current = null;
     };
   }, []);
