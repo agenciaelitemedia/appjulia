@@ -284,7 +284,7 @@ function JuliaConversationColumns({
           </div>
           <CollapsibleContent>
             <div className="px-3 pb-2">
-              <JuliaChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} />
+              <JuliaChatPerfPanel timings={feed.timings} requests={feed.requests} rowsLoaded={feed.rows.length} counters={feed.counters} />
             </div>
           </CollapsibleContent>
         </Collapsible>
