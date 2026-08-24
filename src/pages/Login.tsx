@@ -119,7 +119,7 @@ export default function Login() {
     if (result.success) {
       markJustLoggedIn();
       toast({ title: 'Bem-vindo!', description: 'Login realizado com sucesso' });
-      navigate('/dashboard');
+      navigate(postLoginRoute);
     } else {
       toast({ variant: 'destructive', title: 'Erro no login', description: result.error });
     }
