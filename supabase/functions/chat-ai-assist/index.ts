@@ -17,6 +17,42 @@ const supabase = createClient(
 
 const DEFAULT_RESUME_PROMPT = `Você é um analista de atendimento. Gere um RESUMO OBJETIVO em português da conversa abaixo, priorizando os RELATOS DO CLIENTE (situação, dores, pedidos, dados pessoais relevantes ao caso). Mencione respostas do atendente APENAS quando forem indispensáveis para entender o caso (ex.: instrução crítica, compromisso assumido, encaminhamento). Use os resumos anteriores fornecidos como CONTEXTO acumulado; não os repita, apenas incorpore o que ainda for relevante. Saída em até 6 bullets curtos. Comece com 1 frase em negrito identificando o caso. Não invente informações.`;
 
+/**
+ * Chama o provedor de IA e, se um provedor externo (OpenRouter) recusar por
+ * cobrança/autorização (401/402/403), refaz a chamada no Lovable AI Gateway.
+ * Retorna a resposta e a config efetivamente usada (para log).
+ */
+async function callAIWithFallback(
+  ai: ResolvedAI,
+  feature: string,
+  // deno-lint-ignore no-explicit-any
+  messages: any[],
+): Promise<{ resp: Response; used: ResolvedAI }> {
+  const doCall = (cfg: ResolvedAI) =>
+    fetch(cfg.endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.apiKey}`,
+        "Content-Type": "application/json",
+        ...providerHeaders(cfg.provider),
+      },
+      body: JSON.stringify({ model: cfg.model, messages }),
+    });
+
+  let resp = await doCall(ai);
+  if (ai.provider !== "lovable" && [401, 402, 403].includes(resp.status)) {
+    const fb = lovableAI(feature, ai.prompt);
+    if (fb.apiKey) {
+      console.warn(`[chat-ai-assist] provider=${ai.provider} status=${resp.status}; fallback → Lovable AI (${fb.model})`);
+      const fbResp = await doCall(fb);
+      if (fbResp.ok) return { resp: fbResp, used: fb };
+      resp = fbResp;
+      return { resp, used: fb };
+    }
+  }
+  return { resp, used: ai };
+}
+
 function json(b: unknown, s = 200) {
   return new Response(JSON.stringify(b), {
     status: s,
