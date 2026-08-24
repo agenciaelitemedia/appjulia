@@ -125,7 +125,7 @@ export function useJuliaChatFeed(
     // Revalidação/refresh de lista já paginada recarrega o mesmo volume exibido
     // (teto de 200 aceito pela edge function), para não cortar a lista de volta
     // à primeira página.
-    const limit = mode === 'replace' && offset === 0
+    const limit = mode === 'replace' && offset === 0 && (silent || refresh)
       ? Math.min(200, Math.max(PAGE_SIZE, rowsRef.current.length))
       : PAGE_SIZE;
     setState((s) => ({
