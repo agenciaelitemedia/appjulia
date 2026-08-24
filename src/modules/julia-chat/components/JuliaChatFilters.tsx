@@ -322,7 +322,7 @@ export function JuliaChatFiltersBar({
                   size="icon"
                   className="h-9 w-9 shrink-0"
                   aria-label={filters.tab === 'groups' ? 'Ver individuais' : 'Ver grupos'}
-                  onClick={() => onChange({ tab: filters.tab === 'groups' ? null : 'groups' })}
+                  onClick={() => onChange({ tab: filters.tab === 'groups' ? 'individual' : 'groups' })}
                 >
                   <Users className="h-4 w-4" />
                 </Button>
