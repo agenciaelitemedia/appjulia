@@ -30,10 +30,12 @@ export function useNewMessageSound() {
   const knownIdsRef = useRef<Set<string>>(new Set());
   const allowedRef = useRef(true);
   const userIdRef = useRef<string>('');
+  const userNameRef = useRef<string>('');
 
   useEffect(() => {
     userIdRef.current = String(user?.id ?? '');
-  }, [user?.id]);
+    userNameRef.current = String((user as any)?.name ?? '').trim().toLowerCase();
+  }, [user?.id, (user as any)?.name]);
 
   // Gate: só toca se o alerta do cliente estiver ativo e o usuário não estiver silenciado.
   // Mantido em ref para não reassinar o canal Realtime a cada mudança.
@@ -66,12 +68,20 @@ export function useNewMessageSound() {
         });
     };
 
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') unlock();
+    };
+
     window.addEventListener('pointerdown', unlock, { passive: true });
     window.addEventListener('keydown', unlock);
+    window.addEventListener('focus', unlock);
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       window.removeEventListener('pointerdown', unlock);
       window.removeEventListener('keydown', unlock);
+      window.removeEventListener('focus', unlock);
+      document.removeEventListener('visibilitychange', onVisible);
       audioRef.current = null;
     };
   }, []);
@@ -148,10 +158,16 @@ export function useNewMessageSound() {
             .eq('id', msg.conversation_id)
             .maybeSingle()
             .then(({ data, error }) => {
-              if (error || !data) return;
+              // Se a consulta falhar, não silencia o alerta.
+              if (error || !data) {
+                playAlert();
+                return;
+              }
               const myId = userIdRef.current;
+              const myName = userNameRef.current;
+              const owner = String(data.assigned_to ?? '').trim().toLowerCase();
               const assignedToMe =
-                !!data.assigned_to && !!myId && String(data.assigned_to) === myId;
+                !!owner && ((!!myName && owner === myName) || (!!myId && owner === myId.toLowerCase()));
               if (data.status === 'pending' || assignedToMe) {
                 playAlert();
               }
