@@ -365,7 +365,7 @@ export function useJuliaChatFeed(
 
   useJuliaChatRealtime(clientId, { onMessage, onConversation, onContact });
 
-  return { ...state, loadMore, refresh, pageSize: PAGE_SIZE, liveEvents };
+  return { ...state, loadMore, refresh, removeRow, pageSize: PAGE_SIZE, liveEvents };
 }
 
 export type JuliaChatFeed = ReturnType<typeof useJuliaChatFeed>;
