@@ -120,7 +120,11 @@ export function JuliaChatList({
 
           {feed.loadingMore && <div className="flex justify-center py-2"><MascoteLoader /></div>}
           {!feed.loading && !feed.hasMore && feed.rows.length > 0 && (
-            <p className="pb-4 text-center text-[11px] text-muted-foreground">Fim da lista.</p>
+            <div className="flex justify-center pb-4">
+              <Badge variant="secondary" className="bg-card px-2.5 py-1 text-[10px] text-muted-foreground">
+                Fim da lista, {feed.rows.length} carregados.
+              </Badge>
+            </div>
           )}
         </div>
       )}
