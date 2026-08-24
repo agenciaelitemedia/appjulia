@@ -57,9 +57,7 @@ export function JuliaChatStatusTabs({ value, onChange, counters, loading }: Prop
                       className={cn(
                         'flex h-4 min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold',
                         active
-                          ? tab.value === 'pending'
-                            ? 'bg-amber-600 text-primary-foreground'
-                            : 'bg-emerald-600 text-primary-foreground'
+                          ? 'bg-muted text-foreground'
                           : 'bg-muted text-muted-foreground',
                       )}
                     >
