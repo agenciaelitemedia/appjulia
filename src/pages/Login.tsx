@@ -85,7 +85,7 @@ export default function Login() {
   const [remember, setRemember] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login, isAuthenticated, hasPermission } = useAuth();
+  const { login, isAuthenticated, hasPermission, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -96,7 +96,7 @@ export default function Login() {
     });
   }, []);
 
-  const postLoginRoute = hasPermission('chat', 'view') ? '/chat' : '/dashboard';
+  const postLoginRoute = !isOwnerUser(user) && hasPermission('chat', 'view') ? '/chat' : '/dashboard';
 
   if (isAuthenticated) {
     return <Navigate to={postLoginRoute} replace />;
