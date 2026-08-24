@@ -146,6 +146,9 @@ export function JuliaChatFiltersBar({
   const [open, setOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
+  // Busca só é aplicada no Enter (evita uma consulta por tecla digitada).
+  const [searchDraft, setSearchDraft] = useState(filters.search ?? '');
+  useEffect(() => { setSearchDraft(filters.search ?? ''); }, [filters.search]);
   const { user, isAdmin } = useAuth();
   const { data: teamMembers = [] } = useTeamByClient();
   const navigate = useNavigate();
@@ -246,18 +249,27 @@ export function JuliaChatFiltersBar({
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
               id="julia-chat-search"
-              aria-label="Buscar conversas"
-              value={filters.search}
-              onChange={(e) => onChange({ search: e.target.value })}
-              placeholder="Buscar atendimento…"
+              aria-label="Buscar conversas (pressione Enter)"
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  onChange({ search: searchDraft.trim() });
+                }
+              }}
+              placeholder="Buscar atendimento… (Enter)"
               className="h-9 pl-8 pr-8"
             />
-            {filters.search && (
+            {(searchDraft || filters.search) && (
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label="Limpar busca"
-                onClick={() => onChange({ search: '' })}
+                onClick={() => {
+                  setSearchDraft('');
+                  onChange({ search: '' });
+                }}
                 className="absolute right-0.5 top-1/2 h-8 w-8 -translate-y-1/2"
               >
                 <X className="h-3.5 w-3.5" />

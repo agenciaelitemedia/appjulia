@@ -6,7 +6,7 @@ type StatusValue = NonNullable<JuliaChatFilters['status']>;
 interface Props {
   value: JuliaChatFilters['status'];
   onChange: (v: StatusValue) => void;
-  counters?: { pending?: number; open?: number } | null;
+  counters?: { pending?: number; open?: number; closed?: number } | null;
   /** Exibe spinner no contador da aba ativa enquanto carrega. */
   loading?: boolean;
 }
@@ -14,7 +14,12 @@ interface Props {
 /** Abas de status — mesmo padrão visual do /chat. */
 export function JuliaChatStatusTabs({ value, onChange, counters, loading }: Props) {
   const tabs: { value: StatusValue; label: string; count?: number; tooltip: string }[] = [
-    { value: 'resolved_closed', label: 'Encerradas', tooltip: 'Resolvidas / Encerradas' },
+    {
+      value: 'resolved_closed',
+      label: 'Encerradas',
+      count: counters?.closed,
+      tooltip: 'Resolvidas / Encerradas',
+    },
     { value: 'pending', label: 'Aguardando', count: counters?.pending ?? 0, tooltip: 'Conversas aguardando atendimento' },
     { value: 'open', label: 'Atendimento', count: counters?.open ?? 0, tooltip: 'Conversas em atendimento ativo' },
   ];

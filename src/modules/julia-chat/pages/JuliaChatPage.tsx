@@ -143,6 +143,8 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
           counters={{
             pending: feeds.pending.counters?.pending ?? c?.pending,
             open: feeds.open.counters?.open ?? c?.open,
+            // Encerradas: contador do próprio feed (carregado sempre que há busca ativa)
+            closed: feeds.resolved_closed.counters?.total,
           }}
         />
 
