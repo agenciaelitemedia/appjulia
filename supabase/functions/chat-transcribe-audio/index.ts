@@ -395,7 +395,7 @@ Deno.serve(async (req) => {
       duration_ms: durationMs,
       usage,
       audio_seconds: audioDurationS,
-      context: { ...contextBase, text_length: text.length },
+      context: { ...contextBase, text_length: text.length, ...(fallbackFrom ? { fallback_from: fallbackFrom } : {}) },
     });
 
     return ok({ ok: true, message_id: msg.id, length: text.length, model: usedModel, status: "ok", text, internal: metaKey === "transcription_internal" });
