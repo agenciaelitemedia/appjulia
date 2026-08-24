@@ -119,6 +119,13 @@ async function processConversations(
       if (msgError) throw msgError;
 
       // 3. History entry
+      const anchor = conv.last_customer_message_at
+        ? new Date(conv.last_customer_message_at).toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit', month: '2-digit', year: '2-digit',
+            hour: '2-digit', minute: '2-digit',
+          })
+        : null;
       const { error: histError } = await supabase
         .from('chat_conversation_history')
         .insert({
@@ -127,10 +134,11 @@ async function processConversations(
           actor_name: 'Sistema',
           from_value: removedAgent,
           to_value: 'pending',
-          notes: `NRT vencido (${conv.nrt_minutes}min + ${conv.tolerance_minutes}min tolerância). Responsável removido automaticamente.`,
+          notes: `NRT vencido (${conv.nrt_minutes}min + ${conv.tolerance_minutes}min tolerância)${anchor ? `, contado desde ${anchor}` : ''}. Responsável removido automaticamente.`,
           created_at: now,
         });
       if (histError) throw histError;
+
 
       results.push({ id: conv.id, ok: true });
     } catch (err) {
