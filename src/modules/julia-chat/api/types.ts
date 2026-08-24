@@ -160,7 +160,7 @@ export interface JuliaChatFilters {
 export const DEFAULT_JULIA_FILTERS: JuliaChatFilters = {
   queue_ids: [],
   status: 'open',
-  tab: null,
+  tab: 'individual',
   owners: [],
   unassigned: null,
   search: '',

@@ -156,7 +156,7 @@ export function JuliaChatFiltersBar({
   const canManageChat = !!isAdmin || user?.role === 'user' || user?.role === 'colaborador';
 
   useEffect(() => {
-    if (!showGroupsTab && filters.tab === 'groups') onChange({ tab: null });
+    if (!showGroupsTab && filters.tab !== 'individual') onChange({ tab: 'individual' });
   }, [showGroupsTab, filters.tab, onChange]);
 
   const toggleIn = <K extends 'tag_ids' | 'queue_ids' | 'owners' | 'julia_stage_ids'>(field: K, id: string) => {
@@ -206,7 +206,7 @@ export function JuliaChatFiltersBar({
 
     // status agora é controlado pelas abas acima da lista (igual /chat)
 
-    if (filters.tab) push('tab', filters.tab === 'groups' ? 'Grupos' : 'Individuais', () => onChange({ tab: null }));
+    if (filters.tab === 'groups') push('tab', 'Grupos', () => onChange({ tab: 'individual' }));
     if (filters.priority) push('priority', `Prioridade: ${filters.priority}`, () => onChange({ priority: null }));
     if (filters.unassigned) push('unassigned', 'Sem responsável', () => onChange({ unassigned: null }));
     if (filters.has_ticket) push('ticket', 'Com ticket', () => onChange({ has_ticket: null }));
