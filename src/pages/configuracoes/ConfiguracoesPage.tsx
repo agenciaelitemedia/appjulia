@@ -47,6 +47,10 @@ export default function ConfiguracoesPage() {
             <Zap className="w-4 h-4" />
             BlitzLeads
           </TabsTrigger>
+          <TabsTrigger value="changelog" className="gap-2">
+            <ScrollText className="w-4 h-4" />
+            Changelog
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="ai" className="mt-6 space-y-4">
