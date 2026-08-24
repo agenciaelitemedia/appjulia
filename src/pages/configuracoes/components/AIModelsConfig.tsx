@@ -298,6 +298,9 @@ function FeatureCard({ agent }: { agent: AgentDef }) {
   const [settingsTab, setSettingsTab] = useState('models');
 
   const currentModel = getModel(agent.feature);
+  const { data: billingAlert } = useAIFeatureBillingAlert(agent.feature);
+  const billingWarning = billingAlert ? billingAlertMessage(billingAlert) : null;
+
 
   // Fixed Lovable default (Gemini Flash) — always available, never -pro.
   const LOVABLE_DEFAULT = {
