@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, LayoutGrid, List } from 'lucide-react';
+import { Search, ArrowUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Toggle } from '@/components/ui/toggle';
 import { CampaignDetailCard } from './CampaignDetailCard';
 import { useCampanhasDetails } from '../hooks/useCampanhasDetails';
 import { useCampaignsFunnelByGroup } from '../hooks/useCampaignsFunnelByGroup';
