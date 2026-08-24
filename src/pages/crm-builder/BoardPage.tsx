@@ -31,11 +31,13 @@ import {
   Plus,
   RefreshCw,
   Settings2,
+  Upload,
 } from 'lucide-react';
 import { PipelineColumn } from './components/pipeline/PipelineColumn';
 import { CreatePipelineDialog } from './components/pipeline/CreatePipelineDialog';
 import { DealCard } from './components/deals/DealCard';
 import { CreateDealDialog } from './components/deals/CreateDealDialog';
+import { ImportDealsCsvDialog } from './components/deals/ImportDealsCsvDialog';
 import { DealDetailsSheet } from './components/deals/DealDetailsSheet';
 import { BoardChatSidePanel } from './components/deals/BoardChatSidePanel';
 import { BoardFilters, type BoardFiltersState } from './components/filters/BoardFilters';
@@ -163,6 +165,7 @@ export default function BoardPage() {
   const [isCreatePipelineOpen, setIsCreatePipelineOpen] = useState(false);
   const [editingPipeline, setEditingPipeline] = useState<CRMPipeline | null>(null);
   const [isCreateDealOpen, setIsCreateDealOpen] = useState(false);
+  const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
   const [selectedPipelineForDeal, setSelectedPipelineForDeal] = useState<CRMPipeline | null>(null);
   const [editingDeal, setEditingDeal] = useState<CRMDeal | null>(null);
   const [viewingDeal, setViewingDeal] = useState<CRMDeal | null>(null);
@@ -689,6 +692,17 @@ export default function BoardPage() {
               Nova Etapa
             </Button>
           )}
+
+          {canCreateDeal && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsImportCsvOpen(true)}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Importar CSV
+            </Button>
+          )}
           
           <Button
             variant="ghost"
@@ -929,6 +943,19 @@ export default function BoardPage() {
         onSubmit={handleEditDeal}
         editDeal={editingDeal}
         customFields={customFields}
+      />
+
+      <ImportDealsCsvDialog
+        open={isImportCsvOpen}
+        onOpenChange={setIsImportCsvOpen}
+        boardId={boardId || null}
+        clientId={clientId}
+        codAgent={codAgent}
+        userName={user?.name}
+        pipelines={pipelines}
+        customFields={customFields}
+        deals={deals}
+        onImported={() => { void fetchDeals(); }}
       />
 
       <DealDetailsSheet
