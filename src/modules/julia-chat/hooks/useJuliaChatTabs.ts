@@ -25,9 +25,13 @@ export function useJuliaChatTabs(clientId: string | null, filters: JuliaChatFilt
     return () => clearTimeout(t);
   }, [warm, clientId]);
 
+  // Busca ativa: carrega também a aba Encerradas, para que o resultado apareça
+  // (e o contador da aba fique visível) mesmo sem o usuário abrir a aba.
+  const searching = (filters.search ?? '').trim().length > 0;
+
   useEffect(() => {
-    if (active === 'resolved_closed') setClosedTouched(true);
-  }, [active]);
+    if (active === 'resolved_closed' || searching) setClosedTouched(true);
+  }, [active, searching]);
 
   const pending = useJuliaChatFeed(clientId, filters, {
     status: 'pending' as JuliaChatTab,
