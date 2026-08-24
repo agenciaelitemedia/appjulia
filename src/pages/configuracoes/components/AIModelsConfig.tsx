@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { useAIModelsConfig, type AIFeature, type AIProvider, DEFAULT_PROMPTS } from '@/hooks/useAIModelsConfig';
 import { useAIModelList } from '@/hooks/useAIModelList';
 import { useProviderKey } from '@/hooks/useProviderKey';
+import { useAIFeatureBillingAlert, billingAlertMessage } from '@/hooks/useAIFeatureBillingAlert';
 
 interface AgentDef {
   feature: AIFeature;
