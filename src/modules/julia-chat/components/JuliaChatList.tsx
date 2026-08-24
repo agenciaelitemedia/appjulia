@@ -76,6 +76,8 @@ export function JuliaChatList({
 
   return (
     <div
+      ref={scroller}
+      onScroll={handleScroll}
       aria-hidden={!visible}
       className={cn(
         'thin-scrollbar relative min-h-[120px] flex-1 overflow-y-auto',
@@ -116,13 +118,16 @@ export function JuliaChatList({
             />
           ))}
 
-          <div ref={sentinel} className="h-8" />
           {feed.loadingMore && <div className="flex justify-center py-2"><MascoteLoader /></div>}
           {!feed.loading && !feed.hasMore && feed.rows.length > 0 && (
             <p className="pb-4 text-center text-[11px] text-muted-foreground">Fim da lista.</p>
           )}
         </div>
       )}
+
+      {/* Sentinela de paginação — sempre montado, mesmo com a lista vazia. */}
+      <div ref={sentinel} className="h-8" />
+
 
       <AlertDialog open={!!offlineRow} onOpenChange={(v) => { if (!v) setOfflineRow(null); }}>
         <AlertDialogContent>
