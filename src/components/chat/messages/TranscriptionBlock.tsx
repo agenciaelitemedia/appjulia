@@ -29,6 +29,9 @@ function translateReason(reason?: string | null): string {
     not_found: 'mensagem não encontrada',
     bad_request: 'requisição inválida',
     exception: 'erro inesperado',
+    ai_402: 'sem crédito no provedor de IA',
+    ai_401: 'chave do provedor de IA inválida',
+    ai_403: 'chave do provedor de IA inválida',
   };
   if (map[reason]) return map[reason];
   if (/^ai_5/.test(reason)) return 'serviço de IA indisponível';

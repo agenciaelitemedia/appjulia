@@ -9,7 +9,7 @@
 // ============================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { resolveAI, providerHeaders, OPENROUTER_TRANSCRIBE_ENDPOINT } from "../_shared/aiGateway.ts";
+import { resolveAI, lovableAI, providerHeaders, OPENROUTER_TRANSCRIBE_ENDPOINT } from "../_shared/aiGateway.ts";
 import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 import { fetchEffectiveQueueFlags } from "../_shared/agentSettings.ts";
 
@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
     }
 
     // 4) Transcribe via configured provider (Lovable chat / OpenRouter audio)
-    const ai = await resolveAI(supabase, "chat_transcription");
+    let ai = await resolveAI(supabase, "chat_transcription");
     const prompt = ai.prompt ?? DEFAULT_PROMPT;
     if (!ai.apiKey) {
       await markFailed(supabase, msg, "no_api_key", internal);
@@ -263,21 +263,22 @@ Deno.serve(async (req) => {
 
     // For OpenRouter we use the dedicated audio transcription endpoint;
     // for Lovable we use the chat-completions gateway with input_audio.
-    const useOpenRouterTranscribe = ai.provider === "openrouter";
-    const effectiveEndpoint = useOpenRouterTranscribe ? OPENROUTER_TRANSCRIBE_ENDPOINT : ai.endpoint;
+    const endpointFor = (cfg: typeof ai) =>
+      cfg.provider === "openrouter" ? OPENROUTER_TRANSCRIBE_ENDPOINT : cfg.endpoint;
 
-    const callAI = async () => {
+    const callAI = async (cfg: typeof ai) => {
       const started = Date.now();
-      const reqBody = useOpenRouterTranscribe
+      const isOR = cfg.provider === "openrouter";
+      const reqBody = isOR
         ? {
             input_audio: { data: base64Data, format },
-            model: ai.model,
+            model: cfg.model,
             language: LANG_PT,
           }
         : {
-            model: ai.model,
+            model: cfg.model,
             messages: [
-              { role: "system", content: prompt },
+              { role: "system", content: cfg.prompt ?? prompt },
               {
                 role: "user",
                 content: [
@@ -287,12 +288,12 @@ Deno.serve(async (req) => {
               },
             ],
           };
-      const resp = await fetch(effectiveEndpoint, {
+      const resp = await fetch(endpointFor(cfg), {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${ai.apiKey}`,
+          Authorization: `Bearer ${cfg.apiKey}`,
           "Content-Type": "application/json",
-          ...providerHeaders(ai.provider),
+          ...providerHeaders(cfg.provider),
         },
         body: JSON.stringify(reqBody),
       });
@@ -310,11 +311,42 @@ Deno.serve(async (req) => {
       audio_duration_s: audioDurationS,
     };
 
-    const { resp: aiResp, ms: durationMs } = await callAI();
+    let { resp: aiResp, ms: durationMs } = await callAI(ai);
+    let fallbackFrom: string | null = null;
+
+    // Fallback: provedor externo recusou por cobrança/autorização → tenta Lovable AI.
+    if (!aiResp.ok && ai.provider === "openrouter" && [401, 402, 403].includes(aiResp.status)) {
+      const firstStatus = aiResp.status;
+      const errTxt = await aiResp.text().catch(() => "");
+      console.warn(`[chat-transcribe-audio] OpenRouter ${firstStatus}; caindo para Lovable AI: ${errTxt}`);
+      await logAIUsage(supabase, {
+        client_id: msg.client_id,
+        feature: "chat_transcription",
+        provider: ai.provider,
+        endpoint: endpointFor(ai),
+        model: ai.model,
+        status: "failed",
+        duration_ms: durationMs,
+        error_reason: `ai_${firstStatus}`,
+        audio_seconds: audioDurationS,
+        context: contextBase,
+      });
+      const fallbackCfg = lovableAI("chat_transcription", prompt);
+      if (fallbackCfg.apiKey) {
+        fallbackFrom = "openrouter";
+        ai = fallbackCfg;
+        const retry = await callAI(ai);
+        aiResp = retry.resp;
+        durationMs = retry.ms;
+      }
+    }
+
+    const effectiveEndpoint = endpointFor(ai);
+    const useOpenRouterTranscribe = ai.provider === "openrouter";
     const usedModel = ai.model;
 
     if (!aiResp.ok) {
-      const errTxt = await aiResp.text();
+      const errTxt = await aiResp.text().catch(() => "");
       console.warn(`[chat-transcribe-audio] AI error ${aiResp.status} (provider=${ai.provider} model=${ai.model}): ${errTxt}`);
       await markFailed(supabase, msg, `ai_${aiResp.status}`, internal);
       await logAIUsage(supabase, {
@@ -327,10 +359,11 @@ Deno.serve(async (req) => {
         duration_ms: durationMs,
         error_reason: `ai_${aiResp.status}`,
         audio_seconds: audioDurationS,
-        context: contextBase,
+        context: { ...contextBase, ...(fallbackFrom ? { fallback_from: fallbackFrom } : {}) },
       });
       return ok({ ok: false, error: "ai error", reason: `ai_${aiResp.status}` });
     }
+
 
     const aiData = await aiResp.json();
     const text: string = useOpenRouterTranscribe
@@ -362,7 +395,7 @@ Deno.serve(async (req) => {
       duration_ms: durationMs,
       usage,
       audio_seconds: audioDurationS,
-      context: { ...contextBase, text_length: text.length },
+      context: { ...contextBase, text_length: text.length, ...(fallbackFrom ? { fallback_from: fallbackFrom } : {}) },
     });
 
     return ok({ ok: true, message_id: msg.id, length: text.length, model: usedModel, status: "ok", text, internal: metaKey === "transcription_internal" });

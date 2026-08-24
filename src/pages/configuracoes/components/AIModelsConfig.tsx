@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   MessageSquare, BarChart2, MessagesSquare, FileText, AudioLines,
   Bot, Headphones, ScrollText, Settings, RotateCcw, Plus, Trash2, Star, KeyRound, Phone,
+  AlertTriangle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,6 +18,7 @@ import { toast } from 'sonner';
 import { useAIModelsConfig, type AIFeature, type AIProvider, DEFAULT_PROMPTS } from '@/hooks/useAIModelsConfig';
 import { useAIModelList } from '@/hooks/useAIModelList';
 import { useProviderKey } from '@/hooks/useProviderKey';
+import { useAIFeatureBillingAlert, billingAlertMessage } from '@/hooks/useAIFeatureBillingAlert';
 
 interface AgentDef {
   feature: AIFeature;
@@ -298,6 +300,9 @@ function FeatureCard({ agent }: { agent: AgentDef }) {
   const [settingsTab, setSettingsTab] = useState('models');
 
   const currentModel = getModel(agent.feature);
+  const { data: billingAlert } = useAIFeatureBillingAlert(agent.feature);
+  const billingWarning = billingAlert ? billingAlertMessage(billingAlert) : null;
+
 
   // Fixed Lovable default (Gemini Flash) — always available, never -pro.
   const LOVABLE_DEFAULT = {
@@ -365,7 +370,13 @@ function FeatureCard({ agent }: { agent: AgentDef }) {
         </CardTitle>
         <CardDescription>{agent.description}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-2">
+        {billingWarning && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-[11px] text-destructive">
+            <AlertTriangle className="w-3.5 h-3.5 mt-[1px] shrink-0" />
+            <span>{billingWarning}</span>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Select value={currentModel} onValueChange={handleSelect}>
             <SelectTrigger className="flex-1">
@@ -388,6 +399,7 @@ function FeatureCard({ agent }: { agent: AgentDef }) {
           </Button>
         </div>
       </CardContent>
+
 
       {settingsOpen && (
         <AgentSettingsDialog

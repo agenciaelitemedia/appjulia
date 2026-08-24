@@ -39,6 +39,16 @@ function lovableFallback(feature: string, fallbackModel?: string): ResolvedAI {
   };
 }
 
+/**
+ * ResolvedAI apontando para o Lovable AI Gateway.
+ * Usado como fallback quando um provedor externo (OpenRouter) recusa a chamada
+ * por cobrança/autorização (401/402/403).
+ */
+export function lovableAI(feature: string, prompt: string | null = null, fallbackModel?: string): ResolvedAI {
+  return { ...lovableFallback(feature, fallbackModel), prompt };
+}
+
+
 // deno-lint-ignore no-explicit-any
 export async function resolveAI(
   // deno-lint-ignore no-explicit-any
