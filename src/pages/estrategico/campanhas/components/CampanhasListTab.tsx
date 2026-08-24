@@ -136,7 +136,7 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
         {filteredCampaigns.length} campanha{filteredCampaigns.length !== 1 ? 's' : ''} encontrada{filteredCampaigns.length !== 1 ? 's' : ''}
       </p>
 
-      {/* Grid/List */}
+      {/* List */}
       {paginatedCampaigns.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <Search className="h-12 w-12 mb-4 opacity-50" />
@@ -144,13 +144,7 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
           <p className="text-sm">Tente ajustar os filtros ou termo de busca</p>
         </div>
       ) : (
-        <div
-          className={
-            isGridView
-              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
-              : 'space-y-4'
-          }
-        >
+        <div className="space-y-4">
           {paginatedCampaigns.map((campaign, index) => (
             <CampaignDetailCard
               key={`${campaign.campaign_id}-${index}`}
