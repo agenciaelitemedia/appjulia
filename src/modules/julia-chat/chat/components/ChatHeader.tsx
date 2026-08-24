@@ -61,6 +61,9 @@ interface ChatHeaderProps {
    * Mantém informações do contato, badges, avatar e botão fechar.
    */
   readOnly?: boolean;
+  /** Chamado após adiar a conversa (para remover da lista e fechar o painel). */
+  onSnoozed?: (conversationId: string) => void;
+
 }
 
 function ChannelBadge({ channel }: { channel?: string }) {
