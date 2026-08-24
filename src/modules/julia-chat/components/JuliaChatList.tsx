@@ -26,10 +26,16 @@ export function JuliaChatList({
   feed, visible, accent, selectedId, onSelect, disconnectedQueueIds, tab,
 }: Props) {
   const sentinel = useRef<HTMLDivElement | null>(null);
+  const scroller = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef(feed.loadMore);
   loadMoreRef.current = feed.loadMore;
   const [offlineRow, setOfflineRow] = useState<JuliaChatRowData | null>(null);
 
+  const hasRows = feed.rows.length > 0;
+
+  // Observa o fim da lista. Recriado quando a aba fica visível, quando a lista
+  // deixa de estar vazia e quando `hasMore` muda — o sentinela só existe/serve
+  // nesses estados, e sem recriar o observador a paginação nunca dispararia.
   useEffect(() => {
     if (!visible) return;
     const el = sentinel.current;
@@ -39,7 +45,22 @@ export function JuliaChatList({
     }, { rootMargin: '240px' });
     io.observe(el);
     return () => io.disconnect();
-  }, [visible]);
+  }, [visible, hasRows, feed.hasMore]);
+
+  // Rede de segurança: listas curtas podem não gerar novo evento de interseção
+  // após anexar uma página; verifica se o fim continua próximo da viewport.
+  useEffect(() => {
+    if (!visible || !feed.hasMore || feed.loading || feed.loadingMore) return;
+    const el = scroller.current;
+    if (!el) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 240) loadMoreRef.current();
+  }, [visible, feed.hasMore, feed.loading, feed.loadingMore, feed.rows.length]);
+
+  const handleScroll = () => {
+    const el = scroller.current;
+    if (!el) return;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 240) loadMoreRef.current();
+  };
 
   const isDisconnected = (row: JuliaChatRowData) =>
     !!row.queue_id && !!disconnectedQueueIds?.has(row.queue_id);
@@ -51,6 +72,7 @@ export function JuliaChatList({
     }
     onSelect(row);
   };
+
 
   return (
     <div
