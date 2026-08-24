@@ -2,7 +2,7 @@
 // Model/provider/endpoint/key resolved per agent via _shared/aiGateway.ts.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { fetchEffectiveQueueFlags } from "../_shared/agentSettings.ts";
-import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { resolveAI, providerHeaders, lovableAI, type ResolvedAI } from "../_shared/aiGateway.ts";
 import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const corsHeaders = {
