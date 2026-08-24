@@ -174,9 +174,8 @@ export function useImportDealsCsv({ boardId, clientId, codAgent, userName }: Use
                   insert: (data: Record<string, unknown>[]) => Promise<{ error: unknown }>;
                 };
               };
-              await client
-                .from('crm_deal_history')
-                .insert(
+              try {
+                await client.from('crm_deal_history').insert(
                   ids.map((d) => ({
                     deal_id: d.id,
                     action: 'created',
@@ -185,8 +184,11 @@ export function useImportDealsCsv({ boardId, clientId, codAgent, userName }: Use
                     changes: { source: 'csv_import' },
                     changed_by: userName || codAgent,
                   })),
-                )
-                .catch?.(() => undefined);
+                );
+              } catch {
+                console.warn('Falha ao registrar histórico da importação CSV');
+              }
+
             }
           }
 
