@@ -1887,6 +1887,7 @@ export type Database = {
           active_ticket_id: string | null
           active_ticket_number: number | null
           active_ticket_protocol: string | null
+          assigned_at: string | null
           assigned_to: string | null
           assigned_user_id: number | null
           channel: string
@@ -1919,6 +1920,7 @@ export type Database = {
           active_ticket_id?: string | null
           active_ticket_number?: number | null
           active_ticket_protocol?: string | null
+          assigned_at?: string | null
           assigned_to?: string | null
           assigned_user_id?: number | null
           channel?: string
@@ -1951,6 +1953,7 @@ export type Database = {
           active_ticket_id?: string | null
           active_ticket_number?: number | null
           active_ticket_protocol?: string | null
+          assigned_at?: string | null
           assigned_to?: string | null
           assigned_user_id?: number | null
           channel?: string
