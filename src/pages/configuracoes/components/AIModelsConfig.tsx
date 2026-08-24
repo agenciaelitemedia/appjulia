@@ -365,7 +365,13 @@ function FeatureCard({ agent }: { agent: AgentDef }) {
         </CardTitle>
         <CardDescription>{agent.description}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-2">
+        {billingWarning && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-[11px] text-destructive">
+            <AlertTriangle className="w-3.5 h-3.5 mt-[1px] shrink-0" />
+            <span>{billingWarning}</span>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <Select value={currentModel} onValueChange={handleSelect}>
             <SelectTrigger className="flex-1">
@@ -388,6 +394,7 @@ function FeatureCard({ agent }: { agent: AgentDef }) {
           </Button>
         </div>
       </CardContent>
+
 
       {settingsOpen && (
         <AgentSettingsDialog
