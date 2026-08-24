@@ -146,6 +146,9 @@ export function JuliaChatFiltersBar({
   const [open, setOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
+  // Busca só é aplicada no Enter (evita uma consulta por tecla digitada).
+  const [searchDraft, setSearchDraft] = useState(filters.search ?? '');
+  useEffect(() => { setSearchDraft(filters.search ?? ''); }, [filters.search]);
   const { user, isAdmin } = useAuth();
   const { data: teamMembers = [] } = useTeamByClient();
   const navigate = useNavigate();
