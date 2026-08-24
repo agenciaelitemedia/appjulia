@@ -105,9 +105,12 @@ export function useJuliaChatFeed(
   backgroundRef.current = background;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  const hideSnoozedRef = useRef(filters.hide_snoozed ?? true);
+  hideSnoozedRef.current = filters.hide_snoozed ?? true;
 
   const effectiveFilters = useMemo<JuliaChatFilters>(() => ({ ...filters, status }), [filters, status]);
   const key = useMemo(() => JSON.stringify(effectiveFilters), [effectiveFilters]);
+
 
   const load = useCallback(async (
     offset: number,
