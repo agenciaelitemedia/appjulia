@@ -233,11 +233,13 @@ function JuliaConversationColumns({
   onClearSelection,
   onSnoozed,
   feed,
+  activeTab,
 }: {
   selected: JuliaChatRowData | null;
   onClearSelection: () => void;
   onSnoozed?: (conversationId: string) => void;
   feed: ReturnType<typeof useJuliaChatTabs>['activeFeed'];
+  activeTab: JuliaTabKey;
 }) {
   const isBelowLg = useIsBelowLg();
   const [diagOpen, setDiagOpen] = useState(false);
