@@ -61,6 +61,9 @@ interface ChatHeaderProps {
    * Mantém informações do contato, badges, avatar e botão fechar.
    */
   readOnly?: boolean;
+  /** Chamado após adiar a conversa (para remover da lista e fechar o painel). */
+  onSnoozed?: (conversationId: string) => void;
+
 }
 
 function ChannelBadge({ channel }: { channel?: string }) {
@@ -82,7 +85,7 @@ function ChannelBadge({ channel }: { channel?: string }) {
 
 
 
-export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnly = false }: ChatHeaderProps) {
+export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnly = false, onSnoozed }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter, sendInternalNote } = useWhatsAppData();
   const { user, hasPermission } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
@@ -703,6 +706,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnl
         open={showSnooze}
         onOpenChange={setShowSnooze}
         conversationId={selectedConversation?.id || null}
+        onSnoozed={onSnoozed}
       />
 
       {/* Phone call */}

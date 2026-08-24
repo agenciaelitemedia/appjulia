@@ -24,6 +24,8 @@ export interface JuliaChatTarget {
 interface Props {
   target: JuliaChatTarget | null;
   onClose: () => void;
+  /** Chamado após adiar a conversa. */
+  onSnoozed?: (conversationId: string) => void;
 }
 
 /**
@@ -32,7 +34,7 @@ interface Props {
  * `ChatSidePanel` → `ScopedChat`: hidrata fila, contato e conversa e sincroniza
  * o `WhatsAppDataProvider` isolado do módulo.
  */
-export function JuliaChatConversation({ target, onClose }: Props) {
+export function JuliaChatConversation({ target, onClose, onSnoozed }: Props) {
   const { data: queueAccess } = useUserQueueAccess();
   const queueId = target?.queueId ?? null;
   const hasQueueAccess = !queueId
@@ -60,10 +62,10 @@ export function JuliaChatConversation({ target, onClose }: Props) {
     );
   }
 
-  return <ScopedConversation key={target.contactId} target={target} onClose={onClose} />;
+  return <ScopedConversation key={target.contactId} target={target} onClose={onClose} onSnoozed={onSnoozed} />;
 }
 
-function ScopedConversation({ target, onClose }: { target: JuliaChatTarget; onClose: () => void }) {
+function ScopedConversation({ target, onClose, onSnoozed }: { target: JuliaChatTarget; onClose: () => void; onSnoozed?: (conversationId: string) => void }) {
   const { contactId, queueId, conversationId } = target;
   const {
     selectedContact,
@@ -231,6 +233,7 @@ function ScopedConversation({ target, onClose }: { target: JuliaChatTarget; onCl
       <ChatHeader
         contact={effectiveContact}
         onClose={onClose}
+        onSnoozed={onSnoozed}
         onShowDetails={() => {
           if (showDetailPanel && rightBarTab === 'contact') {
             setShowDetailPanel(false);

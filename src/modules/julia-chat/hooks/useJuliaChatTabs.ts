@@ -55,5 +55,13 @@ export function useJuliaChatTabs(clientId: string | null, filters: JuliaChatFilt
   const counters = activeFeed.counters ?? pending.counters ?? open.counters ?? closed.counters ?? lastCounters.current;
   lastCounters.current = counters;
 
-  return { active, setActive: setActive as (t: JuliaTabKey) => void, feeds, activeFeed, counters };
+  /** Remove a conversa de todas as abas (ex.: adiamento otimista). */
+  const removeRowEverywhere = (conversationId: string) => {
+    pending.removeRow(conversationId);
+    open.removeRow(conversationId);
+    closed.removeRow(conversationId);
+  };
+
+  return { active, setActive: setActive as (t: JuliaTabKey) => void, feeds, activeFeed, counters, removeRowEverywhere };
+
 }

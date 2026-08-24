@@ -105,9 +105,12 @@ export function useJuliaChatFeed(
   backgroundRef.current = background;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  const hideSnoozedRef = useRef(filters.hide_snoozed ?? true);
+  hideSnoozedRef.current = filters.hide_snoozed ?? true;
 
   const effectiveFilters = useMemo<JuliaChatFilters>(() => ({ ...filters, status }), [filters, status]);
   const key = useMemo(() => JSON.stringify(effectiveFilters), [effectiveFilters]);
+
 
   const load = useCallback(async (
     offset: number,
@@ -250,13 +253,38 @@ export function useJuliaChatFeed(
     });
   }, []);
 
+  /** Remove uma linha da lista local (uso otimista, ex.: adiar conversa). */
+  const removeRow = useCallback((conversationId: string) => {
+    setState((s) => {
+      const row = s.rows.find((r) => r.conversation_id === conversationId);
+      if (!row) return s;
+      const rows = s.rows.filter((r) => r.conversation_id !== conversationId);
+      const counters = s.counters
+        ? {
+            ...s.counters,
+            total: Math.max(0, (s.counters.total ?? 0) - 1),
+            unread: Math.max(0, (s.counters.unread ?? 0) - (row.unread_count ?? 0)),
+            ...(row.status && typeof (s.counters as any)[row.status] === 'number'
+              ? { [row.status]: Math.max(0, (s.counters as any)[row.status] - 1) }
+              : {}),
+          }
+        : s.counters;
+      return { ...s, rows, counters: counters as typeof s.counters };
+    });
+  }, []);
+
   const onConversation = useCallback((conv: any, eventType: 'INSERT' | 'UPDATE', old?: any) => {
     if (!conv?.id) return;
     const current = rowsRef.current.find((r) => r.conversation_id === conv.id);
     const known = !!current;
 
     const nextStatus = conv.status === 'pending' && (conv.assigned_to ?? '') !== '' ? 'open' : conv.status;
-    const belongs = matchesTab(nextStatus, status);
+    // adiada para o futuro com "ocultar adiados" ativo: sai desta lista
+    const snoozedAway = hideSnoozedRef.current
+      && !!conv.snoozed_until
+      && new Date(conv.snoozed_until).getTime() > Date.now();
+    const belongs = matchesTab(nextStatus, status) && !snoozedAway;
+
 
     // saiu desta lista: remove a linha na hora, sem request
     if (known && !belongs) {
@@ -338,7 +366,7 @@ export function useJuliaChatFeed(
 
   useJuliaChatRealtime(clientId, { onMessage, onConversation, onContact });
 
-  return { ...state, loadMore, refresh, pageSize: PAGE_SIZE, liveEvents };
+  return { ...state, loadMore, refresh, removeRow, pageSize: PAGE_SIZE, liveEvents };
 }
 
 export type JuliaChatFeed = ReturnType<typeof useJuliaChatFeed>;
