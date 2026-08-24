@@ -9,7 +9,7 @@
 // ============================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { resolveAI, providerHeaders, OPENROUTER_TRANSCRIBE_ENDPOINT } from "../_shared/aiGateway.ts";
+import { resolveAI, lovableAI, providerHeaders, OPENROUTER_TRANSCRIBE_ENDPOINT } from "../_shared/aiGateway.ts";
 import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 import { fetchEffectiveQueueFlags } from "../_shared/agentSettings.ts";
 
