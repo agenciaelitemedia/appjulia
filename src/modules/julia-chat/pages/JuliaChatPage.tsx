@@ -6,6 +6,8 @@ import { useAccessibleQueues, isOwnerUser, useQueueConnectionStatusesBatch } fro
 import { JuliaChatRealtimeProvider } from '../hooks/useJuliaChatRealtimeHub';
 import { useJuliaChatTabs, type JuliaTabKey } from '../hooks/useJuliaChatTabs';
 import { useJuliaSnoozed } from '../hooks/useJuliaSnoozed';
+import { useSnoozeExpiryWatcher } from '../hooks/useSnoozeExpiryWatcher';
+
 import { useJuliaChatOptions } from '../hooks/useJuliaChatOptions';
 import { JuliaChatList } from '../components/JuliaChatList';
 import { JuliaChatFiltersBar } from '../components/JuliaChatFilters';
@@ -92,6 +94,15 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
   // independentes da paginação do feed (que oculta adiados por padrão).
   const { snoozedItems, refetchSnoozed } = useJuliaSnoozed(clientId, scopeQueueIds);
   const snoozedCount = snoozedItems.length;
+
+  // Avisa na interface quando um adiamento expira e a conversa volta à lista.
+  useSnoozeExpiryWatcher(snoozedItems, useCallback(() => {
+    void refetchSnoozed();
+    void feeds.pending.refresh();
+    void feeds.open.refresh();
+    void feeds.resolved_closed.refresh();
+  }, [refetchSnoozed, feeds]));
+
 
   const c = counters;
 
