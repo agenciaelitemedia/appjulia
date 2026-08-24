@@ -30,10 +30,12 @@ export function useNewMessageSound() {
   const knownIdsRef = useRef<Set<string>>(new Set());
   const allowedRef = useRef(true);
   const userIdRef = useRef<string>('');
+  const userNameRef = useRef<string>('');
 
   useEffect(() => {
     userIdRef.current = String(user?.id ?? '');
-  }, [user?.id]);
+    userNameRef.current = String((user as any)?.name ?? '').trim().toLowerCase();
+  }, [user?.id, (user as any)?.name]);
 
   // Gate: só toca se o alerta do cliente estiver ativo e o usuário não estiver silenciado.
   // Mantido em ref para não reassinar o canal Realtime a cada mudança.
