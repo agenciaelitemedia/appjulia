@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, ArrowUpDown, LayoutGrid, List } from 'lucide-react';
+import { Search, ArrowUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Toggle } from '@/components/ui/toggle';
 import { CampaignDetailCard } from './CampaignDetailCard';
 import { useCampanhasDetails } from '../hooks/useCampanhasDetails';
 import { useCampaignsFunnelByGroup } from '../hooks/useCampaignsFunnelByGroup';
@@ -27,7 +26,6 @@ const ITEMS_PER_PAGE = 20;
 export function CampanhasListTab({ filters }: CampanhasListTabProps) {
   const [localSearch, setLocalSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('leads');
-  const [isGridView, setIsGridView] = useState(true);
   const [page, setPage] = useState(1);
 
   const { data: campaigns = [], isLoading } = useCampanhasDetails(filters);
@@ -93,9 +91,9 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
           <Skeleton className="h-10 flex-1" />
           <Skeleton className="h-10 w-40" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-80" />
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-40 w-full" />
           ))}
         </div>
       </div>
@@ -131,25 +129,6 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
           </SelectContent>
         </Select>
 
-        {/* View Toggle */}
-        <div className="flex gap-1">
-          <Toggle
-            pressed={isGridView}
-            onPressedChange={() => setIsGridView(true)}
-            aria-label="Grid view"
-            size="sm"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            pressed={!isGridView}
-            onPressedChange={() => setIsGridView(false)}
-            aria-label="List view"
-            size="sm"
-          >
-            <List className="h-4 w-4" />
-          </Toggle>
-        </div>
       </div>
 
       {/* Results count */}
@@ -157,7 +136,7 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
         {filteredCampaigns.length} campanha{filteredCampaigns.length !== 1 ? 's' : ''} encontrada{filteredCampaigns.length !== 1 ? 's' : ''}
       </p>
 
-      {/* Grid/List */}
+      {/* List */}
       {paginatedCampaigns.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <Search className="h-12 w-12 mb-4 opacity-50" />
@@ -165,13 +144,7 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
           <p className="text-sm">Tente ajustar os filtros ou termo de busca</p>
         </div>
       ) : (
-        <div
-          className={
-            isGridView
-              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
-              : 'space-y-4'
-          }
-        >
+        <div className="space-y-4">
           {paginatedCampaigns.map((campaign, index) => (
             <CampaignDetailCard
               key={`${campaign.campaign_id}-${index}`}
