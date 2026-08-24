@@ -85,7 +85,7 @@ export default function Login() {
   const [remember, setRemember] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login, isAuthenticated, hasPermission, user } = useAuth();
+  const { login, isAuthenticated, user, permissions, permissionsLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -96,9 +96,25 @@ export default function Login() {
     });
   }, []);
 
-  const postLoginRoute = !isOwnerUser(user) && hasPermission('chat', 'view') ? '/chat' : '/dashboard';
+  /**
+   * `/chat` não é uma rota protegida por módulo (App.tsx) — logo, é liberada por
+   * padrão. Só bloqueamos quando existir uma entrada explícita de módulo de chat
+   * com `can_view = false` (bloqueio configurado manualmente).
+   */
+  const hasChatAccess = (() => {
+    const entry = permissions?.get('chat' as any) ?? permissions?.get('julia_chat' as any);
+    if (entry && entry.can_view === false) return false;
+    return true;
+  })();
 
-  if (isAuthenticated) {
+  const postLoginRoute = !isOwnerUser(user) && hasChatAccess ? '/chat' : '/dashboard';
+  const canRedirect = isAuthenticated && !permissionsLoading;
+
+  useEffect(() => {
+    if (canRedirect) navigate(postLoginRoute, { replace: true });
+  }, [canRedirect, postLoginRoute, navigate]);
+
+  if (canRedirect) {
     return <Navigate to={postLoginRoute} replace />;
   }
 
@@ -120,13 +136,14 @@ export default function Login() {
     if (result.success) {
       markJustLoggedIn();
       toast({ title: 'Bem-vindo!', description: 'Login realizado com sucesso' });
-      navigate(postLoginRoute);
+      // O redirecionamento acontece no efeito acima, após as permissões carregarem.
     } else {
       toast({ variant: 'destructive', title: 'Erro no login', description: result.error });
     }
 
     setIsSubmitting(false);
   };
+
 
   return (
     <main className="aj-login relative min-h-screen overflow-hidden">
