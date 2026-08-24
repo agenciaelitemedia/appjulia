@@ -98,6 +98,10 @@ export default function ConfiguracoesPage() {
           </div>
           <BlitzLeadsConfigTab />
         </TabsContent>
+
+        <TabsContent value="changelog" className="mt-6">
+          <ChangelogTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
