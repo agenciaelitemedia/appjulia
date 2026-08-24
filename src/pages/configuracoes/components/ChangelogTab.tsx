@@ -38,7 +38,131 @@ const releases = [
       { category: 'correcao', text: 'Ajustes na deduplicação de pipelines e deals do X-Julia.' },
     ] as ChangelogItem[],
   },
+  {
+    version: 'v2.14',
+    date: 'Agosto de 2026',
+    highlight: 'Notificações e Alertas com CRM próprio.',
+    items: [
+      { category: 'novo', text: 'Módulo de Notificações e Alertas com disparos por WhatsApp e regras configuráveis.' },
+      { category: 'novo', text: 'CRM de alertas com etapas, códigos de etapa e filtros por URL.' },
+      { category: 'melhoria', text: 'Cards de alerta atualizam em tempo real e recebem etiqueta "Parou de responder".' },
+      { category: 'correcao', text: 'Janela de 10 minutos evita reenvio duplicado de notificações.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.13',
+    date: 'Agosto de 2026',
+    highlight: 'X-Julia (Extreme Julia): novo motor de agentes.',
+    items: [
+      { category: 'novo', text: 'Agente recepcionista com subagentes especialistas por tipo de caso jurídico.' },
+      { category: 'novo', text: 'Memória longa da conversa, leitura de imagens/documentos e skill de áudio.' },
+      { category: 'novo', text: 'Geração de contrato com ZapSign e variáveis de data por extenso.' },
+      { category: 'melhoria', text: 'Controle de custo por sessão e catálogo de modelos por escritório.' },
+      { category: 'correcao', text: 'Deduplicação de pipelines e deals do X-Julia.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.12',
+    date: 'Julho de 2026',
+    highlight: 'Escritórios sem agente de IA e portal BlitzLeads.',
+    items: [
+      { category: 'novo', text: 'Módulo Escritórios: cadastro de cliente/usuário sem agente, com wizard e dashboard próprio.' },
+      { category: 'novo', text: 'BlitzLeads: portal do cliente em subdomínio dedicado.' },
+      { category: 'melhoria', text: 'Liberação de chat, CRM, telefonia, equipe e central de ajuda para escritórios sem IA.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.11',
+    date: 'Julho de 2026',
+    highlight: 'Automações visuais e permissões do CRM Builder.',
+    items: [
+      { category: 'novo', text: 'Editor visual de automações com React Flow, versionamento e simulação.' },
+      { category: 'novo', text: 'Permissionamento por board no CRM Builder.' },
+      { category: 'melhoria', text: 'Verificação de proprietário centralizada em todo o sistema.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.10',
+    date: 'Junho de 2026',
+    highlight: 'Telefonia ZAP Call e sincronização de mensagens.',
+    items: [
+      { category: 'novo', text: 'ZAP Call (Wavoip) com gestão de dispositivos, planos e vínculo de filas.' },
+      { category: 'novo', text: 'Ressincronização de conversas pela UaZapi corrigindo datas e mensagens faltantes.' },
+      { category: 'melhoria', text: 'Vínculos de fila propagam em tempo real.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.9',
+    date: 'Junho de 2026',
+    highlight: 'Central de Ajuda, push e mensagens rápidas.',
+    items: [
+      { category: 'novo', text: 'Central de Ajuda com editor de conteúdo e categorias.' },
+      { category: 'novo', text: 'Notificações push (Web Push) com opt-in e painel administrativo.' },
+      { category: 'novo', text: 'Mensagens rápidas por atalho "/" no chat.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.8',
+    date: 'Maio de 2026',
+    highlight: 'Helpdesk e telemetria.',
+    items: [
+      { category: 'novo', text: 'Tickets/Helpdesk com protocolos, departamentos e anexos.' },
+      { category: 'novo', text: 'Telemetria de ambiente, presença e performance da equipe.' },
+      { category: 'melhoria', text: 'Assistente de suporte monitorando grupos de WhatsApp com transcrição.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.7',
+    date: 'Maio de 2026',
+    highlight: 'Checkout, planos e pedidos.',
+    items: [
+      { category: 'novo', text: 'Checkout público com Mercado Pago, Asaas e InfinityPay.' },
+      { category: 'novo', text: 'Gestão de planos e pedidos da Julia no admin.' },
+      { category: 'melhoria', text: 'Registro automático de webhooks de pagamento.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.6',
+    date: 'Abril de 2026',
+    highlight: 'Omnichannel: API oficial, Instagram e WebChat.',
+    items: [
+      { category: 'novo', text: 'Integração com WhatsApp API oficial (WABA) via Embedded Signup.' },
+      { category: 'novo', text: 'Canais de Instagram e WebChat no mesmo inbox.' },
+      { category: 'melhoria', text: 'Arquitetura multi-provedor unificada para envio e recebimento.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.5',
+    date: 'Abril de 2026',
+    highlight: 'Copiloto de IA e biblioteca jurídica.',
+    items: [
+      { category: 'novo', text: 'Copiloto do CRM com insights automáticos.' },
+      { category: 'novo', text: 'Gerador de prompts com versionamento e biblioteca de 103 casos jurídicos.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.4',
+    date: 'Março de 2026',
+    highlight: 'Contratos, followup e integrações jurídicas.',
+    items: [
+      { category: 'novo', text: 'Módulo de contratos com cadência de notificações.' },
+      { category: 'novo', text: 'Followup automático dos leads.' },
+      { category: 'novo', text: 'Monitoramento de processos via DataJud e integração Advbox.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.0 – v2.3',
+    date: '2026',
+    highlight: 'Base do painel: chat, CRM e agentes.',
+    items: [
+      { category: 'novo', text: 'Inbox de atendimento com filas, tickets e SLA.' },
+      { category: 'novo', text: 'CRM de leads e CRM Builder em Kanban.' },
+      { category: 'novo', text: 'Gestão de agentes de IA da Julia por escritório.' },
+      { category: 'novo', text: 'Permissões por módulo, equipes e papéis (admin, time, advogado, comercial).' },
+    ] as ChangelogItem[],
+  },
 ];
+
 
 const categoryProps: Record<ChangelogItem['category'], { label: string; className: string }> = {
   novo: { label: 'Novo', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
