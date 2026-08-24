@@ -93,6 +93,15 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
   const { snoozedItems, refetchSnoozed } = useJuliaSnoozed(clientId, scopeQueueIds);
   const snoozedCount = snoozedItems.length;
 
+  // Avisa na interface quando um adiamento expira e a conversa volta à lista.
+  useSnoozeExpiryWatcher(snoozedItems, useCallback(() => {
+    void refetchSnoozed();
+    void feeds.pending.refresh();
+    void feeds.open.refresh();
+    void feeds.resolved_closed.refresh();
+  }, [refetchSnoozed, feeds]));
+
+
   const c = counters;
 
   return (
