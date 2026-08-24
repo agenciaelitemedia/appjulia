@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { markJustLoggedIn } from '@/components/layout/DisconnectedAgentsAlert';
 import { checkVersionAndReloadIfNeeded } from '@/lib/appVersion';
 import { toast as sonnerToast } from 'sonner';
+import { isOwnerUser } from '@/lib/auth/isOwner';
 
 const WHATSAPP_TIME =
   'https://wa.me/5534988860163?text=Quero%20informa%C3%A7%C3%B5es%20sobre%20a%20Julia%20IA';
