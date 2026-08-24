@@ -122,6 +122,12 @@ export function useJuliaChatFeed(
     const showLoading = mode === 'replace' && !silent && !backgroundRef.current;
     const id = ++reqId.current;
     lastLoadAt.current = Date.now();
+    // Revalidação/refresh de lista já paginada recarrega o mesmo volume exibido
+    // (teto de 200 aceito pela edge function), para não cortar a lista de volta
+    // à primeira página.
+    const limit = mode === 'replace' && offset === 0
+      ? Math.min(200, Math.max(PAGE_SIZE, rowsRef.current.length))
+      : PAGE_SIZE;
     setState((s) => ({
       ...s,
       loading: showLoading,
@@ -130,7 +136,7 @@ export function useJuliaChatFeed(
       error: null,
     }));
     try {
-      const res = await fetchJuliaChatFeed({ clientId, filters: effectiveFilters, limit: PAGE_SIZE, offset, refresh });
+      const res = await fetchJuliaChatFeed({ clientId, filters: effectiveFilters, limit, offset, refresh });
       if (id !== reqId.current) return;
       setState((s) => ({
         rows: mode === 'append' ? [...s.rows, ...res.rows] : res.rows,
@@ -144,6 +150,7 @@ export function useJuliaChatFeed(
         requests: s.requests + 1,
       }));
       if (mode === 'replace') setLiveEvents(0);
+
     } catch (e) {
       if (id !== reqId.current) return;
       setState((s) => ({
