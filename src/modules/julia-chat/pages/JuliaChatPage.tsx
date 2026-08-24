@@ -73,7 +73,7 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
     restrict_open_to: restrictOpenTo,
   }), [debounced, scopeQueueIds, restrictOpenTo]);
 
-  const { active, setActive, feeds, activeFeed, counters } = useJuliaChatTabs(
+  const { active, setActive, feeds, activeFeed, counters, removeRowEverywhere } = useJuliaChatTabs(
     queuesLoading ? null : clientId,
     scopedFilters,
     'open',
@@ -175,6 +175,11 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
         <JuliaConversationColumns
           selected={selected}
           onClearSelection={() => setSelected(null)}
+          onSnoozed={(conversationId) => {
+            removeRowEverywhere(conversationId);
+            setSelected(null);
+            void refetchSnoozed();
+          }}
           feed={activeFeed}
         />
       </WhatsAppDataProvider>
@@ -214,10 +219,12 @@ function useIsBelowLg() {
 function JuliaConversationColumns({
   selected,
   onClearSelection,
+  onSnoozed,
   feed,
 }: {
   selected: JuliaChatRowData | null;
   onClearSelection: () => void;
+  onSnoozed?: (conversationId: string) => void;
   feed: ReturnType<typeof useJuliaChatTabs>['activeFeed'];
 }) {
   const isBelowLg = useIsBelowLg();
@@ -273,7 +280,7 @@ function JuliaConversationColumns({
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {target ? (
-            <JuliaChatConversation target={target} onClose={onClearSelection} />
+            <JuliaChatConversation target={target} onClose={onClearSelection} onSnoozed={onSnoozed} />
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
               <MessageSquare className="h-10 w-10 opacity-40" aria-hidden />
