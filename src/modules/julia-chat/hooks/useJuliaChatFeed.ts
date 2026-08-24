@@ -262,6 +262,7 @@ export function useJuliaChatFeed(
       const counters = s.counters
         ? {
             ...s.counters,
+            total: Math.max(0, (s.counters.total ?? 0) - 1),
             unread: Math.max(0, (s.counters.unread ?? 0) - (row.unread_count ?? 0)),
             ...(row.status && typeof (s.counters as any)[row.status] === 'number'
               ? { [row.status]: Math.max(0, (s.counters as any)[row.status] - 1) }
