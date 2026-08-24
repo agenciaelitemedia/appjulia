@@ -85,7 +85,7 @@ function ChannelBadge({ channel }: { channel?: string }) {
 
 
 
-export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnly = false }: ChatHeaderProps) {
+export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnly = false, onSnoozed }: ChatHeaderProps) {
   const { selectedConversation, updateConversationStatus, assignConversation, filteredContacts, selectedContactId, selectContact, markAsRead, conversationTagsMap, setConversationStatusFilter, sendInternalNote } = useWhatsAppData();
   const { user, hasPermission } = useAuth();
   const { configs: slaConfigs } = useChatSlaConfigs();
