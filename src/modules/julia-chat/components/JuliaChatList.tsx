@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  MascoteLoader, Skeleton, cn,
+  MascoteLoader, Skeleton, Badge, cn,
   AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../extend/ui';
