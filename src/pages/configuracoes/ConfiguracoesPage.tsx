@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bot, History, Activity, Wrench, BarChart3, MailX, Zap } from 'lucide-react';
+import { Bot, History, Activity, Wrench, BarChart3, MailX, Zap, ScrollText } from 'lucide-react';
 import { AIModelsConfig } from './components/AIModelsConfig';
 import { UazapiHistoryTab } from './components/UazapiHistoryTab';
 import { UazapiMonitorTab } from './components/UazapiMonitorTab';
@@ -7,6 +7,7 @@ import { QueueMaintenanceTab } from './components/QueueMaintenanceTab';
 import { AIUsageDashboard } from './components/AIUsageDashboard';
 import { DroppedMessagesTab } from './components/DroppedMessagesTab';
 import { BlitzLeadsConfigTab } from './components/BlitzLeadsConfigTab';
+import { ChangelogTab } from './components/ChangelogTab';
 
 export default function ConfiguracoesPage() {
   return (
@@ -45,6 +46,10 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="blitzleads" className="gap-2">
             <Zap className="w-4 h-4" />
             BlitzLeads
+          </TabsTrigger>
+          <TabsTrigger value="changelog" className="gap-2">
+            <ScrollText className="w-4 h-4" />
+            Changelog
           </TabsTrigger>
         </TabsList>
 
@@ -92,6 +97,10 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
           <BlitzLeadsConfigTab />
+        </TabsContent>
+
+        <TabsContent value="changelog" className="mt-6">
+          <ChangelogTab />
         </TabsContent>
       </Tabs>
     </div>
