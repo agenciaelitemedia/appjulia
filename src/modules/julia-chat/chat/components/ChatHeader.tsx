@@ -706,6 +706,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnl
         open={showSnooze}
         onOpenChange={setShowSnooze}
         conversationId={selectedConversation?.id || null}
+        onSnoozed={onSnoozed}
       />
 
       {/* Phone call */}
