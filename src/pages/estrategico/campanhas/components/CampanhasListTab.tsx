@@ -129,25 +129,6 @@ export function CampanhasListTab({ filters }: CampanhasListTabProps) {
           </SelectContent>
         </Select>
 
-        {/* View Toggle */}
-        <div className="flex gap-1">
-          <Toggle
-            pressed={isGridView}
-            onPressedChange={() => setIsGridView(true)}
-            aria-label="Grid view"
-            size="sm"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Toggle>
-          <Toggle
-            pressed={!isGridView}
-            onPressedChange={() => setIsGridView(false)}
-            aria-label="List view"
-            size="sm"
-          >
-            <List className="h-4 w-4" />
-          </Toggle>
-        </div>
       </div>
 
       {/* Results count */}
