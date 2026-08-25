@@ -1904,6 +1904,7 @@ export type Database = {
           last_customer_message_at: string | null
           last_message_from_me: boolean | null
           metadata: Json | null
+          observations: string | null
           opened_at: string
           priority: string
           protocol: string
@@ -1937,6 +1938,7 @@ export type Database = {
           last_customer_message_at?: string | null
           last_message_from_me?: boolean | null
           metadata?: Json | null
+          observations?: string | null
           opened_at?: string
           priority?: string
           protocol: string
@@ -1970,6 +1972,7 @@ export type Database = {
           last_customer_message_at?: string | null
           last_message_from_me?: boolean | null
           metadata?: Json | null
+          observations?: string | null
           opened_at?: string
           priority?: string
           protocol?: string

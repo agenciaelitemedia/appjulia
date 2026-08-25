@@ -1,0 +1,1 @@
+ALTER TABLE public.chat_conversations ADD COLUMN IF NOT EXISTS observations text;
