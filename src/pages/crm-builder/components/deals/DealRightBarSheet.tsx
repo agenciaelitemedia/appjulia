@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
+import { getBrPhoneVariants } from '@/lib/phoneVariants';
 import {
   WhatsAppDataProvider,
   useWhatsAppData,
@@ -17,17 +18,42 @@ import type { ChatConversation } from '@/types/conversation';
 
 type DealDetailsProps = React.ComponentProps<typeof DealDetailsSheet>;
 
+const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+
 /**
  * Abre os detalhes do card do CRM Builder usando a mesma right-bar do chat
  * (abas Contato / CRM / Telefonia), com a aba CRM ativa.
  *
- * Sem vínculo de contato/conversa no chat, cai no `DealDetailsSheet` original.
+ * Sem vínculo de contato/conversa no chat, tenta resolver o contato pelo
+ * telefone do card; se não existir, exibe a mesma right-bar com um contato
+ * sintético (apenas nome/telefone do card) e estados vazios.
  */
 export function DealRightBarSheet(props: DealDetailsProps) {
   const { deal, open, onOpenChange } = props;
   const { data: conv, isLoading } = useDealConversation(deal);
-  const contactId = conv?.contactId ?? null;
+  const linkedContactId = conv?.contactId ?? null;
   const queueId = conv?.queueId ?? null;
+
+  const phoneVariants = useMemo(
+    () => getBrPhoneVariants(deal?.contact_phone),
+    [deal?.contact_phone],
+  );
+
+  // Sem vínculo direto: tenta achar o contato do chat pelo telefone do card.
+  const { data: phoneContactId, isLoading: isLoadingPhoneContact } = useQuery({
+    queryKey: ['deal-rightbar-contact-by-phone', deal?.client_id, phoneVariants],
+    enabled: open && !linkedContactId && !isLoading && phoneVariants.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<string | null> => {
+      let query = supabase.from('chat_contacts').select('id').in('phone', phoneVariants).limit(1);
+      if (deal?.client_id) query = query.eq('client_id', String(deal.client_id));
+      const { data, error } = await query.maybeSingle();
+      if (error) return null;
+      return (data?.id as string) ?? null;
+    },
+  });
+
+  const contactId = linkedContactId ?? phoneContactId ?? null;
 
   const { data: queueRow } = useQuery({
     queryKey: ['deal-rightbar-queue', queueId],
@@ -53,7 +79,25 @@ export function DealRightBarSheet(props: DealDetailsProps) {
     },
   });
 
-  if (open && isLoading) {
+  const syntheticContact: ChatContact = useMemo(
+    () => ({
+      id: NIL_UUID,
+      client_id: deal?.client_id ? String(deal.client_id) : '',
+      phone: (deal?.contact_phone || '').replace(/\D/g, ''),
+      name: deal?.contact_name || deal?.title || 'Contato do card',
+      is_group: false,
+      is_archived: false,
+      is_muted: false,
+      unread_count: 0,
+      created_at: deal?.created_at || new Date().toISOString(),
+      updated_at: deal?.updated_at || new Date().toISOString(),
+    }),
+    [deal?.client_id, deal?.contact_phone, deal?.contact_name, deal?.title, deal?.created_at, deal?.updated_at],
+  );
+
+  const loading = open && (isLoading || isLoadingPhoneContact);
+
+  if (loading) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="w-full p-0 sm:w-[460px] sm:max-w-[460px]">
@@ -71,11 +115,6 @@ export function DealRightBarSheet(props: DealDetailsProps) {
     );
   }
 
-  // Sem contato do chat vinculado: mantém o comportamento atual.
-  if (!contactId) {
-    return <DealDetailsSheet {...props} />;
-  }
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -88,15 +127,25 @@ export function DealRightBarSheet(props: DealDetailsProps) {
         </VisuallyHidden>
         <div className="flex-1 min-h-0">
           <WhatsAppDataProvider>
-            <ScopedDealRightBar
-              contactId={contactId}
-              conversationId={conv?.conversationId ?? null}
-              queue={queueRow ?? null}
-              onClose={() => onOpenChange(false)}
-              crmContent={
-                <DealDetailsSheet {...props} variant="inline" />
-              }
-            />
+            {contactId ? (
+              <ScopedDealRightBar
+                contactId={contactId}
+                conversationId={conv?.conversationId ?? null}
+                queue={queueRow ?? null}
+                onClose={() => onOpenChange(false)}
+                crmContent={<DealDetailsSheet {...props} variant="inline" />}
+              />
+            ) : (
+              <ChatRightBar
+                contact={syntheticContact}
+                onClose={() => onOpenChange(false)}
+                className="h-full w-full border-l-0"
+                initialTab="crm"
+                visibleTabs={['contact', 'crm', 'phone']}
+                crmContent={<DealDetailsSheet {...props} variant="inline" />}
+                contactUnlinked
+              />
+            )}
           </WhatsAppDataProvider>
         </div>
       </SheetContent>
