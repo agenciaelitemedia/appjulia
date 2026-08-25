@@ -624,12 +624,12 @@ export function JuliaChatFiltersBar({
               </div>
             </CollapsibleContent>
           </div>
-        </Collapsible>
 
-        <p aria-live="polite" className="sr-only">
-          {resultCount != null ? `${resultCount} conversas encontradas` : ''}
-        </p>
-      </div>
-    </TooltipProvider>
+          <p aria-live="polite" className="sr-only">
+            {resultCount != null ? `${resultCount} conversas encontradas` : ''}
+          </p>
+        </div>
+      </TooltipProvider>
+    </Collapsible>
   );
 }
