@@ -21,6 +21,7 @@ import { extractFirstUrl } from '@/modules/julia-chat/chat/lib/linkPreview';
 import { applyFormat, type FormatToken } from '@/lib/whatsappFormat';
 import { externalDb } from '@/lib/externalDb';
 import { interpolateVariables } from '@/lib/messageVariables';
+import { useConversationSummaries } from '@/hooks/useConversationSummaries';
 
 interface ChatInputProps {
   contactId: string;
