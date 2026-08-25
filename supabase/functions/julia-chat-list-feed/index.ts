@@ -678,7 +678,7 @@ serve(async (req) => {
     cache_hits: cacheHits,
     cache_misses: cacheMisses,
     cache_refreshed: missing.length,
-    sql_count: (missing.length > 0 && variants.length > 0 ? 2 : 1) + (wanted.size > 0 ? 1 : 0),
+    sql_count: (foregroundMissing.length > 0 ? 2 : 1) + (wanted.size > 0 ? 1 : 0),
     rows: rows.length,
   };
 
