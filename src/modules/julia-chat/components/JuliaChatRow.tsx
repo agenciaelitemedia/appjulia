@@ -385,7 +385,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <JuliaBadgeMenu
                 icon={User}
                 label={row.assigned_to || 'Sem responsável'}
-                width="w-[116px]"
+                width="flex-1 min-w-0"
                 tone={row.assigned_to
                   ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
                   : 'border-border bg-muted/60 text-muted-foreground'}
