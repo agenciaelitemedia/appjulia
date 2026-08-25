@@ -14,7 +14,6 @@ import { JuliaChatFiltersBar } from '../components/JuliaChatFilters';
 import { JuliaChatPerfPanel } from '../components/JuliaChatPerfPanel';
 import { JuliaChatStatusTabs } from '../components/JuliaChatStatusTabs';
 import { JuliaSnoozedPanel } from '../components/JuliaSnoozedPanel';
-import { JuliaNewConversationFooter } from '../components/JuliaNewConversationFooter';
 import { JuliaChatConversation } from '../components/JuliaChatConversation';
 import { JuliaChatRightBar } from '../components/JuliaChatRightBar';
 import { WhatsAppDataProvider } from '../extend/chat';
