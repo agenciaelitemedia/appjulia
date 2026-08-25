@@ -15,3 +15,4 @@
 - [X-Julia Calc Skill](mem://features/x-julia/calc-skill) — skill `calcular` obrigatória: renda per capita (BPC 1/4 SM), somas, %, parcelamento, expressões
 - [Alertas WhatsApp](mem://features/notificacoes-alertas/module) — Módulo isolado de notificações por gatilho; padrão extend/ para módulos novos
 - [Legacy Timestamps](mem://technical/database/legacy-naive-timestamps) — Datas das tabelas legadas são naive em BRT; gravar com nowDbTimestamp()
+- [Call ↔ Contato](mem://technical/telephony/call-contact-linking) — Vínculo de ligações VoIP/ZAP com chat_contacts gravado na origem
