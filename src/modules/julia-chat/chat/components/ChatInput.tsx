@@ -227,11 +227,6 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
       e.preventDefault();
       handleSend();
     }
-    // Quick messages shortcut
-    if (e.key === '/' && text === '') {
-      e.preventDefault();
-      setShowQuickMessages(true);
-    }
   };
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>, type: MessageType) => {
@@ -684,7 +679,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
                   ? 'Assuma a conversa ou abra uma nota interna para escrever...'
                   : noteMode
                     ? 'Digite uma nota interna... (use @ para mencionar)'
-                    : 'Digite uma mensagem... (/ atalhos, cole imagem)'
+                    : 'Digite uma mensagem... (cole imagem)'
               }
               className={cn(
                 'w-full min-h-[36px] max-h-[150px] py-2 resize-none',
