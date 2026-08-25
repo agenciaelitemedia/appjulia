@@ -67,6 +67,27 @@ function AgentDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasInitializedFilters = useRef(false);
 
+  // Preferência de layout dos funis (persistida no navegador)
+  const [funnelLayout, setFunnelLayout] = useState<DashboardFunnelLayout>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.DASHBOARD_FUNNEL_LAYOUT);
+      return saved === 'full' ? 'full' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  const handleFunnelLayoutChange = (value: string) => {
+    const next: DashboardFunnelLayout = value === 'full' ? 'full' : 'grid';
+    setFunnelLayout(next);
+    try {
+      localStorage.setItem(STORAGE_KEYS.DASHBOARD_FUNNEL_LAYOUT, next);
+    } catch {
+      /* ignore */
+    }
+  };
+
+
   // Modal state for lead details
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
