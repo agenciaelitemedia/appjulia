@@ -245,15 +245,6 @@ export function JuliaChatFiltersBar({
     return out;
   }, [filters, tags, queues]);
 
-  const dirty =
-    activeChips.length > 0 ||
-    filters.search.trim().length > 0 ||
-    filters.period !== 'all' ||
-    filters.sort !== 'recent' ||
-    filters.queue_ids.length > 0 ||
-    filters.julia_stage_ids.length > 0 ||
-    filters.owners.length > 0 ||
-    !!filters.julia_mode;
 
   const modeButtons: { value: 'all' | 'julia' | 'human'; icon: typeof Bot; tip: string; on: string }[] = [
     { value: 'all', icon: ListFilter, tip: 'Todos os modos', on: 'bg-primary text-primary-foreground border-primary' },
