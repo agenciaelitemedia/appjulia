@@ -17,6 +17,9 @@ export const STORAGE_KEYS = {
   SIDEBAR_COLLAPSED: 'julia_sidebar_collapsed',
   /** Layout dos funis no painel: 'grid' (3 colunas) ou 'full' (1 por linha) */
   DASHBOARD_FUNNEL_LAYOUT: 'julia_dashboard_funnel_layout',
+  /** Layout dos cards do dashboard de campanhas: 'grid' ou 'full' */
+  CAMPANHAS_CARD_LAYOUT: 'julia_campanhas_card_layout',
+
 
 } as const;
 
