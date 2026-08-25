@@ -5,7 +5,8 @@ import { differenceInHours, differenceInMinutes } from 'date-fns';
 import {
   Clock, Megaphone, Bot, User, Ticket, Kanban, Users,
   MessageCircle, MessagesSquare, Instagram, Send, Globe, Facebook, Mail,
-  UserPlus, UserCog, ArrowRightLeft, Undo2, ExternalLink, type LucideIcon,
+  UserPlus, UserCog, ArrowRightLeft, Undo2, ExternalLink, ChevronDown, ChevronUp,
+  type LucideIcon,
 } from 'lucide-react';
 
 
@@ -132,6 +133,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
   const [transferOpen, setTransferOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
+  const [badgesExpanded, setBadgesExpanded] = useState(false);
   const { resolve: resolveCrmTarget } = useJuliaCrmTarget();
 
   const preview = useMemo(
@@ -348,9 +350,9 @@ export const JuliaChatRow = memo(function JuliaChatRow({
         </div>
       </div>
 
-      {/* Badges — 3 linhas, iniciando abaixo do avatar */}
+      {/* Badges — fila sempre visível; demais ocultos até expandir */}
       <div className="mt-2.5 w-full space-y-1">
-        {/* Linha 1 — fila / responsável / IA */}
+        {/* Linha 1 — fila + toggle / responsável / IA (quando expandido) */}
         <div className="flex items-center gap-1">
           <FixedBadge
             icon={channel.Icon}
@@ -366,136 +368,165 @@ export const JuliaChatRow = memo(function JuliaChatRow({
             }
           />
 
-          <JuliaBadgeMenu
-            icon={User}
-            label={row.assigned_to || 'Sem responsável'}
-            width="w-[116px]"
-            tone={row.assigned_to
-              ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
-              : 'border-border bg-muted/60 text-muted-foreground'}
-            tooltip={row.assigned_to ? `Responsável: ${row.assigned_to}` : 'Nenhum atendente atribuído'}
-          >
-            <DropdownMenuLabel className="text-[11px]">Responsável</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {tab === 'open' ? (
-              <>
-                {isOwner && (
-                  <DropdownMenuItem onSelect={() => setTransferOpen(true)}>
-                    <ArrowRightLeft className="mr-2 h-4 w-4" /> Transferir
-                  </DropdownMenuItem>
+          {!badgesExpanded ? (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setBadgesExpanded(true); }}
+              className={cn(
+                'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
+                'border-border bg-muted/60 text-muted-foreground transition-colors hover:bg-accent',
+              )}
+              title="Mostrar mais badges"
+            >
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          ) : (
+            <>
+              <JuliaBadgeMenu
+                icon={User}
+                label={row.assigned_to || 'Sem responsável'}
+                width="w-[116px]"
+                tone={row.assigned_to
+                  ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
+                  : 'border-border bg-muted/60 text-muted-foreground'}
+                tooltip={row.assigned_to ? `Responsável: ${row.assigned_to}` : 'Nenhum atendente atribuído'}
+              >
+                <DropdownMenuLabel className="text-[11px]">Responsável</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {tab === 'open' ? (
+                  <>
+                    {isOwner && (
+                      <DropdownMenuItem onSelect={() => setTransferOpen(true)}>
+                        <ArrowRightLeft className="mr-2 h-4 w-4" /> Transferir
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onSelect={() => setReturnOpen(true)}>
+                      <Undo2 className="mr-2 h-4 w-4" /> Devolver para a fila
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem onSelect={() => setAssignOpen(true)}>
+                      <UserCog className="mr-2 h-4 w-4" /> Definir Responsável
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => { void handleAssume(); }}>
+                      <UserPlus className="mr-2 h-4 w-4" /> Assumir Conversa
+                    </DropdownMenuItem>
+                  </>
                 )}
-                <DropdownMenuItem onSelect={() => setReturnOpen(true)}>
-                  <Undo2 className="mr-2 h-4 w-4" /> Devolver para a fila
-                </DropdownMenuItem>
-              </>
-            ) : (
-              <>
-                <DropdownMenuItem onSelect={() => setAssignOpen(true)}>
-                  <UserCog className="mr-2 h-4 w-4" /> Definir Responsável
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => { void handleAssume(); }}>
-                  <UserPlus className="mr-2 h-4 w-4" /> Assumir Conversa
-                </DropdownMenuItem>
-              </>
-            )}
-          </JuliaBadgeMenu>
+              </JuliaBadgeMenu>
 
-          <JuliaBadgeMenu
-            icon={Bot}
-            label={juliaBadge.label}
-            width="w-[116px]"
-            tone={juliaBadge.tone}
-            tooltip={juliaBadge.tooltip}
-          >
-            {hasJuliaAgent ? (
-              <DropdownMenuItem onSelect={goJuliaCrm}>
-                <ExternalLink className="mr-2 h-4 w-4" /> Ir CRM Júlia
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem disabled>---</DropdownMenuItem>
-            )}
-          </JuliaBadgeMenu>
+              <JuliaBadgeMenu
+                icon={Bot}
+                label={juliaBadge.label}
+                width="w-[116px]"
+                tone={juliaBadge.tone}
+                tooltip={juliaBadge.tooltip}
+              >
+                {hasJuliaAgent ? (
+                  <DropdownMenuItem onSelect={goJuliaCrm}>
+                    <ExternalLink className="mr-2 h-4 w-4" /> Ir CRM Júlia
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem disabled>---</DropdownMenuItem>
+                )}
+              </JuliaBadgeMenu>
+            </>
+          )}
         </div>
 
-        {/* Linha 2 — SLA / CRM / campanha */}
-        <div className="flex items-center gap-1">
-          <div className="w-[92px] shrink-0">
-            {showSla ? (
-              <SlaBadge evaluation={sla} compact className="w-full rounded-full border border-current/40" />
-            ) : (
+        {/* Linha 2 — SLA / CRM / campanha / fechar + demais badges (somente expandido) */}
+        {badgesExpanded && (
+          <div className="flex flex-wrap items-center gap-1">
+            <div className="w-[92px] shrink-0">
+              {showSla ? (
+                <SlaBadge evaluation={sla} compact className="w-full rounded-full border border-current/40" />
+              ) : (
+                <FixedBadge
+                  icon={Clock}
+                  label="—"
+                  width="w-full"
+                  tone="border-border bg-muted/60 text-muted-foreground"
+                  tooltip="Sem SLA em acompanhamento para esta conversa"
+                />
+              )}
+            </div>
+
+            <JuliaBadgeMenu
+              icon={Kanban}
+              label={crmLabel}
+              width="w-[150px]"
+              tone={row.crm_pipeline_name
+                ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                : 'border-border bg-muted/60 text-muted-foreground'}
+              tooltip={
+                row.crm_pipeline_name
+                  ? `CRM: ${row.crm_board_name ?? '—'} · Etapa: ${row.crm_pipeline_name}`
+                  : 'Conversa sem card no CRM Builder'
+              }
+            >
+              {row.crm_pipeline_name ? (
+                <DropdownMenuItem onSelect={() => { void goCrmBuilder(); }}>
+                  <ExternalLink className="mr-2 h-4 w-4" /> Ir Painel do CRM
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled>---</DropdownMenuItem>
+              )}
+            </JuliaBadgeMenu>
+
+            <JuliaBadgeMenu
+              icon={Megaphone}
+              label={row.campaign ? String(campaignTitle) : '---'}
+              width="w-[104px]"
+              tone={row.campaign
+                ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400'
+                : 'border-border bg-muted/60 text-muted-foreground'}
+              tooltip={row.campaign ? `Campanha (Meta Ads): ${campaignTitle}` : 'Lead sem campanha de anúncio'}
+            >
+              {row.campaign ? (
+                <DropdownMenuItem onSelect={() => setCampaignOpen(true)}>
+                  <Megaphone className="mr-2 h-4 w-4" /> Ver Campanha
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem disabled>---</DropdownMenuItem>
+              )}
+            </JuliaBadgeMenu>
+
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setBadgesExpanded(false); }}
+              className={cn(
+                'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
+                'border-border bg-muted/60 text-muted-foreground transition-colors hover:bg-accent',
+              )}
+              title="Ocultar badges"
+            >
+              <ChevronUp className="h-3 w-3" />
+            </button>
+
+            {(row.sibling_open_count ?? 0) > 0 && (
               <FixedBadge
-                icon={Clock}
-                label="—"
-                width="w-full"
+                icon={MessagesSquare}
+                label={`+${row.sibling_open_count}`}
+                width="w-[52px]"
                 tone="border-border bg-muted/60 text-muted-foreground"
-                tooltip="Sem SLA em acompanhamento para esta conversa"
+                tooltip={`Este contato tem ${row.sibling_open_count} outra(s) conversa(s) aberta(s)`}
+              />
+            )}
+
+            {row.active_ticket_id && (
+              <FixedBadge
+                icon={Ticket}
+                label={`#${row.active_ticket_number ?? row.active_ticket_protocol ?? '—'}`}
+                width="w-[62px]"
+                tone="border-border bg-muted/60 text-muted-foreground"
+                tooltip={`Ticket de suporte ${row.ticket_status ? `· ${row.ticket_status}` : ''} ${row.ticket_subject ?? ''}`.trim()}
               />
             )}
           </div>
+        )}
 
-          <JuliaBadgeMenu
-            icon={Kanban}
-            label={crmLabel}
-            width="w-[150px]"
-            tone={row.crm_pipeline_name
-              ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
-              : 'border-border bg-muted/60 text-muted-foreground'}
-            tooltip={
-              row.crm_pipeline_name
-                ? `CRM: ${row.crm_board_name ?? '—'} · Etapa: ${row.crm_pipeline_name}`
-                : 'Conversa sem card no CRM Builder'
-            }
-          >
-            {row.crm_pipeline_name ? (
-              <DropdownMenuItem onSelect={() => { void goCrmBuilder(); }}>
-                <ExternalLink className="mr-2 h-4 w-4" /> Ir Painel do CRM
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem disabled>---</DropdownMenuItem>
-            )}
-          </JuliaBadgeMenu>
-
-          <JuliaBadgeMenu
-            icon={Megaphone}
-            label={row.campaign ? String(campaignTitle) : '---'}
-            width="w-[104px]"
-            tone={row.campaign
-              ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400'
-              : 'border-border bg-muted/60 text-muted-foreground'}
-            tooltip={row.campaign ? `Campanha (Meta Ads): ${campaignTitle}` : 'Lead sem campanha de anúncio'}
-          >
-            {row.campaign ? (
-              <DropdownMenuItem onSelect={() => setCampaignOpen(true)}>
-                <Megaphone className="mr-2 h-4 w-4" /> Ver Campanha
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem disabled>---</DropdownMenuItem>
-            )}
-          </JuliaBadgeMenu>
-
-          {(row.sibling_open_count ?? 0) > 0 && (
-            <FixedBadge
-              icon={MessagesSquare}
-              label={`+${row.sibling_open_count}`}
-              width="w-[52px]"
-              tone="border-border bg-muted/60 text-muted-foreground"
-              tooltip={`Este contato tem ${row.sibling_open_count} outra(s) conversa(s) aberta(s)`}
-            />
-          )}
-
-          {row.active_ticket_id && (
-            <FixedBadge
-              icon={Ticket}
-              label={`#${row.active_ticket_number ?? row.active_ticket_protocol ?? '—'}`}
-              width="w-[62px]"
-              tone="border-border bg-muted/60 text-muted-foreground"
-              tooltip={`Ticket de suporte ${row.ticket_status ? `· ${row.ticket_status}` : ''} ${row.ticket_subject ?? ''}`.trim()}
-            />
-          )}
-
-        </div>
-
-        {/* Linha 3 — etiquetas */}
+        {/* Linha 3 — etiquetas (sempre visíveis, não entram no expandir/recolher) */}
         {row.tags?.length ? (
           <div className="flex flex-wrap items-center gap-1">
             {row.tags.map((t) => (
