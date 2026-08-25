@@ -437,8 +437,8 @@ export const JuliaChatRow = memo(function JuliaChatRow({
 
         {/* Linha 2 — SLA / CRM / campanha / fechar + demais badges (somente expandido) */}
         {badgesExpanded && (
-          <div className="flex flex-wrap items-center gap-1">
-            <div className="w-[92px] shrink-0">
+          <div className="flex items-center gap-0.5">
+            <div className="w-[78px] shrink-0">
               {showSla ? (
                 <SlaBadge evaluation={sla} compact className="w-full rounded-full border border-current/40" />
               ) : (
@@ -455,7 +455,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
             <JuliaBadgeMenu
               icon={Kanban}
               label={crmLabel}
-              width="w-[150px]"
+              width="w-[110px]"
               tone={row.crm_pipeline_name
                 ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
                 : 'border-border bg-muted/60 text-muted-foreground'}
@@ -477,7 +477,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
             <JuliaBadgeMenu
               icon={Megaphone}
               label={row.campaign ? String(campaignTitle) : '---'}
-              width="w-[104px]"
+              width="w-[90px]"
               tone={row.campaign
                 ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400'
                 : 'border-border bg-muted/60 text-muted-foreground'}
@@ -508,7 +508,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <FixedBadge
                 icon={MessagesSquare}
                 label={`+${row.sibling_open_count}`}
-                width="w-[52px]"
+                width="w-[44px]"
                 tone="border-border bg-muted/60 text-muted-foreground"
                 tooltip={`Este contato tem ${row.sibling_open_count} outra(s) conversa(s) aberta(s)`}
               />
@@ -518,7 +518,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <FixedBadge
                 icon={Ticket}
                 label={`#${row.active_ticket_number ?? row.active_ticket_protocol ?? '—'}`}
-                width="w-[62px]"
+                width="w-[52px]"
                 tone="border-border bg-muted/60 text-muted-foreground"
                 tooltip={`Ticket de suporte ${row.ticket_status ? `· ${row.ticket_status}` : ''} ${row.ticket_subject ?? ''}`.trim()}
               />
