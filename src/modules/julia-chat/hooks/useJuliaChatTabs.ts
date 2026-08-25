@@ -5,7 +5,7 @@ import type { JuliaChatFilters, JuliaChatTab } from '../api/types';
 export type JuliaTabKey = 'pending' | 'open' | 'resolved_closed';
 
 /** Atraso para "aquecer" a aba irmã, evitando rajada de requests na entrada. */
-const WARMUP_DELAY_MS = 600;
+const WARMUP_DELAY_MS = 5000;
 
 /**
  * As 3 abas como listas independentes:
@@ -17,18 +17,17 @@ export function useJuliaChatTabs(clientId: string | null, filters: JuliaChatFilt
   const [active, setActive] = useState<JuliaTabKey>(initialTab);
   const [warm, setWarm] = useState(false);
   const [closedTouched, setClosedTouched] = useState(initialTab === 'resolved_closed');
+  const searching = (filters.search ?? '').trim().length > 0;
 
   // aquece a aba irmã pouco depois da entrada (nunca as duas de uma vez)
   useEffect(() => {
-    if (warm || !clientId) return;
+    if (warm || !clientId || searching) return;
     const t = setTimeout(() => setWarm(true), WARMUP_DELAY_MS);
     return () => clearTimeout(t);
-  }, [warm, clientId]);
+  }, [warm, clientId, searching]);
 
   // Busca ativa: carrega também a aba Encerradas, para que o resultado apareça
   // (e o contador da aba fique visível) mesmo sem o usuário abrir a aba.
-  const searching = (filters.search ?? '').trim().length > 0;
-
   useEffect(() => {
     if (active === 'resolved_closed' || searching) setClosedTouched(true);
   }, [active, searching]);
