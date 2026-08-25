@@ -381,31 +381,31 @@ export function JuliaChatFiltersBar({
           {/* Painel de filtros colapsado */}
           <div className="relative rounded-lg border bg-card/50">
 
-            {!open && activeChips.length > 0 && (
-              <div className="flex flex-wrap gap-1 border-t px-2 py-1.5">
-                {activeChips.slice(0, 6).map((c) => (
-                  <button
-                    key={c.key}
-                    type="button"
-                    aria-label={`Remover filtro ${c.label}`}
-                    onClick={c.clear}
-                    className={cn(CHIP_BASE, 'border-transparent bg-primary/15 text-primary hover:bg-primary/25')}
-                  >
-                    <span className="max-w-[120px] truncate">{c.label}</span>
-                    <X className="h-3 w-3 shrink-0" aria-hidden />
-                  </button>
-                ))}
-                {activeChips.length > 6 && (
-                  <span className="text-[10px] text-muted-foreground">+{activeChips.length - 6}</span>
-                )}
-              </div>
-            )}
-
             <CollapsibleContent
               id="julia-chat-filters-panel"
               className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border bg-popover shadow-xl"
             >
               <div className="thin-scrollbar max-h-[75vh] space-y-3 overflow-y-auto p-2.5">
+
+                {activeChips.length > 0 && (
+                  <div className="flex flex-wrap gap-1 border-b pb-2">
+                    {activeChips.slice(0, 6).map((c) => (
+                      <button
+                        key={c.key}
+                        type="button"
+                        aria-label={`Remover filtro ${c.label}`}
+                        onClick={c.clear}
+                        className={cn(CHIP_BASE, 'border-transparent bg-primary/15 text-primary hover:bg-primary/25')}
+                      >
+                        <span className="max-w-[120px] truncate">{c.label}</span>
+                        <X className="h-3 w-3 shrink-0" aria-hidden />
+                      </button>
+                    ))}
+                    {activeChips.length > 6 && (
+                      <span className="text-[10px] text-muted-foreground">+{activeChips.length - 6}</span>
+                    )}
+                  </div>
+                )}
 
                 <Group label="Período">
                   {PERIOD_OPTIONS.map((opt) => (
