@@ -52,6 +52,7 @@ import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
 import { useChatContactConversationStatus } from '../../hooks/useChatContactConversationStatus';
 import { useDealJuliaContext } from '../../hooks/useDealJuliaContext';
 import { NewConversationDialog } from '@/modules/julia-chat/chat/components/NewConversationDialog';
+import { WavoipCallButton } from '@/modules/julia-chat/chat/components/WavoipCallButton';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useAuth } from '@/contexts/AuthContext';
 
