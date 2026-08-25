@@ -40,7 +40,7 @@ import { DashboardEvolutionChart } from './dashboard/components/DashboardEvoluti
 import { DashboardActivityTimeline } from './dashboard/components/DashboardActivityTimeline';
 import { DashboardSparkline } from './dashboard/components/DashboardSparkline';
 import { DashboardFunnelChart } from './dashboard/components/DashboardFunnelChart';
-import { DashboardTripleFunnel } from './dashboard/components/DashboardTripleFunnel';
+import { DashboardTripleFunnel, type DashboardFunnelLayout } from './dashboard/components/DashboardTripleFunnel';
 import { useDashboardJuliaFunnel, useDashboardCampaignFunnel } from './dashboard/hooks/useDashboardFunnels';
 import { CRMLeadDetailsDialog } from './crm/components/CRMLeadDetailsDialog';
 import { Navigate } from 'react-router-dom';
