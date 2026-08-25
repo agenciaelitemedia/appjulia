@@ -407,6 +407,17 @@ export function JuliaChatFiltersBar({
             >
               <div className="thin-scrollbar max-h-[75vh] space-y-3 overflow-y-auto p-2.5">
 
+                <Group label="Período">
+                  {PERIOD_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt.value}
+                      label={opt.label}
+                      active={filters.period === opt.value}
+                      onToggle={() => onChange({ period: opt.value })}
+                    />
+                  ))}
+                </Group>
+
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label htmlFor="f-priority" className="text-[10px] uppercase tracking-wide text-muted-foreground">Prioridade</Label>
@@ -470,17 +481,6 @@ export function JuliaChatFiltersBar({
                     </Popover>
                   </div>
                 </div>
-
-                <Group label="Período">
-                  {PERIOD_OPTIONS.map((opt) => (
-                    <Chip
-                      key={opt.value}
-                      label={opt.label}
-                      active={filters.period === opt.value}
-                      onToggle={() => onChange({ period: opt.value })}
-                    />
-                  ))}
-                </Group>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
