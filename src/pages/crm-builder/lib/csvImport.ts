@@ -2,6 +2,7 @@
 // CRM BUILDER — importação de cards por arquivo .csv
 // Parser + normalizadores + validação, sem dependência externa.
 // =============================================
+import { normalizeBrPhone } from '@/lib/phoneNormalize';
 import type { CRMCustomField } from '../hooks/useCRMCustomFields';
 import type { DealPriority } from '../types';
 
@@ -188,6 +189,23 @@ export function phoneCore(raw: string | null | undefined): string {
   if (d.startsWith('55') && d.length >= 12) d = d.slice(2);
   if (d.length === 11 && d[2] === '9') d = d.slice(0, 2) + d.slice(3);
   return d;
+}
+
+/**
+ * Telefone canônico para gravação: sempre com DDI (55 para números BR de
+ * 10/11 dígitos) e com o nono dígito, igual a `chat_contacts.phone`.
+ * Números que já têm DDI ou não são BR são apenas limpos.
+ */
+export function phoneForStorage(raw: string | null | undefined): string {
+  const d = String(raw ?? '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.length === 11 && /^[1-9][1-9]$/.test(d.slice(0, 2)) && /[6-9]/.test(d[2])) {
+    return normalizeBrPhone('55' + d);
+  }
+  if (d.length === 10 && /^[1-9][1-9]$/.test(d.slice(0, 2))) {
+    return normalizeBrPhone('55' + d);
+  }
+  return normalizeBrPhone(d);
 }
 
 export function parseValue(raw: string): { value: number; warning?: string } {
@@ -453,7 +471,7 @@ export function validateRows({
         value,
         priority,
         contact_name: contactName || undefined,
-        contact_phone: rawPhone || undefined,
+        contact_phone: phoneForStorage(rawPhone) || undefined,
         contact_email: email || undefined,
         tags: parseTags(get('tags')),
         assigned_to: get('responsavel') || undefined,
