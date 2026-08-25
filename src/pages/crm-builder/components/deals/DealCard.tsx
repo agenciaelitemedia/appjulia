@@ -98,6 +98,7 @@ export function DealCard({
   const [isVisible, setIsVisible] = useState(false);
   const cardElRef = useRef<HTMLDivElement | null>(null);
   const { isAvailable: isPhoneAvailable } = usePhone();
+  const voipUnavailable = !isPhoneAvailable || !deal.contact_phone;
   const { user } = useAuth();
   const {
     attributes,
@@ -251,19 +252,24 @@ export function DealCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
-                    className="h-7 w-7 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
+                    className={cn(
+                      'h-7 w-7 rounded-full',
+                      voipUnavailable
+                        ? 'opacity-60 text-muted-foreground border-border hover:bg-muted'
+                        : 'bg-orange-50 text-orange-600 border-orange-500 hover:bg-orange-100 hover:text-orange-700',
+                    )}
                     onClick={(e) => {
                       e.stopPropagation();
                       setPhoneCallOpen(true);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    <Phone className="h-4 w-4" />
+                    <Phone className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Ligar via ramal</TooltipContent>
+                <TooltipContent>{voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}</TooltipContent>
               </Tooltip>
             )}
 
@@ -290,16 +296,16 @@ export function DealCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
-                    className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                    className="h-7 w-7 rounded-full bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100 hover:text-emerald-800"
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenChat(deal);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    <MessageCircle className="h-4 w-4" />
+                    <MessageCircle className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Abrir conversa</TooltipContent>
@@ -310,16 +316,16 @@ export function DealCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
-                    className="h-7 w-7 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                    className="h-7 w-7 rounded-full bg-amber-50 text-amber-600 border-amber-500 hover:bg-amber-100 hover:text-amber-700"
                     onClick={(e) => {
                       e.stopPropagation();
                       setNewConvOpen(true);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    <MessageCircle className="h-4 w-4" />
+                    <MessageCircle className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Iniciar conversa no WhatsApp</TooltipContent>
