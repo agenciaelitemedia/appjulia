@@ -780,13 +780,17 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   let sql: ReturnType<typeof postgres> | null = null;
 
-  // Backfill manual opcional: {"window_minutes": 120} amplia a janela nesta rodada.
+  // Backfill manual opcional: {"window_minutes": 10080} amplia a janela nesta rodada.
+  // {"card_only": true} cria/atualiza os cards do CRM sem enviar mensagens.
   let windowMinutes = RECENT_WINDOW_MIN;
+  let cardOnly = false;
   try {
     const body = req.method === "POST" ? await req.json().catch(() => null) : null;
     const raw = Number(body?.window_minutes);
-    if (Number.isFinite(raw) && raw > 0) windowMinutes = Math.min(Math.round(raw), 1440);
+    if (Number.isFinite(raw) && raw > 0) windowMinutes = Math.min(Math.round(raw), 10080);
+    cardOnly = body?.card_only === true;
   } catch (_) { /* body opcional */ }
+
 
 
   try {
