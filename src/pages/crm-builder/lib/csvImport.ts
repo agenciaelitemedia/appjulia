@@ -471,7 +471,7 @@ export function validateRows({
         value,
         priority,
         contact_name: contactName || undefined,
-        contact_phone: rawPhone || undefined,
+        contact_phone: phoneForStorage(rawPhone) || undefined,
         contact_email: email || undefined,
         tags: parseTags(get('tags')),
         assigned_to: get('responsavel') || undefined,
