@@ -5,7 +5,8 @@ import { differenceInHours, differenceInMinutes } from 'date-fns';
 import {
   Clock, Megaphone, Bot, User, Ticket, Kanban, Users,
   MessageCircle, MessagesSquare, Instagram, Send, Globe, Facebook, Mail,
-  UserPlus, UserCog, ArrowRightLeft, Undo2, ExternalLink, type LucideIcon,
+  UserPlus, UserCog, ArrowRightLeft, Undo2, ExternalLink, ChevronDown, ChevronUp,
+  type LucideIcon,
 } from 'lucide-react';
 
 
