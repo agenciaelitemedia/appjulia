@@ -325,7 +325,7 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false, 
   // ── Ressincronizar datas das mensagens com o provedor (UaZapi) ──
   const isOwner = useIsOwner();
   const [isResyncing, setIsResyncing] = useState(false);
-  const canResync = isOwner && !!contact.id;
+  const canResync = isOwner && !!contact.id && !unlinked;
 
   const handleResyncTimestamps = async () => {
     if (isResyncing) return;
