@@ -225,7 +225,7 @@ export function JuliaChatFiltersBar({
     } else if (filters.unassigned) {
       push('unassigned', 'Sem responsável', () => onChange({ unassigned: null }));
     }
-    if (filters.julia_mode && filters.julia_mode !== 'all') {
+    if (filters.julia_mode) {
       const modeLabel = filters.julia_mode === 'julia' ? 'Júlia IA' : 'Humano';
       push('mode', `Modo: ${modeLabel}`, () => onChange({ julia_mode: null }));
     }
