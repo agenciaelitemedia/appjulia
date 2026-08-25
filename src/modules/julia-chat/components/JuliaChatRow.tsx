@@ -508,7 +508,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <FixedBadge
                 icon={MessagesSquare}
                 label={`+${row.sibling_open_count}`}
-                width="w-[52px]"
+                width="w-[44px]"
                 tone="border-border bg-muted/60 text-muted-foreground"
                 tooltip={`Este contato tem ${row.sibling_open_count} outra(s) conversa(s) aberta(s)`}
               />
