@@ -396,18 +396,14 @@ All colors MUST be HSL.
 
   /* Fundo da timeline: leve glow radial da marca */
   .aj-chat-canvas {
-    background-color: hsl(140 32% 94%);
+    background-color: hsl(0 0% 96%);
     background-image:
-      linear-gradient(
-        180deg,
-        hsl(140 30% 95% / 0.86),
-        hsl(150 26% 92% / 0.9)
-      ),
-      url("/__l5e/assets-v1/f1e47893-1e13-48cb-8e8d-f53f7d156255/chat-bg-pattern.png");
-    background-repeat: no-repeat, repeat;
-    background-size: cover, 420px auto;
-    background-attachment: local, local;
+      url("/__l5e/assets-v1/d69b7812-de2e-4dd8-98b0-ac6ff5fc7ce5/chat-bg-doodle.png");
+    background-repeat: repeat;
+    background-size: 420px auto;
+    background-attachment: local;
   }
+
 
   .dark .aj-chat-canvas {
     background-color: hsl(258 30% 18% / 0.32);
