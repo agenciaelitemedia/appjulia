@@ -9,6 +9,21 @@ type ChangelogItem = {
 
 const releases = [
   {
+    version: 'v2.19',
+    date: '25 de agosto de 2026',
+    highlight: 'Performance do JulIA Chat e saúde do banco de dados.',
+    items: [
+      { category: 'melhoria', text: 'Lista de conversas usa stale-while-revalidate: retorna imediatamente o cache e atualiza os dados em background.' },
+      { category: 'melhoria', text: 'Trava de atualização em background evita requisições duplicadas simultâneas para o mesmo escritório.' },
+      { category: 'melhoria', text: 'Redução da rajada inicial de requisições entre abas do chat (warmup mais espaçado e desativado durante buscas).' },
+      { category: 'melhoria', text: 'Deduplicação de mensagens na ingestão via busca por sufixo indexada, eliminando consultas lentas.' },
+      { category: 'melhoria', text: 'Limpeza automática diária de logs antigos, liberando espaço em disco do banco.' },
+      { category: 'correcao', text: 'Marcação de leitura sem atualizações redundantes e monitoramento de histórico com menos polling.' },
+      { category: 'correcao', text: 'Devolução automática para a fila passa a considerar o horário de atribuição do responsável (NRT).' },
+    ] as ChangelogItem[],
+  },
+  {
+
     version: 'v2.18',
     date: '25 de agosto de 2026',
     highlight: 'Personalização de layout dos painéis e refinamento do JulIA Chat.',
