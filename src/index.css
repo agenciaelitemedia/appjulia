@@ -394,13 +394,14 @@ All colors MUST be HSL.
     background-color: hsl(258 30% 11% / 0.55);
   }
 
-  /* Fundo da timeline: leve glow radial da marca */
+  /* Fundo da timeline: pattern doodle bem suave com overlay claro */
   .aj-chat-canvas {
-    background-color: hsl(0 0% 96%);
+    background-color: hsl(0 0% 99%);
     background-image:
+      linear-gradient(180deg, hsl(0 0% 100% / 0.88), hsl(0 0% 100% / 0.82)),
       url("/__l5e/assets-v1/d69b7812-de2e-4dd8-98b0-ac6ff5fc7ce5/chat-bg-doodle.png");
-    background-repeat: repeat;
-    background-size: 420px auto;
+    background-repeat: repeat, repeat;
+    background-size: auto, 420px auto;
     background-attachment: local;
   }
 
