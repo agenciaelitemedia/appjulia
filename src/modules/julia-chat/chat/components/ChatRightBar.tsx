@@ -27,7 +27,10 @@ interface ChatRightBarProps {
   visibleTabs?: RightBarTabId[];
   /** Conteúdo customizado da aba CRM (ex.: card do CRM Builder já conhecido). */
   crmContent?: ReactNode;
+  /** Contato sintético (card do CRM sem conversa vinculada no chat). */
+  contactUnlinked?: boolean;
 }
+
 
 /**
  * Coluna lateral direita fixa do chat. Reúne os detalhes do contato e o card
