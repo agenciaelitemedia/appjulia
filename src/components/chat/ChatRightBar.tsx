@@ -46,7 +46,7 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
   );
   const { data: stages = [] } = useCRMStages();
 
-  const tabs: { id: 'contact' | 'crm' | 'lead'; label: string; icon: typeof Info }[] = [
+  const tabs: { id: 'contact' | 'crm' | 'lead' | 'phone'; label: string; icon: typeof Info }[] = [
     { id: 'contact', label: 'Contato', icon: Info },
     { id: 'crm', label: 'CRM', icon: Kanban },
     ...(leadCodAgent ? [{ id: 'lead' as const, label: 'Lead', icon: Eye }] : []),
