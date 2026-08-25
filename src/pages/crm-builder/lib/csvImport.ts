@@ -2,6 +2,7 @@
 // CRM BUILDER — importação de cards por arquivo .csv
 // Parser + normalizadores + validação, sem dependência externa.
 // =============================================
+import { normalizeBrPhone } from '@/lib/phoneNormalize';
 import type { CRMCustomField } from '../hooks/useCRMCustomFields';
 import type { DealPriority } from '../types';
 
