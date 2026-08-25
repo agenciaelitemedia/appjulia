@@ -133,6 +133,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
   const [transferOpen, setTransferOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
+  const [badgesExpanded, setBadgesExpanded] = useState(false);
   const { resolve: resolveCrmTarget } = useJuliaCrmTarget();
 
   const preview = useMemo(
