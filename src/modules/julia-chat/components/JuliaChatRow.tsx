@@ -438,7 +438,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
         {/* Linha 2 — SLA / CRM / campanha / fechar + demais badges (somente expandido) */}
         {badgesExpanded && (
           <div className="flex items-center gap-0.5">
-            <div className="w-[92px] shrink-0">
+            <div className="w-[78px] shrink-0">
               {showSla ? (
                 <SlaBadge evaluation={sla} compact className="w-full rounded-full border border-current/40" />
               ) : (
