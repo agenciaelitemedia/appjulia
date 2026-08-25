@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { differenceInHours, differenceInMinutes } from 'date-fns';
 import {
-  CheckCheck, Clock, Megaphone, Bot, User, Ticket, Kanban, Users,
+  Clock, Megaphone, Bot, User, Ticket, Kanban, Users,
   MessageCircle, MessagesSquare, Instagram, Send, Globe, Facebook, Mail,
   UserPlus, UserCog, ArrowRightLeft, Undo2, ExternalLink, type LucideIcon,
 } from 'lucide-react';
@@ -493,9 +493,6 @@ export const JuliaChatRow = memo(function JuliaChatRow({
             />
           )}
 
-          {row.last_message_from_me && (
-            <CheckCheck className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          )}
         </div>
 
         {/* Linha 3 — etiquetas */}
