@@ -55,6 +55,12 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showFormatBar, setShowFormatBar] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const { generateSummary, getAfterTsForNext } = useConversationSummaries(
+    selectedConversation?.id ?? null,
+    selectedContact?.id ?? null,
+  );
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<{ file: File; type: MessageType; caption?: string } | null>(null);
   const [team, setTeam] = useState<TeamMember[]>([]);
   // Link preview while typing
