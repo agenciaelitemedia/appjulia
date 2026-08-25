@@ -7,7 +7,6 @@ import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, Stick
 import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { GenerateSummaryButton } from './GenerateSummaryButton';
 import type { MessageType, ChatMessage } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
 import { AudioRecorder } from './AudioRecorder';
