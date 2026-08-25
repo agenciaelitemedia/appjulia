@@ -151,6 +151,7 @@ export function JuliaChatFiltersBar({
   snoozedCount = 0, onOpenSnoozed, queueConnectionMap = new Map(), clientId,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<'filters' | 'new-conversation'>('filters');
   const [queueOpen, setQueueOpen] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
   // Busca só é aplicada no Enter (evita uma consulta por tecla digitada).
@@ -164,6 +165,24 @@ export function JuliaChatFiltersBar({
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!queueLimits?.allowGroups;
   const canManageChat = !!isAdmin || user?.role === 'user' || user?.role === 'colaborador';
+
+  const toggleFilters = () => {
+    if (panel === 'filters') {
+      setOpen((v) => !v);
+    } else {
+      setPanel('filters');
+      setOpen(true);
+    }
+  };
+
+  const toggleNewConversation = () => {
+    if (panel === 'new-conversation') {
+      setOpen((v) => !v);
+    } else {
+      setPanel('new-conversation');
+      setOpen(true);
+    }
+  };
 
   useEffect(() => {
     if (!showGroupsTab && filters.tab !== 'individual') onChange({ tab: 'individual' });
