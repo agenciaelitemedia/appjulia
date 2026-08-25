@@ -43,6 +43,8 @@ export function ChatRightBar({
   initialTab,
   visibleTabs,
   crmContent,
+  contactUnlinked = false,
+
 }: ChatRightBarProps) {
   const { selectedConversation, rightBarTab, setRightBarTab } = useWhatsAppData();
 
