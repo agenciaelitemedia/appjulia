@@ -455,7 +455,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
             <JuliaBadgeMenu
               icon={Kanban}
               label={crmLabel}
-              width="w-[110px]"
+              width="flex-1 min-w-0"
               tone={row.crm_pipeline_name
                 ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
                 : 'border-border bg-muted/60 text-muted-foreground'}
