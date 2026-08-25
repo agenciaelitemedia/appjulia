@@ -744,6 +744,10 @@ serve(async (req) => {
                   metadata: cdrMetadata,
                 };
 
+                await attachCallContactLink(supabase, logEntry);
+
+
+
                 if (cdrId) {
                   logEntry.call_id = cdrId;
                   // Upsert using UNIQUE constraint
