@@ -210,8 +210,26 @@ export function JuliaChatFiltersBar({
     // status agora é controlado pelas abas acima da lista (igual /chat)
 
     if (filters.tab === 'groups') push('tab', 'Grupos', () => onChange({ tab: 'individual' }));
+    if (filters.period !== 'all') {
+      const periodLabel = PERIOD_OPTIONS.find((o) => o.value === filters.period)?.label ?? filters.period;
+      push('period', `Período: ${periodLabel}`, () => onChange({ period: 'all' }));
+    }
+    if (filters.queue_ids.length > 0) {
+      const qLabel = filters.queue_ids.length === 1
+        ? queues.find((q) => q.id === filters.queue_ids[0])?.name ?? '1 fila'
+        : `${filters.queue_ids.length} filas`;
+      push('queues', `Fila: ${qLabel}`, () => onChange({ queue_ids: [] }));
+    }
+    if (filters.owners.length > 0) {
+      push('owner', `Responsável: ${filters.owners[0]}`, () => onChange({ owners: [] }));
+    } else if (filters.unassigned) {
+      push('unassigned', 'Sem responsável', () => onChange({ unassigned: null }));
+    }
+    if (filters.julia_mode && filters.julia_mode !== 'all') {
+      const modeLabel = filters.julia_mode === 'julia' ? 'Júlia IA' : 'Humano';
+      push('mode', `Modo: ${modeLabel}`, () => onChange({ julia_mode: null }));
+    }
     if (filters.priority) push('priority', `Prioridade: ${filters.priority}`, () => onChange({ priority: null }));
-    if (filters.unassigned) push('unassigned', 'Sem responsável', () => onChange({ unassigned: null }));
     if (filters.has_ticket) push('ticket', 'Com ticket', () => onChange({ has_ticket: null }));
     if (filters.has_crm_builder) push('crm', 'No CRM Builder', () => onChange({ has_crm_builder: null }));
     if (filters.has_campaign) push('ads', 'Meta Ads', () => onChange({ has_campaign: null }));
@@ -222,7 +240,7 @@ export function JuliaChatFiltersBar({
       push(`tag-${id}`, tags.find((t) => t.id === id)?.name ?? id, () => toggleIn('tag_ids', id)),
     );
     return out;
-  }, [filters, tags]);
+  }, [filters, tags, queues]);
 
   const dirty =
     activeChips.length > 0 ||
