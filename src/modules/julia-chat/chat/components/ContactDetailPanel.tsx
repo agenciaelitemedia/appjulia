@@ -147,7 +147,10 @@ interface ContactDetailPanelProps {
   onClose: () => void;
   /** Oculta o cabeçalho/botão de fechar (quando embutido na right-bar) */
   hideHeaderClose?: boolean;
+  /** Contato não vinculado a uma conversa do chat (ex.: card do CRM sem chat) */
+  unlinked?: boolean;
 }
+
 
 const actionLabels: Record<string, (e: ConversationHistoryEntry) => string> = {
   opened:           () => 'abriu a conversa',
