@@ -414,8 +414,8 @@ async function fetchCandidates(
     }));
   }
 
-  if (triggerKey === "contract_in_progress" || triggerKey === "contract_signed") {
-    const status = triggerKey === "contract_signed" ? "SIGNED" : "CREATED";
+  if (triggerKey === "contract_signed") {
+    // Assinado: a âncora é a data da assinatura (signed_at), não a criação.
     const rows = await sql.unsafe(
       `SELECT DISTINCT ON (d.cod_document)
               d.cod_document::text AS cod_document,
@@ -427,10 +427,10 @@ async function fetchCandidates(
          FROM sing_document d
          LEFT JOIN sessions s ON s.whatsapp_number::text = d.whatsapp_number::text
         WHERE d.cod_agent::text = $1
-          AND d.status_document = $2
-          AND d.created_at >= ${RECENT_FLOOR_SQL}
-        ORDER BY d.cod_document, d.created_at DESC`,
-      [codAgent, status],
+          AND d.status_document = 'SIGNED'
+          AND COALESCE(d.signed_at, d.created_at) >= ${RECENT_FLOOR_SQL}
+        ORDER BY d.cod_document, COALESCE(d.signed_at, d.created_at) DESC`,
+      [codAgent],
     );
     return (rows ?? []).map((r: any) => ({
       leadPhone: String(r.phone ?? ""),
@@ -438,9 +438,39 @@ async function fetchCandidates(
       caso: String(r.caso ?? ""),
       resumo: String(r.resume_case ?? ""),
       sessionId: r.session_id ? Number(r.session_id) : null,
-      dedupeKey: `${r.cod_document}:${status}`,
+      dedupeKey: `${r.cod_document}:SIGNED`,
     }));
   }
+
+  if (triggerKey === "contract_in_progress") {
+    // Em curso: enviado/criado e ainda sem assinatura.
+    const rows = await sql.unsafe(
+      `SELECT DISTINCT ON (d.cod_document)
+              d.cod_document::text AS cod_document,
+              d.whatsapp_number::text AS phone,
+              COALESCE(d.signer_name, '') AS name,
+              COALESCE(d.document_case, '') AS caso,
+              COALESCE(d.resume_case, '') AS resume_case,
+              s.id::bigint AS session_id
+         FROM sing_document d
+         LEFT JOIN sessions s ON s.whatsapp_number::text = d.whatsapp_number::text
+        WHERE d.cod_agent::text = $1
+          AND d.status_document IN ('CREATED', 'PENDING')
+          AND d.signed_at IS NULL
+          AND GREATEST(d.created_at, COALESCE(d.updated_at, d.created_at)) >= ${RECENT_FLOOR_SQL}
+        ORDER BY d.cod_document, d.created_at DESC`,
+      [codAgent],
+    );
+    return (rows ?? []).map((r: any) => ({
+      leadPhone: String(r.phone ?? ""),
+      leadName: String(r.name ?? ""),
+      caso: String(r.caso ?? ""),
+      resumo: String(r.resume_case ?? ""),
+      sessionId: r.session_id ? Number(r.session_id) : null,
+      dedupeKey: `${r.cod_document}:CREATED`,
+    }));
+  }
+
 
   if (triggerKey === "flow_error") {
     const rows = await sql.unsafe(
@@ -631,6 +661,7 @@ async function takeover(sql: any, codAgent: string, sessionId: number | null, ph
  * (recuperado/perdido) não bloqueiam a criação de um novo.
  */
 const NO_RESPONSE_LABEL = "Parou de responder";
+const CONTRACT_TRIGGERS = new Set(["contract_in_progress", "contract_signed"]);
 
 async function upsertAlertCrmCard(
   supabase: any,
@@ -678,6 +709,24 @@ async function upsertAlertCrmCard(
           .eq("id", current.id);
         return { shouldSend: !hasLabel, cardId: current.id };
       }
+
+      // Cards de contrato não são sobrescritos por gatilhos não-contratuais:
+      // "Contrato em curso"/"Contrato assinado" permanecem na etapa,
+      // apenas a data é atualizada (a exceção é a progressão em curso -> assinado).
+      if (CONTRACT_TRIGGERS.has(current.trigger_key) && !CONTRACT_TRIGGERS.has(card.triggerKey)) {
+        await supabase
+          .from("alert_crm_cards")
+          .update({
+            lead_name: card.leadName,
+            lead_phone: card.leadPhone,
+            business_name: card.businessName,
+            crm_stage_label: card.crmStageLabel ?? current.crm_stage_label ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", current.id);
+        return { shouldSend: false, cardId: current.id };
+      }
+
 
       const nextLabels = card.triggerKey === "no_response"
         ? (currentLabels.includes(NO_RESPONSE_LABEL) ? currentLabels : [...currentLabels, NO_RESPONSE_LABEL])
@@ -731,13 +780,17 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   let sql: ReturnType<typeof postgres> | null = null;
 
-  // Backfill manual opcional: {"window_minutes": 120} amplia a janela nesta rodada.
+  // Backfill manual opcional: {"window_minutes": 10080} amplia a janela nesta rodada.
+  // {"card_only": true} cria/atualiza os cards do CRM sem enviar mensagens.
   let windowMinutes = RECENT_WINDOW_MIN;
+  let cardOnly = false;
   try {
     const body = req.method === "POST" ? await req.json().catch(() => null) : null;
     const raw = Number(body?.window_minutes);
-    if (Number.isFinite(raw) && raw > 0) windowMinutes = Math.min(Math.round(raw), 1440);
+    if (Number.isFinite(raw) && raw > 0) windowMinutes = Math.min(Math.round(raw), 10080);
+    cardOnly = body?.card_only === true;
   } catch (_) { /* body opcional */ }
+
 
 
   try {
@@ -852,6 +905,12 @@ serve(async (req) => {
             logId: null,
           });
           if (!decision.shouldSend) continue;
+          if (cardOnly) {
+            results.push({ trigger: cfg.trigger_key, lead: cand.leadPhone, status: "card_only" });
+            continue;
+          }
+
+
 
           const resumo = cand.resumo || (await buildResumo(supabase, cand.leadPhone));
           const message = renderTemplate(cfg.message_template ?? "", {
