@@ -133,7 +133,12 @@ export const JuliaChatRow = memo(function JuliaChatRow({
   const [transferOpen, setTransferOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
-  const [badgesExpanded, setBadgesExpanded] = useState(false);
+  // Padrão de exibição definido pelo owner do client_id (persistido no banco).
+  const { settings: chatSettings } = useChatClientSettings();
+  const defaultExpanded = !!chatSettings.julia_chat_row_default_expanded;
+  const [badgesExpanded, setBadgesExpanded] = useState(defaultExpanded);
+  // Re-sincroniza quando o owner muda o padrão (sem impedir o toggle manual).
+  useEffect(() => { setBadgesExpanded(defaultExpanded); }, [defaultExpanded]);
   const { resolve: resolveCrmTarget } = useJuliaCrmTarget();
 
   const preview = useMemo(
