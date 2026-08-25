@@ -81,7 +81,7 @@ export function ChatRightBar({
     { id: 'contact', label: 'Contato', icon: Info },
     { id: 'crm', label: 'CRM', icon: Kanban },
     { id: 'phone', label: 'Telefonia', icon: Phone },
-    ...(leadCodAgent ? [{ id: 'lead' as const, label: 'Lead', icon: Eye }] : []),
+    ...(leadCodAgent ? [{ id: 'lead' as const, label: 'Julia', icon: Eye }] : []),
   ];
   const tabs = visibleTabs ? allTabs.filter((t) => visibleTabs.includes(t.id)) : allTabs;
 
