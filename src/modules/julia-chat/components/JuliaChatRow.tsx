@@ -357,7 +357,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
           <FixedBadge
             icon={channel.Icon}
             label={row.queue_name ? toTitleCase(row.queue_name) : 'Sem fila'}
-            width="flex-1 min-w-0"
+            width={badgesExpanded ? 'flex-1 min-w-0' : 'w-[116px] shrink-0'}
             tone={row.queue_name
               ? cn('border-transparent font-bold', queueToneByChannel(row.channel_type ?? (row as any).channel))
               : 'border-border bg-muted/60 text-muted-foreground'}
