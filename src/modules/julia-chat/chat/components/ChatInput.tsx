@@ -272,6 +272,22 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
     }
   };
 
+  const handleGenerateSummary = async () => {
+    const conversationId = selectedConversation?.id;
+    const contactId = selectedContact?.id;
+    if (!conversationId || !contactId || isGeneratingSummary) return;
+    setIsGeneratingSummary(true);
+    try {
+      await generateSummary(conversationId, contactId, getAfterTsForNext(), 'manual');
+      toast.success('Resumo gerado com sucesso');
+      setMoreOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao gerar resumo');
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const target = e.target;
     setText(target.value);
