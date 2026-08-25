@@ -15,6 +15,8 @@ export interface ChatClientSettings {
   sound_alert_enabled: boolean;
   sound_alert_user_can_disable: boolean;
   sound_alert_muted_users: Record<string, boolean>;
+  /** Padrão de exibição dos cards da lista do chat (definido pelo owner do client_id). */
+  julia_chat_row_default_expanded: boolean;
 }
 
 const DEFAULTS: ChatClientSettings = {
@@ -29,6 +31,7 @@ const DEFAULTS: ChatClientSettings = {
   sound_alert_enabled: true,
   sound_alert_user_can_disable: true,
   sound_alert_muted_users: {},
+  julia_chat_row_default_expanded: false,
 };
 
 export function useChatClientSettings() {
@@ -64,6 +67,7 @@ export function useChatClientSettings() {
         sound_alert_muted_users: (s.sound_alert_muted_users && typeof s.sound_alert_muted_users === 'object'
           ? s.sound_alert_muted_users as Record<string, boolean>
           : {}),
+        julia_chat_row_default_expanded: Boolean(s.julia_chat_row_default_expanded ?? false),
       };
     },
   });

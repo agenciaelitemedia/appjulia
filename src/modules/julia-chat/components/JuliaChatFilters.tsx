@@ -3,7 +3,7 @@ import {
   Search, RotateCcw, X, SlidersHorizontal, ChevronsUpDown, Check,
   ArrowDownUp, ArrowDown, ArrowUp, Layers, Users, UserCheck, UserX,
   ListFilter, Bot, User, CalendarClock, BarChart3, Settings, MoreVertical,
-  MessageSquarePlus,
+  MessageSquarePlus, Rows3, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,7 +17,8 @@ import {
   DropdownMenuSubTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from '../extend/ui';
 import { useAuth } from '../extend/auth';
-import { useAgentQueueLimits } from '../extend/queues';
+import { useAgentQueueLimits, isOwnerUser } from '../extend/queues';
+import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { JuliaNewConversationPanel } from './JuliaNewConversationPanel';
 import type { JuliaChatFilters as Filters, JuliaSlaStatus } from '../api/types';
 import type { OptionItem } from '../hooks/useJuliaChatOptions';
@@ -165,6 +166,11 @@ export function JuliaChatFiltersBar({
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!queueLimits?.allowGroups;
   const canManageChat = !!isAdmin || user?.role === 'user' || user?.role === 'colaborador';
+  // Padrão de exibição dos cards: apenas o owner do client_id define para a equipe.
+  const isOwner = !!isAdmin || isOwnerUser(user);
+  const { settings: chatSettings, update: updateChatSettings } = useChatClientSettings();
+
+
 
   const toggleFilters = () => {
     if (panel === 'filters') {
@@ -365,6 +371,37 @@ export function JuliaChatFiltersBar({
                     </DropdownMenuRadioGroup>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+
+                {isOwner && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2">
+                      <Rows3 className="h-4 w-4" aria-hidden />
+                      <span>Exibição da lista</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-60">
+                      <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+                        Padrão para toda a equipe
+                      </DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={chatSettings.julia_chat_row_default_expanded ? 'expandida' : 'reduzida'}
+                        onValueChange={(v) =>
+                          updateChatSettings.mutate({ julia_chat_row_default_expanded: v === 'expandida' })
+                        }
+                      >
+                        <DropdownMenuRadioItem value="reduzida" className="gap-2">
+                          <ChevronDown className="h-4 w-4" aria-hidden />
+                          Reduzida
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="expandida" className="gap-2">
+                          <ChevronUp className="h-4 w-4" aria-hidden />
+                          Expandida
+                        </DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+
+
 
                 <DropdownMenuItem onClick={onReset} className="gap-2">
                   <RotateCcw className="h-4 w-4" aria-hidden />
