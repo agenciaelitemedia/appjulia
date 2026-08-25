@@ -232,9 +232,9 @@ export function ChatContactCallsPanel({ phone, contactId }: { phone: string | nu
                       direction={c.direction}
                       when={dateLabel(c.started_at ?? c.created_at)}
                       who={voipWho(c)}
-                      status={c.hangup_cause || 'Concluída'}
+                      status={friendlyStatus(c.hangup_cause)}
                       duration={durationLabel(c.duration_seconds)}
-                      action={<VoipRecording url={c.record_url} />}
+                      action={<VoipRecording url={c.record_url} durationSeconds={c.duration_seconds} />}
                     />
                   ))}
                 </div>
