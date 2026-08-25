@@ -213,7 +213,7 @@ export default function FlowEditorPage() {
               className="rounded-full"
               onClick={editor.undo}
               disabled={readOnly || !editor.canUndo}
-              title="Desfazer (Ctrl+Z)"
+              title="Desfazer"
             >
               <Undo2 className="h-4 w-4" />
             </Button>
@@ -223,7 +223,7 @@ export default function FlowEditorPage() {
               className="rounded-full"
               onClick={editor.redo}
               disabled={readOnly || !editor.canRedo}
-              title="Refazer (Ctrl+Shift+Z)"
+              title="Refazer"
             >
               <Redo2 className="h-4 w-4" />
             </Button>
