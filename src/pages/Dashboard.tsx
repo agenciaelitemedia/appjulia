@@ -448,7 +448,7 @@ function AgentDashboard() {
         <DashboardFunnelChart data={funnelData} isLoading={funnelLoading} />
 
         {/* Recent Activity */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className={funnelLayout === 'full' ? 'grid gap-4 grid-cols-1' : 'grid gap-4 md:grid-cols-2'}>
           <Card>
             <CardHeader>
               <CardTitle>Leads Recentes</CardTitle>
