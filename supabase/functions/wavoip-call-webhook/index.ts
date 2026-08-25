@@ -1,5 +1,7 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { pickCustomerNumber, resolveContactLink } from '../_shared/contact-link.ts';
+
 
 // Webhook OFICIAL da Wavoip. Recebe eventos CALL, RECORD e DEVICE.
 // Auth: device_token via query string (?device_token=...). Wavoip não assina o body.
@@ -165,6 +167,16 @@ Deno.serve(async (req) => {
       if (isTerminal && existing?.recording_status !== 'available') {
         row.recording_status = 'pending';
       }
+
+      // Vínculo com o contato do chat (telefone canônico + contact_id + conversa)
+      const customerNumber = direction === 'inbound'
+        ? pickCustomerNumber(row.from_number, row.to_number)
+        : pickCustomerNumber(row.to_number, row.from_number);
+      const link = await resolveContactLink(admin, client_id, customerNumber, { withConversation: true });
+      row.contact_phone_e164 = link.contact_phone_e164;
+      if (link.contact_id) row.contact_id = link.contact_id;
+      if (link.conversation_id) row.conversation_id = link.conversation_id;
+
 
       const { error: upErr } = await admin
         .from('wavoip_call_logs')

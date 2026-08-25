@@ -125,12 +125,13 @@ function Loading() {
  * Aba "Telefonia" da right-bar do chat: histórico de ligações do contato,
  * separado em VoIP (SIP) e ZAP Call (Wavoip).
  */
-export function ChatContactCallsPanel({ phone }: { phone: string | null }) {
+export function ChatContactCallsPanel({ phone, contactId }: { phone: string | null; contactId?: string | null }) {
   const { user } = useAuth();
   const clientId = user?.client_id ? Number(user.client_id) : null;
 
-  const { data: voip = [], isLoading: voipLoading } = useContactVoipCalls(clientId, phone);
-  const { data: zap = [], isLoading: zapLoading } = useContactZapCalls(clientId, phone);
+  const { data: voip = [], isLoading: voipLoading } = useContactVoipCalls(clientId, phone, contactId);
+  const { data: zap = [], isLoading: zapLoading } = useContactZapCalls(clientId, phone, contactId);
+
   const { data: extOwners = {} } = useExtensionOwners(clientId);
   const { data: team = [] } = useTeamByClient();
 

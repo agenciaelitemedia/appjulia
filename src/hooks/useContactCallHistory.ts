@@ -37,19 +37,34 @@ function variantList(phone: string | null | undefined) {
   return getBrPhoneVariants(phone);
 }
 
+/**
+ * Monta o filtro de vínculo: prioriza `contact_id` (gravado na origem da ligação)
+ * e cai no telefone canônico (`contact_phone_e164`) como rede de segurança.
+ */
+function linkFilter(contactId: string | null | undefined, variants: string[]) {
+  const parts: string[] = [];
+  if (contactId) parts.push(`contact_id.eq.${contactId}`);
+  if (variants.length) parts.push(`contact_phone_e164.in.(${variants.join(',')})`);
+  return parts.join(',');
+}
+
 /** Histórico de ligações VoIP (SIP / phone_call_logs) para um contato. */
-export function useContactVoipCalls(clientId: number | null, phone: string | null) {
+export function useContactVoipCalls(
+  clientId: number | null,
+  phone: string | null,
+  contactId?: string | null,
+) {
   const variants = variantList(phone);
+  const filter = linkFilter(contactId, variants);
   return useQuery({
-    queryKey: ['contact-voip-calls', clientId, variants.join(',')],
-    enabled: !!clientId && variants.length > 0,
+    queryKey: ['contact-voip-calls', clientId, contactId ?? null, variants.join(',')],
+    enabled: !!clientId && !!filter,
     queryFn: async () => {
-      const list = variants.join(',');
       const { data, error } = await supabase
         .from('phone_call_logs')
         .select('id, direction, caller, called, extension_number, started_at, ended_at, duration_seconds, hangup_cause, record_url, created_at')
         .eq('client_id', clientId!)
-        .or(`caller.in.(${list}),called.in.(${list})`)
+        .or(filter)
         .order('started_at', { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -59,18 +74,22 @@ export function useContactVoipCalls(clientId: number | null, phone: string | nul
 }
 
 /** Histórico de ligações ZAP Call (Wavoip / wavoip_call_logs) para um contato. */
-export function useContactZapCalls(clientId: number | null, phone: string | null) {
+export function useContactZapCalls(
+  clientId: number | null,
+  phone: string | null,
+  contactId?: string | null,
+) {
   const variants = variantList(phone);
+  const filter = linkFilter(contactId, variants);
   return useQuery({
-    queryKey: ['contact-zap-calls', clientId, variants.join(',')],
-    enabled: !!clientId && variants.length > 0,
+    queryKey: ['contact-zap-calls', clientId, contactId ?? null, variants.join(',')],
+    enabled: !!clientId && !!filter,
     queryFn: async () => {
-      const list = variants.join(',');
       const { data, error } = await (supabase as any)
         .from('wavoip_call_logs')
         .select('id, app_user_id, direction, status, from_number, to_number, whatsapp_call_id, started_at, ended_at, duration_seconds, end_reason, recording_url, recording_status, created_at')
         .eq('client_id', clientId!)
-        .or(`from_number.in.(${list}),to_number.in.(${list})`)
+        .or(filter)
         .order('created_at', { ascending: false })
         .limit(100);
       if (error) throw error;

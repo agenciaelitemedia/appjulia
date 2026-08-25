@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { pickCustomerNumber, resolveContactLink } from "../_shared/contact-link.ts";
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -102,6 +104,12 @@ serve(async (req) => {
         metadata,
       };
       if (answeredAt) logData.answered_at = answeredAt;
+
+      // Vínculo com o contato do chat (telefone canônico + contact_id)
+      const link = await resolveContactLink(supabase, clientId, pickCustomerNumber(called, caller));
+      logData.contact_phone_e164 = link.contact_phone_e164;
+      if (link.contact_id) logData.contact_id = link.contact_id;
+
 
       // Check if we have complete data
       const dataComplete = (duration > 0 || hangupCause) && callId;

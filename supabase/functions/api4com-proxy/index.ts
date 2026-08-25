@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { attachCallContactLink } from "../_shared/contact-link.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -742,6 +743,10 @@ serve(async (req) => {
                   status: 'hangup',
                   metadata: cdrMetadata,
                 };
+
+                await attachCallContactLink(supabase, logEntry);
+
+
 
                 if (cdrId) {
                   logEntry.call_id = cdrId;

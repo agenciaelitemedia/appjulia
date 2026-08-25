@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { attachCallContactLink } from "../_shared/contact-link.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1241,6 +1242,7 @@ serve(async (req) => {
                 found = true;
 
                 const logEntry = buildCallLog(cdr, codAgent, clientId, fixTz);
+                await attachCallContactLink(supabase, logEntry);
                 await supabase.from("phone_call_logs")
                   .upsert(logEntry, { onConflict: "call_id" });
                 totalSynced = 1;
@@ -1293,6 +1295,7 @@ serve(async (req) => {
                 }
 
                 const logEntry = buildCallLog(cdr, codAgent, clientId, fixTz);
+                await attachCallContactLink(supabase, logEntry);
                 const cdrId = cdr.id ? String(cdr.id) : null;
 
                 if (cdrId) {
