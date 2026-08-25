@@ -123,7 +123,7 @@ export function ChatRightBar({
         {rightBarTab === 'contact' ? (
           <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose unlinked={contactUnlinked} />
         ) : rightBarTab === 'phone' ? (
-          <ChatContactCallsPanel phone={contact?.phone || null} />
+          <ChatContactCallsPanel phone={contact?.phone || null} contactId={contact?.id || null} />
         ) : rightBarTab === 'lead' ? (
           leadLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">
