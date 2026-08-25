@@ -13,11 +13,13 @@ import logoAsset from '@/assets/atende-julia-logo.png.asset.json';
 import mascoteAsset from '@/assets/julia-mascote-acenando.png.asset.json';
 import mascotePose2 from '@/assets/julia-mascote-pose2.png.asset.json';
 import mascotePose3 from '@/assets/julia-mascote-pose3.png.asset.json';
+import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { markJustLoggedIn } from '@/components/layout/DisconnectedAgentsAlert';
 import { checkVersionAndReloadIfNeeded } from '@/lib/appVersion';
+import { APP_VERSION_LABEL } from '@/lib/appVersionLabel';
 import { toast as sonnerToast } from 'sonner';
 import { isOwnerUser } from '@/lib/auth/isOwner';
 
@@ -362,6 +364,11 @@ export default function Login() {
               <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
               Ambiente seguro • Dados protegidos • Acesso exclusivo
             </p>
+            <div className="mt-3 flex justify-center">
+              <Badge variant="outline" className="aj-glass border-white/10 text-[10px] font-medium text-white/60">
+                {APP_VERSION_LABEL}
+              </Badge>
+            </div>
           </div>
         </section>
       </div>
