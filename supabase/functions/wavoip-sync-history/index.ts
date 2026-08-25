@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
         if (!wid) continue;
         const direction = normalizeDirection(c?.direction);
         const status = String(c?.status ?? 'ended').toLowerCase();
-        const row = {
+        const row: any = {
           whatsapp_call_id: wid,
           device_id: dev.id,
           client_id: dev.client_id,
@@ -115,7 +115,18 @@ Deno.serve(async (req) => {
           end_reason: pickStr(c?.end_reason, c?.reason),
           metadata: { source: 'sync-history', payload: c },
         };
+
+        // Vínculo com o contato do chat (telefone canônico + contact_id + conversa)
+        const customerNumber = direction === 'inbound'
+          ? pickCustomerNumber(row.from_number, row.to_number)
+          : pickCustomerNumber(row.to_number, row.from_number);
+        const link = await resolveContactLink(admin, dev.client_id, customerNumber, { withConversation: true });
+        row.contact_phone_e164 = link.contact_phone_e164;
+        if (link.contact_id) row.contact_id = link.contact_id;
+        if (link.conversation_id) row.conversation_id = link.conversation_id;
+
         const { error: upErr, data: upRow } = await admin
+
           .from('wavoip_call_logs')
           .upsert(row, { onConflict: 'whatsapp_call_id' })
           .select('id,recording_status,recording_url,ended_at')
