@@ -88,7 +88,7 @@ function FixedBadge({
         <TooltipTrigger asChild>
           <span
             className={cn(
-              'inline-flex h-5 shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
+              'inline-flex h-5 items-center justify-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
               width,
               tone,
             )}
@@ -357,7 +357,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
           <FixedBadge
             icon={channel.Icon}
             label={row.queue_name ? toTitleCase(row.queue_name) : 'Sem fila'}
-            width="w-[116px]"
+            width="flex-1 min-w-0"
             tone={row.queue_name
               ? cn('border-transparent font-bold', queueToneByChannel(row.channel_type ?? (row as any).channel))
               : 'border-border bg-muted/60 text-muted-foreground'}
@@ -385,7 +385,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <JuliaBadgeMenu
                 icon={User}
                 label={row.assigned_to || 'Sem responsável'}
-                width="w-[116px]"
+                width="flex-1 min-w-0"
                 tone={row.assigned_to
                   ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
                   : 'border-border bg-muted/60 text-muted-foreground'}
@@ -419,7 +419,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <JuliaBadgeMenu
                 icon={Bot}
                 label={juliaBadge.label}
-                width="w-[116px]"
+                width="flex-1 min-w-0"
                 tone={juliaBadge.tone}
                 tooltip={juliaBadge.tooltip}
               >
@@ -438,7 +438,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
         {/* Linha 2 — SLA / CRM / campanha / fechar + demais badges (somente expandido) */}
         {badgesExpanded && (
           <div className="flex items-center gap-0.5">
-            <div className="w-[78px] shrink-0">
+            <div className="flex-1 min-w-0">
               {showSla ? (
                 <SlaBadge evaluation={sla} compact className="w-full rounded-full border border-current/40" />
               ) : (
@@ -455,7 +455,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
             <JuliaBadgeMenu
               icon={Kanban}
               label={crmLabel}
-              width="w-[110px]"
+              width="flex-1 min-w-0"
               tone={row.crm_pipeline_name
                 ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
                 : 'border-border bg-muted/60 text-muted-foreground'}
@@ -477,7 +477,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
             <JuliaBadgeMenu
               icon={Megaphone}
               label={row.campaign ? String(campaignTitle) : '---'}
-              width="w-[90px]"
+              width="flex-1 min-w-0"
               tone={row.campaign
                 ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400'
                 : 'border-border bg-muted/60 text-muted-foreground'}
@@ -508,7 +508,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <FixedBadge
                 icon={MessagesSquare}
                 label={`+${row.sibling_open_count}`}
-                width="w-[44px]"
+                width="flex-1 min-w-0"
                 tone="border-border bg-muted/60 text-muted-foreground"
                 tooltip={`Este contato tem ${row.sibling_open_count} outra(s) conversa(s) aberta(s)`}
               />
@@ -518,7 +518,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <FixedBadge
                 icon={Ticket}
                 label={`#${row.active_ticket_number ?? row.active_ticket_protocol ?? '—'}`}
-                width="w-[52px]"
+                width="flex-1 min-w-0"
                 tone="border-border bg-muted/60 text-muted-foreground"
                 tooltip={`Ticket de suporte ${row.ticket_status ? `· ${row.ticket_status}` : ''} ${row.ticket_subject ?? ''}`.trim()}
               />
