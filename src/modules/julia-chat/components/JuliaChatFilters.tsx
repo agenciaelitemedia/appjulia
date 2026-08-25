@@ -408,15 +408,15 @@ export function JuliaChatFiltersBar({
         </div>
 
         {/* Linha 3 — filas + responsável + modo (ícones) */}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1">
           <Popover open={queueOpen} onOpenChange={setQueueOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" role="combobox" className="h-8 flex-1 justify-between px-2.5 text-xs font-normal">
+              <Button variant="outline" role="combobox" className="h-8 min-w-0 flex-1 justify-between gap-1 px-2 text-[11px] font-normal">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="truncate">{queueLabel}</span>
                 </span>
-                <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+                <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" aria-hidden />
               </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="z-[60] w-[280px] p-0">
@@ -470,10 +470,10 @@ export function JuliaChatFiltersBar({
             ]}
             placeholder="Atendente"
             size="sm"
-            className="flex-1 text-xs"
+            className="min-w-0 flex-1 text-[11px]"
           />
 
-          <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Modo de atendimento">
+          <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="Modo de atendimento">
             {modeButtons.map((b) => (
               <Tooltip key={b.value}>
                 <TooltipTrigger asChild>
