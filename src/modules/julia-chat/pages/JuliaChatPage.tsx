@@ -20,6 +20,7 @@ import { JuliaChatRightBar } from '../components/JuliaChatRightBar';
 import { WhatsAppDataProvider } from '../extend/chat';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../extend/ui';
 import { DEFAULT_JULIA_FILTERS, type JuliaChatFilters, type JuliaChatRowData } from '../api/types';
+import { APP_VERSION_LABEL } from '@/lib/appVersionLabel';
 
 export default function JuliaChatPage() {
   const { user } = useAuth();
