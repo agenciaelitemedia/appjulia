@@ -1,6 +1,10 @@
 # Project Memory
 
+## Core
+- Comando `atualizar vX.YZ`: setar version em package.json + public/version.json e criar entrada no Changelog (ver memória abaixo).
+
 ## Memories
+- [Version Update Command](mem://features/painel/version-update-command) — Regra do comando "atualizar vX.YZ": bump de versão nos 2 arquivos + Changelog
 - [UaZapi Msg Type](mem://technical/chat/uazapi-message-type-detection) — GIF/PTV são vídeo; fallback por mimetype antes de assumir imagem
 - [Wavoip QR/Webphone](mem://technical/wavoip/qr-webphone-connection-flow) — conexão Wavoip é via QR + SDK; token não é Bearer REST; vínculo do usuário usa app_user_id
 - [Wavoip History Sync](mem://features/wavoip/call-history-sync) — Sync 3-camadas (webphone, webhook, poll) + gravação no bucket privado
