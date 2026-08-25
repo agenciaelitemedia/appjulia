@@ -120,17 +120,21 @@ function FunnelCard({ title, icon, stages, isLoading }: FunnelCardProps) {
   );
 }
 
+export type DashboardFunnelLayout = 'grid' | 'full';
+
 interface DashboardTripleFunnelProps {
   juliaData: DashboardFunnelStage[];
   campaignData: DashboardFunnelStage[];
   juliaLoading: boolean;
   campaignLoading: boolean;
+  layout?: DashboardFunnelLayout;
 }
 
 const STAGE_NAMES = ['Atendimentos', 'Em Qualificação', 'Qualificados', 'Contratos Gerados'];
 const STAGE_COLORS = ['#22c55e', '#eab308', '#f97316', '#3b82f6'];
 
-export function DashboardTripleFunnel({ juliaData, campaignData, juliaLoading, campaignLoading }: DashboardTripleFunnelProps) {
+export function DashboardTripleFunnel({ juliaData, campaignData, juliaLoading, campaignLoading, layout = 'grid' }: DashboardTripleFunnelProps) {
+
   const juliaTrimmed = useMemo(() => juliaData.filter(s => s.stage_name !== 'Contratos Assinados'), [juliaData]);
   const campaignTrimmed = useMemo(() => campaignData.filter(s => s.stage_name !== 'Contratos Assinados'), [campaignData]);
 
