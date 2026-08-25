@@ -11040,6 +11040,7 @@ export type Database = {
         Args: { p_cap_seconds?: number; p_from: string; p_to: string }
         Returns: Json
       }
+      chat_legacy_cache_cleanup: { Args: never; Returns: number }
       chat_list_feed: {
         Args: {
           p_client_id: string
