@@ -366,6 +366,37 @@ export function JuliaChatFiltersBar({
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
 
+                {isOwner && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2">
+                      <Rows3 className="h-4 w-4" aria-hidden />
+                      <span>Exibição da lista</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-60">
+                      <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+                        Padrão para toda a equipe
+                      </DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={chatSettings.julia_chat_row_default_expanded ? 'expandida' : 'reduzida'}
+                        onValueChange={(v) =>
+                          updateChatSettings.mutate({ julia_chat_row_default_expanded: v === 'expandida' })
+                        }
+                      >
+                        <DropdownMenuRadioItem value="reduzida" className="gap-2">
+                          <ChevronDown className="h-4 w-4" aria-hidden />
+                          Reduzida
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="expandida" className="gap-2">
+                          <ChevronUp className="h-4 w-4" aria-hidden />
+                          Expandida
+                        </DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+
+
+
                 <DropdownMenuItem onClick={onReset} className="gap-2">
                   <RotateCcw className="h-4 w-4" aria-hidden />
                   Limpar filtros
