@@ -411,10 +411,11 @@ export function JuliaChatFiltersBar({
           {/* Painel de filtros colapsado */}
 
             <CollapsibleContent
-              id="julia-chat-filters-panel"
+              id={panel === 'filters' ? 'julia-chat-filters-panel' : 'julia-chat-new-conversation-panel'}
               className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border bg-popover shadow-xl"
             >
-              <div className="thin-scrollbar max-h-[75vh] space-y-3 overflow-y-auto p-2.5">
+              {panel === 'filters' ? (
+                <div className="thin-scrollbar max-h-[75vh] space-y-3 overflow-y-auto p-2.5">
 
                 {activeChips.length > 0 && (
                   <div className="flex flex-wrap gap-1 border-b pb-2">
