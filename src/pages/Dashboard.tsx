@@ -330,21 +330,25 @@ function AgentDashboard() {
               <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="Configurações de exibição">
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Exibição dos funis</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuRadioGroup value={funnelLayout} onValueChange={handleFunnelLayoutChange}>
-                  <DropdownMenuRadioItem value="grid">Padrão (3 colunas)</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="full">Full (1 por linha)</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex gap-1">
+              <Toggle
+                pressed={funnelLayout === 'grid'}
+                onPressedChange={() => handleFunnelLayoutChange('grid')}
+                aria-label="Exibição padrão em blocos"
+                size="sm"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Toggle>
+              <Toggle
+                pressed={funnelLayout === 'full'}
+                onPressedChange={() => handleFunnelLayoutChange('full')}
+                aria-label="Exibição em lista (linha inteira)"
+                size="sm"
+              >
+                <List className="h-4 w-4" />
+              </Toggle>
+            </div>
+
           </div>
 
         </div>
