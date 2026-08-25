@@ -379,7 +379,6 @@ export function JuliaChatFiltersBar({
           </div>
 
           {/* Painel de filtros colapsado */}
-          <div className="relative rounded-lg border bg-card/50">
 
             <CollapsibleContent
               id="julia-chat-filters-panel"
@@ -614,7 +613,6 @@ export function JuliaChatFiltersBar({
                 />
               </div>
             </CollapsibleContent>
-          </div>
 
           <p aria-live="polite" className="sr-only">
             {resultCount != null ? `${resultCount} conversas encontradas` : ''}
