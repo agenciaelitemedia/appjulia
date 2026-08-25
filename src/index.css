@@ -396,18 +396,14 @@ All colors MUST be HSL.
 
   /* Fundo da timeline: leve glow radial da marca */
   .aj-chat-canvas {
-    background-color: hsl(140 32% 94%);
+    background-color: hsl(0 0% 96%);
     background-image:
-      linear-gradient(
-        180deg,
-        hsl(140 30% 95% / 0.86),
-        hsl(150 26% 92% / 0.9)
-      ),
-      url("/__l5e/assets-v1/f1e47893-1e13-48cb-8e8d-f53f7d156255/chat-bg-pattern.png");
-    background-repeat: no-repeat, repeat;
-    background-size: cover, 420px auto;
-    background-attachment: local, local;
+      url("/__l5e/assets-v1/d69b7812-de2e-4dd8-98b0-ac6ff5fc7ce5/chat-bg-doodle.png");
+    background-repeat: repeat;
+    background-size: 420px auto;
+    background-attachment: local;
   }
+
 
   .dark .aj-chat-canvas {
     background-color: hsl(258 30% 18% / 0.32);
@@ -428,15 +424,16 @@ All colors MUST be HSL.
 
   /* Bolhas */
   .aj-bubble-out {
+    background-color: hsl(140 44% 91%);
     background-image: linear-gradient(
       160deg,
-      hsl(var(--brand-magenta) / 0.16),
-      hsl(var(--brand-violet) / 0.12)
+      hsl(140 48% 93%),
+      hsl(150 40% 87%)
     );
-    border: 1px solid hsl(var(--brand-magenta) / 0.28);
+    border: 1px solid hsl(145 30% 78%);
     box-shadow:
-      inset 0 1px 0 hsl(0 0% 100% / 0.5),
-      0 6px 16px -14px hsl(var(--brand-magenta) / 0.6);
+      inset 0 1px 0 hsl(0 0% 100% / 0.6),
+      0 6px 16px -14px hsl(150 40% 30% / 0.5);
   }
   .dark .aj-bubble-out {
     background-image: linear-gradient(
