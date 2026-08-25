@@ -1,3 +1,4 @@
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { PanelRightClose, Info, Kanban, Loader2, Eye, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -14,18 +15,42 @@ import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialo
 import { ChatContactCallsPanel } from '@/modules/julia-chat/chat/components/ChatContactCallsPanel';
 import type { ChatContact } from '@/types/chat';
 
+type RightBarTabId = 'contact' | 'crm' | 'lead' | 'phone';
+
 interface ChatRightBarProps {
   contact: ChatContact;
   onClose: () => void;
   className?: string;
+  /** Aba ativa ao montar (ex.: 'crm' quando aberto pelo card do CRM Builder). */
+  initialTab?: RightBarTabId;
+  /** Restringe as abas exibidas. Por padrão todas as disponíveis. */
+  visibleTabs?: RightBarTabId[];
+  /** Conteúdo customizado da aba CRM (ex.: card do CRM Builder já conhecido). */
+  crmContent?: ReactNode;
 }
 
 /**
  * Coluna lateral direita fixa do chat. Reúne os detalhes do contato e o card
  * do CRM vinculado (ou o formulário de criação) em abas, no lugar dos overlays.
  */
-export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps) {
+export function ChatRightBar({
+  contact,
+  onClose,
+  className,
+  initialTab,
+  visibleTabs,
+  crmContent,
+}: ChatRightBarProps) {
   const { selectedConversation, rightBarTab, setRightBarTab } = useWhatsAppData();
+
+  // Aplica a aba inicial apenas uma vez, na montagem.
+  const appliedInitial = useRef(false);
+  useEffect(() => {
+    if (initialTab && !appliedInitial.current) {
+      appliedInitial.current = true;
+      setRightBarTab(initialTab);
+    }
+  }, [initialTab, setRightBarTab]);
   const { user } = useAuth();
   const clientId = user?.client_id ? String(user.client_id) : '';
 
@@ -47,12 +72,13 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
   );
   const { data: stages = [] } = useCRMStages();
 
-  const tabs: { id: 'contact' | 'crm' | 'lead' | 'phone'; label: string; icon: typeof Info }[] = [
+  const allTabs: { id: RightBarTabId; label: string; icon: typeof Info }[] = [
     { id: 'contact', label: 'Contato', icon: Info },
     { id: 'crm', label: 'CRM', icon: Kanban },
     { id: 'phone', label: 'Telefonia', icon: Phone },
     ...(leadCodAgent ? [{ id: 'lead' as const, label: 'Lead', icon: Eye }] : []),
   ];
+  const tabs = visibleTabs ? allTabs.filter((t) => visibleTabs.includes(t.id)) : allTabs;
 
   return (
     <aside
@@ -115,6 +141,8 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
               Este contato ainda não possui card no CRM da Julia.
             </div>
           )
+        ) : crmContent ? (
+          crmContent
         ) : dealLoading ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
