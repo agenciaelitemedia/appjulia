@@ -27,7 +27,10 @@ interface ChatRightBarProps {
   visibleTabs?: RightBarTabId[];
   /** Conteúdo customizado da aba CRM (ex.: card do CRM Builder já conhecido). */
   crmContent?: ReactNode;
+  /** Contato sintético (card do CRM sem conversa vinculada no chat). */
+  contactUnlinked?: boolean;
 }
+
 
 /**
  * Coluna lateral direita fixa do chat. Reúne os detalhes do contato e o card
@@ -40,6 +43,8 @@ export function ChatRightBar({
   initialTab,
   visibleTabs,
   crmContent,
+  contactUnlinked = false,
+
 }: ChatRightBarProps) {
   const { selectedConversation, rightBarTab, setRightBarTab } = useWhatsAppData();
 
@@ -116,7 +121,7 @@ export function ChatRightBar({
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {rightBarTab === 'contact' ? (
-          <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose />
+          <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose unlinked={contactUnlinked} />
         ) : rightBarTab === 'phone' ? (
           <ChatContactCallsPanel phone={contact?.phone || null} />
         ) : rightBarTab === 'lead' ? (

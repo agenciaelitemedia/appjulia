@@ -147,7 +147,10 @@ interface ContactDetailPanelProps {
   onClose: () => void;
   /** Oculta o cabeçalho/botão de fechar (quando embutido na right-bar) */
   hideHeaderClose?: boolean;
+  /** Contato não vinculado a uma conversa do chat (ex.: card do CRM sem chat) */
+  unlinked?: boolean;
 }
+
 
 const actionLabels: Record<string, (e: ConversationHistoryEntry) => string> = {
   opened:           () => 'abriu a conversa',
@@ -169,7 +172,7 @@ const actionLabels: Record<string, (e: ConversationHistoryEntry) => string> = {
   auto_resolved_queue_switch: () => 'encerrou conversa anterior (contato mudou de fila)',
 };
 
-export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }: ContactDetailPanelProps) {
+export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false, unlinked = false }: ContactDetailPanelProps) {
   const {
     selectedConversation, tags, createTag, addTagToConversation, removeTagFromConversation,
     conversationHistory, loadConversationHistory, sendInternalNote,
@@ -322,7 +325,7 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }
   // ── Ressincronizar datas das mensagens com o provedor (UaZapi) ──
   const isOwner = useIsOwner();
   const [isResyncing, setIsResyncing] = useState(false);
-  const canResync = isOwner && !!contact.id;
+  const canResync = isOwner && !!contact.id && !unlinked;
 
   const handleResyncTimestamps = async () => {
     if (isResyncing) return;
@@ -418,7 +421,7 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }
           </AvatarFallback>
         </Avatar>
 
-        {isEditingName ? (
+        {isEditingName && !unlinked ? (
           <div className="flex items-center gap-1 w-full max-w-[200px]">
             <Input
               value={editName}
@@ -434,6 +437,8 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }
               <X className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           </div>
+        ) : unlinked ? (
+          <h4 className="font-medium">{contact.name}</h4>
         ) : (
           <div className="flex items-center gap-1.5 group cursor-pointer" onClick={() => setIsEditingName(true)}>
             <h4 className="font-medium">{contact.name}</h4>
@@ -443,9 +448,17 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }
 
         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
           <Phone className="h-3 w-3" />
-          {contact.phone}
+          {contact.phone || 'Sem telefone'}
         </div>
+
+        {unlinked && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Este card ainda não tem conversa vinculada no chat.
+          </p>
+        )}
       </div>
+
+
 
       {/* Tabs */}
       <Tabs defaultValue="geral" className="flex-1 flex flex-col min-h-0">
