@@ -151,8 +151,9 @@ interface Filters {
 const HARD_CAP = 1500;
 
 /** Janelas de invalidação do cache do banco legado (segundos). */
-const TTL_HOT = 60;      // conversas com mensagem nas últimas 24h
+const TTL_HOT = 180;     // conversas com mensagem nas últimas 24h
 const TTL_COLD = 600;    // conversas antigas
+
 
 interface LegacyEntry {
   julia_stage_id: string | null;
@@ -348,6 +349,8 @@ serve(async (req) => {
 
   const legacy = new Map<string, LegacyEntry>();
   const missing: { phone: unknown; phone_key: string; cod_agent: string }[] = [];
+  /** Linha atual do espelho por chave composta — usada para gravar só o que mudou. */
+  const cachedByKey = new Map<string, any>();
   let cacheHits = 0;
   let cacheMisses = 0;
   let msCache = 0;
@@ -359,15 +362,16 @@ serve(async (req) => {
     const { data: cached, error: cacheError } = await supabase
       .from("chat_legacy_cache")
       .select(
-        "phone_key, cod_agent, julia_stage_id, julia_stage_name, julia_stage_color, has_julia_card, session_is_active, campaign, fetched_at",
+        "id, phone_key, cod_agent, julia_stage_id, julia_stage_name, julia_stage_color, has_julia_card, session_is_active, campaign, fetched_at",
       )
       .eq("client_id", String(body.client_id))
       .in("phone_key", phoneKeys);
     msCache = Date.now() - tC;
     if (cacheError) console.warn("[julia-chat-list-feed] cache read error", cacheError.message);
 
-    const byKey = new Map<string, any>();
+    const byKey = cachedByKey;
     for (const c of cached ?? []) byKey.set(`${c.phone_key}|${c.cod_agent ?? ""}`, c);
+
 
     for (const [k, w] of wanted) {
       const c = byKey.get(k);
