@@ -661,6 +661,7 @@ async function takeover(sql: any, codAgent: string, sessionId: number | null, ph
  * (recuperado/perdido) não bloqueiam a criação de um novo.
  */
 const NO_RESPONSE_LABEL = "Parou de responder";
+const CONTRACT_TRIGGERS = new Set(["contract_in_progress", "contract_signed"]);
 
 async function upsertAlertCrmCard(
   supabase: any,
