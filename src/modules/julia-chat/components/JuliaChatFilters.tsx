@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Search, RotateCcw, X, SlidersHorizontal, ChevronDown, ChevronsUpDown, Check,
+  Search, RotateCcw, X, SlidersHorizontal, ChevronsUpDown, Check,
   ArrowDownUp, ArrowDown, ArrowUp, Layers, Users, UserCheck, UserX,
   ListFilter, Bot, User, CalendarClock, BarChart3, Settings, MoreVertical,
 } from 'lucide-react';
