@@ -172,7 +172,7 @@ const actionLabels: Record<string, (e: ConversationHistoryEntry) => string> = {
   auto_resolved_queue_switch: () => 'encerrou conversa anterior (contato mudou de fila)',
 };
 
-export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }: ContactDetailPanelProps) {
+export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false, unlinked = false }: ContactDetailPanelProps) {
   const {
     selectedConversation, tags, createTag, addTagToConversation, removeTagFromConversation,
     conversationHistory, loadConversationHistory, sendInternalNote,
