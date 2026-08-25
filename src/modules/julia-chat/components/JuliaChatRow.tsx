@@ -419,7 +419,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <JuliaBadgeMenu
                 icon={Bot}
                 label={juliaBadge.label}
-                width="w-[116px]"
+                width="flex-1 min-w-0"
                 tone={juliaBadge.tone}
                 tooltip={juliaBadge.tooltip}
               >
