@@ -1,29 +1,47 @@
-# Ajuste de label: Observadores → Observações
+# Restaurar Observações na aba Contato
 
-## Contexto
-Na aba **Contato** da right-bar do chat (tanto no `/chat` antigo quanto no novo `/chat` JulIA), a seção que lista os participantes/observers da conversa está com o título **"Observadores"**. O usuário solicitou que essa seção volte a ser chamada **"Observações"**, como estava anteriormente.
+## Objetivo
+Na aba **Contato** da right-bar, a área onde hoje aparece **Observadores** deve voltar a ser a área de **Observações**, permitindo registrar e visualizar observações/notas internas da conversa.
 
-## O que será alterado
-- Renomear o título da seção de **"Observadores"** para **"Observações"**.
-- Renomear o estado vazio de **"Sem observadores"** para **"Sem observações"**.
-- Manter a funcionalidade existente de adicionar/remover participantes da conversa inalterada.
+## Correção planejada
+- Remover a seção de **Observadores** desse ponto da aba Contato.
+- Recolocar a seção **Observações** no mesmo lugar visual, logo abaixo de **Tags** e antes de **Informações da Conversa**.
+- Listar as observações já salvas da conversa usando as notas internas existentes (`chat_messages` com `internal_note = true` e `conversation_id` da conversa ativa).
+- Adicionar um campo discreto para criar nova observação diretamente nessa seção.
+- Salvar a nova observação usando a funcionalidade já existente de nota interna (`sendInternalNote`), para não criar outro fluxo de dados nem quebrar o histórico atual.
+- Manter as observações também aparecendo no histórico/mensagens como notas internas, como já funciona hoje.
 
-## Arquivos
-- `src/components/chat/ConversationParticipants.tsx`
-- `src/modules/julia-chat/chat/components/ConversationParticipants.tsx`
+## Escopo
+- Aplicar no chat principal JulIA.
+- Aplicar também no componente espelhado do chat legado, para manter consistência onde ele ainda for usado.
+- Não alterar permissões, banco de dados, estrutura de mensagens, tags, telefonia ou CRM.
+- Não remover a funcionalidade técnica de participantes/observadores caso ela seja usada em outro lugar; apenas não exibir essa seção como se fosse “Observações” na aba Contato.
 
-## Mudanças técnicas
+## Arquivos previstos
+- `src/modules/julia-chat/chat/components/ContactDetailPanel.tsx`
+- `src/components/chat/ContactDetailPanel.tsx`
+- Possível novo componente pequeno reutilizável de observações, se ficar mais limpo do que duplicar a UI nos dois painéis.
+
+## Detalhes técnicos
 ```text
-Título da seção:
-  "Observadores" → "Observações"
+Fonte das observações:
+  chat_messages
+  WHERE conversation_id = selectedConversation.id
+    AND internal_note = true
 
-Texto de lista vazia:
-  "Sem observadores" → "Sem observações"
+Criação de observação:
+  sendInternalNote(contact.id, texto, usuário atual, { noteType: 'info' })
 
-Toasts/mensagens (opcional, se fizer sentido manter termo de pessoa):
-  manter "observador" nos toasts de adicionar/remover, pois a ação ainda é sobre pessoas.
+Layout na aba Contato:
+  Tags
+  Separador
+  Observações
+  Separador
+  Informações da Conversa
 ```
 
 ## Validação
-- Verificar visualmente no preview se a seção aparece como **"Observações"**.
-- Confirmar que adicionar/remover participantes continua funcionando.
+- Abrir detalhes de um contato no `/chat`.
+- Confirmar que aparece **Observações**, não **Observadores**.
+- Criar uma observação e confirmar que ela permanece ao fechar/reabrir a conversa.
+- Confirmar que Tags e Informações da Conversa continuam no mesmo padrão visual.
