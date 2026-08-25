@@ -421,7 +421,7 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false, 
           </AvatarFallback>
         </Avatar>
 
-        {isEditingName ? (
+        {isEditingName && !unlinked ? (
           <div className="flex items-center gap-1 w-full max-w-[200px]">
             <Input
               value={editName}
@@ -437,6 +437,8 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false, 
               <X className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           </div>
+        ) : unlinked ? (
+          <h4 className="font-medium">{contact.name}</h4>
         ) : (
           <div className="flex items-center gap-1.5 group cursor-pointer" onClick={() => setIsEditingName(true)}>
             <h4 className="font-medium">{contact.name}</h4>
@@ -446,9 +448,17 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false, 
 
         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
           <Phone className="h-3 w-3" />
-          {contact.phone}
+          {contact.phone || 'Sem telefone'}
         </div>
+
+        {unlinked && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Este card ainda não tem conversa vinculada no chat.
+          </p>
+        )}
       </div>
+
+
 
       {/* Tabs */}
       <Tabs defaultValue="geral" className="flex-1 flex flex-col min-h-0">
