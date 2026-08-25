@@ -32,7 +32,8 @@ export {
 
 export {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
-  DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent,
+  DropdownMenuSubTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu';
 export {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
