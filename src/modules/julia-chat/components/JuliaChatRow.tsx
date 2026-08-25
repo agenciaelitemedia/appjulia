@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { differenceInHours, differenceInMinutes } from 'date-fns';
@@ -20,6 +20,7 @@ import {
 } from '../extend/ui';
 import { useAuth } from '../extend/auth';
 import { isOwnerUser } from '../extend/queues';
+import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { PriorityBadge } from '@/modules/julia-chat/chat/components/PriorityBadge';
 import { JuliaBadgeMenu } from './JuliaBadgeMenu';
 import { JuliaAssignDialog } from './JuliaAssignDialog';
