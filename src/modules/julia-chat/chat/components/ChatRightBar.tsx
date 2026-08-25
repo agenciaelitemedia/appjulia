@@ -121,7 +121,7 @@ export function ChatRightBar({
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {rightBarTab === 'contact' ? (
-          <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose />
+          <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose unlinked={contactUnlinked} />
         ) : rightBarTab === 'phone' ? (
           <ChatContactCallsPanel phone={contact?.phone || null} />
         ) : rightBarTab === 'lead' ? (
