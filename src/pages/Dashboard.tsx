@@ -434,7 +434,9 @@ function AgentDashboard() {
           campaignData={campaignFunnel}
           juliaLoading={juliaFunnelLoading}
           campaignLoading={campaignFunnelLoading}
+          layout={funnelLayout}
         />
+
 
         {/* Evolution Chart */}
         <DashboardEvolutionChart
