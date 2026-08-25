@@ -251,19 +251,24 @@ export function DealCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
-                    className="h-7 w-7 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
+                    className={cn(
+                      'h-7 w-7 rounded-full',
+                      voipUnavailable
+                        ? 'opacity-60 text-muted-foreground border-border hover:bg-muted'
+                        : 'bg-orange-50 text-orange-600 border-orange-500 hover:bg-orange-100 hover:text-orange-700',
+                    )}
                     onClick={(e) => {
                       e.stopPropagation();
                       setPhoneCallOpen(true);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    <Phone className="h-4 w-4" />
+                    <Phone className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Ligar via ramal</TooltipContent>
+                <TooltipContent>{voipUnavailable ? 'VOIP Call indisponível' : 'Ligar via ramal'}</TooltipContent>
               </Tooltip>
             )}
 
