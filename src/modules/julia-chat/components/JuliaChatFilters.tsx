@@ -3,7 +3,7 @@ import {
   Search, RotateCcw, X, SlidersHorizontal, ChevronsUpDown, Check,
   ArrowDownUp, ArrowDown, ArrowUp, Layers, Users, UserCheck, UserX,
   ListFilter, Bot, User, CalendarClock, BarChart3, Settings, MoreVertical,
-  MessageSquarePlus,
+  MessageSquarePlus, Rows3, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,7 +17,8 @@ import {
   DropdownMenuSubTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from '../extend/ui';
 import { useAuth } from '../extend/auth';
-import { useAgentQueueLimits } from '../extend/queues';
+import { useAgentQueueLimits, isOwnerUser } from '../extend/queues';
+import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { JuliaNewConversationPanel } from './JuliaNewConversationPanel';
 import type { JuliaChatFilters as Filters, JuliaSlaStatus } from '../api/types';
 import type { OptionItem } from '../hooks/useJuliaChatOptions';
