@@ -9,6 +9,21 @@ type ChangelogItem = {
 
 const releases = [
   {
+    version: 'v2.21',
+    date: '25 de agosto de 2026',
+    highlight: 'Histórico de ligações vinculado ao contato e nova aba Telefonia.',
+    items: [
+      { category: 'novo', text: 'Aba Telefonia nos detalhes do contato, com sub-abas Voip Call e ZAP Call, duração, responsável e gravação.' },
+      { category: 'novo', text: 'Ligações passam a gravar o vínculo com o contato (e a conversa, no ZAP Call) no momento do registro.' },
+      { category: 'melhoria', text: 'Status das ligações exibido de forma amigável (Atendida, Ocupado, Não atendeu, Número inexistente etc.).' },
+      { category: 'melhoria', text: 'Play desabilitado com tooltip explicativo quando não há gravação ou a chamada durou 0 segundos.' },
+      { category: 'melhoria', text: 'Painel lateral unificado (Contato / CRM / Telefonia) também ao abrir detalhes de um card do CRM Builder.' },
+      { category: 'melhoria', text: 'Observações da conversa salvas em campo próprio, com edição pelo ícone de lápis.' },
+      { category: 'melhoria', text: 'Exibição da lista de conversas (expandida ou reduzida) definida pelo owner para toda a equipe.' },
+      { category: 'correcao', text: 'Backfill de ligações antigas e normalização do DDI 55 em números importados no CRM Builder.' },
+    ] as ChangelogItem[],
+  },
+  {
     version: 'v2.20',
     date: '25 de agosto de 2026',
     highlight: 'Barra do JulIA Chat compacta e fim dos atalhos de teclado.',
