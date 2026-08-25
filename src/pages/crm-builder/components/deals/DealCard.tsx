@@ -296,16 +296,16 @@ export function DealCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
-                    className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                    className="h-7 w-7 rounded-full bg-emerald-50 text-emerald-700 border-emerald-500 hover:bg-emerald-100 hover:text-emerald-800"
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenChat(deal);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    <MessageCircle className="h-4 w-4" />
+                    <MessageCircle className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Abrir conversa</TooltipContent>
