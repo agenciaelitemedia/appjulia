@@ -35,7 +35,7 @@ export function JuliaBadgeMenu({
                 onPointerDown={stop}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}
                 className={cn(
-                  'inline-flex h-5 shrink-0 cursor-pointer select-none items-center justify-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium outline-none transition-opacity hover:opacity-80 focus-visible:ring-1 focus-visible:ring-ring',
+                  'inline-flex h-5 cursor-pointer select-none items-center justify-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium outline-none transition-opacity hover:opacity-80 focus-visible:ring-1 focus-visible:ring-ring',
                   width,
                   tone,
                 )}
