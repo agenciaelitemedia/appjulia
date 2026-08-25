@@ -20,6 +20,8 @@ import { WhatsAppDataProvider } from '../extend/chat';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../extend/ui';
 import { DEFAULT_JULIA_FILTERS, type JuliaChatFilters, type JuliaChatRowData } from '../api/types';
 import { APP_VERSION_LABEL } from '@/lib/appVersionLabel';
+import { readPendingSelection, clearPendingSelection } from '../chat/lib/pendingSelection';
+import type { JuliaChatTarget } from '../components/JuliaChatConversation';
 
 export default function JuliaChatPage() {
   const { user } = useAuth();
@@ -38,6 +40,9 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
   const [debounced, setDebounced] = useState<JuliaChatFilters>(DEFAULT_JULIA_FILTERS);
   const [selected, setSelected] = useState<JuliaChatRowData | null>(null);
   const [snoozedPanelOpen, setSnoozedPanelOpen] = useState(false);
+  // Deep-link vindo de outras telas ("Abrir no Chat"): abre a conversa direto,
+  // antes mesmo de a linha correspondente chegar no feed.
+  const [deepTarget, setDeepTarget] = useState<JuliaChatTarget | null>(null);
 
   // debounce só na busca; os demais filtros aplicam imediatamente
   useEffect(() => {
@@ -86,6 +91,36 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
     () => (scopeQueueIds.length ? allQueues.filter((q) => scopeQueueIds.includes(q.id)) : allQueues),
     [allQueues, scopeQueueIds],
   );
+
+  // Consome o deep-link (sessionStorage) na montagem: abre a conversa, ajusta a
+  // aba e a busca para que a linha também apareça selecionada na lista.
+  useEffect(() => {
+    const pending = readPendingSelection();
+    if (!pending) return;
+    clearPendingSelection();
+    setDeepTarget({
+      contactId: pending.contactId,
+      queueId: pending.queueId,
+      conversationId: pending.conversationId,
+    });
+    if (pending.tab) setActive(pending.tab as JuliaTabKey);
+    if (pending.search) setFilters((f) => ({ ...f, search: pending.search as string }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Quando a linha do deep-link aparece no feed, promove para seleção normal.
+  useEffect(() => {
+    if (!deepTarget) return;
+    const row = activeFeed.rows.find((r) =>
+      deepTarget.conversationId
+        ? r.conversation_id === deepTarget.conversationId
+        : r.contact_id === deepTarget.contactId,
+    );
+    if (row) {
+      setSelected(row);
+      setDeepTarget(null);
+    }
+  }, [deepTarget, activeFeed.rows]);
 
   const patch = useCallback((p: Partial<JuliaChatFilters>) => setFilters((f) => ({ ...f, ...p })), []);
   const reset = useCallback(() => setFilters(DEFAULT_JULIA_FILTERS), []);
@@ -183,7 +218,11 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
       <WhatsAppDataProvider>
         <JuliaConversationColumns
           selected={selected}
-          onClearSelection={() => setSelected(null)}
+          deepTarget={deepTarget}
+          onClearSelection={() => {
+            setSelected(null);
+            setDeepTarget(null);
+          }}
           onSnoozed={(conversationId) => {
             removeRowEverywhere(conversationId);
             setSelected(null);
@@ -228,12 +267,14 @@ function useIsBelowLg() {
  */
 function JuliaConversationColumns({
   selected,
+  deepTarget,
   onClearSelection,
   onSnoozed,
   feed,
   activeTab,
 }: {
   selected: JuliaChatRowData | null;
+  deepTarget?: JuliaChatTarget | null;
   onClearSelection: () => void;
   onSnoozed?: (conversationId: string) => void;
   feed: ReturnType<typeof useJuliaChatTabs>['activeFeed'];
@@ -242,13 +283,13 @@ function JuliaConversationColumns({
   const isBelowLg = useIsBelowLg();
   const [diagOpen, setDiagOpen] = useState(false);
 
-  const target = selected
+  const target: JuliaChatTarget | null = selected
     ? {
         contactId: selected.contact_id,
         queueId: selected.queue_id ?? null,
         conversationId: selected.conversation_id ?? null,
       }
-    : null;
+    : (deepTarget ?? null);
 
   return (
     <>
