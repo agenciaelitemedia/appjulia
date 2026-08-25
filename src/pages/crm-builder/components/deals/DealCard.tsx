@@ -316,16 +316,16 @@ export function DealCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
-                    className="h-7 w-7 text-amber-500 hover:text-amber-600 hover:bg-amber-500/10"
+                    className="h-7 w-7 rounded-full bg-amber-50 text-amber-600 border-amber-500 hover:bg-amber-100 hover:text-amber-700"
                     onClick={(e) => {
                       e.stopPropagation();
                       setNewConvOpen(true);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    <MessageCircle className="h-4 w-4" />
+                    <MessageCircle className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Iniciar conversa no WhatsApp</TooltipContent>
