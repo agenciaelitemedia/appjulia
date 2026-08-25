@@ -3,11 +3,12 @@ import {
   Search, RotateCcw, X, SlidersHorizontal, ChevronsUpDown, Check,
   ArrowDownUp, ArrowDown, ArrowUp, Layers, Users, UserCheck, UserX,
   ListFilter, Bot, User, CalendarClock, BarChart3, Settings, MoreVertical,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   Badge, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-  Collapsible, CollapsibleContent, CollapsibleTrigger, Popover, PopoverContent, PopoverTrigger,
+  Collapsible, CollapsibleContent, Popover, PopoverContent, PopoverTrigger,
   Checkbox, ScrollArea, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn,
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
   TeamMemberSelect, useTeamByClient,
@@ -17,6 +18,7 @@ import {
 } from '../extend/ui';
 import { useAuth } from '../extend/auth';
 import { useAgentQueueLimits } from '../extend/queues';
+import { JuliaNewConversationPanel } from './JuliaNewConversationPanel';
 import type { JuliaChatFilters as Filters, JuliaSlaStatus } from '../api/types';
 import type { OptionItem } from '../hooks/useJuliaChatOptions';
 
