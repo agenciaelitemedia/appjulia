@@ -428,6 +428,7 @@ serve(async (req) => {
              FROM crm_atendimento_cards c
              LEFT JOIN crm_atendimento_stages st ON st.id = c.stage_id
             WHERE c.whatsapp_number::text = ANY($1::varchar[])
+              AND ($2::varchar[] IS NULL OR c.cod_agent::text = ANY($2::varchar[]))
             ORDER BY c.whatsapp_number, c.cod_agent::text, c.updated_at DESC NULLS LAST
          ),
          sess AS (
@@ -442,22 +443,26 @@ serve(async (req) => {
             ORDER BY s.whatsapp_number::text, a.cod_agent::text, s.created_at DESC
          ),
          camps AS (
-           SELECT DISTINCT ON (matched_phone)
+           SELECT DISTINCT ON (matched_phone, cod_agent)
                   matched_phone AS phone,
+                  cod_agent,
                   id, created_at, campaign_data
              FROM (
                SELECT ca.id,
                       ca.created_at,
                       (ca.campaign_data::jsonb) AS campaign_data,
+                      a.cod_agent::text AS cod_agent,
                       regexp_replace(
                         COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone', ''), s.whatsapp_number::text, ''),
                         '\\D', '', 'g'
                       ) AS matched_phone
                  FROM campaing_ads ca
                  LEFT JOIN sessions s ON s.id = ca.session_id::bigint
+                 LEFT JOIN agents a ON a.id = s.agent_id
              ) x
             WHERE matched_phone = ANY($1::varchar[])
-            ORDER BY matched_phone, created_at DESC
+              AND ($2::varchar[] IS NULL OR cod_agent = ANY($2::varchar[]))
+            ORDER BY matched_phone, cod_agent, created_at DESC
          )
          SELECT 'stage' AS kind, phone, cod_agent,
                 jsonb_build_object('stage_id', stage_id, 'stage_name', stage_name, 'stage_color', stage_color) AS payload
@@ -465,34 +470,33 @@ serve(async (req) => {
          UNION ALL
          SELECT 'session', phone, cod_agent, jsonb_build_object('active', active) FROM sess
          UNION ALL
-         SELECT 'campaign', phone, NULL, jsonb_build_object('id', id, 'created_at', created_at, 'campaign_data', campaign_data)
+         SELECT 'campaign', phone, cod_agent, jsonb_build_object('id', id, 'created_at', created_at, 'campaign_data', campaign_data)
            FROM camps`,
         [variants, codes.length ? codes : null],
       );
+      // Chaveamento estritamente por (telefone + cod_agent): sem fallback por
+      // telefone solto, que podia trazer dado de outro escritório.
       for (const r of extRows as any[]) {
         const key = phoneKey(r.phone);
         if (!key) continue;
+        const composite = `${key}|${r.cod_agent ?? ""}`;
         if (r.kind === "stage") {
-          const composite = `${key}|${r.cod_agent ?? ""}`;
-          stageByKey.set(composite, r.payload);
-          if (!stageByKey.has(key)) stageByKey.set(key, r.payload);
+          if (!stageByKey.has(composite)) stageByKey.set(composite, r.payload);
         } else if (r.kind === "session") {
-          const composite = `${key}|${r.cod_agent ?? ""}`;
-          sessionByKey.set(composite, r.payload?.active ?? null);
-          if (!sessionByKey.has(key)) sessionByKey.set(key, r.payload?.active ?? null);
+          if (!sessionByKey.has(composite)) sessionByKey.set(composite, r.payload?.active ?? null);
         } else if (r.kind === "campaign") {
-          if (!campaignByKey.has(key)) campaignByKey.set(key, r.payload);
+          if (!campaignByKey.has(composite)) campaignByKey.set(composite, r.payload);
         }
       }
 
       // grava o resultado fresco no cache (inclusive "sem dado", cache negativo)
-      const upserts = missing.map((m) => {
+      const upserts: any[] = [];
+      const touchIds: string[] = [];
+      for (const m of missing) {
         const composite = `${m.phone_key}|${m.cod_agent}`;
-        const stage = stageByKey.get(composite) ?? stageByKey.get(m.phone_key) ?? null;
-        const sessionActive = sessionByKey.has(composite)
-          ? sessionByKey.get(composite)
-          : (sessionByKey.get(m.phone_key) ?? null);
-        const campaign = campaignByKey.get(m.phone_key) ?? null;
+        const stage = stageByKey.get(composite) ?? null;
+        const sessionActive = sessionByKey.has(composite) ? sessionByKey.get(composite) : null;
+        const campaign = campaignByKey.get(composite) ?? null;
         const entry: LegacyEntry = {
           julia_stage_id: stage?.stage_id != null ? String(stage.stage_id) : null,
           julia_stage_name: stage?.stage_name ?? null,
@@ -504,20 +508,47 @@ serve(async (req) => {
             : null,
         };
         legacy.set(composite, entry);
-        return {
-          client_id: String(body.client_id),
-          phone_key: m.phone_key,
-          cod_agent: m.cod_agent,
-          ...entry,
-          fetched_at: new Date().toISOString(),
-        };
-      });
+
+        // Só regrava a linha quando algum valor mudou; caso contrário apenas
+        // renova a marca de verificação (em um único UPDATE em lote).
+        const prev = cachedByKey.get(composite);
+        const unchanged = prev
+          && (prev.julia_stage_id ?? null) === entry.julia_stage_id
+          && (prev.julia_stage_name ?? null) === entry.julia_stage_name
+          && (prev.julia_stage_color ?? null) === entry.julia_stage_color
+          && !!prev.has_julia_card === entry.has_julia_card
+          && (prev.session_is_active ?? null) === entry.session_is_active
+          && JSON.stringify(prev.campaign ?? null) === JSON.stringify(entry.campaign);
+        if (unchanged && prev.id) {
+          touchIds.push(prev.id);
+        } else {
+          upserts.push({
+            client_id: String(body.client_id),
+            phone_key: m.phone_key,
+            cod_agent: m.cod_agent,
+            ...entry,
+            fetched_at: new Date().toISOString(),
+          });
+        }
+      }
       if (upserts.length) {
         const { error: upErr } = await supabase
           .from("chat_legacy_cache")
           .upsert(upserts, { onConflict: "client_id,phone_key,cod_agent" });
         if (upErr) console.warn(`[julia-chat-list-feed][${reqId}] cache write error`, upErr.message);
       }
+      if (touchIds.length) {
+        const { error: tErr } = await supabase
+          .from("chat_legacy_cache")
+          .update({ fetched_at: new Date().toISOString() })
+          .in("id", touchIds);
+        if (tErr) console.warn(`[julia-chat-list-feed][${reqId}] cache touch error`, tErr.message);
+      }
+      console.log(
+        `[julia-chat-list-feed][${reqId}] cache write`,
+        JSON.stringify({ changed: upserts.length, touched: touchIds.length }),
+      );
+
     } catch (e) {
       externalError = (e as Error)?.message ?? "external db error";
       console.warn(`[julia-chat-list-feed][${reqId}] external error`, externalError);
