@@ -36,12 +36,9 @@ export function DealNotesPanel({ notes, isLoading, onAddNote }: DealNotesPanelPr
             onChange={(e) => setNewNote(e.target.value)}
             rows={3}
             className="resize-none"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleSubmit();
-            }}
           />
           <div className="flex justify-between items-center">
-            <span className="text-[10px] text-muted-foreground">Ctrl+Enter para salvar</span>
+            <span className="text-[10px] text-muted-foreground">Nota interna</span>
             <Button
               size="sm"
               onClick={handleSubmit}

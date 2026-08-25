@@ -227,11 +227,6 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
       e.preventDefault();
       handleSend();
     }
-    // Quick messages shortcut
-    if (e.key === '/' && text === '') {
-      e.preventDefault();
-      setShowQuickMessages(true);
-    }
   };
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>, type: MessageType) => {

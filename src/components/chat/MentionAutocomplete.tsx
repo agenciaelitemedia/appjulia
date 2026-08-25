@@ -40,24 +40,6 @@ export function MentionAutocomplete({ text, textareaRef, team, onPick }: Mention
       .slice(0, 6);
   }, [query, team]);
 
-  // Keyboard navigation handled by parent through events
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta || matches.length === 0) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => (a + 1) % matches.length); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => (a - 1 + matches.length) % matches.length); }
-      else if (e.key === 'Tab' || e.key === 'Enter') {
-        if (matches[active]) {
-          e.preventDefault();
-          onPick(matches[active]);
-        }
-      } else if (e.key === 'Escape') { setQuery(null); }
-    };
-    ta.addEventListener('keydown', handler);
-    return () => ta.removeEventListener('keydown', handler);
-  }, [matches, active, textareaRef, onPick]);
-
   if (query === null || matches.length === 0) return null;
 
   return (

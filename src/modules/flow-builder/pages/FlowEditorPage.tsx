@@ -123,29 +123,6 @@ export default function FlowEditorPage() {
     setIsActive(true);
   };
 
-  // Atalhos: desfazer, refazer e salvar.
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey)) return;
-      const key = event.key.toLowerCase();
-      if (key === 'z') {
-        event.preventDefault();
-        if (readOnly) return;
-        if (event.shiftKey) editor.redo();
-        else editor.undo();
-      } else if (key === 'y') {
-        event.preventDefault();
-        if (!readOnly) editor.redo();
-      } else if (key === 's') {
-        event.preventDefault();
-        if (!readOnly && editor.dirty) void handleSave();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor.redo, editor.undo, editor.dirty, readOnly, editor.nodes, editor.edges, name, isActive]);
-
   const editingNode = useMemo(
     () => editor.nodes.find((n) => n.id === editingNodeId) ?? null,
     [editor.nodes, editingNodeId],

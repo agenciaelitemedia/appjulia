@@ -77,18 +77,6 @@ function ChatPageContent() {
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
 
-  // Cmd+K / Ctrl+K para abrir Command Palette
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setPaletteOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
   return (
     <div className="h-[calc(100dvh-4rem)] w-[calc(100%+2rem)] lg:w-[calc(100%+3rem)] overflow-hidden -m-4 lg:-m-6">
       <ChatContainer className="h-full w-full" />
