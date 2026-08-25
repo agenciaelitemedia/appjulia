@@ -905,6 +905,12 @@ serve(async (req) => {
             logId: null,
           });
           if (!decision.shouldSend) continue;
+          if (cardOnly) {
+            results.push({ trigger: cfg.trigger_key, lead: cand.leadPhone, status: "card_only" });
+            continue;
+          }
+
+
 
           const resumo = cand.resumo || (await buildResumo(supabase, cand.leadPhone));
           const message = renderTemplate(cfg.message_template ?? "", {
