@@ -190,6 +190,23 @@ export function phoneCore(raw: string | null | undefined): string {
   return d;
 }
 
+/**
+ * Telefone canônico para gravação: sempre com DDI (55 para números BR de
+ * 10/11 dígitos) e com o nono dígito, igual a `chat_contacts.phone`.
+ * Números que já têm DDI ou não são BR são apenas limpos.
+ */
+export function phoneForStorage(raw: string | null | undefined): string {
+  const d = String(raw ?? '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.length === 11 && /^[1-9][1-9]$/.test(d.slice(0, 2)) && /[6-9]/.test(d[2])) {
+    return normalizeBrPhone('55' + d);
+  }
+  if (d.length === 10 && /^[1-9][1-9]$/.test(d.slice(0, 2))) {
+    return normalizeBrPhone('55' + d);
+  }
+  return normalizeBrPhone(d);
+}
+
 export function parseValue(raw: string): { value: number; warning?: string } {
   const cleaned = String(raw ?? '')
     .replace(/[R$\s]/gi, '')
