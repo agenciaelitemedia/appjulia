@@ -166,15 +166,15 @@ export function TeamMemberSelect({
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className={cn(triggerH, 'justify-between font-normal gap-2 px-2.5', className)}
+          className={cn(triggerH, 'min-w-0 justify-between font-normal gap-1.5 px-2', className)}
         >
-          <span className="flex items-center gap-2 min-w-0">
+          <span className="flex min-w-0 items-center gap-1.5">
             {selectedExtra ? (
               <>
                 {selectedExtra.icon ? (
-                  <selectedExtra.icon className={cn('h-4 w-4 flex-shrink-0', selectedExtra.iconClassName)} />
+                  <selectedExtra.icon className={cn('h-3.5 w-3.5 flex-shrink-0', selectedExtra.iconClassName)} />
                 ) : (
-                  <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                 )}
                 <span className={cn('truncate', labelText)}>{selectedExtra.label}</span>
               </>
@@ -190,17 +190,17 @@ export function TeamMemberSelect({
               </>
             ) : isUnassigned ? (
               <>
-                <UserX className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <UserX className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                 <span className={cn('truncate text-muted-foreground', labelText)}>{unassignedLabel}</span>
               </>
             ) : (
               <>
-                <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                 <span className={cn('truncate text-muted-foreground', labelText)}>{placeholder}</span>
               </>
             )}
           </span>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[460px] p-0 bg-popover border border-border shadow-lg z-[60]" align="start">
