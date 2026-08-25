@@ -11,6 +11,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
+declare const EdgeRuntime: { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -153,6 +155,9 @@ const HARD_CAP = 1500;
 /** Janelas de invalidação do cache do banco legado (segundos). */
 const TTL_HOT = 180;     // conversas com mensagem nas últimas 24h
 const TTL_COLD = 600;    // conversas antigas
+const BG_REFRESH_LOCK_MS = 60_000;
+
+const backgroundRefreshLocks = new Map<string, number>();
 
 
 interface LegacyEntry {
@@ -163,6 +168,182 @@ interface LegacyEntry {
   session_is_active: boolean | null;
   campaign: any | null;
   stale?: boolean;
+}
+
+interface LegacyRefreshTarget {
+  phone: unknown;
+  phone_key: string;
+  cod_agent: string;
+}
+
+function sameCampaign(a: unknown, b: unknown) {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
+async function refreshLegacyTargets(params: {
+  supabase: ReturnType<typeof createClient>;
+  clientId: string;
+  targets: LegacyRefreshTarget[];
+  cachedByKey: Map<string, any>;
+  reqId: string;
+  label: "foreground" | "background";
+}): Promise<{ entries: Map<string, LegacyEntry>; msExternal: number; externalError: string | null }> {
+  const entries = new Map<string, LegacyEntry>();
+  const variantSet = new Set<string>();
+  const codAgents = new Set<string>();
+  for (const target of params.targets) {
+    for (const variant of phoneVariants(target.phone)) variantSet.add(variant);
+    if (target.cod_agent) codAgents.add(target.cod_agent);
+  }
+  const variants = [...variantSet];
+  const codes = [...codAgents];
+  if (!params.targets.length || !variants.length) {
+    return { entries, msExternal: 0, externalError: null };
+  }
+
+  const tB = Date.now();
+  let externalError: string | null = null;
+  const stageByKey = new Map<string, any>();
+  const sessionByKey = new Map<string, boolean | null>();
+  const campaignByKey = new Map<string, any>();
+
+  try {
+    const sql = getPool();
+    const extRows = await sql.unsafe(
+      `WITH stages AS (
+         SELECT DISTINCT ON (c.whatsapp_number, c.cod_agent::text)
+                c.whatsapp_number::text AS phone,
+                c.cod_agent::text       AS cod_agent,
+                c.stage_id,
+                st.name  AS stage_name,
+                st.color AS stage_color,
+                c.updated_at
+           FROM crm_atendimento_cards c
+           LEFT JOIN crm_atendimento_stages st ON st.id = c.stage_id
+          WHERE c.whatsapp_number::text = ANY($1::varchar[])
+            AND ($2::varchar[] IS NULL OR c.cod_agent::text = ANY($2::varchar[]))
+          ORDER BY c.whatsapp_number, c.cod_agent::text, c.updated_at DESC NULLS LAST
+       ),
+       sess AS (
+         SELECT DISTINCT ON (s.whatsapp_number::text, a.cod_agent::text)
+                s.whatsapp_number::text AS phone,
+                a.cod_agent::text       AS cod_agent,
+                s.active
+           FROM sessions s
+           JOIN agents a ON a.id = s.agent_id
+          WHERE s.whatsapp_number::text = ANY($1::varchar[])
+            AND ($2::varchar[] IS NULL OR a.cod_agent::text = ANY($2::varchar[]))
+          ORDER BY s.whatsapp_number::text, a.cod_agent::text, s.created_at DESC
+       ),
+       camps AS (
+         SELECT DISTINCT ON (matched_phone, cod_agent)
+                matched_phone AS phone,
+                cod_agent,
+                id, created_at, campaign_data
+           FROM (
+             SELECT ca.id,
+                    ca.created_at,
+                    (ca.campaign_data::jsonb) AS campaign_data,
+                    a.cod_agent::text AS cod_agent,
+                    regexp_replace(
+                      COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone', ''), s.whatsapp_number::text, ''),
+                      '\\D', '', 'g'
+                    ) AS matched_phone
+               FROM campaing_ads ca
+               LEFT JOIN sessions s ON s.id = ca.session_id::bigint
+               LEFT JOIN agents a ON a.id = s.agent_id
+           ) x
+          WHERE matched_phone = ANY($1::varchar[])
+            AND ($2::varchar[] IS NULL OR cod_agent = ANY($2::varchar[]))
+          ORDER BY matched_phone, cod_agent, created_at DESC
+       )
+       SELECT 'stage' AS kind, phone, cod_agent,
+              jsonb_build_object('stage_id', stage_id, 'stage_name', stage_name, 'stage_color', stage_color) AS payload
+         FROM stages
+       UNION ALL
+       SELECT 'session', phone, cod_agent, jsonb_build_object('active', active) FROM sess
+       UNION ALL
+       SELECT 'campaign', phone, cod_agent, jsonb_build_object('id', id, 'created_at', created_at, 'campaign_data', campaign_data)
+         FROM camps`,
+      [variants, codes.length ? codes : null],
+    );
+
+    for (const row of extRows as any[]) {
+      const key = phoneKey(row.phone);
+      if (!key) continue;
+      const composite = `${key}|${row.cod_agent ?? ""}`;
+      if (row.kind === "stage") {
+        if (!stageByKey.has(composite)) stageByKey.set(composite, row.payload);
+      } else if (row.kind === "session") {
+        if (!sessionByKey.has(composite)) sessionByKey.set(composite, row.payload?.active ?? null);
+      } else if (row.kind === "campaign") {
+        if (!campaignByKey.has(composite)) campaignByKey.set(composite, row.payload);
+      }
+    }
+
+    const upserts: any[] = [];
+    const touchIds: string[] = [];
+    for (const target of params.targets) {
+      const composite = `${target.phone_key}|${target.cod_agent}`;
+      const stage = stageByKey.get(composite) ?? null;
+      const sessionActive = sessionByKey.has(composite) ? sessionByKey.get(composite) : null;
+      const campaign = campaignByKey.get(composite) ?? null;
+      const entry: LegacyEntry = {
+        julia_stage_id: stage?.stage_id != null ? String(stage.stage_id) : null,
+        julia_stage_name: stage?.stage_name ?? null,
+        julia_stage_color: stage?.stage_color ?? null,
+        has_julia_card: !!stage,
+        session_is_active: sessionActive ?? null,
+        campaign: campaign
+          ? { id: campaign.id, created_at: campaign.created_at, campaign_data: campaign.campaign_data }
+          : null,
+      };
+      entries.set(composite, entry);
+
+      const prev = params.cachedByKey.get(composite);
+      const unchanged = prev
+        && (prev.julia_stage_id ?? null) === entry.julia_stage_id
+        && (prev.julia_stage_name ?? null) === entry.julia_stage_name
+        && (prev.julia_stage_color ?? null) === entry.julia_stage_color
+        && !!prev.has_julia_card === entry.has_julia_card
+        && (prev.session_is_active ?? null) === entry.session_is_active
+        && sameCampaign(prev.campaign, entry.campaign);
+      if (unchanged && prev.id) {
+        touchIds.push(prev.id);
+      } else {
+        upserts.push({
+          client_id: params.clientId,
+          phone_key: target.phone_key,
+          cod_agent: target.cod_agent,
+          ...entry,
+          fetched_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    if (upserts.length) {
+      const { error: upErr } = await params.supabase
+        .from("chat_legacy_cache")
+        .upsert(upserts, { onConflict: "client_id,phone_key,cod_agent" });
+      if (upErr) console.warn(`[julia-chat-list-feed][${params.reqId}] cache write error`, upErr.message);
+    }
+    if (touchIds.length) {
+      const { error: tErr } = await params.supabase
+        .from("chat_legacy_cache")
+        .update({ fetched_at: new Date().toISOString() })
+        .in("id", touchIds);
+      if (tErr) console.warn(`[julia-chat-list-feed][${params.reqId}] cache touch error`, tErr.message);
+    }
+    console.log(
+      `[julia-chat-list-feed][${params.reqId}] cache write`,
+      JSON.stringify({ mode: params.label, changed: upserts.length, touched: touchIds.length }),
+    );
+  } catch (error) {
+    externalError = (error as Error)?.message ?? "external db error";
+    console.warn(`[julia-chat-list-feed][${params.reqId}] external error`, externalError);
+  }
+
+  return { entries, msExternal: Date.now() - tB, externalError };
 }
 
 /** Resumo compacto e seguro dos parâmetros (sem PII de busca completa). */
