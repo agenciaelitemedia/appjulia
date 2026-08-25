@@ -142,11 +142,13 @@ interface Props {
   resultCount?: number;
   snoozedCount?: number;
   onOpenSnoozed?: () => void;
+  queueConnectionMap?: Map<string, boolean | null>;
+  clientId?: string | null;
 }
 
 export function JuliaChatFiltersBar({
   filters, onChange, onReset, queues, tags, juliaStages, owners, resultCount,
-  snoozedCount = 0, onOpenSnoozed,
+  snoozedCount = 0, onOpenSnoozed, queueConnectionMap = new Map(), clientId,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
