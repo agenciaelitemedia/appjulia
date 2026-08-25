@@ -477,7 +477,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
             <JuliaBadgeMenu
               icon={Megaphone}
               label={row.campaign ? String(campaignTitle) : '---'}
-              width="w-[90px]"
+              width="flex-1 min-w-0"
               tone={row.campaign
                 ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400'
                 : 'border-border bg-muted/60 text-muted-foreground'}
