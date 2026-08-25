@@ -516,6 +516,114 @@ export function JuliaChatFiltersBar({
                   </div>
                 </div>
 
+                <Group label="Período">
+                  {PERIOD_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt.value}
+                      label={opt.label}
+                      active={filters.period === opt.value}
+                      onToggle={() => onChange({ period: opt.value })}
+                    />
+                  ))}
+                </Group>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Fila</Label>
+                    <Popover open={queueOpen} onOpenChange={setQueueOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" className="h-8 w-full justify-between bg-background text-xs font-normal">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="truncate">{queueLabel}</span>
+                          </span>
+                          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-[280px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Buscar fila…" className="h-9" />
+                          <CommandList className="max-h-[280px]">
+                            <CommandEmpty>Nenhuma fila encontrada.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="__all__ todas as filas"
+                                onSelect={() => { onChange({ queue_ids: [] }); setQueueOpen(false); }}
+                                className="cursor-pointer gap-2"
+                              >
+                                <Check className={cn('h-4 w-4', filters.queue_ids.length === 0 ? 'opacity-100' : 'opacity-0')} />
+                                <Layers className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                                <span className="flex-1 truncate">Todas as filas</span>
+                              </CommandItem>
+                              {[...queues]
+                                .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+                                .map((q) => {
+                                  const isSel = filters.queue_ids.length === 1 && filters.queue_ids[0] === q.id;
+                                  return (
+                                    <CommandItem
+                                      key={q.id}
+                                      value={`${q.name} ${q.channel_type ?? ''}`}
+                                      onSelect={() => { onChange({ queue_ids: [q.id] }); setQueueOpen(false); }}
+                                      className="cursor-pointer gap-2"
+                                    >
+                                      <Check className={cn('h-4 w-4', isSel ? 'opacity-100' : 'opacity-0')} />
+                                      <span className="flex-1 truncate">{q.name}</span>
+                                      {q.channel_type ? channelBadge(q.channel_type) : null}
+                                    </CommandItem>
+                                  );
+                                })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Atendente</Label>
+                    <TeamMemberSelect
+                      members={teamMembers}
+                      valueKey="name"
+                      value={ownerValue}
+                      onValueChange={(v) => setOwnerValue(v ?? 'all')}
+                      allowUnassigned={false}
+                      extraOptions={[
+                        { value: 'all', label: 'Todos Atendimentos', icon: Users },
+                        { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
+                        { value: 'unassigned', label: 'Aguardando Atendimento', icon: UserX },
+                      ]}
+                      placeholder="Atendente"
+                      size="sm"
+                      className="w-full text-[11px]"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Modo de atendimento</Label>
+                  <div className="flex items-center gap-1" role="group" aria-label="Modo de atendimento">
+                    {modeButtons.map((b) => (
+                      <Tooltip key={b.value}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={b.tip}
+                            aria-pressed={mode === b.value}
+                            onClick={() => onChange({ julia_mode: b.value === 'all' ? null : b.value })}
+                            className={cn(
+                              'flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors',
+                              mode === b.value ? b.on : 'border-border bg-transparent text-muted-foreground hover:bg-muted',
+                            )}
+                          >
+                            <b.icon className="h-3.5 w-3.5" aria-hidden />
+                            <span className="hidden sm:inline">{b.value === 'all' ? 'Todos' : b.value === 'julia' ? 'Júlia' : 'Humano'}</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{b.tip}</TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
+                </div>
 
                 <Group label="Marcadores">
                   <Chip label="Sem responsável" active={!!filters.unassigned} onToggle={() => onChange({ unassigned: filters.unassigned ? null : true })} />
