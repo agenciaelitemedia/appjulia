@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { PanelRightClose, Info, Kanban, Loader2, Eye } from 'lucide-react';
+import { PanelRightClose, Info, Kanban, Loader2, Eye, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +11,7 @@ import { CrmActionBar } from './CrmActionBar';
 import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
 import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
+import { ChatContactCallsPanel } from '@/modules/julia-chat/chat/components/ChatContactCallsPanel';
 import type { ChatContact } from '@/types/chat';
 
 interface ChatRightBarProps {
@@ -46,9 +47,10 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
   );
   const { data: stages = [] } = useCRMStages();
 
-  const tabs: { id: 'contact' | 'crm' | 'lead'; label: string; icon: typeof Info }[] = [
+  const tabs: { id: 'contact' | 'crm' | 'lead' | 'phone'; label: string; icon: typeof Info }[] = [
     { id: 'contact', label: 'Contato', icon: Info },
     { id: 'crm', label: 'CRM', icon: Kanban },
+    { id: 'phone', label: 'Telefonia', icon: Phone },
     ...(leadCodAgent ? [{ id: 'lead' as const, label: 'Lead', icon: Eye }] : []),
   ];
 
@@ -89,6 +91,8 @@ export function ChatRightBar({ contact, onClose, className }: ChatRightBarProps)
       <div className="flex-1 min-h-0 overflow-hidden">
         {rightBarTab === 'contact' ? (
           <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose />
+        ) : rightBarTab === 'phone' ? (
+          <ChatContactCallsPanel phone={contact?.phone || null} />
         ) : rightBarTab === 'lead' ? (
           leadLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">
