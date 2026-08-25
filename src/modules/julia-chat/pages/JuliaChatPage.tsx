@@ -20,6 +20,7 @@ import { JuliaChatRightBar } from '../components/JuliaChatRightBar';
 import { WhatsAppDataProvider } from '../extend/chat';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../extend/ui';
 import { DEFAULT_JULIA_FILTERS, type JuliaChatFilters, type JuliaChatRowData } from '../api/types';
+import { APP_VERSION_LABEL } from '@/lib/appVersionLabel';
 
 export default function JuliaChatPage() {
   const { user } = useAuth();
@@ -118,7 +119,7 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
           <div className="flex items-center gap-2">
             <MessageSquare className="h-4.5 w-4.5 text-primary" aria-hidden />
             <h1 className="text-base font-bold">JulIA&nbsp;Chat</h1>
-            <Badge variant="outline" className="ml-auto text-[10px]">v2.18</Badge>
+            <Badge variant="outline" className="ml-auto text-[10px]">{APP_VERSION_LABEL}</Badge>
           </div>
 
           <JuliaChatFiltersBar

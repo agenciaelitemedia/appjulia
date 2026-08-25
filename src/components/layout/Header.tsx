@@ -26,12 +26,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-declare const __APP_VERSION__: string;
-
-const APP_VERSION_LABEL = (() => {
-  const raw = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '';
-  return raw ? `v${raw}` : 'dev';
-})();
+import { APP_VERSION_LABEL } from '@/lib/appVersionLabel';
 
 interface HeaderProps {
   onMenuToggle: () => void;
