@@ -414,8 +414,8 @@ async function fetchCandidates(
     }));
   }
 
-  if (triggerKey === "contract_in_progress" || triggerKey === "contract_signed") {
-    const status = triggerKey === "contract_signed" ? "SIGNED" : "CREATED";
+  if (triggerKey === "contract_signed") {
+    // Assinado: a âncora é a data da assinatura (signed_at), não a criação.
     const rows = await sql.unsafe(
       `SELECT DISTINCT ON (d.cod_document)
               d.cod_document::text AS cod_document,
@@ -427,10 +427,10 @@ async function fetchCandidates(
          FROM sing_document d
          LEFT JOIN sessions s ON s.whatsapp_number::text = d.whatsapp_number::text
         WHERE d.cod_agent::text = $1
-          AND d.status_document = $2
-          AND d.created_at >= ${RECENT_FLOOR_SQL}
-        ORDER BY d.cod_document, d.created_at DESC`,
-      [codAgent, status],
+          AND d.status_document = 'SIGNED'
+          AND COALESCE(d.signed_at, d.created_at) >= ${RECENT_FLOOR_SQL}
+        ORDER BY d.cod_document, COALESCE(d.signed_at, d.created_at) DESC`,
+      [codAgent],
     );
     return (rows ?? []).map((r: any) => ({
       leadPhone: String(r.phone ?? ""),
@@ -438,9 +438,39 @@ async function fetchCandidates(
       caso: String(r.caso ?? ""),
       resumo: String(r.resume_case ?? ""),
       sessionId: r.session_id ? Number(r.session_id) : null,
-      dedupeKey: `${r.cod_document}:${status}`,
+      dedupeKey: `${r.cod_document}:SIGNED`,
     }));
   }
+
+  if (triggerKey === "contract_in_progress") {
+    // Em curso: enviado/criado e ainda sem assinatura.
+    const rows = await sql.unsafe(
+      `SELECT DISTINCT ON (d.cod_document)
+              d.cod_document::text AS cod_document,
+              d.whatsapp_number::text AS phone,
+              COALESCE(d.signer_name, '') AS name,
+              COALESCE(d.document_case, '') AS caso,
+              COALESCE(d.resume_case, '') AS resume_case,
+              s.id::bigint AS session_id
+         FROM sing_document d
+         LEFT JOIN sessions s ON s.whatsapp_number::text = d.whatsapp_number::text
+        WHERE d.cod_agent::text = $1
+          AND d.status_document IN ('CREATED', 'PENDING')
+          AND d.signed_at IS NULL
+          AND GREATEST(d.created_at, COALESCE(d.updated_at, d.created_at)) >= ${RECENT_FLOOR_SQL}
+        ORDER BY d.cod_document, d.created_at DESC`,
+      [codAgent],
+    );
+    return (rows ?? []).map((r: any) => ({
+      leadPhone: String(r.phone ?? ""),
+      leadName: String(r.name ?? ""),
+      caso: String(r.caso ?? ""),
+      resumo: String(r.resume_case ?? ""),
+      sessionId: r.session_id ? Number(r.session_id) : null,
+      dedupeKey: `${r.cod_document}:CREATED`,
+    }));
+  }
+
 
   if (triggerKey === "flow_error") {
     const rows = await sql.unsafe(
