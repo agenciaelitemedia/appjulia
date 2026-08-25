@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Search, RotateCcw, X, SlidersHorizontal, ChevronDown, ChevronsUpDown, Check,
-  ArrowDownUp, ArrowDown, ArrowUp, CalendarDays, Layers, Users, UserCheck, UserX,
+  ArrowDownUp, ArrowDown, ArrowUp, Layers, Users, UserCheck, UserX,
   ListFilter, Bot, User, CalendarClock, BarChart3, Settings,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -210,8 +210,26 @@ export function JuliaChatFiltersBar({
     // status agora é controlado pelas abas acima da lista (igual /chat)
 
     if (filters.tab === 'groups') push('tab', 'Grupos', () => onChange({ tab: 'individual' }));
+    if (filters.period !== 'all') {
+      const periodLabel = PERIOD_OPTIONS.find((o) => o.value === filters.period)?.label ?? filters.period;
+      push('period', `Período: ${periodLabel}`, () => onChange({ period: 'all' }));
+    }
+    if (filters.queue_ids.length > 0) {
+      const qLabel = filters.queue_ids.length === 1
+        ? queues.find((q) => q.id === filters.queue_ids[0])?.name ?? '1 fila'
+        : `${filters.queue_ids.length} filas`;
+      push('queues', `Fila: ${qLabel}`, () => onChange({ queue_ids: [] }));
+    }
+    if (filters.owners.length > 0) {
+      push('owner', `Responsável: ${filters.owners[0]}`, () => onChange({ owners: [] }));
+    } else if (filters.unassigned) {
+      push('unassigned', 'Sem responsável', () => onChange({ unassigned: null }));
+    }
+    if (filters.julia_mode) {
+      const modeLabel = filters.julia_mode === 'julia' ? 'Júlia IA' : 'Humano';
+      push('mode', `Modo: ${modeLabel}`, () => onChange({ julia_mode: null }));
+    }
     if (filters.priority) push('priority', `Prioridade: ${filters.priority}`, () => onChange({ priority: null }));
-    if (filters.unassigned) push('unassigned', 'Sem responsável', () => onChange({ unassigned: null }));
     if (filters.has_ticket) push('ticket', 'Com ticket', () => onChange({ has_ticket: null }));
     if (filters.has_crm_builder) push('crm', 'No CRM Builder', () => onChange({ has_crm_builder: null }));
     if (filters.has_campaign) push('ads', 'Meta Ads', () => onChange({ has_campaign: null }));
@@ -222,7 +240,7 @@ export function JuliaChatFiltersBar({
       push(`tag-${id}`, tags.find((t) => t.id === id)?.name ?? id, () => toggleIn('tag_ids', id)),
     );
     return out;
-  }, [filters, tags]);
+  }, [filters, tags, queues]);
 
   const dirty =
     activeChips.length > 0 ||
@@ -386,115 +404,7 @@ export function JuliaChatFiltersBar({
           </Tooltip>
         </div>
 
-        {/* Linha 2 — período (pills) */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-          {PERIOD_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              aria-pressed={filters.period === opt.value}
-              onClick={() => onChange({ period: opt.value })}
-              className={cn(
-                'inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-medium transition-colors',
-                filters.period === opt.value
-                  ? 'border-foreground/20 bg-foreground/10 text-foreground'
-                  : 'border-border bg-transparent text-muted-foreground hover:bg-muted',
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Linha 3 — filas + responsável + modo (ícones) */}
-        <div className="flex min-w-0 items-center gap-1">
-          <Popover open={queueOpen} onOpenChange={setQueueOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" role="combobox" className="h-8 min-w-0 flex-1 justify-between gap-1 px-2 text-[11px] font-normal">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="truncate">{queueLabel}</span>
-                </span>
-                <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" aria-hidden />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="z-[60] w-[280px] p-0">
-              <Command>
-                <CommandInput placeholder="Buscar fila…" className="h-9" />
-                <CommandList className="max-h-[280px]">
-                  <CommandEmpty>Nenhuma fila encontrada.</CommandEmpty>
-                  <CommandGroup>
-                    <CommandItem
-                      value="__all__ todas as filas"
-                      onSelect={() => { onChange({ queue_ids: [] }); setQueueOpen(false); }}
-                      className="cursor-pointer gap-2"
-                    >
-                      <Check className={cn('h-4 w-4', filters.queue_ids.length === 0 ? 'opacity-100' : 'opacity-0')} />
-                      <Layers className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                      <span className="flex-1 truncate">Todas as filas</span>
-                    </CommandItem>
-                    {[...queues]
-                      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
-                      .map((q) => {
-                        const isSel = filters.queue_ids.length === 1 && filters.queue_ids[0] === q.id;
-                        return (
-                          <CommandItem
-                            key={q.id}
-                            value={`${q.name} ${q.channel_type ?? ''}`}
-                            onSelect={() => { onChange({ queue_ids: [q.id] }); setQueueOpen(false); }}
-                            className="cursor-pointer gap-2"
-                          >
-                            <Check className={cn('h-4 w-4', isSel ? 'opacity-100' : 'opacity-0')} />
-                            <span className="flex-1 truncate">{q.name}</span>
-                            {q.channel_type ? channelBadge(q.channel_type) : null}
-                          </CommandItem>
-                        );
-                      })}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-
-          <TeamMemberSelect
-            members={teamMembers}
-            valueKey="name"
-            value={ownerValue}
-            onValueChange={(v) => setOwnerValue(v ?? 'all')}
-            allowUnassigned={false}
-            extraOptions={[
-              { value: 'all', label: 'Todos Atendimentos', icon: Users },
-              { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
-              { value: 'unassigned', label: 'Aguardando Atendimento', icon: UserX },
-            ]}
-            placeholder="Atendente"
-            size="sm"
-            className="min-w-0 flex-1 text-[11px]"
-          />
-
-          <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="Modo de atendimento">
-            {modeButtons.map((b) => (
-              <Tooltip key={b.value}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={b.tip}
-                    aria-pressed={mode === b.value}
-                    onClick={() => onChange({ julia_mode: b.value === 'all' ? null : b.value })}
-                    className={cn(
-                      'flex h-8 w-8 items-center justify-center rounded-md border transition-colors',
-                      mode === b.value ? b.on : 'border-border bg-transparent text-muted-foreground hover:bg-muted',
-                    )}
-                  >
-                    <b.icon className="h-3.5 w-3.5" aria-hidden />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{b.tip}</TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        </div>
+        {/* Filtros de período, fila, atendente e modo foram movidos para o painel "Mais filtros" */}
 
         {/* Demais filtros — colapsados */}
         <Collapsible open={open} onOpenChange={setOpen}>
@@ -606,6 +516,114 @@ export function JuliaChatFiltersBar({
                   </div>
                 </div>
 
+                <Group label="Período">
+                  {PERIOD_OPTIONS.map((opt) => (
+                    <Chip
+                      key={opt.value}
+                      label={opt.label}
+                      active={filters.period === opt.value}
+                      onToggle={() => onChange({ period: opt.value })}
+                    />
+                  ))}
+                </Group>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Fila</Label>
+                    <Popover open={queueOpen} onOpenChange={setQueueOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" className="h-8 w-full justify-between bg-background text-xs font-normal">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="truncate">{queueLabel}</span>
+                          </span>
+                          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-[280px] p-0">
+                        <Command>
+                          <CommandInput placeholder="Buscar fila…" className="h-9" />
+                          <CommandList className="max-h-[280px]">
+                            <CommandEmpty>Nenhuma fila encontrada.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="__all__ todas as filas"
+                                onSelect={() => { onChange({ queue_ids: [] }); setQueueOpen(false); }}
+                                className="cursor-pointer gap-2"
+                              >
+                                <Check className={cn('h-4 w-4', filters.queue_ids.length === 0 ? 'opacity-100' : 'opacity-0')} />
+                                <Layers className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                                <span className="flex-1 truncate">Todas as filas</span>
+                              </CommandItem>
+                              {[...queues]
+                                .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+                                .map((q) => {
+                                  const isSel = filters.queue_ids.length === 1 && filters.queue_ids[0] === q.id;
+                                  return (
+                                    <CommandItem
+                                      key={q.id}
+                                      value={`${q.name} ${q.channel_type ?? ''}`}
+                                      onSelect={() => { onChange({ queue_ids: [q.id] }); setQueueOpen(false); }}
+                                      className="cursor-pointer gap-2"
+                                    >
+                                      <Check className={cn('h-4 w-4', isSel ? 'opacity-100' : 'opacity-0')} />
+                                      <span className="flex-1 truncate">{q.name}</span>
+                                      {q.channel_type ? channelBadge(q.channel_type) : null}
+                                    </CommandItem>
+                                  );
+                                })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Atendente</Label>
+                    <TeamMemberSelect
+                      members={teamMembers}
+                      valueKey="name"
+                      value={ownerValue}
+                      onValueChange={(v) => setOwnerValue(v ?? 'all')}
+                      allowUnassigned={false}
+                      extraOptions={[
+                        { value: 'all', label: 'Todos Atendimentos', icon: Users },
+                        { value: 'mine', label: 'Meus atendimentos', icon: UserCheck, badgeLabel: 'EU' },
+                        { value: 'unassigned', label: 'Aguardando Atendimento', icon: UserX },
+                      ]}
+                      placeholder="Atendente"
+                      size="sm"
+                      className="w-full text-[11px]"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Modo de atendimento</Label>
+                  <div className="flex items-center gap-1" role="group" aria-label="Modo de atendimento">
+                    {modeButtons.map((b) => (
+                      <Tooltip key={b.value}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={b.tip}
+                            aria-pressed={mode === b.value}
+                            onClick={() => onChange({ julia_mode: b.value === 'all' ? null : b.value })}
+                            className={cn(
+                              'flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors',
+                              mode === b.value ? b.on : 'border-border bg-transparent text-muted-foreground hover:bg-muted',
+                            )}
+                          >
+                            <b.icon className="h-3.5 w-3.5" aria-hidden />
+                            <span className="hidden sm:inline">{b.value === 'all' ? 'Todos' : b.value === 'julia' ? 'Júlia' : 'Humano'}</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>{b.tip}</TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
+                </div>
 
                 <Group label="Marcadores">
                   <Chip label="Sem responsável" active={!!filters.unassigned} onToggle={() => onChange({ unassigned: filters.unassigned ? null : true })} />
