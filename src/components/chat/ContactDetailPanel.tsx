@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { ConversationParticipants } from './ConversationParticipants';
+import { ConversationObservations } from './ConversationObservations';
 import { PriorityBadge } from './PriorityBadge';
 import { ConversationSummaries } from './ConversationSummaries';
 import { useAssigneeNameResolver } from '@/hooks/useAssigneeNameResolver';
@@ -172,7 +172,7 @@ const actionLabels: Record<string, (e: ConversationHistoryEntry) => string> = {
 export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }: ContactDetailPanelProps) {
   const {
     selectedConversation, tags, createTag, addTagToConversation, removeTagFromConversation,
-    conversationHistory, loadConversationHistory,
+    conversationHistory, loadConversationHistory, sendInternalNote,
   } = useWhatsAppData();
   const [newTagName, setNewTagName] = useState('');
   const [showAddTag, setShowAddTag] = useState(false);
@@ -488,7 +488,11 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }
                     onToggleAddTag={() => setShowAddTag(v => !v)}
                   />
                   <Separator />
-                  <ConversationParticipants conversationId={selectedConversation.id} />
+                  <ConversationObservations
+                    conversationId={selectedConversation.id}
+                    contactId={contact.id}
+                    sendInternalNote={sendInternalNote}
+                  />
                   <Separator />
                 </>
               )}
