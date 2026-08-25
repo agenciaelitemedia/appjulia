@@ -9,6 +9,21 @@ type ChangelogItem = {
 
 const releases = [
   {
+    version: 'v2.20',
+    date: '25 de agosto de 2026',
+    highlight: 'Barra do JulIA Chat compacta e fim dos atalhos de teclado.',
+    items: [
+      { category: 'novo', text: 'Nova conversa agora abre em painel expansível pelo ícone na barra de busca, substituindo o rodapé da lista.' },
+      { category: 'melhoria', text: 'Barra superior do JulIA Chat em linha única: busca, filtros, nova conversa e menu de ações (⋮).' },
+      { category: 'melhoria', text: 'Período, fila, atendente, modo Júlia e etapas do CRM reunidos dentro do painel de filtros.' },
+      { category: 'melhoria', text: 'Ordenar conversas, agenda de retornos, grupos, métricas, configurações e limpar filtros agrupados no menu ⋮.' },
+      { category: 'melhoria', text: 'Selects de fila e atendente reduzidos e truncados para caber na largura da lista.' },
+      { category: 'melhoria', text: 'Badge de versão exibido na tela de login.' },
+      { category: 'melhoria', text: 'Todos os atalhos de teclado removidos do sistema (mantido apenas Enter para enviar e buscar).' },
+    ] as ChangelogItem[],
+  },
+  {
+
     version: 'v2.19',
     date: '25 de agosto de 2026',
     highlight: 'Performance do JulIA Chat e saúde do banco de dados.',
