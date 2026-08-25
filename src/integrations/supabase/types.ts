@@ -5417,6 +5417,8 @@ export type Database = {
           caller: string | null
           client_id: number | null
           cod_agent: string | null
+          contact_id: string | null
+          contact_phone_e164: string | null
           cost: number | null
           created_at: string
           direction: string | null
@@ -5437,6 +5439,8 @@ export type Database = {
           caller?: string | null
           client_id?: number | null
           cod_agent?: string | null
+          contact_id?: string | null
+          contact_phone_e164?: string | null
           cost?: number | null
           created_at?: string
           direction?: string | null
@@ -5457,6 +5461,8 @@ export type Database = {
           caller?: string | null
           client_id?: number | null
           cod_agent?: string | null
+          contact_id?: string | null
+          contact_phone_e164?: string | null
           cost?: number | null
           created_at?: string
           direction?: string | null
@@ -8246,6 +8252,7 @@ export type Database = {
           app_user_id: number | null
           client_id: number | null
           contact_id: string | null
+          contact_phone_e164: string | null
           conversation_id: string | null
           created_at: string
           device_id: string | null
@@ -8276,6 +8283,7 @@ export type Database = {
           app_user_id?: number | null
           client_id?: number | null
           contact_id?: string | null
+          contact_phone_e164?: string | null
           conversation_id?: string | null
           created_at?: string
           device_id?: string | null
@@ -8306,6 +8314,7 @@ export type Database = {
           app_user_id?: number | null
           client_id?: number | null
           contact_id?: string | null
+          contact_phone_e164?: string | null
           conversation_id?: string | null
           created_at?: string
           device_id?: string | null
