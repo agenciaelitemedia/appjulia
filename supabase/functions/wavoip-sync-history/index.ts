@@ -1,5 +1,6 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { pickCustomerNumber, resolveContactLink } from '../_shared/contact-link.ts';
 
 // Poll de segurança: para cada dispositivo Wavoip conectado, busca o histórico
 // recente de chamadas na API Wavoip e faz upsert em `wavoip_call_logs`.
