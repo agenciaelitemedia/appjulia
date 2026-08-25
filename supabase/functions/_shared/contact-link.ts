@@ -90,3 +90,21 @@ export async function resolveContactLink(
   }
   return result;
 }
+
+/**
+ * Enriquece um registro de `phone_call_logs` (VoIP) com telefone canônico + contact_id.
+ * Mutação in-place; nunca lança.
+ */
+export async function attachCallContactLink(admin: any, entry: any): Promise<void> {
+  try {
+    const link = await resolveContactLink(
+      admin,
+      entry?.client_id ?? null,
+      pickCustomerNumber(entry?.called, entry?.caller),
+    );
+    entry.contact_phone_e164 = link.contact_phone_e164;
+    if (link.contact_id) entry.contact_id = link.contact_id;
+  } catch (e) {
+    console.error('attachCallContactLink failed (non-critical):', (e as Error)?.message ?? e);
+  }
+}
