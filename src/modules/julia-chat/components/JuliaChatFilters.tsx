@@ -166,6 +166,11 @@ export function JuliaChatFiltersBar({
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!queueLimits?.allowGroups;
   const canManageChat = !!isAdmin || user?.role === 'user' || user?.role === 'colaborador';
+  // Padrão de exibição dos cards: apenas o owner do client_id define para a equipe.
+  const isOwner = !!isAdmin || isOwnerUser(user);
+  const { settings: chatSettings, update: updateChatSettings } = useChatClientSettings();
+
+
 
   const toggleFilters = () => {
     if (panel === 'filters') {
