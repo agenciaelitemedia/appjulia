@@ -3,11 +3,12 @@ import {
   Search, RotateCcw, X, SlidersHorizontal, ChevronsUpDown, Check,
   ArrowDownUp, ArrowDown, ArrowUp, Layers, Users, UserCheck, UserX,
   ListFilter, Bot, User, CalendarClock, BarChart3, Settings, MoreVertical,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   Badge, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-  Collapsible, CollapsibleContent, CollapsibleTrigger, Popover, PopoverContent, PopoverTrigger,
+  Collapsible, CollapsibleContent, Popover, PopoverContent, PopoverTrigger,
   Checkbox, ScrollArea, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, cn,
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
   TeamMemberSelect, useTeamByClient,
@@ -17,6 +18,7 @@ import {
 } from '../extend/ui';
 import { useAuth } from '../extend/auth';
 import { useAgentQueueLimits } from '../extend/queues';
+import { JuliaNewConversationPanel } from './JuliaNewConversationPanel';
 import type { JuliaChatFilters as Filters, JuliaSlaStatus } from '../api/types';
 import type { OptionItem } from '../hooks/useJuliaChatOptions';
 
@@ -140,13 +142,16 @@ interface Props {
   resultCount?: number;
   snoozedCount?: number;
   onOpenSnoozed?: () => void;
+  queueConnectionMap?: Map<string, boolean | null>;
+  clientId?: string | null;
 }
 
 export function JuliaChatFiltersBar({
   filters, onChange, onReset, queues, tags, juliaStages, owners, resultCount,
-  snoozedCount = 0, onOpenSnoozed,
+  snoozedCount = 0, onOpenSnoozed, queueConnectionMap = new Map(), clientId,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<'filters' | 'new-conversation'>('filters');
   const [queueOpen, setQueueOpen] = useState(false);
   const [stageOpen, setStageOpen] = useState(false);
   // Busca só é aplicada no Enter (evita uma consulta por tecla digitada).
@@ -160,6 +165,24 @@ export function JuliaChatFiltersBar({
   const { data: queueLimits } = useAgentQueueLimits();
   const showGroupsTab = !!queueLimits?.allowGroups;
   const canManageChat = !!isAdmin || user?.role === 'user' || user?.role === 'colaborador';
+
+  const toggleFilters = () => {
+    if (panel === 'filters') {
+      setOpen((v) => !v);
+    } else {
+      setPanel('filters');
+      setOpen(true);
+    }
+  };
+
+  const toggleNewConversation = () => {
+    if (panel === 'new-conversation') {
+      setOpen((v) => !v);
+    } else {
+      setPanel('new-conversation');
+      setOpen(true);
+    }
+  };
 
   useEffect(() => {
     if (!showGroupsTab && filters.tab !== 'individual') onChange({ tab: 'individual' });
@@ -290,32 +313,34 @@ export function JuliaChatFiltersBar({
               )}
             </div>
 
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative h-9 w-9 shrink-0"
-                aria-label="Mais filtros"
-                aria-expanded={open}
-                aria-controls="julia-chat-filters-panel"
-              >
-                <SlidersHorizontal className="h-4 w-4" aria-hidden />
-                {activeChips.length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium text-primary-foreground">
-                    {activeChips.length}
-                  </span>
-                )}
-              </Button>
-            </CollapsibleTrigger>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn('relative h-9 w-9 shrink-0', open && panel === 'filters' && 'bg-accent')}
+              aria-label="Mais filtros"
+              aria-expanded={open && panel === 'filters'}
+              aria-controls="julia-chat-filters-panel"
+              onClick={toggleFilters}
+            >
+              <SlidersHorizontal className="h-4 w-4" aria-hidden />
+              {activeChips.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium text-primary-foreground">
+                  {activeChips.length}
+                </span>
+              )}
+            </Button>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Limpar filtros" onClick={onReset}>
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Limpar filtros</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn('relative h-9 w-9 shrink-0', open && panel === 'new-conversation' && 'bg-accent')}
+              aria-label="Nova conversa"
+              aria-expanded={open && panel === 'new-conversation'}
+              aria-controls="julia-chat-new-conversation-panel"
+              onClick={toggleNewConversation}
+            >
+              <MessageSquarePlus className="h-4 w-4" aria-hidden />
+            </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -340,6 +365,11 @@ export function JuliaChatFiltersBar({
                     </DropdownMenuRadioGroup>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+
+                <DropdownMenuItem onClick={onReset} className="gap-2">
+                  <RotateCcw className="h-4 w-4" aria-hidden />
+                  Limpar filtros
+                </DropdownMenuItem>
 
                 <DropdownMenuItem onClick={() => onOpenSnoozed?.()} className="gap-2">
                   <CalendarClock className="h-4 w-4" aria-hidden />
@@ -381,10 +411,11 @@ export function JuliaChatFiltersBar({
           {/* Painel de filtros colapsado */}
 
             <CollapsibleContent
-              id="julia-chat-filters-panel"
+              id={panel === 'filters' ? 'julia-chat-filters-panel' : 'julia-chat-new-conversation-panel'}
               className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border bg-popover shadow-xl"
             >
-              <div className="thin-scrollbar max-h-[75vh] space-y-3 overflow-y-auto p-2.5">
+              {panel === 'filters' ? (
+                <div className="thin-scrollbar max-h-[75vh] space-y-3 overflow-y-auto p-2.5">
 
                 {activeChips.length > 0 && (
                   <div className="flex flex-wrap gap-1 border-b pb-2">
@@ -612,6 +643,13 @@ export function JuliaChatFiltersBar({
                   onToggle={(id) => toggleIn('tag_ids', id)}
                 />
               </div>
+              ) : (
+                <JuliaNewConversationPanel
+                  queues={queues}
+                  queueConnectionMap={queueConnectionMap}
+                  clientId={clientId}
+                />
+              )}
             </CollapsibleContent>
 
           <p aria-live="polite" className="sr-only">

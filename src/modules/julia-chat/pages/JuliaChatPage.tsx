@@ -14,7 +14,6 @@ import { JuliaChatFiltersBar } from '../components/JuliaChatFilters';
 import { JuliaChatPerfPanel } from '../components/JuliaChatPerfPanel';
 import { JuliaChatStatusTabs } from '../components/JuliaChatStatusTabs';
 import { JuliaSnoozedPanel } from '../components/JuliaSnoozedPanel';
-import { JuliaNewConversationFooter } from '../components/JuliaNewConversationFooter';
 import { JuliaChatConversation } from '../components/JuliaChatConversation';
 import { JuliaChatRightBar } from '../components/JuliaChatRightBar';
 import { WhatsAppDataProvider } from '../extend/chat';
@@ -133,6 +132,8 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
             resultCount={activeFeed.rows.length}
             snoozedCount={snoozedCount}
             onOpenSnoozed={() => setSnoozedPanelOpen(true)}
+            queueConnectionMap={queueConnectionMap}
+            clientId={clientId}
           />
         </div>
 
@@ -175,12 +176,6 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
           selectedId={selected?.conversation_id ?? null}
           disconnectedQueueIds={disconnectedQueueIds}
           onSelect={setSelected}
-        />
-
-        <JuliaNewConversationFooter
-          queues={accessibleQueues as any[]}
-          queueConnectionMap={queueConnectionMap}
-          clientId={clientId}
         />
       </aside>
 
