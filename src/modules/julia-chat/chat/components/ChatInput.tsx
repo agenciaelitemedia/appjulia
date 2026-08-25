@@ -3,11 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type, Info, HelpCircle, AlertTriangle, PenLine } from 'lucide-react';
+import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Type, Info, HelpCircle, AlertTriangle, PenLine, MoreHorizontal, Sparkles } from 'lucide-react';
 import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { GenerateSummaryButton } from './GenerateSummaryButton';
 import type { MessageType, ChatMessage } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
 import { AudioRecorder } from './AudioRecorder';
@@ -21,6 +21,7 @@ import { extractFirstUrl } from '@/modules/julia-chat/chat/lib/linkPreview';
 import { applyFormat, type FormatToken } from '@/lib/whatsappFormat';
 import { externalDb } from '@/lib/externalDb';
 import { interpolateVariables } from '@/lib/messageVariables';
+import { useConversationSummaries } from '@/hooks/useConversationSummaries';
 
 interface ChatInputProps {
   contactId: string;
@@ -54,6 +55,12 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
   const [showScheduledList, setShowScheduledList] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showFormatBar, setShowFormatBar] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const { generateSummary, getAfterTsForNext } = useConversationSummaries(
+    selectedConversation?.id ?? null,
+    selectedContact?.id ?? null,
+  );
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [pendingMedia, setPendingMedia] = useState<{ file: File; type: MessageType; caption?: string } | null>(null);
   const [team, setTeam] = useState<TeamMember[]>([]);
   // Link preview while typing
@@ -262,6 +269,22 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
       }, 0);
     } else {
       setText(text + emoji);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    const conversationId = selectedConversation?.id;
+    const contactId = selectedContact?.id;
+    if (!conversationId || !contactId || isGeneratingSummary) return;
+    setIsGeneratingSummary(true);
+    try {
+      await generateSummary(conversationId, contactId, getAfterTsForNext(), 'manual');
+      toast.success('Resumo gerado com sucesso');
+      setMoreOpen(false);
+    } catch (e: any) {
+      toast.error(e?.message || 'Erro ao gerar resumo');
+    } finally {
+      setIsGeneratingSummary(false);
     }
   };
 
@@ -558,91 +581,118 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
             </PopoverContent>
           </Popover>
 
-          {/* Etiquetas */}
-          {!noteMode && (
-            <ChatInputTagButton
-              conversationId={selectedConversation?.id || null}
-              disabled={!canSend}
-            />
-          )}
-
-          {/* Format toggle */}
-          {!noteMode && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                'h-9 w-9 flex-shrink-0',
-                showFormatBar && 'bg-accent text-accent-foreground'
-              )}
-              onClick={() => setShowFormatBar((v) => !v)}
-              title="Formatação WhatsApp"
-            >
-              <Type className="h-5 w-5 text-muted-foreground" />
-            </Button>
-          )}
-
-          {/* Signature toggle */}
-          {!noteMode && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                'h-9 w-9 flex-shrink-0',
-                signEnabled && 'bg-accent text-accent-foreground'
-              )}
-              onClick={() => setSignEnabled((v) => !v)}
-              title={
-                signEnabled
-                  ? `Assinando como "${user?.name || 'atendente'}" (clique para desativar)`
-                  : 'Assinatura desativada (clique para ativar)'
-              }
-              disabled={!user?.name}
-            >
-              <PenLine className={cn('h-5 w-5', signEnabled ? 'text-foreground' : 'text-muted-foreground')} />
-            </Button>
-          )}
-
-          {/* Note type menu — always available, even when conversation is not claimed */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          {/* More tools: etiquetas, formatação, assinatura, nota, resumo */}
+          <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+            <PopoverTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className={cn(
                   'h-9 w-9 flex-shrink-0',
-                  noteMode && noteType === 'info' && 'bg-sky-600 text-primary-foreground hover:bg-sky-700 hover:text-primary-foreground',
-                  noteMode && noteType === 'question' && 'bg-amber-600 text-primary-foreground hover:bg-amber-700 hover:text-primary-foreground',
-                  noteMode && noteType === 'urgent' && 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground',
+                  moreOpen && 'bg-accent text-accent-foreground'
                 )}
-                title="Nota interna"
+                title="Mais ações"
+                disabled={!canSend && !noteMode}
               >
-                <StickyNote className="h-5 w-5" />
+                <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start">
-              <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('info'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
-                <Info className="h-4 w-4 mr-2 text-blue-600" />
-                Informativa
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('question'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
-                <HelpCircle className="h-4 w-4 mr-2 text-yellow-600" />
-                Dúvida
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('urgent'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
-                <AlertTriangle className="h-4 w-4 mr-2 text-red-600" />
-                Urgência
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-1.5 flex items-center gap-1" side="top" align="end">
+              {/* Etiquetas */}
+              {!noteMode && (
+                <ChatInputTagButton
+                  conversationId={selectedConversation?.id || null}
+                  disabled={!canSend}
+                />
+              )}
 
-          {/* Gerar resumo do atendimento com IA */}
-          <GenerateSummaryButton
-            conversationId={selectedConversation?.id ?? null}
-            contactId={selectedContact?.id ?? null}
-            iconOnly
-            className="h-9 w-9 flex-shrink-0"
-          />
+              {/* Format toggle */}
+              {!noteMode && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'h-9 w-9 flex-shrink-0',
+                    showFormatBar && 'bg-accent text-accent-foreground'
+                  )}
+                  onClick={() => setShowFormatBar((v) => !v)}
+                  title="Formatação WhatsApp"
+                >
+                  <Type className="h-5 w-5 text-muted-foreground" />
+                </Button>
+              )}
+
+              {/* Signature toggle */}
+              {!noteMode && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'h-9 w-9 flex-shrink-0',
+                    signEnabled && 'bg-accent text-accent-foreground'
+                  )}
+                  onClick={() => setSignEnabled((v) => !v)}
+                  title={
+                    signEnabled
+                      ? `Assinando como "${user?.name || 'atendente'}" (clique para desativar)`
+                      : 'Assinatura desativada (clique para ativar)'
+                  }
+                  disabled={!user?.name}
+                >
+                  <PenLine className={cn('h-5 w-5', signEnabled ? 'text-foreground' : 'text-muted-foreground')} />
+                </Button>
+              )}
+
+              {/* Note type menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      'h-9 w-9 flex-shrink-0',
+                      noteMode && noteType === 'info' && 'bg-sky-600 text-primary-foreground hover:bg-sky-700 hover:text-primary-foreground',
+                      noteMode && noteType === 'question' && 'bg-amber-600 text-primary-foreground hover:bg-amber-700 hover:text-primary-foreground',
+                      noteMode && noteType === 'urgent' && 'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:text-destructive-foreground',
+                    )}
+                    title="Nota interna"
+                  >
+                    <StickyNote className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start">
+                  <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('info'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
+                    <Info className="h-4 w-4 mr-2 text-blue-600" />
+                    Informativa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('question'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
+                    <HelpCircle className="h-4 w-4 mr-2 text-yellow-600" />
+                    Dúvida
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setNoteMode(true); setNoteType('urgent'); setTimeout(() => textareaRef.current?.focus(), 0); }}>
+                    <AlertTriangle className="h-4 w-4 mr-2 text-red-600" />
+                    Urgência
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Gerar resumo do atendimento com IA */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 flex-shrink-0 rounded-full text-violet-600 hover:text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-950/40"
+                onClick={handleGenerateSummary}
+                disabled={!selectedConversation?.id || !selectedContact?.id || isGeneratingSummary}
+                title="Gerar resumo do atendimento com IA"
+              >
+                {isGeneratingSummary ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+              </Button>
+            </PopoverContent>
+          </Popover>
 
           {/* Hidden file input */}
           <input
