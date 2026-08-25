@@ -266,6 +266,25 @@ export function DealCard({
               </Tooltip>
             )}
 
+            {deal.contact_phone && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className="inline-flex"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <WavoipCallButton
+                      phone={deal.contact_phone}
+                      contactName={deal.contact_name || deal.title}
+                      iconOnly
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Iniciar ZAP Call (WhatsApp)</TooltipContent>
+              </Tooltip>
+            )}
+
             {chatLink && onOpenChat && (
               <Tooltip>
                 <TooltipTrigger asChild>
