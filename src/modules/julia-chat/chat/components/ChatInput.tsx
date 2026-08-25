@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Type, Info, HelpCircle, AlertTriangle, PenLine, MoreHorizontal, Sparkles } from 'lucide-react';
 import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { MessageType, ChatMessage } from '@/types/chat';
 import { QuickMessagePicker } from './QuickMessagePicker';
