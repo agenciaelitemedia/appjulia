@@ -474,10 +474,30 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }
         <TabsContent value="geral" className="flex-1 mt-0 min-h-0">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-5">
+              {/* Tags */}
+              {selectedConversation && (
+                <>
+                  <TagSelector
+                    allTags={tags}
+                    activeTags={conversationTags}
+                    onToggle={handleToggleTag}
+                    onCreateAndAdd={handleAddTag}
+                    newTagName={newTagName}
+                    onNewTagNameChange={setNewTagName}
+                    showAddTag={showAddTag}
+                    onToggleAddTag={() => setShowAddTag(v => !v)}
+                  />
+                  <Separator />
+                  <ConversationParticipants conversationId={selectedConversation.id} />
+                  <Separator />
+                </>
+              )}
+
+              {/* Informações da conversa */}
               {selectedConversation && (
                 <>
                   <div className="space-y-3">
-                    <h5 className="text-xs font-semibold uppercase text-muted-foreground">Conversa Atual</h5>
+                    <h5 className="text-xs font-semibold uppercase text-muted-foreground">Informações da Conversa</h5>
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground flex items-center gap-1.5">
@@ -597,25 +617,6 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false }
                       )}
                     </div>
                   </div>
-                  <Separator />
-                </>
-              )}
-
-              {/* Tags */}
-              {selectedConversation && (
-                <>
-                  <TagSelector
-                    allTags={tags}
-                    activeTags={conversationTags}
-                    onToggle={handleToggleTag}
-                    onCreateAndAdd={handleAddTag}
-                    newTagName={newTagName}
-                    onNewTagNameChange={setNewTagName}
-                    showAddTag={showAddTag}
-                    onToggleAddTag={() => setShowAddTag(v => !v)}
-                  />
-                  <Separator />
-                  <ConversationParticipants conversationId={selectedConversation.id} />
                   <Separator />
                 </>
               )}

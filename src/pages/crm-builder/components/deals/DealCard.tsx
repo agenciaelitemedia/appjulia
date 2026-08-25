@@ -52,6 +52,7 @@ import { PhoneCallDialog } from '@/pages/crm/components/PhoneCallDialog';
 import { useChatContactConversationStatus } from '../../hooks/useChatContactConversationStatus';
 import { useDealJuliaContext } from '../../hooks/useDealJuliaContext';
 import { NewConversationDialog } from '@/modules/julia-chat/chat/components/NewConversationDialog';
+import { WavoipCallButton } from '@/modules/julia-chat/chat/components/WavoipCallButton';
 import { useQueues } from '@/pages/agente/filas/hooks/useQueues';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -263,6 +264,25 @@ export function DealCard({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Ligar via ramal</TooltipContent>
+              </Tooltip>
+            )}
+
+            {deal.contact_phone && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className="inline-flex"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <WavoipCallButton
+                      phone={deal.contact_phone}
+                      contactName={deal.contact_name || deal.title}
+                      iconOnly
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Iniciar ZAP Call (WhatsApp)</TooltipContent>
               </Tooltip>
             )}
 
