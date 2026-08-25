@@ -88,7 +88,7 @@ function FixedBadge({
         <TooltipTrigger asChild>
           <span
             className={cn(
-              'inline-flex h-5 shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
+              'inline-flex h-5 items-center justify-center gap-1 overflow-hidden rounded-full border px-1.5 text-[10px] font-medium',
               width,
               tone,
             )}
