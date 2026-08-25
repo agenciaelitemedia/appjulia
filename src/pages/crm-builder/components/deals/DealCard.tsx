@@ -98,6 +98,7 @@ export function DealCard({
   const [isVisible, setIsVisible] = useState(false);
   const cardElRef = useRef<HTMLDivElement | null>(null);
   const { isAvailable: isPhoneAvailable } = usePhone();
+  const voipUnavailable = !isPhoneAvailable || !deal.contact_phone;
   const { user } = useAuth();
   const {
     attributes,
