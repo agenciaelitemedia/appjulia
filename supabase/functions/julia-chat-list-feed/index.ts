@@ -578,8 +578,16 @@ serve(async (req) => {
   /* ---------------------------- SQL B · externo ---------------------------- */
   let msExternal = 0;
   let externalError: string | null = null;
-  const foregroundMissing = missing.filter((m) => !cachedByKey.has(`${m.phone_key}|${m.cod_agent}`));
-  const backgroundMissing = missing.filter((m) => cachedByKey.has(`${m.phone_key}|${m.cod_agent}`));
+  const foregroundMissing = missing.filter((m) => {
+    const hasCache = cachedByKey.has(`${m.phone_key}|${m.cod_agent}`);
+    // Busca manual e filtros que dependem do legado continuam precisos: nesses
+    // casos a função espera o banco externo em vez de devolver cache vencido.
+    return !hasCache || body.refresh || needsPostFilter;
+  });
+  const backgroundMissing = missing.filter((m) => {
+    const hasCache = cachedByKey.has(`${m.phone_key}|${m.cod_agent}`);
+    return hasCache && !body.refresh && !needsPostFilter;
+  });
 
   if (foregroundMissing.length > 0) {
     const refreshed = await refreshLegacyTargets({
