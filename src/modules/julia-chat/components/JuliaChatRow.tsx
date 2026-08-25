@@ -518,7 +518,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
               <FixedBadge
                 icon={Ticket}
                 label={`#${row.active_ticket_number ?? row.active_ticket_protocol ?? '—'}`}
-                width="w-[62px]"
+                width="w-[52px]"
                 tone="border-border bg-muted/60 text-muted-foreground"
                 tooltip={`Ticket de suporte ${row.ticket_status ? `· ${row.ticket_status}` : ''} ${row.ticket_subject ?? ''}`.trim()}
               />
