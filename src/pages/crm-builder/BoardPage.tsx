@@ -38,7 +38,7 @@ import { CreatePipelineDialog } from './components/pipeline/CreatePipelineDialog
 import { DealCard } from './components/deals/DealCard';
 import { CreateDealDialog } from './components/deals/CreateDealDialog';
 import { ImportDealsCsvDialog } from './components/deals/ImportDealsCsvDialog';
-import { DealDetailsSheet } from './components/deals/DealDetailsSheet';
+import { DealRightBarSheet } from './components/deals/DealRightBarSheet';
 import { BoardChatSidePanel } from './components/deals/BoardChatSidePanel';
 import { BoardFilters, type BoardFiltersState } from './components/filters/BoardFilters';
 import { BoardSortMenu } from './components/filters/BoardSortMenu';
@@ -958,7 +958,7 @@ export default function BoardPage() {
         onImported={() => { void fetchDeals(); }}
       />
 
-      <DealDetailsSheet
+      <DealRightBarSheet
         deal={viewingDeal}
         pipeline={viewingDeal ? pipelines.find(p => p.id === viewingDeal.pipeline_id) : null}
         open={!!viewingDeal}
