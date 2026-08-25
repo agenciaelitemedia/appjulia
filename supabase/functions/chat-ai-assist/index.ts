@@ -2,7 +2,7 @@
 // Model/provider/endpoint/key resolved per agent via _shared/aiGateway.ts.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { fetchEffectiveQueueFlags } from "../_shared/agentSettings.ts";
-import { resolveAI, providerHeaders, lovableAI, type ResolvedAI } from "../_shared/aiGateway.ts";
+import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
 import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const corsHeaders = {
@@ -16,42 +16,6 @@ const supabase = createClient(
 );
 
 const DEFAULT_RESUME_PROMPT = `Você é um analista de atendimento. Gere um RESUMO OBJETIVO em português da conversa abaixo, priorizando os RELATOS DO CLIENTE (situação, dores, pedidos, dados pessoais relevantes ao caso). Mencione respostas do atendente APENAS quando forem indispensáveis para entender o caso (ex.: instrução crítica, compromisso assumido, encaminhamento). Use os resumos anteriores fornecidos como CONTEXTO acumulado; não os repita, apenas incorpore o que ainda for relevante. Saída em até 6 bullets curtos. Comece com 1 frase em negrito identificando o caso. Não invente informações.`;
-
-/**
- * Chama o provedor de IA e, se um provedor externo (OpenRouter) recusar por
- * cobrança/autorização (401/402/403), refaz a chamada no Lovable AI Gateway.
- * Retorna a resposta e a config efetivamente usada (para log).
- */
-async function callAIWithFallback(
-  ai: ResolvedAI,
-  feature: string,
-  // deno-lint-ignore no-explicit-any
-  messages: any[],
-): Promise<{ resp: Response; used: ResolvedAI }> {
-  const doCall = (cfg: ResolvedAI) =>
-    fetch(cfg.endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${cfg.apiKey}`,
-        "Content-Type": "application/json",
-        ...providerHeaders(cfg.provider),
-      },
-      body: JSON.stringify({ model: cfg.model, messages }),
-    });
-
-  let resp = await doCall(ai);
-  if (ai.provider !== "lovable" && [401, 402, 403].includes(resp.status)) {
-    const fb = lovableAI(feature, ai.prompt);
-    if (fb.apiKey) {
-      console.warn(`[chat-ai-assist] provider=${ai.provider} status=${resp.status}; fallback → Lovable AI (${fb.model})`);
-      const fbResp = await doCall(fb);
-      if (fbResp.ok) return { resp: fbResp, used: fb };
-      resp = fbResp;
-      return { resp, used: fb };
-    }
-  }
-  return { resp, used: ai };
-}
 
 function json(b: unknown, s = 200) {
   return new Response(JSON.stringify(b), {
@@ -196,10 +160,17 @@ Deno.serve(async (req) => {
         : `CONVERSA (resuma desde o início):\n${transcript}`;
 
       const incStarted = Date.now();
-      const { resp, used: incUsed } = await callAIWithFallback(resumeAI, "chat_resume", [
-        { role: "system", content: resumePrompt },
-        { role: "user", content: userContent },
-      ]);
+      const resp = await fetch(resumeAI.endpoint, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resumeAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(resumeAI.provider) },
+        body: JSON.stringify({
+          model: resumeModel,
+          messages: [
+            { role: "system", content: resumePrompt },
+            { role: "user", content: userContent },
+          ],
+        }),
+      });
       const incDurationMs = Date.now() - incStarted;
 
       if (resp.status === 429) return json({ error: "Limite de uso da IA atingido." }, 429);
@@ -208,9 +179,9 @@ Deno.serve(async (req) => {
         const t = await resp.text();
         await logAIUsage(supabase, {
           feature: "chat_resume",
-          provider: incUsed.provider,
-          endpoint: incUsed.endpoint,
-          model: incUsed.model,
+          provider: resumeAI.provider,
+          endpoint: resumeAI.endpoint,
+          model: resumeModel,
           status: "failed",
           duration_ms: incDurationMs,
           error_reason: `ai_${resp.status}`,
@@ -223,9 +194,9 @@ Deno.serve(async (req) => {
       const summary = aiData?.choices?.[0]?.message?.content ?? "";
       await logAIUsage(supabase, {
         feature: "chat_resume",
-        provider: incUsed.provider,
-        endpoint: incUsed.endpoint,
-        model: incUsed.model,
+        provider: resumeAI.provider,
+        endpoint: resumeAI.endpoint,
+        model: resumeModel,
         status: "ok",
         duration_ms: incDurationMs,
         usage: aiData?.usage,
@@ -380,10 +351,17 @@ Deno.serve(async (req) => {
       const userContent = `${contextPrefix}CONVERSA:\n${transcript}`;
 
       const fsStarted = Date.now();
-      const { resp, used: fsUsed } = await callAIWithFallback(resumeAI, "chat_resume", [
-        { role: "system", content: `${resumePrompt}${jsonShapeInstruction}` },
-        { role: "user", content: userContent },
-      ]);
+      const resp = await fetch(resumeAI.endpoint, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resumeAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(resumeAI.provider) },
+        body: JSON.stringify({
+          model: resumeModel,
+          messages: [
+            { role: "system", content: `${resumePrompt}${jsonShapeInstruction}` },
+            { role: "user", content: userContent },
+          ],
+        }),
+      });
       const fsDurationMs = Date.now() - fsStarted;
 
       if (resp.status === 429) return json({ error: "Limite de uso da IA atingido." }, 429);
@@ -392,9 +370,9 @@ Deno.serve(async (req) => {
         const t = await resp.text();
         await logAIUsage(supabase, {
           feature: "chat_resume",
-          provider: fsUsed.provider,
-          endpoint: fsUsed.endpoint,
-          model: fsUsed.model,
+          provider: resumeAI.provider,
+          endpoint: resumeAI.endpoint,
+          model: resumeModel,
           status: "failed",
           duration_ms: fsDurationMs,
           error_reason: `ai_${resp.status}`,
@@ -457,10 +435,17 @@ Deno.serve(async (req) => {
     const assistAI = await resolveAI(supabase, "chat_assist");
     if (!assistAI.apiKey) return json({ error: "IA não configurada (sem chave)." }, 500);
     const assistStarted = Date.now();
-    const { resp, used: assistUsed } = await callAIWithFallback(assistAI, "chat_assist", [
-      { role: "system", content: systemByMode[mode] },
-      { role: "user", content: transcript },
-    ]);
+    const resp = await fetch(assistAI.endpoint, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${assistAI.apiKey}`, "Content-Type": "application/json", ...providerHeaders(assistAI.provider) },
+      body: JSON.stringify({
+        model: assistAI.model,
+        messages: [
+          { role: "system", content: systemByMode[mode] },
+          { role: "user", content: transcript },
+        ],
+      }),
+    });
     const assistDurationMs = Date.now() - assistStarted;
 
     if (resp.status === 429) return json({ error: "Limite de uso da IA atingido. Tente em instantes." }, 429);
@@ -483,9 +468,9 @@ Deno.serve(async (req) => {
     const result = data?.choices?.[0]?.message?.content ?? "";
     await logAIUsage(supabase, {
       feature: "chat_assist",
-      provider: assistUsed.provider,
-      endpoint: assistUsed.endpoint,
-      model: assistUsed.model,
+      provider: assistAI.provider,
+      endpoint: assistAI.endpoint,
+      model: assistAI.model,
       status: "ok",
       duration_ms: assistDurationMs,
       usage: data?.usage,

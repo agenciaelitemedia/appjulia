@@ -153,7 +153,7 @@ export function DashboardTripleFunnel({ juliaData, campaignData, juliaLoading, c
   }, [juliaTrimmed, campaignTrimmed]);
 
   return (
-    <div className="grid gap-4 grid-cols-1">
+    <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
       <FunnelCard
         title="Funil Total Julia"
         icon={<Bot className="h-5 w-5 text-primary" />}
