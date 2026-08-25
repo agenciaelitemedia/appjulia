@@ -15,5 +15,8 @@ export const STORAGE_KEYS = {
   DATAJUD_SEARCH_HISTORY: 'datajud_search_history',
   /** Sidebar collapsed/expanded preference */
   SIDEBAR_COLLAPSED: 'julia_sidebar_collapsed',
+  /** Layout dos funis no painel: 'grid' (3 colunas) ou 'full' (1 por linha) */
+  DASHBOARD_FUNNEL_LAYOUT: 'julia_dashboard_funnel_layout',
+
 } as const;
 

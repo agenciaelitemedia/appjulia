@@ -11,12 +11,24 @@ import {
   Activity,
   Filter,
   Handshake,
+  Settings,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { STORAGE_KEYS } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDbDateTime } from '@/lib/dateUtils';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
@@ -40,7 +52,7 @@ import { DashboardEvolutionChart } from './dashboard/components/DashboardEvoluti
 import { DashboardActivityTimeline } from './dashboard/components/DashboardActivityTimeline';
 import { DashboardSparkline } from './dashboard/components/DashboardSparkline';
 import { DashboardFunnelChart } from './dashboard/components/DashboardFunnelChart';
-import { DashboardTripleFunnel } from './dashboard/components/DashboardTripleFunnel';
+import { DashboardTripleFunnel, type DashboardFunnelLayout } from './dashboard/components/DashboardTripleFunnel';
 import { useDashboardJuliaFunnel, useDashboardCampaignFunnel } from './dashboard/hooks/useDashboardFunnels';
 import { CRMLeadDetailsDialog } from './crm/components/CRMLeadDetailsDialog';
 import { Navigate } from 'react-router-dom';
@@ -66,6 +78,27 @@ function AgentDashboard() {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasInitializedFilters = useRef(false);
+
+  // Preferência de layout dos funis (persistida no navegador)
+  const [funnelLayout, setFunnelLayout] = useState<DashboardFunnelLayout>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.DASHBOARD_FUNNEL_LAYOUT);
+      return saved === 'full' ? 'full' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  const handleFunnelLayoutChange = (value: string) => {
+    const next: DashboardFunnelLayout = value === 'full' ? 'full' : 'grid';
+    setFunnelLayout(next);
+    try {
+      localStorage.setItem(STORAGE_KEYS.DASHBOARD_FUNNEL_LAYOUT, next);
+    } catch {
+      /* ignore */
+    }
+  };
+
 
   // Modal state for lead details
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
@@ -287,15 +320,33 @@ function AgentDashboard() {
               Bem-vindo ao seu painel de controle. Aqui está um resumo das suas atividades.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" aria-label="Configurações de exibição">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Exibição dos funis</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup value={funnelLayout} onValueChange={handleFunnelLayoutChange}>
+                  <DropdownMenuRadioItem value="grid">Padrão (3 colunas)</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="full">Full (1 por linha)</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
         </div>
 
         {/* Filters */}
@@ -383,7 +434,9 @@ function AgentDashboard() {
           campaignData={campaignFunnel}
           juliaLoading={juliaFunnelLoading}
           campaignLoading={campaignFunnelLoading}
+          layout={funnelLayout}
         />
+
 
         {/* Evolution Chart */}
         <DashboardEvolutionChart
