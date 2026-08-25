@@ -7747,6 +7747,24 @@ export type Database = {
         }
         Relationships: []
       }
+      user_presence_heartbeats_202611: {
+        Row: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Insert: {
+          client_id: number
+          seen_at: string
+          user_id: number
+        }
+        Update: {
+          client_id?: number
+          seen_at?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
       vellip_call_logs: {
         Row: {
           cd_called_status: string | null
