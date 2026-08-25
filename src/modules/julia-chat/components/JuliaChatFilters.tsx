@@ -556,6 +556,54 @@ export function JuliaChatFiltersBar({
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Etapas do CRM da Júlia</Label>
+                    <Popover open={stageOpen} onOpenChange={setStageOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" className="h-8 w-full justify-between bg-background text-xs font-normal">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="truncate">{stageLabel}</span>
+                          </span>
+                          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-[280px] p-0">
+                        <div className="border-b px-2 py-1.5">
+                          <button
+                            type="button"
+                            onClick={toggleAllStages}
+                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent"
+                          >
+                            <Checkbox checked={allStagesSelected} className="pointer-events-none" />
+                            <span className="font-medium">{allStagesSelected ? 'Desmarcar todas' : 'Selecionar todas'}</span>
+                          </button>
+                        </div>
+
+                        <ScrollArea className="max-h-[260px]">
+                          <div className="p-1">
+                            {juliaStages.length === 0 ? (
+                              <p className="px-3 py-4 text-center text-xs text-muted-foreground">Nenhuma etapa disponível</p>
+                            ) : (
+                              juliaStages.map((s) => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onClick={() => toggleIn('julia_stage_ids', s.id)}
+                                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent"
+                                >
+                                  <Checkbox checked={filters.julia_stage_ids.includes(s.id)} className="pointer-events-none" />
+                                  {s.color && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />}
+                                  <span className="flex-1 truncate">{s.name}</span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </ScrollArea>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
 
 
