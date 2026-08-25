@@ -5,6 +5,12 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Loader2, Play, CircleX, PhoneIncoming, PhoneOutgoing, User, Download } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamByClient } from '@/hooks/useTeamByClient';
@@ -19,6 +25,7 @@ import {
 
 function durationLabel(seconds?: number | null) {
   const s = Math.max(0, Number(seconds) || 0);
+  if (s === 0) return '0min 00s';
   const m = Math.floor(s / 60);
   const r = s % 60;
   return `${m}min ${String(r).padStart(2, '0')}s`;
@@ -40,15 +47,57 @@ function DirectionIcon({ direction }: { direction?: string | null }) {
   );
 }
 
-function VoipRecording({ url }: { url: string | null }) {
+const VOIP_STATUS_LABELS: Record<string, string> = {
+  NORMAL_CLEARING: 'Atendida',
+  ANSWER: 'Atendida',
+  ANSWERED: 'Atendida',
+  BUSY: 'Ocupado',
+  USER_BUSY: 'Ocupado',
+  NO_ANSWER: 'Não atendeu',
+  CANCEL: 'Cancelada',
+  CANCELLED: 'Cancelada',
+  NUMBER_CHANGED: 'Número alterado',
+  UNALLOCATED_NUMBER: 'Número inexistente',
+  NO_ROUTE_DESTINATION: 'Sem rota',
+  CALL_REJECTED: 'Rejeitada',
+  INVALID_NUMBER_FORMAT: 'Número inválido',
+  DESTINATION_OUT_OF_ORDER: 'Destino indisponível',
+  ORIGINATOR_CANCEL: 'Cancelada pelo originador',
+  LOSE_RACE: 'Conflito de rota',
+  PROGRESS_TIMEOUT: 'Tempo esgotado',
+};
+
+function friendlyStatus(status?: string | null) {
+  if (!status) return 'Concluída';
+  return VOIP_STATUS_LABELS[status.toUpperCase()] || status.replace(/_/g, ' ');
+}
+
+function VoipRecording({ url, durationSeconds = 0 }: { url: string | null; durationSeconds?: number }) {
   const [open, setOpen] = useState(false);
-  if (!url) {
+  const hasAudio = !!url && durationSeconds > 0;
+
+  if (!hasAudio) {
+    const reason = !url
+      ? 'Não há gravação disponível para esta ligação.'
+      : 'Ligação não foi atendida ou durou 0 segundos, por isso não há áudio.';
     return (
-      <Button variant="ghost" size="icon" disabled className="h-7 w-7 text-muted-foreground" title="Sem gravação">
-        <CircleX className="h-3.5 w-3.5" />
-      </Button>
+      <TooltipProvider delayDuration={100}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button variant="ghost" size="icon" disabled className="h-7 w-7 text-muted-foreground">
+                <CircleX className="h-3.5 w-3.5" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            <p className="max-w-[200px] text-xs">{reason}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
