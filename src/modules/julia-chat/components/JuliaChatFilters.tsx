@@ -643,6 +643,13 @@ export function JuliaChatFiltersBar({
                   onToggle={(id) => toggleIn('tag_ids', id)}
                 />
               </div>
+              ) : (
+                <JuliaNewConversationPanel
+                  queues={queues}
+                  queueConnectionMap={queueConnectionMap}
+                  clientId={clientId}
+                />
+              )}
             </CollapsibleContent>
 
           <p aria-live="polite" className="sr-only">
