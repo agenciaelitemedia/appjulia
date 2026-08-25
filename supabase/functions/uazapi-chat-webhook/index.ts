@@ -201,45 +201,28 @@ function collectMessageIds(src: any): string[] {
 async function resolveChatMessageRowIds(supabase: ReturnType<typeof getSupabase>, ids: string[]): Promise<string[]> {
   if (!ids.length) return [];
 
+  // Uma única RPC resolve os ids: igualdade exata em message_id/external_id +
+  // comparação pelo sufixo (após o último ':') usando índices de expressão.
+  // Substitui o antigo fallback com OR de ILIKE, que gerava seq scan de
+  // ~2-5s por chamada em chat_messages (principal gargalo do banco).
+  const safeIds = Array.from(new Set(
+    ids.filter((v) => typeof v === 'string' && v.length > 0).slice(0, 50),
+  ));
+  if (!safeIds.length) return [];
+
+  const { data, error } = await supabase.rpc('chat_resolve_message_ids', { p_ids: safeIds });
+  if (error) {
+    console.warn('[resolveChatMessageRowIds] rpc failed', error.message);
+    return [];
+  }
+
   const resolved = new Set<string>();
-
-  // Fase 1 (hot path): tentativa exata usando os índices btree em message_id
-  // e external_id. Cobre >95% dos webhooks de status (messages.update).
-  // PostgREST aceita `.in.()` dentro de `.or(...)`, gerando um único
-  // Index Scan combinado. Evita completamente o ILIKE em regime normal.
-  const inList = ids.map((v) => v.replace(/[(),]/g, '')).join(',');
-  const { data: exact } = await supabase
-    .from('chat_messages')
-    .select('id')
-    .or(`message_id.in.(${inList}),external_id.in.(${inList})`);
-  for (const row of exact ?? []) {
-    const rowId = (row as { id?: string }).id;
-    if (rowId) resolved.add(rowId);
+  for (const row of (data ?? []) as Array<{ id?: string }>) {
+    if (row?.id) resolved.add(row.id);
   }
-  if (resolved.size > 0) return Array.from(resolved);
-
-  // Fase 2 (fallback raro): alguns provedores prefixam o id (ex.: `3EB0:xxx`).
-  // Só executa quando a busca exata não encontrou nada, e apenas para ids sem
-  // `:` — usa índices GIN trigrama criados na migração para manter O(log n).
-  const shortIds = ids.filter((id) => !id.includes(':'));
-  if (shortIds.length === 0) return [];
-
-  const orParts: string[] = [];
-  for (const shortId of shortIds) {
-    const safe = shortId.replace(/[%,()]/g, '');
-    orParts.push(`message_id.ilike.*:${safe}`, `external_id.ilike.*:${safe}`);
-  }
-  const { data: fuzzy } = await supabase
-    .from('chat_messages')
-    .select('id')
-    .or(orParts.join(','));
-  for (const row of fuzzy ?? []) {
-    const rowId = (row as { id?: string }).id;
-    if (rowId) resolved.add(rowId);
-  }
-
   return Array.from(resolved);
 }
+
 
 function normalizePhone(raw: string): string {
   // Forma canônica BR: aplica regra do 9º dígito para celulares 55 + DDD + 8 díg.

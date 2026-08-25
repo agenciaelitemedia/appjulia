@@ -55,7 +55,7 @@ export function useUazapiHistoryRuns() {
     refetchInterval: (query) => {
       const runs = query.state.data as UazapiHistoryRun[] | undefined;
       const active = runs?.some((r) => r.status === 'pending' || r.status === 'running');
-      return active ? 4000 : 10000;
+      return active ? 8000 : 30000;
     },
   });
 }
@@ -74,7 +74,7 @@ export function useUazapiHistoryItems(runId: string | null) {
       if (error) throw error;
       return (data ?? []) as unknown as UazapiHistoryItem[];
     },
-    refetchInterval: 4000,
+    refetchInterval: 15000,
   });
 }
 
@@ -104,7 +104,7 @@ export function useUazapiHistoryPending() {
       }
       return { pending: count ?? 0, oldest_pending_at: oldest };
     },
-    refetchInterval: 5000,
+    refetchInterval: 15000,
   });
 }
 
@@ -166,7 +166,7 @@ export function useDispatcherHealth() {
         is_offline: seconds >= 300,
       };
     },
-    refetchInterval: 5000,
+    refetchInterval: 15000,
   });
 }
 
@@ -187,7 +187,7 @@ export function useUazapiPendingByClient() {
       if (error) return [];
       return (data ?? []) as unknown as PendingByClient[];
     },
-    refetchInterval: 8000,
+    refetchInterval: 20000,
   });
 }
 
@@ -216,7 +216,7 @@ export function useUazapiRecentErrors(limit = 50) {
       if (error) return [];
       return (data ?? []) as unknown as WorkerErrorRow[];
     },
-    refetchInterval: 6000,
+    refetchInterval: 20000,
   });
 }
 
@@ -286,7 +286,7 @@ export function useUazapiWorkerStats() {
 
       return Array.from(map.values()).sort((a, b) => a.worker_id - b.worker_id);
     },
-    refetchInterval: 7000,
+    refetchInterval: 20000,
   });
 }
 
@@ -325,7 +325,7 @@ export function useUazapiThroughput(minutes = 30) {
       });
       return Array.from(buckets.values());
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
 }
 
@@ -393,6 +393,6 @@ export function useUazapiCompletionTime(minutes = 60) {
         success_rate_pct: successRate,
       };
     },
-    refetchInterval: 15000,
+    refetchInterval: 30000,
   });
 }

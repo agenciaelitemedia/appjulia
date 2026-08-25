@@ -11065,6 +11065,13 @@ export type Database = {
         }
         Returns: Json
       }
+      chat_resolve_message_ids: {
+        Args: { p_ids: string[] }
+        Returns: {
+          id: string
+        }[]
+      }
+      chat_retention_cleanup: { Args: never; Returns: Json }
       cleanup_user_presence_daily: {
         Args: { p_retention_days?: number }
         Returns: number

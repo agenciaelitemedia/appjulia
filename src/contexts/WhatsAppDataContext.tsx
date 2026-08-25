@@ -2306,10 +2306,13 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         } catch { /* best-effort */ }
       }
 
+      // Evita reescrever quando já está zerado (era origem de ~2M updates
+      // redundantes em chat_contacts, gerando contenção de linha no banco).
       await supabase
         .from('chat_contacts')
         .update({ unread_count: 0 })
-        .eq('id', contactId);
+        .eq('id', contactId)
+        .gt('unread_count', 0);
 
       setContacts(prev =>
         prev.map(c => (c.id === contactId ? { ...c, unread_count: 0 } : c))
