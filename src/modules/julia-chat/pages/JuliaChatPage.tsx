@@ -146,7 +146,7 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
       {/* Coluna 1 — lista de conversas */}
       <aside className={cn(
         'flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r lg:w-[400px]',
-        selected && 'hidden lg:flex',
+        (selected || deepTarget) && 'hidden lg:flex',
       )}>
         <div className="relative z-20 shrink-0 space-y-2 border-b px-2.5 py-2">
 
