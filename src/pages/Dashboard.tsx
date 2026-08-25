@@ -11,22 +11,16 @@ import {
   Activity,
   Filter,
   Handshake,
-  Settings,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Toggle } from '@/components/ui/toggle';
 import { STORAGE_KEYS } from '@/lib/constants';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -330,21 +324,25 @@ function AgentDashboard() {
               <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="Configurações de exibição">
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Exibição dos funis</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuRadioGroup value={funnelLayout} onValueChange={handleFunnelLayoutChange}>
-                  <DropdownMenuRadioItem value="grid">Padrão (3 colunas)</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="full">Full (1 por linha)</DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex gap-1">
+              <Toggle
+                pressed={funnelLayout === 'grid'}
+                onPressedChange={() => handleFunnelLayoutChange('grid')}
+                aria-label="Exibição padrão em blocos"
+                size="sm"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Toggle>
+              <Toggle
+                pressed={funnelLayout === 'full'}
+                onPressedChange={() => handleFunnelLayoutChange('full')}
+                aria-label="Exibição em lista (linha inteira)"
+                size="sm"
+              >
+                <List className="h-4 w-4" />
+              </Toggle>
+            </div>
+
           </div>
 
         </div>
@@ -450,7 +448,7 @@ function AgentDashboard() {
         <DashboardFunnelChart data={funnelData} isLoading={funnelLoading} />
 
         {/* Recent Activity */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className={funnelLayout === 'full' ? 'grid gap-4 grid-cols-1' : 'grid gap-4 md:grid-cols-2'}>
           <Card>
             <CardHeader>
               <CardTitle>Leads Recentes</CardTitle>

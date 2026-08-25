@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, LayoutDashboard, List, Users } from 'lucide-react';
+import { RefreshCw, LayoutDashboard, List, Users, LayoutGrid } from 'lucide-react';
+import { Toggle } from '@/components/ui/toggle';
+import { STORAGE_KEYS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,6 +34,24 @@ export default function CampanhasPage() {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasInitializedFilters = useRef(false);
+
+  // Preferência de exibição dos cards do dashboard de campanhas (persistida no navegador)
+  const [cardLayout, setCardLayout] = useState<'grid' | 'full'>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.CAMPANHAS_CARD_LAYOUT) === 'full' ? 'full' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  const handleCardLayoutChange = (next: 'grid' | 'full') => {
+    setCardLayout(next);
+    try {
+      localStorage.setItem(STORAGE_KEYS.CAMPANHAS_CARD_LAYOUT, next);
+    } catch {
+      /* ignore */
+    }
+  };
 
   const initialDates = getInitialDates();
   const [filters, setFilters] = useState<UnifiedFiltersState>({
@@ -106,15 +126,35 @@ export default function CampanhasPage() {
             Análise estratégica de campanhas de anúncios e geração de leads
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+          <div className="flex gap-1">
+            <Toggle
+              pressed={cardLayout === 'grid'}
+              onPressedChange={() => handleCardLayoutChange('grid')}
+              aria-label="Exibição padrão em blocos"
+              size="sm"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Toggle>
+            <Toggle
+              pressed={cardLayout === 'full'}
+              onPressedChange={() => handleCardLayoutChange('full')}
+              aria-label="Exibição em lista (linha inteira)"
+              size="sm"
+            >
+              <List className="h-4 w-4" />
+            </Toggle>
+          </div>
+        </div>
       </div>
 
       {/* Filters - shared between tabs */}
@@ -145,7 +185,7 @@ export default function CampanhasPage() {
 
         <TabsContent value="dashboard" className="space-y-6 mt-0">
           {/* Main Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className={cardLayout === 'full' ? 'grid grid-cols-1 gap-6' : 'grid grid-cols-1 lg:grid-cols-2 gap-6'}>
             {/* Funnel Chart - Highlight */}
             <CampanhasFunnelChart data={funnelData} previousData={funnelPreviousData} isLoading={funnelLoading} />
             
@@ -170,14 +210,14 @@ export default function CampanhasPage() {
           />
 
           {/* Secondary Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className={cardLayout === 'full' ? 'grid grid-cols-1 gap-6' : 'grid grid-cols-1 lg:grid-cols-3 gap-6'}>
             {/* Heatmap */}
-            <div className="lg:col-span-1">
+            <div className={cardLayout === 'full' ? '' : 'lg:col-span-1'}>
               <CampanhasHeatmap data={heatmapData} isLoading={heatmapLoading} />
             </div>
             
             {/* Top Campaigns Table */}
-            <div className="lg:col-span-2">
+            <div className={cardLayout === 'full' ? '' : 'lg:col-span-2'}>
               <CampanhasTopTable 
                 data={leadsData} 
                 isLoading={leadsLoading}
