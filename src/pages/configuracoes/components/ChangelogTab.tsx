@@ -9,6 +9,31 @@ type ChangelogItem = {
 
 const releases = [
   {
+    version: 'v2.18',
+    date: '25 de agosto de 2026',
+    highlight: 'Personalização de layout dos painéis e refinamento do JulIA Chat.',
+    items: [
+      { category: 'novo', text: 'Configuração de exibição dos funis no Dashboard: escolha entre Padrão (3 colunas) ou Full (1 por linha), com preferência salva no navegador.' },
+      { category: 'novo', text: 'Toggle de visualização grid/lista em /estrategico/campanhas para Funil de Conversão, Performance por Plataforma, Melhores Horários e Top Campanhas.' },
+      { category: 'melhoria', text: 'Redirecionamento pós-login: usuários não-proprietários com acesso ao chat vão direto para /chat.' },
+      { category: 'melhoria', text: 'Busca no JulIA Chat só dispara ao pressionar Enter, evitando requisições a cada caractere.' },
+      { category: 'melhoria', text: 'Contador de resultados também aparece na aba Encerradas durante buscas.' },
+      { category: 'melhoria', text: 'Badges de status do JulIA Chat com fundo cinza claro para melhor legibilidade.' },
+      { category: 'correcao', text: 'Fallback para Lovable AI quando a transcrição de áudio encontra indisponibilidade de créditos na IA principal.' },
+    ] as ChangelogItem[],
+  },
+  {
+    version: 'v2.17',
+    date: 'Agosto de 2026',
+    highlight: 'Ajustes de layout, login e busca no JulIA Chat.',
+    items: [
+      { category: 'melhoria', text: 'Redirecionamento pós-login para /chat quando o usuário não é proprietário e tem permissão de chat.' },
+      { category: 'melhoria', text: 'Busca no JulIA Chat ativada somente ao pressionar Enter.' },
+      { category: 'melhoria', text: 'Badge de total de resultados na aba Encerradas durante buscas.' },
+      { category: 'melhoria', text: 'Fundo cinza claro nos badges de status do JulIA Chat.' },
+    ] as ChangelogItem[],
+  },
+  {
     version: 'v2.16',
     date: '24 de agosto de 2026',
     highlight: 'JulIA Chat vira experiência principal e CRM ganha mais controle.',
