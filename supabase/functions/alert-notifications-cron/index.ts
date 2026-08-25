@@ -709,6 +709,24 @@ async function upsertAlertCrmCard(
         return { shouldSend: !hasLabel, cardId: current.id };
       }
 
+      // Cards de contrato não são sobrescritos por gatilhos não-contratuais:
+      // "Contrato em curso"/"Contrato assinado" permanecem na etapa,
+      // apenas a data é atualizada (a exceção é a progressão em curso -> assinado).
+      if (CONTRACT_TRIGGERS.has(current.trigger_key) && !CONTRACT_TRIGGERS.has(card.triggerKey)) {
+        await supabase
+          .from("alert_crm_cards")
+          .update({
+            lead_name: card.leadName,
+            lead_phone: card.leadPhone,
+            business_name: card.businessName,
+            crm_stage_label: card.crmStageLabel ?? current.crm_stage_label ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", current.id);
+        return { shouldSend: false, cardId: current.id };
+      }
+
+
       const nextLabels = card.triggerKey === "no_response"
         ? (currentLabels.includes(NO_RESPONSE_LABEL) ? currentLabels : [...currentLabels, NO_RESPONSE_LABEL])
         : currentLabels.filter((label) => label !== NO_RESPONSE_LABEL);
