@@ -11065,7 +11065,6 @@ export type Database = {
         }
         Returns: Json
       }
-      chat_msg_id_suffix: { Args: { p: string }; Returns: string }
       chat_resolve_message_ids: {
         Args: { p_ids: string[] }
         Returns: {
