@@ -313,32 +313,34 @@ export function JuliaChatFiltersBar({
               )}
             </div>
 
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="relative h-9 w-9 shrink-0"
-                aria-label="Mais filtros"
-                aria-expanded={open}
-                aria-controls="julia-chat-filters-panel"
-              >
-                <SlidersHorizontal className="h-4 w-4" aria-hidden />
-                {activeChips.length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium text-primary-foreground">
-                    {activeChips.length}
-                  </span>
-                )}
-              </Button>
-            </CollapsibleTrigger>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn('relative h-9 w-9 shrink-0', open && panel === 'filters' && 'bg-accent')}
+              aria-label="Mais filtros"
+              aria-expanded={open && panel === 'filters'}
+              aria-controls="julia-chat-filters-panel"
+              onClick={toggleFilters}
+            >
+              <SlidersHorizontal className="h-4 w-4" aria-hidden />
+              {activeChips.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium text-primary-foreground">
+                  {activeChips.length}
+                </span>
+              )}
+            </Button>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Limpar filtros" onClick={onReset}>
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Limpar filtros</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn('relative h-9 w-9 shrink-0', open && panel === 'new-conversation' && 'bg-accent')}
+              aria-label="Nova conversa"
+              aria-expanded={open && panel === 'new-conversation'}
+              aria-controls="julia-chat-new-conversation-panel"
+              onClick={toggleNewConversation}
+            >
+              <MessageSquarePlus className="h-4 w-4" aria-hidden />
+            </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -363,6 +365,11 @@ export function JuliaChatFiltersBar({
                     </DropdownMenuRadioGroup>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+
+                <DropdownMenuItem onClick={onReset} className="gap-2">
+                  <RotateCcw className="h-4 w-4" aria-hidden />
+                  Limpar filtros
+                </DropdownMenuItem>
 
                 <DropdownMenuItem onClick={() => onOpenSnoozed?.()} className="gap-2">
                   <CalendarClock className="h-4 w-4" aria-hidden />
