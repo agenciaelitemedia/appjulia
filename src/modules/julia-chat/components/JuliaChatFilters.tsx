@@ -262,172 +262,133 @@ export function JuliaChatFiltersBar({
   ];
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <div className="space-y-1.5">
-        {/* Linha 1 — busca + ações rápidas */}
-        <div className="flex items-center gap-1">
-          <div className="relative min-w-0 flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input
-              id="julia-chat-search"
-              aria-label="Buscar conversas (pressione Enter)"
-              value={searchDraft}
-              onChange={(e) => setSearchDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  onChange({ search: searchDraft.trim() });
-                }
-              }}
-              placeholder="Buscar atendimento… (Enter)"
-              className="h-9 pl-8 pr-8"
-            />
-            {(searchDraft || filters.search) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Limpar busca"
-                onClick={() => {
-                  setSearchDraft('');
-                  onChange({ search: '' });
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <TooltipProvider delayDuration={200}>
+        <div className="space-y-1.5">
+          {/* Linha 1 — busca + ações compactas */}
+          <div className="flex items-center gap-1">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                id="julia-chat-search"
+                aria-label="Buscar conversas (pressione Enter)"
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    onChange({ search: searchDraft.trim() });
+                  }
                 }}
-                className="absolute right-0.5 top-1/2 h-8 w-8 -translate-y-1/2"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
-
-          <Popover>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Ordenar conversas">
-                    <ArrowDownUp className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Ordenar conversas</TooltipContent>
-            </Tooltip>
-            <PopoverContent align="end" className="w-56 p-1">
-              {SORT_OPTIONS.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => onChange({ sort: o.value })}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted',
-                    filters.sort === o.value && 'bg-muted font-medium',
-                  )}
+                placeholder="Buscar atendimento… (Enter)"
+                className="h-9 pl-8 pr-8"
+              />
+              {(searchDraft || filters.search) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Limpar busca"
+                  onClick={() => {
+                    setSearchDraft('');
+                    onChange({ search: '' });
+                  }}
+                  className="absolute right-0.5 top-1/2 h-8 w-8 -translate-y-1/2"
                 >
-                  <o.icon className="h-3.5 w-3.5" aria-hidden />
-                  {o.label}
-                </button>
-              ))}
-            </PopoverContent>
-          </Popover>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
+            <CollapsibleTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className="relative h-9 w-9 shrink-0"
-                aria-label="Agenda de retornos (conversas adiadas)"
-                onClick={() => onOpenSnoozed?.()}
-              >
-                <CalendarClock className="h-4 w-4" />
-                {snoozedCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-medium text-white">
-                    {snoozedCount}
-                  </span>
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Agenda de retornos (conversas adiadas)</TooltipContent>
-          </Tooltip>
-
-          {showGroupsTab && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={filters.tab === 'groups' ? 'default' : 'ghost'}
-                  size="icon"
-                  className="h-9 w-9 shrink-0"
-                  aria-label={filters.tab === 'groups' ? 'Ver individuais' : 'Ver grupos'}
-                  onClick={() => onChange({ tab: filters.tab === 'groups' ? 'individual' : 'groups' })}
-                >
-                  <Users className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{filters.tab === 'groups' ? 'Ver individuais' : 'Ver grupos'}</TooltipContent>
-            </Tooltip>
-          )}
-
-          {canManageChat && (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 shrink-0"
-                    aria-label="Métricas"
-                    onClick={() => navigate('/chat/metricas')}
-                  >
-                    <BarChart3 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Métricas</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 shrink-0"
-                    aria-label="Configurações do chat"
-                    onClick={() => navigate('/chat/configuracoes')}
-                  >
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Configurações do chat</TooltipContent>
-              </Tooltip>
-            </>
-          )}
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Limpar filtros" onClick={onReset}>
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Limpar filtros</TooltipContent>
-          </Tooltip>
-        </div>
-
-        {/* Filtros de período, fila, atendente e modo foram movidos para o painel "Mais filtros" */}
-
-        {/* Demais filtros — colapsados */}
-        <Collapsible open={open} onOpenChange={setOpen}>
-          <div className="relative rounded-lg border bg-card/50">
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-full justify-start gap-1.5 px-2 text-xs"
+                aria-label="Mais filtros"
                 aria-expanded={open}
                 aria-controls="julia-chat-filters-panel"
               >
-                <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
-                <span>Mais filtros</span>
+                <SlidersHorizontal className="h-4 w-4" aria-hidden />
                 {activeChips.length > 0 && (
-                  <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">{activeChips.length}</Badge>
+                  <span className="absolute -top-0.5 -right-0.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-medium text-primary-foreground">
+                    {activeChips.length}
+                  </span>
                 )}
-                <ChevronDown className={cn('ml-auto h-3.5 w-3.5 transition-transform', open && 'rotate-180')} aria-hidden />
               </Button>
             </CollapsibleTrigger>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Limpar filtros" onClick={onReset}>
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Limpar filtros</TooltipContent>
+            </Tooltip>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Mais ações">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="gap-2">
+                    <ArrowDownUp className="h-4 w-4" aria-hidden />
+                    <span>Ordenar conversas</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-56">
+                    <DropdownMenuRadioGroup value={filters.sort} onValueChange={(v) => onChange({ sort: v as Filters['sort'] })}>
+                      {SORT_OPTIONS.map((o) => (
+                        <DropdownMenuRadioItem key={o.value} value={o.value} className="gap-2">
+                          <o.icon className="h-4 w-4" aria-hidden />
+                          {o.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+
+                <DropdownMenuItem onClick={() => onOpenSnoozed?.()} className="gap-2">
+                  <CalendarClock className="h-4 w-4" aria-hidden />
+                  <span className="flex-1">Agenda de retornos</span>
+                  {snoozedCount > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-medium text-white">
+                      {snoozedCount}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+
+                {showGroupsTab && (
+                  <DropdownMenuItem
+                    onClick={() => onChange({ tab: filters.tab === 'groups' ? 'individual' : 'groups' })}
+                    className="gap-2"
+                  >
+                    <Users className="h-4 w-4" aria-hidden />
+                    {filters.tab === 'groups' ? 'Ver individuais' : 'Ver grupos'}
+                  </DropdownMenuItem>
+                )}
+
+                {canManageChat && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate('/chat/metricas')} className="gap-2">
+                      <BarChart3 className="h-4 w-4" aria-hidden />
+                      Métricas
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/chat/configuracoes')} className="gap-2">
+                      <Settings className="h-4 w-4" aria-hidden />
+                      Configurações do chat
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Painel de filtros colapsado */}
+          <div className="relative rounded-lg border bg-card/50">
 
             {!open && activeChips.length > 0 && (
               <div className="flex flex-wrap gap-1 border-t px-2 py-1.5">
