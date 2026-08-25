@@ -560,7 +560,10 @@ serve(async (req) => {
   rows = rows.map((r) => {
     const key = phoneKey(r.phone);
     const cod = r.queue_cod_agent ? String(r.queue_cod_agent) : "";
-    const entry = legacy.get(`${key}|${cod}`) ?? legacy.get(`${key}|`) ?? null;
+    // Chave exata (telefone + cod_agent da fila). Sem fallback por telefone:
+    // fila sem agente vinculado simplesmente não recebe badge do legado.
+    const entry = legacy.get(`${key}|${cod}`) ?? null;
+
     if (entry?.stale) usedStale = true;
     return {
       ...r,
