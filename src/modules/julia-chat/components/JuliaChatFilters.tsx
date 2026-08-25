@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Search, RotateCcw, X, SlidersHorizontal, ChevronDown, ChevronsUpDown, Check,
   ArrowDownUp, ArrowDown, ArrowUp, Layers, Users, UserCheck, UserX,
-  ListFilter, Bot, User, CalendarClock, BarChart3, Settings,
+  ListFilter, Bot, User, CalendarClock, BarChart3, Settings, MoreVertical,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
