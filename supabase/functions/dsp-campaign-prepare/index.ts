@@ -78,6 +78,12 @@ async function estimateCapacity(
     const state = rollWindows(candidate.state);
     const limits = candidate.limits;
 
+    if (limits.is_enabled === false) {
+      blocking.push(`${q.id}:channel_not_enabled`);
+      continue;
+    }
+
+
     dailyCapacity += Math.max(0, effectiveDailyLimit(limits, state) - state.sent_in_day);
     const gap = Math.max(1, limits.min_seconds_between_messages);
     throughputPerMinute += Math.min(limits.max_per_minute, 60 / gap);
