@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDspAudiences } from '../hooks/useDspAudiences';
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../extend/auth';
@@ -72,6 +73,7 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
   const [audienceLimit, setAudienceLimit] = useState('');
   const [audienceMode, setAudienceMode] = useState<'list' | 'audience'>('list');
   const [audienceId, setAudienceId] = useState<string>('');
+  const { data: audiences = [] } = useDspAudiences(clientId);
   const [onlyWithConversation, setOnlyWithConversation] = useState(false);
 
   const [variants, setVariants] = useState<{ label: string; message_text: string; weight: number; template_id?: string | null }[]>([

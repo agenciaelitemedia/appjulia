@@ -23,6 +23,8 @@ export interface DspCampaign {
   approved_at: string | null;
   approved_by: string | null;
   approval_notes: string | null;
+  audience_id: string | null;
+  audience_mode: 'list' | 'audience' | string;
   started_at: string | null;
   completed_at: string | null;
   paused_at: string | null;
