@@ -13,6 +13,16 @@ export interface DspCampaign {
   send_window_end: string | null;
   send_week_days: number[] | null;
   scheduled_at: string | null;
+  timezone: string;
+  schedule_start_at: string | null;
+  schedule_end_at: string | null;
+  auto_window_control: boolean;
+  approval_status: 'draft' | 'pending' | 'approved' | 'rejected' | string;
+  submitted_at: string | null;
+  submitted_by: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  approval_notes: string | null;
   started_at: string | null;
   completed_at: string | null;
   paused_at: string | null;
@@ -51,6 +61,28 @@ export interface DspVariant {
   media_type: string | null;
   weight: number;
   is_active: boolean;
+  template_id?: string | null;
+}
+
+export interface DspTemplate {
+  id: string;
+  client_id: string;
+  name: string;
+  category: string;
+  body: string;
+  media_url: string | null;
+  media_type: string | null;
+  variables: string[];
+  status: 'draft' | 'pending' | 'approved' | 'rejected' | string;
+  submitted_at: string | null;
+  submitted_by: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  review_notes: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DspCampaignChannel {
