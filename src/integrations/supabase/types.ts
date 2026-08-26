@@ -4332,6 +4332,619 @@ export type Database = {
         }
         Relationships: []
       }
+      dsp_audit_log: {
+        Row: {
+          action: string
+          actor: string | null
+          campaign_id: string | null
+          client_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          queue_id: string | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          campaign_id?: string | null
+          client_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          queue_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          campaign_id?: string | null
+          client_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          queue_id?: string | null
+        }
+        Relationships: []
+      }
+      dsp_campaign_channels: {
+        Row: {
+          campaign_id: string
+          client_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          queue_id: string
+          weight: number
+        }
+        Insert: {
+          campaign_id: string
+          client_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          queue_id: string
+          weight?: number
+        }
+        Update: {
+          campaign_id?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          queue_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dsp_campaign_channels_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dsp_campaign_variants: {
+        Row: {
+          campaign_id: string
+          client_id: string
+          created_at: string
+          file_name: string | null
+          id: string
+          is_active: boolean
+          label: string | null
+          media_type: string | null
+          media_url: string | null
+          message_text: string | null
+          template_params: Json | null
+          updated_at: string
+          weight: number
+        }
+        Insert: {
+          campaign_id: string
+          client_id: string
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          message_text?: string | null
+          template_params?: Json | null
+          updated_at?: string
+          weight?: number
+        }
+        Update: {
+          campaign_id?: string
+          client_id?: string
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          media_type?: string | null
+          media_url?: string | null
+          message_text?: string | null
+          template_params?: Json | null
+          updated_at?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dsp_campaign_variants_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dsp_campaigns: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          audience_filters: Json
+          category: string
+          channel_strategy: string
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          goal: string | null
+          id: string
+          name: string
+          pause_reason: string | null
+          paused_at: string | null
+          requires_approval: boolean
+          risk_level: string
+          scheduled_at: string | null
+          send_week_days: number[]
+          send_window_end: string | null
+          send_window_start: string | null
+          started_at: string | null
+          status: string
+          total_delivered: number
+          total_eligible: number
+          total_failed: number
+          total_optout: number
+          total_read: number
+          total_recipients: number
+          total_replied: number
+          total_sent: number
+          updated_at: string
+          waba_template_language: string | null
+          waba_template_name: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          audience_filters?: Json
+          category?: string
+          channel_strategy?: string
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          goal?: string | null
+          id?: string
+          name: string
+          pause_reason?: string | null
+          paused_at?: string | null
+          requires_approval?: boolean
+          risk_level?: string
+          scheduled_at?: string | null
+          send_week_days?: number[]
+          send_window_end?: string | null
+          send_window_start?: string | null
+          started_at?: string | null
+          status?: string
+          total_delivered?: number
+          total_eligible?: number
+          total_failed?: number
+          total_optout?: number
+          total_read?: number
+          total_recipients?: number
+          total_replied?: number
+          total_sent?: number
+          updated_at?: string
+          waba_template_language?: string | null
+          waba_template_name?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          audience_filters?: Json
+          category?: string
+          channel_strategy?: string
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          goal?: string | null
+          id?: string
+          name?: string
+          pause_reason?: string | null
+          paused_at?: string | null
+          requires_approval?: boolean
+          risk_level?: string
+          scheduled_at?: string | null
+          send_week_days?: number[]
+          send_window_end?: string | null
+          send_window_start?: string | null
+          started_at?: string | null
+          status?: string
+          total_delivered?: number
+          total_eligible?: number
+          total_failed?: number
+          total_optout?: number
+          total_read?: number
+          total_recipients?: number
+          total_replied?: number
+          total_sent?: number
+          updated_at?: string
+          waba_template_language?: string | null
+          waba_template_name?: string | null
+        }
+        Relationships: []
+      }
+      dsp_channel_limits: {
+        Row: {
+          block_pause_seconds: number
+          block_size: number
+          client_id: string
+          cooldown_after_disconnect_minutes: number
+          created_at: string
+          daily_ramp_percent: number
+          id: string
+          marketing_enabled: boolean
+          max_consecutive_failures: number
+          max_per_day: number
+          max_per_hour: number
+          max_per_minute: number
+          max_seconds_between_messages: number
+          max_unique_recipients_per_day: number
+          min_seconds_between_messages: number
+          provider: string | null
+          queue_id: string
+          send_window_end: string | null
+          send_window_start: string | null
+          updated_at: string
+        }
+        Insert: {
+          block_pause_seconds?: number
+          block_size?: number
+          client_id: string
+          cooldown_after_disconnect_minutes?: number
+          created_at?: string
+          daily_ramp_percent?: number
+          id?: string
+          marketing_enabled?: boolean
+          max_consecutive_failures?: number
+          max_per_day?: number
+          max_per_hour?: number
+          max_per_minute?: number
+          max_seconds_between_messages?: number
+          max_unique_recipients_per_day?: number
+          min_seconds_between_messages?: number
+          provider?: string | null
+          queue_id: string
+          send_window_end?: string | null
+          send_window_start?: string | null
+          updated_at?: string
+        }
+        Update: {
+          block_pause_seconds?: number
+          block_size?: number
+          client_id?: string
+          cooldown_after_disconnect_minutes?: number
+          created_at?: string
+          daily_ramp_percent?: number
+          id?: string
+          marketing_enabled?: boolean
+          max_consecutive_failures?: number
+          max_per_day?: number
+          max_per_hour?: number
+          max_per_minute?: number
+          max_seconds_between_messages?: number
+          max_unique_recipients_per_day?: number
+          min_seconds_between_messages?: number
+          provider?: string | null
+          queue_id?: string
+          send_window_end?: string | null
+          send_window_start?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      dsp_channel_state: {
+        Row: {
+          allowed_today: number | null
+          block_count: number
+          client_id: string
+          consecutive_failures: number
+          cooldown_reason: string | null
+          cooldown_until: string | null
+          health_status: string
+          id: string
+          last_sent_at: string | null
+          next_allowed_at: string | null
+          queue_id: string
+          sent_in_day: number
+          sent_in_hour: number
+          sent_in_minute: number
+          unique_recipients_day: number
+          updated_at: string
+          window_day: string | null
+          window_hour: string | null
+          window_minute: string | null
+        }
+        Insert: {
+          allowed_today?: number | null
+          block_count?: number
+          client_id: string
+          consecutive_failures?: number
+          cooldown_reason?: string | null
+          cooldown_until?: string | null
+          health_status?: string
+          id?: string
+          last_sent_at?: string | null
+          next_allowed_at?: string | null
+          queue_id: string
+          sent_in_day?: number
+          sent_in_hour?: number
+          sent_in_minute?: number
+          unique_recipients_day?: number
+          updated_at?: string
+          window_day?: string | null
+          window_hour?: string | null
+          window_minute?: string | null
+        }
+        Update: {
+          allowed_today?: number | null
+          block_count?: number
+          client_id?: string
+          consecutive_failures?: number
+          cooldown_reason?: string | null
+          cooldown_until?: string | null
+          health_status?: string
+          id?: string
+          last_sent_at?: string | null
+          next_allowed_at?: string | null
+          queue_id?: string
+          sent_in_day?: number
+          sent_in_hour?: number
+          sent_in_minute?: number
+          unique_recipients_day?: number
+          updated_at?: string
+          window_day?: string | null
+          window_hour?: string | null
+          window_minute?: string | null
+        }
+        Relationships: []
+      }
+      dsp_message_events: {
+        Row: {
+          campaign_id: string | null
+          client_id: string | null
+          created_at: string
+          event_key: string
+          event_type: string
+          id: string
+          occurred_at: string
+          payload: Json | null
+          provider: string
+          provider_message_id: string | null
+          recipient_id: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          event_key: string
+          event_type: string
+          id?: string
+          occurred_at?: string
+          payload?: Json | null
+          provider: string
+          provider_message_id?: string | null
+          recipient_id?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          client_id?: string | null
+          created_at?: string
+          event_key?: string
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          payload?: Json | null
+          provider?: string
+          provider_message_id?: string | null
+          recipient_id?: string | null
+        }
+        Relationships: []
+      }
+      dsp_message_queue: {
+        Row: {
+          attempts: number
+          available_at: string
+          campaign_id: string
+          client_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          priority: number
+          recipient_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          campaign_id: string
+          client_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          priority?: number
+          recipient_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          campaign_id?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          priority?: number
+          recipient_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dsp_message_queue_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dsp_message_queue_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dsp_recipients: {
+        Row: {
+          attempts: number
+          campaign_id: string
+          channel_provider: string | null
+          client_id: string
+          contact_id: string | null
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          exclusion_reason: string | null
+          failed_at: string | null
+          id: string
+          is_eligible: boolean
+          name: string | null
+          phone_e164: string
+          provider_message_id: string | null
+          queue_id: string | null
+          read_at: string | null
+          replied_at: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+          variables: Json
+          variant_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          campaign_id: string
+          channel_provider?: string | null
+          client_id: string
+          contact_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          exclusion_reason?: string | null
+          failed_at?: string | null
+          id?: string
+          is_eligible?: boolean
+          name?: string | null
+          phone_e164: string
+          provider_message_id?: string | null
+          queue_id?: string | null
+          read_at?: string | null
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          variables?: Json
+          variant_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          campaign_id?: string
+          channel_provider?: string | null
+          client_id?: string
+          contact_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          exclusion_reason?: string | null
+          failed_at?: string | null
+          id?: string
+          is_eligible?: boolean
+          name?: string | null
+          phone_e164?: string
+          provider_message_id?: string | null
+          queue_id?: string | null
+          read_at?: string | null
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          variables?: Json
+          variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dsp_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dsp_recipients_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_campaign_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dsp_suppression: {
+        Row: {
+          client_id: string
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          phone_e164: string
+          reason: string
+          scope: string
+          source_campaign_id: string | null
+          source_message_id: string | null
+        }
+        Insert: {
+          client_id: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          phone_e164: string
+          reason?: string
+          scope?: string
+          source_campaign_id?: string | null
+          source_message_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          phone_e164?: string
+          reason?: string
+          scope?: string
+          source_campaign_id?: string | null
+          source_message_id?: string | null
+        }
+        Relationships: []
+      }
       generation_agent_prompt_cases: {
         Row: {
           agent_prompt_id: string
@@ -11093,6 +11706,32 @@ export type Database = {
         | { Args: never; Returns: number }
         | { Args: { p_retention_days?: number }; Returns: number }
       clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
+      dsp_pick_queue_items: {
+        Args: { p_limit?: number; p_worker_id: string }
+        Returns: {
+          attempts: number
+          available_at: string
+          campaign_id: string
+          client_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          priority: number
+          recipient_id: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "dsp_message_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      dsp_release_stale_locks: { Args: never; Returns: number }
       ensure_user_presence_partitions: {
         Args: { p_months_ahead?: number }
         Returns: number
