@@ -215,3 +215,86 @@ export interface DspSimulationResult {
     blocking?: string[];
   };
 }
+
+// ------------------------------------------------------------
+// Público (audiências)
+// ------------------------------------------------------------
+export type DspAudienceSource = 'csv' | 'manual' | 'filter';
+
+export interface DspAudienceFilterSpec {
+  channel_type?: string | null;
+  queue_ids?: string[];
+  tag_ids?: string[];
+  cod_agents?: string[];
+  contact_search?: string | null;
+  only_with_conversation?: boolean;
+  conversation_status?: string[];
+  assigned_to?: string[];
+  last_interaction_days?: number | null;
+  no_reply_days?: number | null;
+  crm_julia_stage_ids?: number[];
+  builder_board_ids?: string[];
+  builder_pipeline_ids?: string[];
+  builder_status?: string[];
+  campaign_ids?: string[];
+  campaign_result?: 'sent' | 'replied' | 'failed' | null;
+  contract_status?: string[];
+  in_followup?: boolean;
+  limit?: number | null;
+}
+
+export interface DspAudience {
+  id: string;
+  client_id: string;
+  name: string;
+  description: string | null;
+  source: DspAudienceSource | string;
+  filters: DspAudienceFilterSpec | null;
+  field_map: Record<string, string> | null;
+  status: 'active' | 'archived' | string;
+  total_active: number;
+  total_removed: number;
+  last_synced_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DspAudienceContact {
+  id: string;
+  audience_id: string;
+  client_id: string;
+  phone_e164: string;
+  name: string | null;
+  first_name: string | null;
+  email: string | null;
+  document: string | null;
+  extra: Record<string, any> | null;
+  contact_id: string | null;
+  origin: string;
+  status: 'active' | 'removed' | string;
+  invalid_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DspAudienceResolvePreview {
+  ok: boolean;
+  total: number;
+  sample: { phone: string; name: string | null; contact_id: string | null }[];
+}
+
+export interface DspAudienceRefreshDiff {
+  ok: boolean;
+  dry_run?: boolean;
+  applied?: boolean;
+  resolved: number;
+  current_active?: number;
+  to_add?: number;
+  to_remove?: number;
+  to_restore?: number;
+  added?: number;
+  removed?: number;
+  restored?: number;
+  total?: number;
+}
