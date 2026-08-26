@@ -174,7 +174,9 @@ export async function loadChannel(admin: any, queue: any): Promise<ChannelCandid
     .from('dsp_channel_limits').select('*').eq('queue_id', queue.id).maybeSingle();
 
   if (!limits) {
-    const insert = { ...base, queue_id: queue.id, client_id: String(queue.client_id), provider };
+    // Fila nova precisa ser habilitada explicitamente na tela "Canais de Disparo".
+    const insert = { ...base, queue_id: queue.id, client_id: String(queue.client_id), provider, is_enabled: false };
+
     const { data } = await admin.from('dsp_channel_limits').insert(insert).select('*').maybeSingle();
     limits = data ?? { ...insert, id: null };
   }
