@@ -366,8 +366,11 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
             <div className="space-y-2">
               <Label>Filas que vão disparar (rotação de números)</Label>
               {queues.length === 0 && (
-                <p className="text-xs text-muted-foreground">Nenhuma fila disponível.</p>
+                <p className="text-xs text-muted-foreground">
+                  Nenhum canal habilitado. Habilite uma fila na aba <b>Canais</b> antes de criar a campanha.
+                </p>
               )}
+
               {queues.map((q) => (
                 <label key={q.id} className="flex items-center gap-2 text-sm">
                   <Checkbox
