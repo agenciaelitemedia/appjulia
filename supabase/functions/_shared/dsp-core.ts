@@ -226,6 +226,8 @@ export function canSendNow(c: ChannelCandidate, opts: { category?: string } = {}
   const state = rollWindows(c.state, now);
 
   if (c.queue?.is_active === false || c.queue?.is_deleted) return { ok: false, reason: 'queue_inactive' };
+  if (limits.is_enabled === false) return { ok: false, reason: 'channel_not_enabled' };
+
   if (state.cooldown_until && new Date(state.cooldown_until) > now) {
     return { ok: false, reason: `cooldown:${state.cooldown_reason ?? 'unknown'}` };
   }
