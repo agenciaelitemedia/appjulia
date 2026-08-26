@@ -13,8 +13,15 @@ import logoAsset from '@/assets/atende-julia-logo.png.asset.json';
 import mascoteAsset from '@/assets/julia-mascote-acenando.png.asset.json';
 import mascotePose2 from '@/assets/julia-mascote-pose2.png.asset.json';
 import mascotePose3 from '@/assets/julia-mascote-pose3.png.asset.json';
+import metaTechProviderAsset from '@/assets/meta-tech-provider.png.asset.json';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { markJustLoggedIn } from '@/components/layout/DisconnectedAgentsAlert';
@@ -22,6 +29,7 @@ import { checkVersionAndReloadIfNeeded } from '@/lib/appVersion';
 import { APP_VERSION_LABEL } from '@/lib/appVersionLabel';
 import { toast as sonnerToast } from 'sonner';
 import { isOwnerUser } from '@/lib/auth/isOwner';
+
 
 const WHATSAPP_TIME =
   'https://wa.me/5534988860163?text=Quero%20informa%C3%A7%C3%B5es%20sobre%20a%20Julia%20IA';
