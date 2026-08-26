@@ -99,6 +99,10 @@ export interface DspChannelLimits {
   client_id: string;
   queue_id: string;
   provider: string;
+  is_enabled?: boolean;
+  default_weight?: number;
+  notes?: string | null;
+
   max_per_minute: number;
   max_per_hour: number;
   max_per_day: number;
