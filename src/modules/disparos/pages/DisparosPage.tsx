@@ -11,6 +11,8 @@ import { MonitorTab } from '../components/MonitorTab';
 import { LogsTab } from '../components/LogsTab';
 import { SuppressionTab } from '../components/SuppressionTab';
 import { SettingsTab } from '../components/SettingsTab';
+import { ChannelsTab } from '../components/ChannelsTab';
+
 import { DISPAROS_MODULE } from '../module';
 
 export default function DisparosPage() {
