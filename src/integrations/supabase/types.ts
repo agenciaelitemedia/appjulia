@@ -4609,7 +4609,9 @@ export type Database = {
           cooldown_after_disconnect_minutes: number
           created_at: string
           daily_ramp_percent: number
+          default_weight: number
           id: string
+          is_enabled: boolean
           marketing_enabled: boolean
           max_consecutive_failures: number
           max_per_day: number
@@ -4618,6 +4620,7 @@ export type Database = {
           max_seconds_between_messages: number
           max_unique_recipients_per_day: number
           min_seconds_between_messages: number
+          notes: string | null
           provider: string | null
           queue_id: string
           send_window_end: string | null
@@ -4631,7 +4634,9 @@ export type Database = {
           cooldown_after_disconnect_minutes?: number
           created_at?: string
           daily_ramp_percent?: number
+          default_weight?: number
           id?: string
+          is_enabled?: boolean
           marketing_enabled?: boolean
           max_consecutive_failures?: number
           max_per_day?: number
@@ -4640,6 +4645,7 @@ export type Database = {
           max_seconds_between_messages?: number
           max_unique_recipients_per_day?: number
           min_seconds_between_messages?: number
+          notes?: string | null
           provider?: string | null
           queue_id: string
           send_window_end?: string | null
@@ -4653,7 +4659,9 @@ export type Database = {
           cooldown_after_disconnect_minutes?: number
           created_at?: string
           daily_ramp_percent?: number
+          default_weight?: number
           id?: string
+          is_enabled?: boolean
           marketing_enabled?: boolean
           max_consecutive_failures?: number
           max_per_day?: number
@@ -4662,6 +4670,7 @@ export type Database = {
           max_seconds_between_messages?: number
           max_unique_recipients_per_day?: number
           min_seconds_between_messages?: number
+          notes?: string | null
           provider?: string | null
           queue_id?: string
           send_window_end?: string | null

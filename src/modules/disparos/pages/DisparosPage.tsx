@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, FileText, FlaskConical, Megaphone, ScrollText, SlidersHorizontal, UserX } from 'lucide-react';
+import { Activity, FileText, FlaskConical, Megaphone, Radio, ScrollText, SlidersHorizontal, UserX } from 'lucide-react';
 import { useAuth } from '../extend/auth';
 import { useEnsureDisparosModule } from '../extend/useEnsureDisparosModule';
 import { useDspClientId } from '../hooks/useDspClientId';
@@ -11,6 +11,8 @@ import { MonitorTab } from '../components/MonitorTab';
 import { LogsTab } from '../components/LogsTab';
 import { SuppressionTab } from '../components/SuppressionTab';
 import { SettingsTab } from '../components/SettingsTab';
+import { ChannelsTab } from '../components/ChannelsTab';
+
 import { DISPAROS_MODULE } from '../module';
 
 export default function DisparosPage() {
@@ -34,7 +36,9 @@ export default function DisparosPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="campanhas" className="gap-2"><Megaphone className="h-4 w-4" />Campanhas</TabsTrigger>
           <TabsTrigger value="templates" className="gap-2"><FileText className="h-4 w-4" />Templates</TabsTrigger>
+          <TabsTrigger value="canais" className="gap-2"><Radio className="h-4 w-4" />Canais</TabsTrigger>
           <TabsTrigger value="simulacao" className="gap-2"><FlaskConical className="h-4 w-4" />Simulação</TabsTrigger>
+
           <TabsTrigger value="monitor" className="gap-2"><Activity className="h-4 w-4" />Monitoramento</TabsTrigger>
           <TabsTrigger value="logs" className="gap-2"><ScrollText className="h-4 w-4" />Logs</TabsTrigger>
           <TabsTrigger value="supressao" className="gap-2"><UserX className="h-4 w-4" />Supressão</TabsTrigger>
@@ -47,7 +51,11 @@ export default function DisparosPage() {
         <TabsContent value="templates" className="mt-6">
           <TemplatesTab clientId={clientId} canEdit={canEdit} />
         </TabsContent>
+        <TabsContent value="canais" className="mt-6">
+          <ChannelsTab clientId={clientId} canEdit={canEdit} />
+        </TabsContent>
         <TabsContent value="simulacao" className="mt-6">
+
           <SimulationTab clientId={clientId} />
         </TabsContent>
         <TabsContent value="monitor" className="mt-6">

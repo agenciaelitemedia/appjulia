@@ -47,6 +47,8 @@ export function randomInt(min: number, max: number): number {
 export interface DspLimits {
   queue_id: string;
   provider: string | null;
+  is_enabled?: boolean;
+  default_weight?: number;
   max_per_minute: number;
   max_per_hour: number;
   max_per_day: number;
@@ -62,6 +64,7 @@ export interface DspLimits {
   send_window_start: string | null;
   send_window_end: string | null;
 }
+
 
 /** Defaults conservadores para instância não oficial (UaZapi). */
 export const DSP_DEFAULT_LIMITS: Omit<DspLimits, 'queue_id' | 'provider'> = {
@@ -171,7 +174,9 @@ export async function loadChannel(admin: any, queue: any): Promise<ChannelCandid
     .from('dsp_channel_limits').select('*').eq('queue_id', queue.id).maybeSingle();
 
   if (!limits) {
-    const insert = { ...base, queue_id: queue.id, client_id: String(queue.client_id), provider };
+    // Fila nova precisa ser habilitada explicitamente na tela "Canais de Disparo".
+    const insert = { ...base, queue_id: queue.id, client_id: String(queue.client_id), provider, is_enabled: false };
+
     const { data } = await admin.from('dsp_channel_limits').insert(insert).select('*').maybeSingle();
     limits = data ?? { ...insert, id: null };
   }
@@ -221,6 +226,8 @@ export function canSendNow(c: ChannelCandidate, opts: { category?: string } = {}
   const state = rollWindows(c.state, now);
 
   if (c.queue?.is_active === false || c.queue?.is_deleted) return { ok: false, reason: 'queue_inactive' };
+  if (limits.is_enabled === false) return { ok: false, reason: 'channel_not_enabled' };
+
   if (state.cooldown_until && new Date(state.cooldown_until) > now) {
     return { ok: false, reason: `cooldown:${state.cooldown_reason ?? 'unknown'}` };
   }
@@ -265,8 +272,9 @@ export function pickChannel(
   if (eligible.length === 0) return { reasons };
 
   eligible.sort((a, b) => {
-    const wa = weights[a.queue.id] ?? 1;
-    const wb = weights[b.queue.id] ?? 1;
+    const wa = weights[a.queue.id] ?? Number(a.limits.default_weight ?? 1) ?? 1;
+    const wb = weights[b.queue.id] ?? Number(b.limits.default_weight ?? 1) ?? 1;
+
     const usageA = (a.state.sent_in_day + 1) / Math.max(1, wa);
     const usageB = (b.state.sent_in_day + 1) / Math.max(1, wb);
     if (usageA !== usageB) return usageA - usageB;

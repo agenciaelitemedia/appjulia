@@ -11,6 +11,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../extend/auth';
 import { useDspQueues, isUnofficialQueue } from '../extend/queues';
+import { useDspChannelLimits } from '../hooks/useDspMonitor';
+
 import { useSaveDspCampaign, useDspCampaignVariants, useDspCampaignChannels } from '../hooks/useDspCampaigns';
 import { useDspSimulation } from '../hooks/useDspSimulation';
 import { EXCLUSION_REASON_LABEL, CHANNEL_REASON_LABEL, DISPAROS_TIMEZONES } from '../module';
@@ -39,7 +41,13 @@ interface Props {
 
 export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }: Props) {
   const { user } = useAuth();
-  const { data: queues = [] } = useDspQueues(clientId);
+  const { data: allQueues = [] } = useDspQueues(clientId);
+  const { data: channelLimits = [] } = useDspChannelLimits(clientId);
+  const enabledQueueIds = new Set(
+    channelLimits.filter((l) => l.is_enabled === true).map((l) => l.queue_id),
+  );
+  const queues = allQueues.filter((q) => enabledQueueIds.has(q.id));
+
   const save = useSaveDspCampaign();
   const simulate = useDspSimulation();
   const { data: existingVariants = [] } = useDspCampaignVariants(open ? campaign?.id ?? null : null);
@@ -358,8 +366,11 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
             <div className="space-y-2">
               <Label>Filas que vão disparar (rotação de números)</Label>
               {queues.length === 0 && (
-                <p className="text-xs text-muted-foreground">Nenhuma fila disponível.</p>
+                <p className="text-xs text-muted-foreground">
+                  Nenhum canal habilitado. Habilite uma fila na aba <b>Canais</b> antes de criar a campanha.
+                </p>
               )}
+
               {queues.map((q) => (
                 <label key={q.id} className="flex items-center gap-2 text-sm">
                   <Checkbox
