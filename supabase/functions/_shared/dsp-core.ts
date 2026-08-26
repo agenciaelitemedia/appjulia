@@ -165,21 +165,61 @@ export interface ChannelDecision {
   candidate?: ChannelCandidate;
 }
 
-/** Carrega (ou cria) limites e estado de uma fila. */
-export async function loadChannel(admin: any, queue: any): Promise<ChannelCandidate> {
-  const provider = isUazapi(queue) ? 'uazapi' : 'meta_cloud';
+const DSP_LIMIT_FIELDS = [
+  'max_per_minute', 'max_per_hour', 'max_per_day', 'max_unique_recipients_per_day',
+  'min_seconds_between_messages', 'max_seconds_between_messages', 'block_size',
+  'block_pause_seconds', 'daily_ramp_percent', 'max_consecutive_failures',
+  'cooldown_after_disconnect_minutes', 'marketing_enabled',
+  'send_window_start', 'send_window_end',
+] as const;
+
+/**
+ * Padrões seguros do escritório por tipo de API (aba Configurações do módulo).
+ * Cache por execução para não repetir a leitura em cada fila do lote.
+ */
+const providerDefaultsCache = new Map<string, any>();
+
+export async function loadProviderDefaults(admin: any, clientId: string, provider: string) {
+  const key = `${clientId}:${provider}`;
+  if (providerDefaultsCache.has(key)) return providerDefaultsCache.get(key);
+
   const base = provider === 'uazapi' ? DSP_DEFAULT_LIMITS : DSP_OFFICIAL_LIMITS;
 
-  let { data: limits } = await admin
+  const { data } = await admin
+    .from('dsp_provider_defaults').select('*')
+    .eq('client_id', String(clientId)).eq('provider', provider).maybeSingle();
+
+  let row = data;
+  if (!row) {
+    const insert = { ...base, client_id: String(clientId), provider };
+    const { data: created } = await admin
+      .from('dsp_provider_defaults').insert(insert).select('*').maybeSingle();
+    row = created ?? insert;
+  }
+
+  providerDefaultsCache.set(key, row);
+  return row;
+}
+
+/** Carrega o vínculo do canal + estado, com limites herdados do perfil do provider. */
+export async function loadChannel(admin: any, queue: any): Promise<ChannelCandidate> {
+  const provider = isUazapi(queue) ? 'uazapi' : 'meta_cloud';
+  const clientId = String(queue.client_id);
+  const defaults = await loadProviderDefaults(admin, clientId, provider);
+
+  // dsp_channel_limits agora é só o registro de vínculo (is_enabled / default_weight).
+  let { data: link } = await admin
     .from('dsp_channel_limits').select('*').eq('queue_id', queue.id).maybeSingle();
 
-  if (!limits) {
-    // Fila nova precisa ser habilitada explicitamente na tela "Canais de Disparo".
-    const insert = { ...base, queue_id: queue.id, client_id: String(queue.client_id), provider, is_enabled: false };
-
+  if (!link) {
+    // Fila nova precisa ser habilitada explicitamente na aba "Canais".
+    const insert = { queue_id: queue.id, client_id: clientId, provider, is_enabled: false, default_weight: 1 };
     const { data } = await admin.from('dsp_channel_limits').insert(insert).select('*').maybeSingle();
-    limits = data ?? { ...insert, id: null };
+    link = data ?? { ...insert, id: null };
   }
+
+  const limits: any = { queue_id: queue.id, provider, is_enabled: link.is_enabled !== false ? link.is_enabled === true : false, default_weight: Number(link.default_weight ?? 1) };
+  for (const f of DSP_LIMIT_FIELDS) limits[f] = defaults[f];
 
   let { data: state } = await admin
     .from('dsp_channel_state').select('*').eq('queue_id', queue.id).maybeSingle();
@@ -187,13 +227,14 @@ export async function loadChannel(admin: any, queue: any): Promise<ChannelCandid
   if (!state) {
     const { data } = await admin
       .from('dsp_channel_state')
-      .insert({ queue_id: queue.id, client_id: String(queue.client_id) })
+      .insert({ queue_id: queue.id, client_id: clientId })
       .select('*').maybeSingle();
     state = data;
   }
 
   return { queue, limits: limits as DspLimits, state: state as DspChannelState };
 }
+
 
 /** Reseta contadores de janelas expiradas (não persiste; devolve estado ajustado). */
 export function rollWindows(state: DspChannelState, now = new Date()): DspChannelState {
