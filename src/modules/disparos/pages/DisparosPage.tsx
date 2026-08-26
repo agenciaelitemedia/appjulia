@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, FileText, FlaskConical, Megaphone, ScrollText, SlidersHorizontal, UserX } from 'lucide-react';
+import { Activity, FileText, FlaskConical, Megaphone, Radio, ScrollText, SlidersHorizontal, UserX } from 'lucide-react';
 import { useAuth } from '../extend/auth';
 import { useEnsureDisparosModule } from '../extend/useEnsureDisparosModule';
 import { useDspClientId } from '../hooks/useDspClientId';
