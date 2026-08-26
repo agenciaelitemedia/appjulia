@@ -47,6 +47,8 @@ export function randomInt(min: number, max: number): number {
 export interface DspLimits {
   queue_id: string;
   provider: string | null;
+  is_enabled?: boolean;
+  default_weight?: number;
   max_per_minute: number;
   max_per_hour: number;
   max_per_day: number;
@@ -62,6 +64,7 @@ export interface DspLimits {
   send_window_start: string | null;
   send_window_end: string | null;
 }
+
 
 /** Defaults conservadores para instância não oficial (UaZapi). */
 export const DSP_DEFAULT_LIMITS: Omit<DspLimits, 'queue_id' | 'provider'> = {
