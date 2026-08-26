@@ -71,9 +71,13 @@ Deno.serve(async (req) => {
           if (unofficial) unofficialCount++;
 
           const problems: string[] = [];
+          if (limits.is_enabled === false) {
+            problems.push("canal_nao_habilitado_para_disparos");
+          }
           if (!(limits.max_per_minute > 0) || !(limits.max_per_hour > 0) || !(limits.max_per_day > 0)) {
             problems.push("limites_invalidos");
           }
+
           if (unofficial && !(limits.min_seconds_between_messages >= 1)) {
             problems.push("intervalo_entre_mensagens_obrigatorio");
           }
