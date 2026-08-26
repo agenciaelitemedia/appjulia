@@ -272,8 +272,9 @@ export function pickChannel(
   if (eligible.length === 0) return { reasons };
 
   eligible.sort((a, b) => {
-    const wa = weights[a.queue.id] ?? 1;
-    const wb = weights[b.queue.id] ?? 1;
+    const wa = weights[a.queue.id] ?? Number(a.limits.default_weight ?? 1) ?? 1;
+    const wb = weights[b.queue.id] ?? Number(b.limits.default_weight ?? 1) ?? 1;
+
     const usageA = (a.state.sent_in_day + 1) / Math.max(1, wa);
     const usageB = (b.state.sent_in_day + 1) / Math.max(1, wb);
     if (usageA !== usageB) return usageA - usageB;
