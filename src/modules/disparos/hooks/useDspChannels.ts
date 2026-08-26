@@ -17,7 +17,6 @@ export function useToggleDspChannel() {
       clientId, queue, enabled,
     }: { clientId: string; queue: DspQueueOption; enabled: boolean }) => {
       const unofficial = isUnofficialQueue(queue);
-      const defaults = unofficial ? DSP_UNOFFICIAL_DEFAULTS : DSP_OFFICIAL_DEFAULTS;
 
       const { data: existing } = await (supabase as any)
         .from('dsp_channel_limits').select('id').eq('queue_id', queue.id).maybeSingle();
@@ -29,8 +28,8 @@ export function useToggleDspChannel() {
         return;
       }
 
+      // Vínculo puro: os limites vêm do padrão seguro do tipo de API (aba Configurações).
       const { error } = await (supabase as any).from('dsp_channel_limits').insert({
-        ...defaults,
         client_id: String(clientId),
         queue_id: queue.id,
         provider: unofficial ? 'uazapi' : 'meta_cloud',
@@ -39,6 +38,7 @@ export function useToggleDspChannel() {
       });
       if (error) throw error;
     },
+
     onSuccess: (_d, vars) => {
       invalidate(qc);
       toast.success(vars.enabled ? 'Canal habilitado para disparos' : 'Canal removido dos disparos');
