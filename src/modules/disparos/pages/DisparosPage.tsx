@@ -51,7 +51,11 @@ export default function DisparosPage() {
         <TabsContent value="templates" className="mt-6">
           <TemplatesTab clientId={clientId} canEdit={canEdit} />
         </TabsContent>
+        <TabsContent value="canais" className="mt-6">
+          <ChannelsTab clientId={clientId} canEdit={canEdit} />
+        </TabsContent>
         <TabsContent value="simulacao" className="mt-6">
+
           <SimulationTab clientId={clientId} />
         </TabsContent>
         <TabsContent value="monitor" className="mt-6">
