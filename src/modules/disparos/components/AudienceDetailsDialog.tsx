@@ -8,6 +8,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -226,15 +227,9 @@ export function AudienceDetailsDialog({ audience, onOpenChange, canEdit }: Props
                     <p className="text-muted-foreground">O público já está sincronizado com o filtro.</p>
                   ) : (
                     <AlertDialog>
-                      <Button size="sm" asChild>
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => (e.currentTarget.nextElementSibling as HTMLElement)?.click()}
-                        >
-                          Aplicar atualização
-                        </span>
-                      </Button>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm">Aplicar atualização</Button>
+                      </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Atualizar público?</AlertDialogTitle>
