@@ -327,7 +327,7 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
       </TabsContent>
 
       <TabsContent value="oficial">
-        <OfficialTemplatesPanel canEdit={canEdit} />
+        <OfficialTemplatesPanel canEdit={canEdit} clientId={clientId} />
       </TabsContent>
     </Tabs>
   );
