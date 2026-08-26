@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, FileText, FlaskConical, Megaphone, Radio, ScrollText, SlidersHorizontal, UserX } from 'lucide-react';
+import { Activity, FileText, FlaskConical, Megaphone, Radio, ScrollText, SlidersHorizontal, UserX, Users } from 'lucide-react';
 import { useAuth } from '../extend/auth';
 import { useEnsureDisparosModule } from '../extend/useEnsureDisparosModule';
 import { useDspClientId } from '../hooks/useDspClientId';
@@ -12,6 +12,7 @@ import { LogsTab } from '../components/LogsTab';
 import { SuppressionTab } from '../components/SuppressionTab';
 import { SettingsTab } from '../components/SettingsTab';
 import { ChannelsTab } from '../components/ChannelsTab';
+import { PublicoTab } from '../components/PublicoTab';
 
 import { DISPAROS_MODULE } from '../module';
 
@@ -36,6 +37,7 @@ export default function DisparosPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="campanhas" className="gap-2"><Megaphone className="h-4 w-4" />Campanhas</TabsTrigger>
           <TabsTrigger value="templates" className="gap-2"><FileText className="h-4 w-4" />Templates</TabsTrigger>
+          <TabsTrigger value="publico" className="gap-2"><Users className="h-4 w-4" />Público</TabsTrigger>
           <TabsTrigger value="canais" className="gap-2"><Radio className="h-4 w-4" />Canais</TabsTrigger>
           <TabsTrigger value="simulacao" className="gap-2"><FlaskConical className="h-4 w-4" />Simulação</TabsTrigger>
 
@@ -50,6 +52,9 @@ export default function DisparosPage() {
         </TabsContent>
         <TabsContent value="templates" className="mt-6">
           <TemplatesTab clientId={clientId} canEdit={canEdit} />
+        </TabsContent>
+        <TabsContent value="publico" className="mt-6">
+          <PublicoTab clientId={clientId} canEdit={canEdit} />
         </TabsContent>
         <TabsContent value="canais" className="mt-6">
           <ChannelsTab clientId={clientId} canEdit={canEdit} />
