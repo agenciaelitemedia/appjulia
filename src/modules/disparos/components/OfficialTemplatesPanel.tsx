@@ -20,6 +20,7 @@ import {
   useSyncTemplates, useWabaQueues, useWabaTemplatesCache,
   type WabaStatus, type WabaTemplateRow,
 } from '../extend/wabaTemplates';
+import { useDspChannelLimits } from '../hooks/useDspMonitor';
 
 const STATUS_VARIANT: Record<WabaStatus, { label: string; cls: string }> = {
   APPROVED: { label: 'Ativo', cls: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30' },
@@ -53,8 +54,19 @@ function previewBody(t: WabaTemplateRow) {
   return (body as any)?.text?.slice(0, 70) || '';
 }
 
-export function OfficialTemplatesPanel({ canEdit }: { canEdit: boolean }) {
-  const { data: queues, isLoading: loadingQueues } = useWabaQueues();
+export function OfficialTemplatesPanel({ canEdit, clientId }: { canEdit: boolean; clientId: string | null }) {
+  const { data: allQueues, isLoading: loadingQueues } = useWabaQueues();
+  const { data: limits = [], isLoading: loadingLimits } = useDspChannelLimits(clientId);
+
+  // Só filas explicitamente habilitadas na aba Canais podem ser usadas em disparos.
+  const enabledIds = useMemo(
+    () => new Set(limits.filter((l) => l.is_enabled === true).map((l) => l.queue_id)),
+    [limits],
+  );
+  const queues = useMemo(
+    () => (allQueues || []).filter((q) => enabledIds.has(q.id)),
+    [allQueues, enabledIds],
+  );
   const [queueId, setQueueId] = useState<string>('');
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -66,10 +78,11 @@ export function OfficialTemplatesPanel({ canEdit }: { canEdit: boolean }) {
   const sync = useSyncTemplates();
   const del = useDeleteTemplate();
 
-  const selectedQueue = queues?.find((q) => q.id === queueId);
+  const selectedQueue = queues.find((q) => q.id === queueId);
 
   useEffect(() => {
-    if (!queueId && queues && queues.length > 0) setQueueId(queues[0].id);
+    if (queues.length === 0) { if (queueId) setQueueId(''); return; }
+    if (!queueId || !queues.some((q) => q.id === queueId)) setQueueId(queues[0].id);
   }, [queues, queueId]);
 
   const filtered = useMemo(() => {
@@ -82,7 +95,7 @@ export function OfficialTemplatesPanel({ canEdit }: { canEdit: boolean }) {
     });
   }, [templates, search, filterCategory, filterStatus, filterLanguage]);
 
-  if (loadingQueues) {
+  if (loadingQueues || loadingLimits) {
     return (
       <div className="flex justify-center py-10">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -90,14 +103,20 @@ export function OfficialTemplatesPanel({ canEdit }: { canEdit: boolean }) {
     );
   }
 
-  if (!queues || queues.length === 0) {
+  if (queues.length === 0) {
+    const hasOfficial = (allQueues || []).length > 0;
     return (
       <Alert>
         <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Nenhum número de API Oficial conectado</AlertTitle>
+        <AlertTitle>
+          {hasOfficial
+            ? 'Nenhum canal oficial habilitado para disparos'
+            : 'Nenhum número de API Oficial conectado'}
+        </AlertTitle>
         <AlertDescription>
-          Conecte uma fila do tipo WhatsApp Business (API oficial) para criar e gerenciar templates
-          aprovados pela Meta.
+          {hasOfficial
+            ? 'Vá até a aba Canais e clique em "Usar em Disparos" na fila de API Oficial que deseja usar. Somente canais habilitados aparecem aqui.'
+            : 'Conecte uma fila do tipo WhatsApp Business (API oficial) para criar e gerenciar templates aprovados pela Meta.'}
         </AlertDescription>
       </Alert>
     );
