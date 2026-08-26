@@ -63,8 +63,12 @@ export interface SaveCampaignInput {
   send_window_end: string | null;
   send_week_days: number[];
   scheduled_at: string | null;
+  timezone: string;
+  schedule_start_at: string | null;
+  schedule_end_at: string | null;
+  auto_window_control: boolean;
   created_by?: string | null;
-  variants: { id?: string; label: string; message_text: string; weight: number }[];
+  variants: { id?: string; label: string; message_text: string; weight: number; template_id?: string | null }[];
   channels: { queue_id: string; weight: number }[];
 }
 
@@ -101,6 +105,7 @@ export function useSaveDspCampaign() {
             client_id: campaign.client_id,
             label: v.label,
             message_text: v.message_text,
+            template_id: v.template_id ?? null,
             weight: v.weight || 1,
             is_active: true,
           })),
@@ -148,12 +153,14 @@ export function useDeleteDspCampaign() {
   });
 }
 
-export type CampaignAction = 'start' | 'pause' | 'resume' | 'cancel' | 'schedule';
+export type CampaignAction =
+  | 'start' | 'pause' | 'resume' | 'cancel' | 'schedule'
+  | 'submit_approval' | 'approve' | 'reject';
 
 export function useDspCampaignControl() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { action: CampaignAction; campaign_id: string; actor?: string; clear_cooldown?: boolean }) => {
+    mutationFn: async (vars: { action: CampaignAction; campaign_id: string; actor?: string; clear_cooldown?: boolean; notes?: string }) => {
       const { data, error } = await supabase.functions.invoke('dsp-campaign-control', { body: vars });
       if (error) {
         const ctx: any = (error as any).context;
@@ -173,10 +180,19 @@ export function useDspCampaignControl() {
         resume: 'Campanha retomada',
         cancel: 'Campanha cancelada',
         schedule: 'Campanha agendada',
+        submit_approval: 'Enviada para aprovação',
+        approve: 'Campanha aprovada',
+        reject: 'Campanha reprovada',
       };
       toast.success(map[v.action]);
     },
     onError: (e: any) => {
+      if (e?.payload?.error === 'campanha_nao_aprovada') {
+        toast.error('Campanha não aprovada', {
+          description: 'Envie para aprovação e obtenha o aval antes do disparo real.',
+        });
+        return;
+      }
       if (e?.payload?.error === 'channels_in_cooldown') {
         toast.error('Todas as filas estão em cooldown', {
           description: 'Retome confirmando a liberação das filas.',

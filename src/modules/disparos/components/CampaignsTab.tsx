@@ -8,8 +8,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Play, Pause, Ban, Plus, Pencil, Trash2, Loader2, Search } from 'lucide-react';
-import { CAMPAIGN_STATUS_LABEL } from '../module';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Play, Pause, Ban, Plus, Pencil, Trash2, Loader2, Search, Send, Check, X, CalendarClock } from 'lucide-react';
+import { CAMPAIGN_STATUS_LABEL, APPROVAL_STATUS_LABEL } from '../module';
+import { useAuth } from '../extend/auth';
 import { useDspCampaigns, useDspCampaignControl, useDeleteDspCampaign } from '../hooks/useDspCampaigns';
 import { CampaignWizardDialog } from './CampaignWizardDialog';
 import type { DspCampaign } from '../types';
@@ -21,7 +24,27 @@ const statusVariant = (s: string): 'default' | 'secondary' | 'destructive' | 'ou
   return 'outline';
 };
 
+const approvalVariant = (s: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
+  if (s === 'approved') return 'default';
+  if (s === 'rejected') return 'destructive';
+  if (s === 'pending') return 'secondary';
+  return 'outline';
+};
+
+const scheduleLabel = (c: DspCampaign): string | null => {
+  const start = c.schedule_start_at ?? c.scheduled_at;
+  if (!start && !c.schedule_end_at) return null;
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString('pt-BR', { timeZone: c.timezone || 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+  const parts: string[] = [];
+  if (start) parts.push(`de ${fmt(start)}`);
+  if (c.schedule_end_at) parts.push(`até ${fmt(c.schedule_end_at)}`);
+  return `${parts.join(' ')} (${c.timezone || 'America/Sao_Paulo'})`;
+};
+
 export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; canEdit: boolean }) {
+  const { user, isAdmin } = useAuth();
+  const actor = user?.id != null ? String(user.id) : undefined;
   const { data: campaigns = [], isLoading } = useDspCampaigns(clientId);
   const control = useDspCampaignControl();
   const remove = useDeleteDspCampaign();
@@ -30,6 +53,8 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editing, setEditing] = useState<DspCampaign | null>(null);
   const [confirm, setConfirm] = useState<{ campaign: DspCampaign; action: 'start' | 'cancel' | 'delete' } | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<DspCampaign | null>(null);
+  const [rejectNotes, setRejectNotes] = useState('');
 
   const filtered = useMemo(
     () => campaigns.filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
@@ -90,18 +115,67 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
                         {CAMPAIGN_STATUS_LABEL[c.status] ?? c.status}
                       </Badge>
                       <Badge variant="outline">{c.category}</Badge>
+                      <Badge variant={approvalVariant(c.approval_status)}>
+                        {APPROVAL_STATUS_LABEL[c.approval_status] ?? c.approval_status}
+                      </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {c.goal || 'Sem objetivo definido'}
                       {c.send_window_start && ` · Janela ${c.send_window_start}–${c.send_window_end}`}
                     </p>
+                    {scheduleLabel(c) && (
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <CalendarClock className="h-3 w-3" /> {scheduleLabel(c)}
+                        {c.auto_window_control && ' · pausa/retoma automática'}
+                      </p>
+                    )}
+                    {c.approval_notes && (
+                      <p className="text-xs text-amber-600">Revisão: {c.approval_notes}</p>
+                    )}
                     {c.pause_reason && (
                       <p className="text-xs text-destructive">Pausada: {c.pause_reason}</p>
                     )}
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {canEdit && ['draft', 'scheduled', 'paused'].includes(c.status) && (
+                    {canEdit && ['draft', 'rejected'].includes(c.approval_status) && (
+                      <Button
+                        size="icon" variant="outline" className="h-7 w-7 rounded-full bg-primary/10"
+                        title="Enviar para aprovação"
+                        onClick={() => control.mutate({ action: 'submit_approval', campaign_id: c.id, actor })}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {isAdmin && c.approval_status === 'pending' && (
+                      <>
+                        <Button
+                          size="icon" variant="outline" className="h-7 w-7 rounded-full bg-emerald-500/10"
+                          title="Aprovar campanha"
+                          onClick={() => control.mutate({ action: 'approve', campaign_id: c.id, actor })}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon" variant="outline" className="h-7 w-7 rounded-full bg-destructive/10"
+                          title="Reprovar campanha"
+                          onClick={() => { setRejectTarget(c); setRejectNotes(''); }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                    {canEdit && c.approval_status === 'approved' && (c.schedule_start_at || c.scheduled_at)
+                      && ['draft', 'paused'].includes(c.status) && (
+                      <Button
+                        size="icon" variant="outline" className="h-7 w-7 rounded-full bg-sky-500/10"
+                        title="Ativar cronograma (início/pausa automáticos)"
+                        onClick={() => control.mutate({ action: 'schedule', campaign_id: c.id, actor })}
+                      >
+                        <CalendarClock className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {canEdit && c.approval_status === 'approved' && ['draft', 'scheduled', 'paused'].includes(c.status) && (
                       <Button
                         size="icon" variant="outline" className="h-7 w-7 rounded-full bg-primary/10"
                         title={c.status === 'paused' ? 'Retomar' : 'Iniciar disparo'}
@@ -177,6 +251,32 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
         clientId={clientId}
         campaign={editing}
       />
+
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Reprovar campanha</DialogTitle></DialogHeader>
+          <Textarea
+            rows={3}
+            placeholder="Motivo da reprovação"
+            value={rejectNotes}
+            onChange={(e) => setRejectNotes(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectTarget(null)}>Voltar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (rejectTarget) {
+                  control.mutate({ action: 'reject', campaign_id: rejectTarget.id, actor, notes: rejectNotes.trim() || undefined });
+                }
+                setRejectTarget(null);
+              }}
+            >
+              Reprovar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent>

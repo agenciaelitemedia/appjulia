@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { action, campaign_id, actor, clear_cooldown } = await req.json();
+    const { action, campaign_id, actor, clear_cooldown, notes } = await req.json();
     if (!action || !campaign_id) return json({ error: "action and campaign_id are required" }, 400);
 
     const { data: campaign } = await admin
@@ -41,6 +41,11 @@ Deno.serve(async (req) => {
       case "start": {
         if (!["draft", "scheduled", "paused"].includes(campaign.status)) {
           return json({ error: `cannot start from status ${campaign.status}` }, 400);
+        }
+        // Guardrail: disparo real exige aprovação humana da campanha.
+        if (campaign.approval_status !== "approved") {
+          await audit({ rejected: "not_approved", approval_status: campaign.approval_status });
+          return json({ error: "campanha_nao_aprovada", approval_status: campaign.approval_status }, 403);
         }
         const { data: channels } = await admin
           .from("dsp_campaign_channels").select("queue_id").eq("campaign_id", campaign_id).eq("is_active", true);
@@ -119,10 +124,46 @@ Deno.serve(async (req) => {
       }
 
       case "schedule": {
-        const { scheduled_at } = await Promise.resolve({ scheduled_at: campaign.scheduled_at });
-        if (!scheduled_at) return json({ error: "campanha sem data de agendamento" }, 400);
-        await admin.from("dsp_campaigns").update({ status: "scheduled" }).eq("id", campaign_id);
-        await audit({ scheduled_at });
+        const startAt = campaign.schedule_start_at || campaign.scheduled_at;
+        if (!startAt) return json({ error: "campanha sem data de agendamento" }, 400);
+        if (campaign.approval_status !== "approved") {
+          return json({ error: "campanha_nao_aprovada", approval_status: campaign.approval_status }, 403);
+        }
+        if (!["draft", "paused", "scheduled"].includes(campaign.status)) {
+          return json({ error: `cannot schedule from status ${campaign.status}` }, 400);
+        }
+        await admin.from("dsp_campaigns").update({
+          status: "scheduled", paused_at: null, pause_reason: null,
+        }).eq("id", campaign_id);
+        await audit({ scheduled_at: startAt, timezone: campaign.timezone, schedule_end_at: campaign.schedule_end_at });
+        return json({ ok: true, scheduled_at: startAt });
+      }
+
+      case "submit_approval": {
+        if (!["draft", "rejected"].includes(String(campaign.approval_status))) {
+          return json({ error: `já está em ${campaign.approval_status}` }, 400);
+        }
+        await admin.from("dsp_campaigns").update({
+          approval_status: "pending", submitted_at: new Date().toISOString(), submitted_by: actor ?? null,
+        }).eq("id", campaign_id);
+        await audit({ submitted_by: actor ?? null });
+        return json({ ok: true });
+      }
+
+      case "approve": {
+        await admin.from("dsp_campaigns").update({
+          approval_status: "approved", approved_at: new Date().toISOString(),
+          approved_by: actor ?? null, approval_notes: (await Promise.resolve(notes)) ?? null,
+        }).eq("id", campaign_id);
+        await audit({ approved_by: actor ?? null, notes: notes ?? null });
+        return json({ ok: true });
+      }
+
+      case "reject": {
+        await admin.from("dsp_campaigns").update({
+          approval_status: "rejected", approved_at: null, approved_by: null, approval_notes: notes ?? null,
+        }).eq("id", campaign_id);
+        await audit({ rejected_by: actor ?? null, notes: notes ?? null });
         return json({ ok: true });
       }
 

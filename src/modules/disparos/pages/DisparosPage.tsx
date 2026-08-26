@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, FlaskConical, Megaphone, ScrollText, SlidersHorizontal, UserX } from 'lucide-react';
+import { Activity, FileText, FlaskConical, Megaphone, ScrollText, SlidersHorizontal, UserX } from 'lucide-react';
 import { useAuth } from '../extend/auth';
 import { useEnsureDisparosModule } from '../extend/useEnsureDisparosModule';
 import { useDspClientId } from '../hooks/useDspClientId';
 import { CampaignsTab } from '../components/CampaignsTab';
+import { TemplatesTab } from '../components/TemplatesTab';
 import { SimulationTab } from '../components/SimulationTab';
 import { MonitorTab } from '../components/MonitorTab';
 import { LogsTab } from '../components/LogsTab';
@@ -32,6 +33,7 @@ export default function DisparosPage() {
       <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList className="flex-wrap">
           <TabsTrigger value="campanhas" className="gap-2"><Megaphone className="h-4 w-4" />Campanhas</TabsTrigger>
+          <TabsTrigger value="templates" className="gap-2"><FileText className="h-4 w-4" />Templates</TabsTrigger>
           <TabsTrigger value="simulacao" className="gap-2"><FlaskConical className="h-4 w-4" />Simulação</TabsTrigger>
           <TabsTrigger value="monitor" className="gap-2"><Activity className="h-4 w-4" />Monitoramento</TabsTrigger>
           <TabsTrigger value="logs" className="gap-2"><ScrollText className="h-4 w-4" />Logs</TabsTrigger>
@@ -41,6 +43,9 @@ export default function DisparosPage() {
 
         <TabsContent value="campanhas" className="mt-6">
           <CampaignsTab clientId={clientId} canEdit={canEdit} />
+        </TabsContent>
+        <TabsContent value="templates" className="mt-6">
+          <TemplatesTab clientId={clientId} canEdit={canEdit} />
         </TabsContent>
         <TabsContent value="simulacao" className="mt-6">
           <SimulationTab clientId={clientId} />

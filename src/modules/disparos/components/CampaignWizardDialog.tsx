@@ -13,7 +13,8 @@ import { useAuth } from '../extend/auth';
 import { useDspQueues, isUnofficialQueue } from '../extend/queues';
 import { useSaveDspCampaign, useDspCampaignVariants, useDspCampaignChannels } from '../hooks/useDspCampaigns';
 import { useDspSimulation } from '../hooks/useDspSimulation';
-import { EXCLUSION_REASON_LABEL, CHANNEL_REASON_LABEL } from '../module';
+import { EXCLUSION_REASON_LABEL, CHANNEL_REASON_LABEL, DISPAROS_TIMEZONES } from '../module';
+import { useDspTemplates } from '../hooks/useDspTemplates';
 import type { DspCampaign } from '../types';
 
 const WEEK_DAYS = [
@@ -21,6 +22,13 @@ const WEEK_DAYS = [
   { value: 4, label: 'Qui' }, { value: 5, label: 'Sex' }, { value: 6, label: 'Sáb' },
   { value: 0, label: 'Dom' },
 ];
+
+/** ISO -> valor aceito por <input type="datetime-local"> no fuso do navegador. */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 interface Props {
   open: boolean;
@@ -36,6 +44,7 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
   const simulate = useDspSimulation();
   const { data: existingVariants = [] } = useDspCampaignVariants(open ? campaign?.id ?? null : null);
   const { data: existingChannels = [] } = useDspCampaignChannels(open ? campaign?.id ?? null : null);
+  const { data: approvedTemplates = [] } = useDspTemplates(clientId, true);
 
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
@@ -46,13 +55,16 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
   const [windowEnd, setWindowEnd] = useState('20:00');
   const [weekDays, setWeekDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [scheduledAt, setScheduledAt] = useState('');
+  const [timezone, setTimezone] = useState('America/Sao_Paulo');
+  const [scheduleEndAt, setScheduleEndAt] = useState('');
+  const [autoWindowControl, setAutoWindowControl] = useState(true);
 
   const [manualPhones, setManualPhones] = useState('');
   const [lastDays, setLastDays] = useState('');
   const [audienceLimit, setAudienceLimit] = useState('');
   const [onlyWithConversation, setOnlyWithConversation] = useState(false);
 
-  const [variants, setVariants] = useState<{ label: string; message_text: string; weight: number }[]>([
+  const [variants, setVariants] = useState<{ label: string; message_text: string; weight: number; template_id?: string | null }[]>([
     { label: 'Variante A', message_text: '', weight: 1 },
   ]);
   const [selectedQueues, setSelectedQueues] = useState<string[]>([]);
@@ -69,7 +81,14 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
     setWindowStart(campaign?.send_window_start?.slice(0, 5) ?? '08:00');
     setWindowEnd(campaign?.send_window_end?.slice(0, 5) ?? '20:00');
     setWeekDays(campaign?.send_week_days ?? [1, 2, 3, 4, 5]);
-    setScheduledAt(campaign?.scheduled_at ? campaign.scheduled_at.slice(0, 16) : '');
+    setScheduledAt(
+      campaign?.schedule_start_at
+        ? toLocalInput(campaign.schedule_start_at)
+        : campaign?.scheduled_at ? toLocalInput(campaign.scheduled_at) : '',
+    );
+    setScheduleEndAt(campaign?.schedule_end_at ? toLocalInput(campaign.schedule_end_at) : '');
+    setTimezone(campaign?.timezone ?? 'America/Sao_Paulo');
+    setAutoWindowControl(campaign?.auto_window_control ?? true);
     const f = campaign?.audience_filters ?? {};
     setManualPhones((f.manual_phones ?? []).join('\n'));
     setLastDays(f.last_interaction_days != null ? String(f.last_interaction_days) : '');
@@ -107,6 +126,10 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
     send_window_end: windowEnd,
     send_week_days: weekDays,
     scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+    schedule_start_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+    schedule_end_at: scheduleEndAt ? new Date(scheduleEndAt).toISOString() : null,
+    timezone,
+    auto_window_control: autoWindowControl,
     created_by: user?.id != null ? String(user.id) : null,
     variants: variants.filter((v) => v.message_text.trim()),
     channels: selectedQueues.map((q) => ({ queue_id: q, weight: 1 })),
@@ -199,9 +222,38 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Agendar para (opcional)</Label>
-              <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+              <Label>Fuso horário do cronograma</Label>
+              <Select value={timezone} onValueChange={setTimezone}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DISPAROS_TIMEZONES.map((tz) => (
+                    <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                A janela de horário e os dias da semana são avaliados neste fuso.
+              </p>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Início do cronograma (opcional)</Label>
+                <Input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Fim do cronograma (opcional)</Label>
+                <Input type="datetime-local" value={scheduleEndAt} onChange={(e) => setScheduleEndAt(e.target.value)} />
+              </div>
+            </div>
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox checked={autoWindowControl} onCheckedChange={(v) => setAutoWindowControl(!!v)} />
+              <span>
+                Pausar e retomar automaticamente conforme a janela
+                <span className="block text-xs text-muted-foreground">
+                  O sistema pausa ao sair do horário/dia permitido e retoma sozinho quando a janela reabre.
+                </span>
+              </span>
+            </label>
           </div>
         )}
 
@@ -239,6 +291,29 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
         {step === 3 && (
           <div className="space-y-4">
             <div className="space-y-2">
+              {approvedTemplates.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label>Usar template aprovado</Label>
+                  <Select
+                    value=""
+                    onValueChange={(id) => {
+                      const t = approvedTemplates.find((x) => x.id === id);
+                      if (!t) return;
+                      setVariants((prev) => [
+                        ...prev.filter((v) => v.message_text.trim()),
+                        { label: t.name, message_text: t.body, weight: 1, template_id: t.id },
+                      ]);
+                    }}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Selecionar template..." /></SelectTrigger>
+                    <SelectContent>
+                      {approvedTemplates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <Label>Variantes de mensagem (rotação)</Label>
                 <Button

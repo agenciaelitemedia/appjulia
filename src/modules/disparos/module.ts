@@ -17,6 +17,7 @@ export const DISPAROS_MODULE = {
 
 export const DISPAROS_TABS = [
   { value: 'campanhas', label: 'Campanhas', icon: 'Megaphone' },
+  { value: 'templates', label: 'Templates', icon: 'FileText' },
   { value: 'simulacao', label: 'Simulação', icon: 'FlaskConical' },
   { value: 'monitor', label: 'Monitoramento', icon: 'Activity' },
   { value: 'logs', label: 'Logs', icon: 'ScrollText' },
@@ -56,6 +57,28 @@ export const EXCLUSION_REASON_LABEL: Record<string, string> = {
   suppressed: 'Na lista de supressão',
   frequency_cap: 'Limite de frequência por contato',
 };
+
+/** Rótulos do fluxo de aprovação (campanhas e templates). */
+export const APPROVAL_STATUS_LABEL: Record<string, string> = {
+  draft: 'Rascunho',
+  pending: 'Aguardando aprovação',
+  approved: 'Aprovado',
+  rejected: 'Reprovado',
+};
+
+/** Fusos disponíveis para o cronograma da campanha. */
+export const DISPAROS_TIMEZONES = [
+  { value: 'America/Sao_Paulo', label: 'Brasília (BRT, UTC-3)' },
+  { value: 'America/Manaus', label: 'Manaus (UTC-4)' },
+  { value: 'America/Cuiaba', label: 'Cuiabá (UTC-4)' },
+  { value: 'America/Rio_Branco', label: 'Rio Branco (UTC-5)' },
+  { value: 'America/Belem', label: 'Belém (UTC-3)' },
+  { value: 'America/Fortaleza', label: 'Fortaleza (UTC-3)' },
+  { value: 'America/Noronha', label: 'Fernando de Noronha (UTC-2)' },
+  { value: 'America/New_York', label: 'Nova York (ET)' },
+  { value: 'Europe/Lisbon', label: 'Lisboa (WET)' },
+  { value: 'UTC', label: 'UTC' },
+] as const;
 
 export const HEALTH_LABEL: Record<string, string> = {
   healthy: 'Saudável',
