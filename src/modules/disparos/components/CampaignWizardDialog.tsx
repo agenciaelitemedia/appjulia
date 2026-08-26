@@ -11,6 +11,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../extend/auth';
 import { useDspQueues, isUnofficialQueue } from '../extend/queues';
+import { useDspChannelLimits } from '../hooks/useDspMonitor';
+
 import { useSaveDspCampaign, useDspCampaignVariants, useDspCampaignChannels } from '../hooks/useDspCampaigns';
 import { useDspSimulation } from '../hooks/useDspSimulation';
 import { EXCLUSION_REASON_LABEL, CHANNEL_REASON_LABEL, DISPAROS_TIMEZONES } from '../module';
