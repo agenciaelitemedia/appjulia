@@ -278,6 +278,12 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </TabsContent>
+
+      <TabsContent value="oficial">
+        <OfficialTemplatesPanel canEdit={canEdit} />
+      </TabsContent>
+    </Tabs>
   );
 }
+
