@@ -4332,6 +4332,119 @@ export type Database = {
         }
         Relationships: []
       }
+      dsp_audience_contacts: {
+        Row: {
+          audience_id: string
+          client_id: string
+          contact_id: string | null
+          created_at: string
+          document: string | null
+          email: string | null
+          extra: Json
+          first_name: string | null
+          id: string
+          invalid_reason: string | null
+          name: string | null
+          origin: string
+          phone_e164: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          audience_id: string
+          client_id: string
+          contact_id?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          extra?: Json
+          first_name?: string | null
+          id?: string
+          invalid_reason?: string | null
+          name?: string | null
+          origin?: string
+          phone_e164: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          audience_id?: string
+          client_id?: string
+          contact_id?: string | null
+          created_at?: string
+          document?: string | null
+          email?: string | null
+          extra?: Json
+          first_name?: string | null
+          id?: string
+          invalid_reason?: string | null
+          name?: string | null
+          origin?: string
+          phone_e164?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dsp_audience_contacts_audience_id_fkey"
+            columns: ["audience_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_audiences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dsp_audiences: {
+        Row: {
+          client_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          field_map: Json
+          filters: Json
+          id: string
+          last_synced_at: string | null
+          name: string
+          source: string
+          status: string
+          total_active: number
+          total_removed: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          field_map?: Json
+          filters?: Json
+          id?: string
+          last_synced_at?: string | null
+          name: string
+          source?: string
+          status?: string
+          total_active?: number
+          total_removed?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          field_map?: Json
+          filters?: Json
+          id?: string
+          last_synced_at?: string | null
+          name?: string
+          source?: string
+          status?: string
+          total_active?: number
+          total_removed?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       dsp_audit_log: {
         Row: {
           action: string
@@ -4476,6 +4589,8 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           audience_filters: Json
+          audience_id: string | null
+          audience_mode: string
           auto_window_control: boolean
           category: string
           channel_strategy: string
@@ -4519,6 +4634,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           audience_filters?: Json
+          audience_id?: string | null
+          audience_mode?: string
           auto_window_control?: boolean
           category?: string
           channel_strategy?: string
@@ -4562,6 +4679,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           audience_filters?: Json
+          audience_id?: string | null
+          audience_mode?: string
           auto_window_control?: boolean
           category?: string
           channel_strategy?: string
