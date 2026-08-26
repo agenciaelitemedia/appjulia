@@ -9,6 +9,16 @@ type ChangelogItem = {
 
 const releases = [
   {
+    version: 'v2.22',
+    date: '26 de agosto de 2026',
+    highlight: 'Selo Tech Provider Oficial da Meta na tela de login.',
+    items: [
+      { category: 'novo', text: 'Badge "Tech Provider Oficial da Meta" no login, com resumo e tooltip completo sobre a parceria.' },
+      { category: 'melhoria', text: 'Badge de versão do app exibido no rodapé da tela de login.' },
+      { category: 'correcao', text: 'Ajustes de compatibilidade visual do tooltip em telas menores.' },
+    ] as ChangelogItem[],
+  },
+  {
     version: 'v2.21',
     date: '25 de agosto de 2026',
     highlight: 'Histórico de ligações vinculado ao contato e nova aba Telefonia.',
