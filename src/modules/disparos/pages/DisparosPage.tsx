@@ -36,7 +36,9 @@ export default function DisparosPage() {
         <TabsList className="flex-wrap">
           <TabsTrigger value="campanhas" className="gap-2"><Megaphone className="h-4 w-4" />Campanhas</TabsTrigger>
           <TabsTrigger value="templates" className="gap-2"><FileText className="h-4 w-4" />Templates</TabsTrigger>
+          <TabsTrigger value="canais" className="gap-2"><Radio className="h-4 w-4" />Canais</TabsTrigger>
           <TabsTrigger value="simulacao" className="gap-2"><FlaskConical className="h-4 w-4" />Simulação</TabsTrigger>
+
           <TabsTrigger value="monitor" className="gap-2"><Activity className="h-4 w-4" />Monitoramento</TabsTrigger>
           <TabsTrigger value="logs" className="gap-2"><ScrollText className="h-4 w-4" />Logs</TabsTrigger>
           <TabsTrigger value="supressao" className="gap-2"><UserX className="h-4 w-4" />Supressão</TabsTrigger>
