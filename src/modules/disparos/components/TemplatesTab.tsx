@@ -40,6 +40,8 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
   const [name, setName] = useState('');
   const [category, setCategory] = useState('marketing');
   const [body, setBody] = useState('');
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaType, setMediaType] = useState('image');
   const [rejectTarget, setRejectTarget] = useState<DspTemplate | null>(null);
   const [rejectNotes, setRejectNotes] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DspTemplate | null>(null);
@@ -54,6 +56,8 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
     setName('');
     setCategory('marketing');
     setBody('');
+    setMediaUrl('');
+    setMediaType('image');
     setOpen(true);
   };
 
@@ -62,21 +66,27 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
     setName(t.name);
     setCategory(t.category);
     setBody(t.body);
+    setMediaUrl(t.media_url ?? '');
+    setMediaType(t.media_type ?? 'image');
     setOpen(true);
   };
 
   const handleSave = async () => {
     if (!clientId) return;
+    const url = mediaUrl.trim();
     await save.mutateAsync({
       id: editing?.id,
       client_id: String(clientId),
       name: name.trim(),
       category,
       body,
+      media_url: url || null,
+      media_type: url ? mediaType : null,
       created_by: actor,
     });
     setOpen(false);
   };
+
 
   const previewVars = extractVariables(body);
 
