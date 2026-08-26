@@ -46,11 +46,13 @@ import {
   LifeBuoy,
   HelpCircle,
   Building2,
+  Send,
   type LucideIcon,
 } from 'lucide-react';
 
 export const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
+  Send,
   Building2,
   Users,
   Bot,
