@@ -243,7 +243,9 @@ const App = () => (
                   <Route path="/automacoes" element={<ProtectedRoute module="flow_builder"><FlowListPage /></ProtectedRoute>} />
                   <Route path="/automacoes/:flowId" element={<ProtectedRoute module="flow_builder"><FlowEditorPage /></ProtectedRoute>} />
                   {/* Agente X-Julia — módulo independente */}
+                  <Route path="/disparos" element={<ProtectedRoute module={"campaigns_dispatch" as any}><DisparosPage /></ProtectedRoute>} />
                   <Route path="/x-julia" element={<ProtectedRoute module="x_julia"><XJScopeProvider><XJDashboardPage /></XJScopeProvider></ProtectedRoute>} />
+
                   <Route path="/x-julia/atendimentos" element={<ProtectedRoute module="x_julia_sessions"><XJScopeProvider><XJSessionsPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/atendimentos/:sessionId" element={<ProtectedRoute module="x_julia_sessions"><XJScopeProvider><XJSessionDetailPage /></XJScopeProvider></ProtectedRoute>} />
                   <Route path="/x-julia/sessoes" element={<ProtectedRoute module="x_julia_sessions_manage"><XJScopeProvider><XJSessionsManagePage /></XJScopeProvider></ProtectedRoute>} />
