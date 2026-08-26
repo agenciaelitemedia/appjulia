@@ -315,6 +315,8 @@ export default function Login() {
             <h2 className="text-2xl font-bold sm:text-3xl">Bem-vindo de volta</h2>
             <p className="aj-muted mt-2 text-sm">Entre para acessar sua operação com a Julia.</p>
 
+            <MetaProviderBadge />
+
             <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
               <div>
                 <label
