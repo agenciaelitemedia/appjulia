@@ -39,7 +39,13 @@ interface Props {
 
 export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }: Props) {
   const { user } = useAuth();
-  const { data: queues = [] } = useDspQueues(clientId);
+  const { data: allQueues = [] } = useDspQueues(clientId);
+  const { data: channelLimits = [] } = useDspChannelLimits(clientId);
+  const enabledQueueIds = new Set(
+    channelLimits.filter((l) => l.is_enabled === true).map((l) => l.queue_id),
+  );
+  const queues = allQueues.filter((q) => enabledQueueIds.has(q.id));
+
   const save = useSaveDspCampaign();
   const simulate = useDspSimulation();
   const { data: existingVariants = [] } = useDspCampaignVariants(open ? campaign?.id ?? null : null);
