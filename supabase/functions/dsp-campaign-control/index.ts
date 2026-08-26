@@ -52,6 +52,62 @@ Deno.serve(async (req) => {
           return json({ error: "nenhuma variante de mensagem configurada" }, 400);
         }
 
+        // ---- Guardrails: nenhuma chamada a API não oficial sem limites válidos ----
+        const queueIds = channels.map((c: any) => c.queue_id);
+        const { data: queueRows } = await admin.from("queues").select("*").in("id", queueIds);
+        const guardrails: any[] = [];
+        let anyUsable = false;
+        let unofficialCount = 0;
+
+        for (const q of queueRows ?? []) {
+          const candidate = await loadChannel(admin, q);
+          const limits = candidate.limits;
+          const unofficial = isUazapi(q);
+          if (unofficial) unofficialCount++;
+
+          const problems: string[] = [];
+          if (!(limits.max_per_minute > 0) || !(limits.max_per_hour > 0) || !(limits.max_per_day > 0)) {
+            problems.push("limites_invalidos");
+          }
+          if (unofficial && !(limits.min_seconds_between_messages >= 1)) {
+            problems.push("intervalo_entre_mensagens_obrigatorio");
+          }
+          if (unofficial && !(limits.block_size > 0 && limits.block_pause_seconds > 0)) {
+            problems.push("pausa_entre_blocos_obrigatoria");
+          }
+          if (campaign.category === "marketing" && !limits.marketing_enabled) {
+            problems.push("marketing_desativado_na_fila");
+          }
+
+          const decision = canSendNow(candidate, { category: campaign.category });
+          if (problems.length === 0 && (decision.ok || ["throttled", "minute_limit", "hour_limit"].includes(String(decision.reason)))) {
+            anyUsable = true;
+          }
+
+          guardrails.push({
+            queue_id: q.id,
+            queue_name: q.name,
+            unofficial,
+            problems,
+            blocked_reason: decision.ok ? null : decision.reason,
+          });
+        }
+
+        const invalid = guardrails.filter((g) => g.problems.length > 0);
+        if (invalid.length > 0) {
+          await audit({ rejected: "guardrails", guardrails });
+          return json({ error: "guardrails_invalidos", guardrails: invalid }, 400);
+        }
+        if (!anyUsable) {
+          await audit({ rejected: "no_usable_channel", guardrails });
+          return json({ error: "nenhuma fila disponível agora", guardrails }, 409);
+        }
+        if (unofficialCount > 0 && channels.length === 1) {
+          await audit({ warning: "single_unofficial_channel", guardrails });
+        }
+
+
+
         const resp = await fetch(`${SUPABASE_URL}/functions/v1/dsp-campaign-prepare`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}`, apikey: SERVICE_KEY },
