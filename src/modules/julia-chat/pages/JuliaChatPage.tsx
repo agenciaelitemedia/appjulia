@@ -76,9 +76,12 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
   const scopedFilters = useMemo<JuliaChatFilters>(() => ({
     ...debounced,
     scope_queue_ids: scopeQueueIds,
-    hide_snoozed: debounced.hide_snoozed ?? true,
+    // Busca ativa nunca esconde conversas adiadas: procurar por telefone/nome/
+    // protocolo deve encontrar o lead mesmo com retorno agendado em aberto.
+    hide_snoozed: debounced.search ? false : (debounced.hide_snoozed ?? true),
     restrict_open_to: restrictOpenTo,
   }), [debounced, scopeQueueIds, restrictOpenTo]);
+
 
   const { active, setActive, feeds, activeFeed, counters, removeRowEverywhere } = useJuliaChatTabs(
     queuesLoading ? null : clientId,
