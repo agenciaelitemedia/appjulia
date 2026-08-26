@@ -218,7 +218,7 @@ export async function loadChannel(admin: any, queue: any): Promise<ChannelCandid
     link = data ?? { ...insert, id: null };
   }
 
-  const limits: any = { queue_id: queue.id, provider, is_enabled: link.is_enabled !== false ? link.is_enabled === true : false, default_weight: Number(link.default_weight ?? 1) };
+  const limits: any = { queue_id: queue.id, provider, is_enabled: link.is_enabled === true, default_weight: Number(link.default_weight ?? 1) };
   for (const f of DSP_LIMIT_FIELDS) limits[f] = defaults[f];
 
   let { data: state } = await admin
