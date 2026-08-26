@@ -1,29 +1,34 @@
-# Por que o lead 5581993162997 não aparece na lista
+# Snooze deve ser cancelado quando o lead responde
 
-## Causa confirmada
+## O caso investigado (5581993162997)
 
-O contato existe no seu escritório (client_id 294, fila **Comercial**, conversa aberta, protocolo #2026-067002, responsável **Dra. Joyce**, usuário 384).
+O contato existe no seu escritório (client_id 294, fila **Comercial**, conversa aberta, protocolo #2026-067002, responsável **Dra. Joyce**).
 
-A conversa está **adiada (snooze)** até **27/08/2026 17:09**, adiada pela própria Dra. Joyce. A lista do chat esconde conversas adiadas por padrão (`hide_snoozed = true`), então ela não aparece nem na busca por telefone — mesmo para o owner, que já enxerga conversas de outros atendentes.
+A conversa foi **adiada (snooze) até 27/08/2026 17:09** e o lead **voltou a mandar mensagem em 26/08 às 12:11** — ou seja, a conversa continuou escondida da lista mesmo com mensagem nova do cliente. É exatamente o comportamento errado que você descreveu: o lead fica sem resposta até o fim do snooze.
 
-Ou seja: não é permissão, nem fila, nem busca. É o filtro de retorno agendado.
+Hoje nada no sistema cancela o snooze: o gatilho de banco que registra a mensagem do cliente só atualiza `last_customer_message_at` / `last_message_from_me`, e nenhum webhook limpa `snoozed_until`.
 
-## Onde ela está visível hoje
+## O que será implementado
 
-- Painel "Retornos agendados" (ícone de relógio na barra de filtros do chat).
-- Desativando "Ocultar adiadas" nos filtros.
+1. **Cancelamento automático do snooze na mensagem do cliente**
+   Quando entra qualquer mensagem recebida (não enviada pelo atendente) numa conversa adiada, o snooze é cancelado imediatamente e a conversa volta a aparecer na lista, no topo (mensagem nova).
+   - Vale para todos os canais (WhatsApp não oficial, API Oficial, Instagram, WebChat), porque a regra fica no banco, não em cada webhook.
+   - O responsável e a etapa/status não mudam: só o adiamento é removido.
 
-## Proposta de ajuste (opcional, escolha uma)
+2. **Registro no histórico da conversa**
+   Uma linha no histórico: "Retorno agendado cancelado automaticamente — o cliente respondeu", para o atendente entender por que a conversa reapareceu.
 
-1. **Busca ignora snooze**: quando há texto na busca (nome/telefone/protocolo), a lista passa a mostrar também as conversas adiadas, com um selo "Adiada até dd/mm hh:mm". Resolve exatamente o caso "procurei o número e não achei".
-2. **Contador visível**: manter o comportamento atual e exibir no painel de retornos um badge com a quantidade de conversas adiadas, para ficar evidente que existem conversas ocultas.
+3. **Limpeza dos casos já presos**
+   Cancelar o snooze das conversas que já estão adiadas mas cujo cliente respondeu depois do adiamento (inclui a conversa do 5581993162997).
 
-Recomendo a opção 1 (com o selo), somando o badge da opção 2.
+4. **Busca não esconde adiadas**
+   Ao pesquisar por nome, telefone ou protocolo, conversas adiadas passam a aparecer com um selo "Adiada até dd/mm hh:mm" — assim uma busca por número nunca mais "não encontra" um lead que existe.
 
 ## Detalhes técnicos
 
-- `chat_conversations.snoozed_until` = 2026-08-27 17:09, `snoozed_by` = 384.
-- `chat_list_feed` aplica `p_hide_snoozed` (default true) antes de qualquer filtro de busca; `JuliaChatPage.tsx` envia `hide_snoozed: debounced.hide_snoozed ?? true`.
-- Opção 1: em `JuliaChatPage.tsx`, forçar `hide_snoozed: false` quando `debounced.search` estiver preenchido; em `JuliaChatRow.tsx`, exibir selo quando `snoozed_until > now` (o campo já vem no feed).
-- Opção 2: badge de contagem no botão do painel de retornos, reutilizando a query já existente do painel.
-- Nenhuma mudança de RLS, permissões ou banco é necessária.
+- Ajustar `public.update_conversation_message_tracking()` (trigger em `chat_messages`): quando `NEW.from_me = false`, também setar `snoozed_until = NULL, snoozed_by = NULL, snooze_reason = NULL` e `updated_at = now()` — só quando `snoozed_until IS NOT NULL`.
+- Inserir evento em `chat_conversation_history` no mesmo trigger (tipo/ação de sistema, sem responsável), respeitando o formato já usado pelos demais eventos.
+- Backfill: `UPDATE chat_conversations SET snoozed_until = NULL ... WHERE snoozed_until > now() AND last_customer_message_at > <momento do snooze>` (usando `updated_at`/histórico como referência conservadora).
+- Frontend (`src/modules/julia-chat`): em `JuliaChatPage.tsx`, enviar `hide_snoozed: false` quando `filters.search` estiver preenchido; em `JuliaChatRow.tsx`, selo quando `snoozed_until` futuro (campo já retornado por `chat_list_feed`).
+- `useSnoozeExpiryWatcher` / `JuliaSnoozedPanel` continuam funcionando: passam a refletir a lista já sem os itens cancelados via invalidação de cache existente (realtime em `chat_conversations`).
+- Sem mudanças de RLS ou permissões.
