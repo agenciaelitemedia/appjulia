@@ -73,6 +73,14 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
   const { data: campaigns = [], isLoading } = useDspCampaigns(clientId);
   const control = useDspCampaignControl();
   const remove = useDeleteDspCampaign();
+  const { data: waitReasons = {} } = useDspWaitReasons(clientId);
+  const { data: providerDefaults = [] } = useDspProviderDefaults(clientId);
+  const providerWindow = useMemo(() => {
+    const uaz = providerDefaults.find((p: any) => p.provider === 'uazapi') ?? providerDefaults[0];
+    return uaz ? { start: (uaz as any).send_window_start, end: (uaz as any).send_window_end } : null;
+  }, [providerDefaults]);
+
+
 
   const [search, setSearch] = useState('');
   const [wizardOpen, setWizardOpen] = useState(false);
