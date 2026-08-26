@@ -4916,6 +4916,72 @@ export type Database = {
         }
         Relationships: []
       }
+      dsp_provider_defaults: {
+        Row: {
+          block_pause_seconds: number
+          block_size: number
+          client_id: string
+          cooldown_after_disconnect_minutes: number
+          created_at: string
+          daily_ramp_percent: number
+          id: string
+          marketing_enabled: boolean
+          max_consecutive_failures: number
+          max_per_day: number
+          max_per_hour: number
+          max_per_minute: number
+          max_seconds_between_messages: number
+          max_unique_recipients_per_day: number
+          min_seconds_between_messages: number
+          provider: string
+          send_window_end: string | null
+          send_window_start: string | null
+          updated_at: string
+        }
+        Insert: {
+          block_pause_seconds?: number
+          block_size?: number
+          client_id: string
+          cooldown_after_disconnect_minutes?: number
+          created_at?: string
+          daily_ramp_percent?: number
+          id?: string
+          marketing_enabled?: boolean
+          max_consecutive_failures?: number
+          max_per_day?: number
+          max_per_hour?: number
+          max_per_minute?: number
+          max_seconds_between_messages?: number
+          max_unique_recipients_per_day?: number
+          min_seconds_between_messages?: number
+          provider: string
+          send_window_end?: string | null
+          send_window_start?: string | null
+          updated_at?: string
+        }
+        Update: {
+          block_pause_seconds?: number
+          block_size?: number
+          client_id?: string
+          cooldown_after_disconnect_minutes?: number
+          created_at?: string
+          daily_ramp_percent?: number
+          id?: string
+          marketing_enabled?: boolean
+          max_consecutive_failures?: number
+          max_per_day?: number
+          max_per_hour?: number
+          max_per_minute?: number
+          max_seconds_between_messages?: number
+          max_unique_recipients_per_day?: number
+          min_seconds_between_messages?: number
+          provider?: string
+          send_window_end?: string | null
+          send_window_start?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       dsp_recipients: {
         Row: {
           attempts: number
