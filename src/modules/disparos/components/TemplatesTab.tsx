@@ -225,7 +225,33 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
                 Variáveis detectadas: {previewVars.length > 0 ? previewVars.map((v) => `{{${v}}}`).join(', ') : 'nenhuma'}
               </p>
             </div>
+            <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
+              <div className="space-y-1.5">
+                <Label>Mídia (opcional)</Label>
+                <Input
+                  value={mediaUrl}
+                  onChange={(e) => setMediaUrl(e.target.value)}
+                  placeholder="https://.../arquivo.jpg"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tipo</Label>
+                <Select value={mediaType} onValueChange={setMediaType} disabled={!mediaUrl.trim()}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="image">Imagem</SelectItem>
+                    <SelectItem value="video">Vídeo</SelectItem>
+                    <SelectItem value="audio">Áudio</SelectItem>
+                    <SelectItem value="document">Documento</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Com mídia, a mensagem acima é enviada como legenda (áudio é enviado sem legenda).
+            </p>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={name.trim().length < 3 || body.trim().length < 5 || save.isPending}>
