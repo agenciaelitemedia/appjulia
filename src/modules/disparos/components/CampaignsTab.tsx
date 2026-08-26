@@ -10,12 +10,37 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Play, Pause, Ban, Plus, Pencil, Trash2, Loader2, Search, Send, Check, X, CalendarClock } from 'lucide-react';
+import { Play, Pause, Ban, Plus, Pencil, Trash2, Loader2, Search, Send, Check, X, CalendarClock, Clock } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABEL, APPROVAL_STATUS_LABEL } from '../module';
 import { useAuth } from '../extend/auth';
 import { useDspCampaigns, useDspCampaignControl, useDeleteDspCampaign } from '../hooks/useDspCampaigns';
+import { useDspWaitReasons } from '../hooks/useDspWaitReason';
+import { useDspProviderDefaults } from '../hooks/useDspProviderDefaults';
 import { CampaignWizardDialog } from './CampaignWizardDialog';
 import type { DspCampaign } from '../types';
+
+/** Texto amigável do motivo de espera reportado pelo worker. */
+function waitReasonLabel(reason: string, window: { start?: string; end?: string } | null): string | null {
+  switch (reason) {
+    case 'outside_channel_window':
+      return window?.start
+        ? `Aguardando janela do canal (${window.start}–${window.end})`
+        : 'Aguardando janela de envio do canal';
+    case 'channel_disconnected':
+      return 'Aguardando: canal desconectado';
+    case 'channel_cooldown':
+      return 'Aguardando: canal em cooldown de segurança';
+    case 'rate_limited':
+      return 'Aguardando: limite de envio por minuto/hora atingido';
+    case 'block_pause':
+      return 'Aguardando: pausa entre blocos de mensagens';
+    case 'no_channel_available':
+      return 'Aguardando canal disponível';
+    default:
+      return `Aguardando: ${reason}`;
+  }
+}
+
 
 const statusVariant = (s: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
   if (s === 'running') return 'default';
