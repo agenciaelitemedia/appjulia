@@ -124,7 +124,6 @@ Deno.serve(async (req) => {
 
       // 3) Marca o destinatário de origem
       await admin.from("dsp_recipients").update({ status: "opted_out" }).eq("id", target.id);
-      await admin.from("dsp_campaigns").rpc; // no-op guard (contadores agregados na UI)
       await admin.from("dsp_audit_log").insert({
         client_id: String(target.client_id),
         campaign_id: target.campaign_id,
