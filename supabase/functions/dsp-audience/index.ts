@@ -304,8 +304,7 @@ async function loadAudience(audienceId: string) {
 async function insertContacts(
   audience: any,
   contacts: ResolvedContact[],
-  source: string,
-  actor: string | null,
+  origin: string,
 ): Promise<number> {
   let inserted = 0;
   for (const part of chunk(contacts, 500)) {
@@ -316,9 +315,8 @@ async function insertContacts(
       name: c.name,
       first_name: c.name ? String(c.name).trim().split(/\s+/)[0] : null,
       contact_id: c.contact_id,
-      source,
+      origin,
       status: 'active',
-      created_by: actor,
     }));
     const { error, count } = await admin
       .from('dsp_audience_contacts')
@@ -335,9 +333,18 @@ async function syncCounters(audienceId: string) {
     .select('id', { count: 'exact', head: true })
     .eq('audience_id', audienceId)
     .eq('status', 'active');
+  const { count: removed } = await admin
+    .from('dsp_audience_contacts')
+    .select('id', { count: 'exact', head: true })
+    .eq('audience_id', audienceId)
+    .eq('status', 'removed');
   await admin
     .from('dsp_audiences')
-    .update({ total_contacts: total ?? 0, last_resolved_at: new Date().toISOString() })
+    .update({
+      total_active: total ?? 0,
+      total_removed: removed ?? 0,
+      last_synced_at: new Date().toISOString(),
+    })
     .eq('id', audienceId);
   return total ?? 0;
 }
@@ -366,16 +373,16 @@ Deno.serve(async (req) => {
 
     if (action === 'materialize') {
       const audience = await loadAudience(String(payload.audience_id ?? ''));
-      if (audience.source_type !== 'filter') return json({ error: 'Público não é baseado em filtros' }, 400);
+      if (audience.source !== 'filter') return json({ error: 'Público não é baseado em filtros' }, 400);
       const contacts = await resolveFilters(String(audience.client_id), (audience.filters ?? {}) as AudienceFilters);
-      await insertContacts(audience, contacts, 'filter', payload.actor ?? null);
+      await insertContacts(audience, contacts, 'filter');
       const total = await syncCounters(audience.id);
       return json({ ok: true, resolved: contacts.length, total });
     }
 
     if (action === 'refresh') {
       const audience = await loadAudience(String(payload.audience_id ?? ''));
-      if (audience.source_type !== 'filter') return json({ error: 'Público não é baseado em filtros' }, 400);
+      if (audience.source !== 'filter') return json({ error: 'Público não é baseado em filtros' }, 400);
 
       const resolved = await resolveFilters(String(audience.client_id), (audience.filters ?? {}) as AudienceFilters);
       const resolvedKeys = new Map(resolved.map((c) => [key(c.phone), c]));
@@ -409,17 +416,17 @@ Deno.serve(async (req) => {
         });
       }
 
-      if (toAdd.length) await insertContacts(audience, toAdd, 'filter', payload.actor ?? null);
+      if (toAdd.length) await insertContacts(audience, toAdd, 'filter');
       for (const part of chunk(toRemove.map((r: any) => r.id), 300)) {
         await admin
           .from('dsp_audience_contacts')
-          .update({ status: 'removed', removed_at: new Date().toISOString() })
+          .update({ status: 'removed' })
           .in('id', part);
       }
       for (const part of chunk(toRestore.map((r: any) => r.id), 300)) {
         await admin
           .from('dsp_audience_contacts')
-          .update({ status: 'active', removed_at: null })
+          .update({ status: 'active' })
           .in('id', part);
       }
       const total = await syncCounters(audience.id);
