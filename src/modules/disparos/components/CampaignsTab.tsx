@@ -104,6 +104,8 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
       <div className="space-y-2">
         {filtered.map((c) => {
           const progress = c.total_eligible > 0 ? Math.round((c.total_sent / c.total_eligible) * 100) : 0;
+          const wait = c.status === 'running' ? waitReasons[c.id] : undefined;
+          const waitLabel = wait ? waitReasonLabel(wait.reason, providerWindow) : null;
           return (
             <Card key={c.id} className="border-2">
               <CardContent className="py-4 space-y-3">
@@ -119,10 +121,17 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
                         {APPROVAL_STATUS_LABEL[c.approval_status] ?? c.approval_status}
                       </Badge>
                     </div>
+                    {waitLabel && (
+                      <p className="flex items-center gap-1 text-xs text-amber-600">
+                        <Clock className="h-3 w-3" /> {waitLabel}
+                        {wait!.pending > 0 && ` · ${wait!.pending} na fila`}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {c.goal || 'Sem objetivo definido'}
                       {c.send_window_start && ` · Janela ${c.send_window_start}–${c.send_window_end}`}
                     </p>
+
                     {scheduleLabel(c) && (
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <CalendarClock className="h-3 w-3" /> {scheduleLabel(c)}
