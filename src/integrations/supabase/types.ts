@@ -4415,6 +4415,7 @@ export type Database = {
           media_type: string | null
           media_url: string | null
           message_text: string | null
+          template_id: string | null
           template_params: Json | null
           updated_at: string
           weight: number
@@ -4430,6 +4431,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_text?: string | null
+          template_id?: string | null
           template_params?: Json | null
           updated_at?: string
           weight?: number
@@ -4445,6 +4447,7 @@ export type Database = {
           media_type?: string | null
           media_url?: string | null
           message_text?: string | null
+          template_id?: string | null
           template_params?: Json | null
           updated_at?: string
           weight?: number
@@ -4457,13 +4460,23 @@ export type Database = {
             referencedRelation: "dsp_campaigns"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "dsp_campaign_variants_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "dsp_message_templates"
+            referencedColumns: ["id"]
+          },
         ]
       }
       dsp_campaigns: {
         Row: {
+          approval_notes: string | null
+          approval_status: string
           approved_at: string | null
           approved_by: string | null
           audience_filters: Json
+          auto_window_control: boolean
           category: string
           channel_strategy: string
           client_id: string
@@ -4477,12 +4490,17 @@ export type Database = {
           paused_at: string | null
           requires_approval: boolean
           risk_level: string
+          schedule_end_at: string | null
+          schedule_start_at: string | null
           scheduled_at: string | null
           send_week_days: number[]
           send_window_end: string | null
           send_window_start: string | null
           started_at: string | null
           status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          timezone: string
           total_delivered: number
           total_eligible: number
           total_failed: number
@@ -4496,9 +4514,12 @@ export type Database = {
           waba_template_name: string | null
         }
         Insert: {
+          approval_notes?: string | null
+          approval_status?: string
           approved_at?: string | null
           approved_by?: string | null
           audience_filters?: Json
+          auto_window_control?: boolean
           category?: string
           channel_strategy?: string
           client_id: string
@@ -4512,12 +4533,17 @@ export type Database = {
           paused_at?: string | null
           requires_approval?: boolean
           risk_level?: string
+          schedule_end_at?: string | null
+          schedule_start_at?: string | null
           scheduled_at?: string | null
           send_week_days?: number[]
           send_window_end?: string | null
           send_window_start?: string | null
           started_at?: string | null
           status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          timezone?: string
           total_delivered?: number
           total_eligible?: number
           total_failed?: number
@@ -4531,9 +4557,12 @@ export type Database = {
           waba_template_name?: string | null
         }
         Update: {
+          approval_notes?: string | null
+          approval_status?: string
           approved_at?: string | null
           approved_by?: string | null
           audience_filters?: Json
+          auto_window_control?: boolean
           category?: string
           channel_strategy?: string
           client_id?: string
@@ -4547,12 +4576,17 @@ export type Database = {
           paused_at?: string | null
           requires_approval?: boolean
           risk_level?: string
+          schedule_end_at?: string | null
+          schedule_start_at?: string | null
           scheduled_at?: string | null
           send_week_days?: number[]
           send_window_end?: string | null
           send_window_start?: string | null
           started_at?: string | null
           status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          timezone?: string
           total_delivered?: number
           total_eligible?: number
           total_failed?: number
@@ -4809,6 +4843,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      dsp_message_templates: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          body: string
+          category: string
+          client_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          media_type: string | null
+          media_url: string | null
+          name: string
+          review_notes: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          variables: string[]
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body: string
+          category?: string
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          media_type?: string | null
+          media_url?: string | null
+          name: string
+          review_notes?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          variables?: string[]
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: string
+          category?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          media_type?: string | null
+          media_url?: string | null
+          name?: string
+          review_notes?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          variables?: string[]
+        }
+        Relationships: []
       }
       dsp_recipients: {
         Row: {
