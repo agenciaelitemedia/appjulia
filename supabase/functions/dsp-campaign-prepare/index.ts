@@ -39,7 +39,62 @@ interface AudienceFilters {
   limit?: number | null;
 }
 
+
+/**
+ * Capacidade diária somando as filas da campanha, com os motivos que estão
+ * bloqueando cada fila agora. Serve para a simulação e como guardrail no start.
+ */
+async function estimateCapacity(
+  campaignId: string,
+  clientId: string,
+  category: string,
+  eligible: number,
+) {
+  const { data: links } = await admin
+    .from("dsp_campaign_channels")
+    .select("queue_id, weight")
+    .eq("campaign_id", campaignId)
+    .eq("is_active", true);
+
+  const queueIds = (links ?? []).map((l: any) => l.queue_id);
+  if (queueIds.length === 0) {
+    return { daily_capacity: 0, queues: 0, estimated_days: 0, estimated_minutes: 0, blocking: ["no_channels"] };
+  }
+
+  const { data: queues } = await admin
+    .from("queues").select("*").in("id", queueIds);
+
+  let dailyCapacity = 0;
+  let throughputPerMinute = 0;
+  const blocking: string[] = [];
+
+  for (const q of queues ?? []) {
+    const candidate = await loadChannel(admin, q);
+    const state = rollWindows(candidate.state);
+    const limits = candidate.limits;
+
+    dailyCapacity += Math.max(0, effectiveDailyLimit(limits, state) - state.sent_in_day);
+    const gap = Math.max(1, limits.min_seconds_between_messages);
+    throughputPerMinute += Math.min(limits.max_per_minute, 60 / gap);
+
+    const decision = canSendNow({ ...candidate, state }, { category });
+    if (!decision.ok) blocking.push(`${q.id}:${decision.reason}`);
+  }
+
+  const estimatedDays = dailyCapacity > 0 ? Math.ceil(eligible / dailyCapacity) : 0;
+  const estimatedMinutes = throughputPerMinute > 0 ? Math.ceil(eligible / throughputPerMinute) : 0;
+
+  return {
+    daily_capacity: dailyCapacity,
+    queues: (queues ?? []).length,
+    estimated_days: estimatedDays,
+    estimated_minutes: estimatedMinutes,
+    blocking,
+  };
+}
+
 /** Coleta candidatos: contatos do chat pelos filtros + telefones manuais/CSV. */
+
 async function collectCandidates(clientId: string, f: AudienceFilters) {
   const out = new Map<string, { phone: string; name: string | null; contact_id: string | null }>();
 
