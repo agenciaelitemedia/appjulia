@@ -11,7 +11,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, Loader2, Pencil, Plus, Search, Send, Trash2, X } from 'lucide-react';
+import { OfficialTemplatesPanel } from './OfficialTemplatesPanel';
+
 import { APPROVAL_STATUS_LABEL } from '../module';
 import { useAuth } from '../extend/auth';
 import {
@@ -40,6 +43,8 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
   const [name, setName] = useState('');
   const [category, setCategory] = useState('marketing');
   const [body, setBody] = useState('');
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaType, setMediaType] = useState('image');
   const [rejectTarget, setRejectTarget] = useState<DspTemplate | null>(null);
   const [rejectNotes, setRejectNotes] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DspTemplate | null>(null);
@@ -54,6 +59,8 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
     setName('');
     setCategory('marketing');
     setBody('');
+    setMediaUrl('');
+    setMediaType('image');
     setOpen(true);
   };
 
@@ -62,27 +69,40 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
     setName(t.name);
     setCategory(t.category);
     setBody(t.body);
+    setMediaUrl(t.media_url ?? '');
+    setMediaType(t.media_type ?? 'image');
     setOpen(true);
   };
 
   const handleSave = async () => {
     if (!clientId) return;
+    const url = mediaUrl.trim();
     await save.mutateAsync({
       id: editing?.id,
       client_id: String(clientId),
       name: name.trim(),
       category,
       body,
+      media_url: url || null,
+      media_type: url ? mediaType : null,
       created_by: actor,
     });
     setOpen(false);
   };
 
+
   const previewVars = extractVariables(body);
 
   return (
-    <div className="space-y-4">
+    <Tabs defaultValue="julia" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="julia">Julia (API não oficial)</TabsTrigger>
+        <TabsTrigger value="oficial">API Oficial (Meta)</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="julia" className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
+
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -225,7 +245,33 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
                 Variáveis detectadas: {previewVars.length > 0 ? previewVars.map((v) => `{{${v}}}`).join(', ') : 'nenhuma'}
               </p>
             </div>
+            <div className="grid gap-3 sm:grid-cols-[1fr_170px]">
+              <div className="space-y-1.5">
+                <Label>Mídia (opcional)</Label>
+                <Input
+                  value={mediaUrl}
+                  onChange={(e) => setMediaUrl(e.target.value)}
+                  placeholder="https://.../arquivo.jpg"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tipo</Label>
+                <Select value={mediaType} onValueChange={setMediaType} disabled={!mediaUrl.trim()}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="image">Imagem</SelectItem>
+                    <SelectItem value="video">Vídeo</SelectItem>
+                    <SelectItem value="audio">Áudio</SelectItem>
+                    <SelectItem value="document">Documento</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Com mídia, a mensagem acima é enviada como legenda (áudio é enviado sem legenda).
+            </p>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} disabled={name.trim().length < 3 || body.trim().length < 5 || save.isPending}>
@@ -278,6 +324,12 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </TabsContent>
+
+      <TabsContent value="oficial">
+        <OfficialTemplatesPanel canEdit={canEdit} />
+      </TabsContent>
+    </Tabs>
   );
 }
+
