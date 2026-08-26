@@ -88,6 +88,80 @@ function MascoteAnimado({ className, style }: { className?: string; style?: Reac
   );
 }
 
+/** Selo Meta Tech Provider com resumo e tooltip completo no hover. */
+function MetaProviderBadge() {
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="aj-glass aj-glass-hover group mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 p-3 transition-all duration-300">
+            <img
+              src={metaTechProviderAsset.url}
+              alt="Meta Tech Provider"
+              className="h-10 w-auto shrink-0 rounded-md object-contain"
+              loading="eager"
+              decoding="async"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">
+                Agora somos Tech Provider Oficial da Meta 💙
+              </p>
+              <p className="aj-muted truncate text-xs">
+                Soluções oficiais para WhatsApp, Instagram e Facebook.
+              </p>
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          className="z-[100] max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[hsl(260_26%_12%)]/95 p-0 text-white shadow-[0_20px_50px_-12px_hsl(215_100%_50%_/0.35)] backdrop-blur-xl"
+        >
+          <div className="relative p-4">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-30 blur-2xl"
+              style={{ backgroundColor: 'hsl(215 100% 50%)' }}
+            />
+            <div className="relative flex items-start gap-3">
+              <img
+                src={metaTechProviderAsset.url}
+                alt="Meta Tech Provider"
+                className="mt-0.5 h-9 w-auto shrink-0 rounded-md object-contain"
+              />
+              <div>
+                <p className="text-sm font-bold leading-snug">
+                  Agora somos Tech Provider Oficial da Meta 💙
+                </p>
+                <p className="mt-1 text-xs font-medium text-white/70">
+                  Parceiros reconhecidos para oferecer soluções oficiais, seguras e escaláveis.
+                </p>
+              </div>
+            </div>
+            <div
+              className="my-3 h-px w-full"
+              style={{ background: 'linear-gradient(90deg, transparent, hsl(215 100% 50% / 0.6), transparent)' }}
+            />
+            <div className="relative space-y-2 text-xs leading-relaxed text-white/85">
+              <p>
+                Somos parceiros reconhecidos pela Meta (Facebook, Instagram e WhatsApp) para
+                oferecer soluções oficiais, seguras e escaláveis, principalmente no{' '}
+                <strong className="text-white">WhatsApp Business Platform</strong>.
+              </p>
+              <p className="font-semibold text-white">Na prática?</p>
+              <p>
+                Mais tecnologia, mais performance e mais resultado para empresas que querem
+                vender, atender e se comunicar melhor pelo WhatsApp!
+              </p>
+            </div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
