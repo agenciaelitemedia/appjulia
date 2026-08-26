@@ -11,7 +11,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, Loader2, Pencil, Plus, Search, Send, Trash2, X } from 'lucide-react';
+import { OfficialTemplatesPanel } from './OfficialTemplatesPanel';
+
 import { APPROVAL_STATUS_LABEL } from '../module';
 import { useAuth } from '../extend/auth';
 import {
