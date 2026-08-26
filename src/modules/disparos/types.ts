@@ -119,6 +119,28 @@ export interface DspChannelLimits {
   send_window_end: string | null;
 }
 
+export interface DspProviderDefaults {
+  id: string;
+  client_id: string;
+  provider: 'uazapi' | 'meta_cloud' | string;
+  max_per_minute: number;
+  max_per_hour: number;
+  max_per_day: number;
+  max_unique_recipients_per_day: number;
+  min_seconds_between_messages: number;
+  max_seconds_between_messages: number;
+  block_size: number;
+  block_pause_seconds: number;
+  daily_ramp_percent: number;
+  max_consecutive_failures: number;
+  cooldown_after_disconnect_minutes: number;
+  marketing_enabled: boolean;
+  send_window_start: string | null;
+  send_window_end: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface DspChannelState {
   id: string;
   client_id: string;

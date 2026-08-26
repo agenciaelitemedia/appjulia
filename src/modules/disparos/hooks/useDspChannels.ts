@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
 import { isUnofficialQueue, type DspQueueOption } from '../extend/queues';
-import { DSP_OFFICIAL_DEFAULTS, DSP_UNOFFICIAL_DEFAULTS } from './useDspLimits';
 
 function invalidate(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ['disparos', 'channel-limits'] });
