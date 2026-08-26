@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useDspAudiences } from '../hooks/useDspAudiences';
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../extend/auth';
@@ -70,6 +71,9 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
   const [manualPhones, setManualPhones] = useState('');
   const [lastDays, setLastDays] = useState('');
   const [audienceLimit, setAudienceLimit] = useState('');
+  const [audienceMode, setAudienceMode] = useState<'list' | 'audience'>('list');
+  const [audienceId, setAudienceId] = useState<string>('');
+  const { data: audiences = [] } = useDspAudiences(clientId);
   const [onlyWithConversation, setOnlyWithConversation] = useState(false);
 
   const [variants, setVariants] = useState<{ label: string; message_text: string; weight: number; template_id?: string | null }[]>([
@@ -97,6 +101,8 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
     setScheduleEndAt(campaign?.schedule_end_at ? toLocalInput(campaign.schedule_end_at) : '');
     setTimezone(campaign?.timezone ?? 'America/Sao_Paulo');
     setAutoWindowControl(campaign?.auto_window_control ?? true);
+    setAudienceMode((campaign?.audience_mode as any) === 'audience' ? 'audience' : 'list');
+    setAudienceId(campaign?.audience_id ?? '');
     const f = campaign?.audience_filters ?? {};
     setManualPhones((f.manual_phones ?? []).join('\n'));
     setLastDays(f.last_interaction_days != null ? String(f.last_interaction_days) : '');
@@ -130,6 +136,8 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
       only_with_conversation: onlyWithConversation,
       limit: audienceLimit ? Number(audienceLimit) : null,
     },
+    audience_mode: audienceMode,
+    audience_id: audienceMode === 'audience' ? (audienceId || null) : null,
     send_window_start: windowStart,
     send_window_end: windowEnd,
     send_week_days: weekDays,
@@ -267,32 +275,72 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
 
         {step === 2 && (
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Telefones manuais / CSV colado</Label>
-              <Textarea
-                rows={5}
-                value={manualPhones}
-                onChange={(e) => setManualPhones(e.target.value)}
-                placeholder={'5511999998888\n5511988887777'}
-              />
-              <p className="text-xs text-muted-foreground">
-                Um por linha. Deixe vazio para usar somente os filtros de contatos.
-              </p>
+            <div className="grid gap-2 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setAudienceMode('list')}
+                className={`rounded-lg border p-3 text-left text-sm transition ${audienceMode === 'list' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+              >
+                <p className="font-medium">Lista/filtros desta campanha</p>
+                <p className="text-xs text-muted-foreground">Telefones colados e filtros de contatos.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAudienceMode('audience')}
+                className={`rounded-lg border p-3 text-left text-sm transition ${audienceMode === 'audience' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+              >
+                <p className="font-medium">Usar público já criado</p>
+                <p className="text-xs text-muted-foreground">Grupos salvos na aba Público.</p>
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            {audienceMode === 'audience' ? (
               <div className="space-y-1.5">
-                <Label>Última interação (dias)</Label>
-                <Input value={lastDays} onChange={(e) => setLastDays(e.target.value)} placeholder="Ex.: 30" />
+                <Label>Público</Label>
+                <Select value={audienceId} onValueChange={setAudienceId}>
+                  <SelectTrigger><SelectValue placeholder="Selecione um público" /></SelectTrigger>
+                  <SelectContent>
+                    {audiences.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name} — {a.total_active} contato(s)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {audiences.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Nenhum público ativo. Crie um na aba Público.</p>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label>Limite de público</Label>
-                <Input value={audienceLimit} onChange={(e) => setAudienceLimit(e.target.value)} placeholder="Ex.: 500" />
-              </div>
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={onlyWithConversation} onCheckedChange={(v) => setOnlyWithConversation(!!v)} />
-              Somente contatos que já conversaram
-            </label>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Telefones manuais / CSV colado</Label>
+                  <Textarea
+                    rows={5}
+                    value={manualPhones}
+                    onChange={(e) => setManualPhones(e.target.value)}
+                    placeholder={'5511999998888\n5511988887777'}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Um por linha. Deixe vazio para usar somente os filtros de contatos.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Última interação (dias)</Label>
+                    <Input value={lastDays} onChange={(e) => setLastDays(e.target.value)} placeholder="Ex.: 30" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Limite de público</Label>
+                    <Input value={audienceLimit} onChange={(e) => setAudienceLimit(e.target.value)} placeholder="Ex.: 500" />
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={onlyWithConversation} onCheckedChange={(v) => setOnlyWithConversation(!!v)} />
+                  Somente contatos que já conversaram
+                </label>
+              </>
+            )}
           </div>
         )}
 
@@ -464,7 +512,9 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
         <DialogFooter className="gap-2">
           {step > 1 && <Button variant="outline" onClick={() => setStep(step - 1)}>Voltar</Button>}
           {step === 1 && <Button disabled={!canGoStep2} onClick={() => setStep(2)}>Continuar</Button>}
-          {step === 2 && <Button onClick={() => setStep(3)}>Continuar</Button>}
+          {step === 2 && (
+            <Button disabled={audienceMode === 'audience' && !audienceId} onClick={() => setStep(3)}>Continuar</Button>
+          )}
           {step === 3 && (
             <Button disabled={!canSimulate || save.isPending} onClick={handleSaveAndSimulate}>
               {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

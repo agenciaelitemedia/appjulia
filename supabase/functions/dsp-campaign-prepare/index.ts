@@ -202,7 +202,32 @@ Deno.serve(async (req) => {
       await admin.from("dsp_campaigns").update({ status: "preparing" }).eq("id", campaign_id);
     }
 
-    const candidates = await collectCandidates(clientId, filters);
+    // Público salvo (dsp_audiences) tem precedência sobre os filtros da campanha
+    let candidates: Map<string, { phone: string; name: string | null; contact_id: string | null }>;
+    if (campaign.audience_mode === "audience" && campaign.audience_id) {
+      candidates = new Map();
+      const pageSize = 1000;
+      for (let from = 0; from < 20000; from += pageSize) {
+        const { data: rows, error } = await admin
+          .from("dsp_audience_contacts")
+          .select("phone_e164, name, contact_id")
+          .eq("audience_id", campaign.audience_id)
+          .eq("status", "active")
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        for (const r of rows ?? []) {
+          const phone = toE164Br(r.phone_e164);
+          if (phone) candidates.set(phone, { phone, name: r.name ?? null, contact_id: r.contact_id ?? null });
+        }
+        if ((rows ?? []).length < pageSize) break;
+      }
+      const limit = filters.limit ?? null;
+      if (limit && candidates.size > limit) {
+        candidates = new Map([...candidates.entries()].slice(0, limit));
+      }
+    } else {
+      candidates = await collectCandidates(clientId, filters);
+    }
 
     // Supressão
     const { data: suppressed } = await admin
