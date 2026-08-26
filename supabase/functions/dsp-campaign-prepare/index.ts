@@ -200,8 +200,10 @@ Deno.serve(async (req) => {
         const v = (variants ?? []).find((x: any) => x.id === r.variant_id);
         return { phone: r.phone_e164, text: v?.message_text ? renderTemplate(v.message_text, r.variables) : null };
       });
-      return json({ ok: true, dry_run: true, stats, preview });
+      const capacity = await estimateCapacity(campaign_id, clientId, campaign.category, stats.eligible);
+      return json({ ok: true, dry_run: true, stats, preview, capacity });
     }
+
 
     // Grava destinatários em lotes (idempotente por campaign_id + phone)
     for (let i = 0; i < rows.length; i += 500) {
