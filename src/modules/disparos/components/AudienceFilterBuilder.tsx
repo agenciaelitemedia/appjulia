@@ -135,7 +135,7 @@ export function AudienceFilterBuilder({ clientId, filters, onChange, onValidate,
         />
         <OptionMultiSelect
           label="Etapas do CRM Builder"
-          options={pipelines.data ?? []}
+          options={(pipelines.data ?? []) as Option[]}
           value={filters.builder_pipeline_ids ?? []}
           onChange={(v) => set({ builder_pipeline_ids: v })}
           loading={pipelines.isLoading}

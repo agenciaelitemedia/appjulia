@@ -98,7 +98,9 @@ export function useDspAgentCodes(clientId: string | null) {
         .not('cod_agent', 'is', null)
         .limit(5000);
       if (error) throw error;
-      const codes = [...new Set((data ?? []).map((r: any) => String(r.cod_agent)))].filter(Boolean).sort();
+      const codes = [...new Set((data ?? []).map((r: any) => String(r.cod_agent)))]
+        .filter(Boolean)
+        .sort() as string[];
       return codes.map((c) => ({ id: c, name: `Agente ${c}` }));
     },
   });
@@ -110,14 +112,14 @@ export function useDspJuliaStages() {
     queryKey: ['disparos', 'opt-julia-stages'],
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const rows = await externalDb.raw<{ id: string; name: string }>({
+      const rows = (await externalDb.raw<{ id: string; name: string }>({
         query: `SELECT s.id::text AS id, s.name
                   FROM crm_atendimento_stages s
                  WHERE s.is_active IS NOT FALSE
                  ORDER BY s.position NULLS LAST, s.name`,
         params: [],
-      });
-      return (rows ?? []) as Option[];
+      })) as Option[];
+      return rows ?? [];
     },
   });
 }
