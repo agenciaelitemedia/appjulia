@@ -10,12 +10,37 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Play, Pause, Ban, Plus, Pencil, Trash2, Loader2, Search, Send, Check, X, CalendarClock } from 'lucide-react';
+import { Play, Pause, Ban, Plus, Pencil, Trash2, Loader2, Search, Send, Check, X, CalendarClock, Clock } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABEL, APPROVAL_STATUS_LABEL } from '../module';
 import { useAuth } from '../extend/auth';
 import { useDspCampaigns, useDspCampaignControl, useDeleteDspCampaign } from '../hooks/useDspCampaigns';
+import { useDspWaitReasons } from '../hooks/useDspWaitReason';
+import { useDspProviderDefaults } from '../hooks/useDspProviderDefaults';
 import { CampaignWizardDialog } from './CampaignWizardDialog';
 import type { DspCampaign } from '../types';
+
+/** Texto amigável do motivo de espera reportado pelo worker. */
+function waitReasonLabel(reason: string, window: { start?: string; end?: string } | null): string | null {
+  switch (reason) {
+    case 'outside_channel_window':
+      return window?.start
+        ? `Aguardando janela do canal (${window.start}–${window.end})`
+        : 'Aguardando janela de envio do canal';
+    case 'channel_disconnected':
+      return 'Aguardando: canal desconectado';
+    case 'channel_cooldown':
+      return 'Aguardando: canal em cooldown de segurança';
+    case 'rate_limited':
+      return 'Aguardando: limite de envio por minuto/hora atingido';
+    case 'block_pause':
+      return 'Aguardando: pausa entre blocos de mensagens';
+    case 'no_channel_available':
+      return 'Aguardando canal disponível';
+    default:
+      return `Aguardando: ${reason}`;
+  }
+}
+
 
 const statusVariant = (s: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
   if (s === 'running') return 'default';
@@ -48,6 +73,14 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
   const { data: campaigns = [], isLoading } = useDspCampaigns(clientId);
   const control = useDspCampaignControl();
   const remove = useDeleteDspCampaign();
+  const { data: waitReasons = {} } = useDspWaitReasons(clientId);
+  const { data: providerDefaults = [] } = useDspProviderDefaults(clientId);
+  const providerWindow = useMemo(() => {
+    const uaz = providerDefaults.find((p: any) => p.provider === 'uazapi') ?? providerDefaults[0];
+    return uaz ? { start: (uaz as any).send_window_start, end: (uaz as any).send_window_end } : null;
+  }, [providerDefaults]);
+
+
 
   const [search, setSearch] = useState('');
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -104,6 +137,8 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
       <div className="space-y-2">
         {filtered.map((c) => {
           const progress = c.total_eligible > 0 ? Math.round((c.total_sent / c.total_eligible) * 100) : 0;
+          const wait = c.status === 'running' ? waitReasons[c.id] : undefined;
+          const waitLabel = wait ? waitReasonLabel(wait.reason, providerWindow) : null;
           return (
             <Card key={c.id} className="border-2">
               <CardContent className="py-4 space-y-3">
@@ -119,10 +154,17 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
                         {APPROVAL_STATUS_LABEL[c.approval_status] ?? c.approval_status}
                       </Badge>
                     </div>
+                    {waitLabel && (
+                      <p className="flex items-center gap-1 text-xs text-amber-600">
+                        <Clock className="h-3 w-3" /> {waitLabel}
+                        {wait!.pending > 0 && ` · ${wait!.pending} na fila`}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {c.goal || 'Sem objetivo definido'}
                       {c.send_window_start && ` · Janela ${c.send_window_start}–${c.send_window_end}`}
                     </p>
+
                     {scheduleLabel(c) && (
                       <p className="flex items-center gap-1 text-xs text-muted-foreground">
                         <CalendarClock className="h-3 w-3" /> {scheduleLabel(c)}
