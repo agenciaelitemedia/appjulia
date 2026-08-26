@@ -13,8 +13,15 @@ import logoAsset from '@/assets/atende-julia-logo.png.asset.json';
 import mascoteAsset from '@/assets/julia-mascote-acenando.png.asset.json';
 import mascotePose2 from '@/assets/julia-mascote-pose2.png.asset.json';
 import mascotePose3 from '@/assets/julia-mascote-pose3.png.asset.json';
+import metaTechProviderAsset from '@/assets/meta-tech-provider.png.asset.json';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { markJustLoggedIn } from '@/components/layout/DisconnectedAgentsAlert';
@@ -22,6 +29,7 @@ import { checkVersionAndReloadIfNeeded } from '@/lib/appVersion';
 import { APP_VERSION_LABEL } from '@/lib/appVersionLabel';
 import { toast as sonnerToast } from 'sonner';
 import { isOwnerUser } from '@/lib/auth/isOwner';
+
 
 const WHATSAPP_TIME =
   'https://wa.me/5534988860163?text=Quero%20informa%C3%A7%C3%B5es%20sobre%20a%20Julia%20IA';
@@ -77,6 +85,80 @@ function MascoteAnimado({ className, style }: { className?: string; style?: Reac
         />
       ))}
     </div>
+  );
+}
+
+/** Selo Meta Tech Provider com resumo e tooltip completo no hover. */
+function MetaProviderBadge() {
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="aj-glass aj-glass-hover group mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 p-3 transition-all duration-300">
+            <img
+              src={metaTechProviderAsset.url}
+              alt="Meta Tech Provider"
+              className="h-10 w-auto shrink-0 rounded-md object-contain"
+              loading="eager"
+              decoding="async"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">
+                Agora somos Tech Provider Oficial da Meta 💙
+              </p>
+              <p className="aj-muted truncate text-xs">
+                Soluções oficiais para WhatsApp, Instagram e Facebook.
+              </p>
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          className="z-[100] max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[hsl(260_26%_12%)]/95 p-0 text-white shadow-[0_20px_50px_-12px_hsl(215_100%_50%_/0.35)] backdrop-blur-xl"
+        >
+          <div className="relative p-4">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-30 blur-2xl"
+              style={{ backgroundColor: 'hsl(215 100% 50%)' }}
+            />
+            <div className="relative flex items-start gap-3">
+              <img
+                src={metaTechProviderAsset.url}
+                alt="Meta Tech Provider"
+                className="mt-0.5 h-9 w-auto shrink-0 rounded-md object-contain"
+              />
+              <div>
+                <p className="text-sm font-bold leading-snug">
+                  Agora somos Tech Provider Oficial da Meta 💙
+                </p>
+                <p className="mt-1 text-xs font-medium text-white/70">
+                  Parceiros reconhecidos para oferecer soluções oficiais, seguras e escaláveis.
+                </p>
+              </div>
+            </div>
+            <div
+              className="my-3 h-px w-full"
+              style={{ background: 'linear-gradient(90deg, transparent, hsl(215 100% 50% / 0.6), transparent)' }}
+            />
+            <div className="relative space-y-2 text-xs leading-relaxed text-white/85">
+              <p>
+                Somos parceiros reconhecidos pela Meta (Facebook, Instagram e WhatsApp) para
+                oferecer soluções oficiais, seguras e escaláveis, principalmente no{' '}
+                <strong className="text-white">WhatsApp Business Platform</strong>.
+              </p>
+              <p className="font-semibold text-white">Na prática?</p>
+              <p>
+                Mais tecnologia, mais performance e mais resultado para empresas que querem
+                vender, atender e se comunicar melhor pelo WhatsApp!
+              </p>
+            </div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -232,6 +314,8 @@ export default function Login() {
           <div className="aj-glass aj-glow-ring w-full rounded-[2rem] p-6 sm:p-9">
             <h2 className="text-2xl font-bold sm:text-3xl">Bem-vindo de volta</h2>
             <p className="aj-muted mt-2 text-sm">Entre para acessar sua operação com a Julia.</p>
+
+            <MetaProviderBadge />
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
               <div>
