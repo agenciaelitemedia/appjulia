@@ -16,3 +16,4 @@
 - [Alertas WhatsApp](mem://features/notificacoes-alertas/module) — Módulo isolado de notificações por gatilho; padrão extend/ para módulos novos
 - [Legacy Timestamps](mem://technical/database/legacy-naive-timestamps) — Datas das tabelas legadas são naive em BRT; gravar com nowDbTimestamp()
 - [Call ↔ Contato](mem://technical/telephony/call-contact-linking) — Vínculo de ligações VoIP/ZAP com chat_contacts gravado na origem
+- [Snooze Auto-Cancel](mem://features/chat/snooze-auto-cancel) — Mensagem do cliente cancela o retorno agendado (trigger no banco) e busca nunca esconde adiadas

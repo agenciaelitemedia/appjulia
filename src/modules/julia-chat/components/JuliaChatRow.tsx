@@ -356,8 +356,22 @@ export const JuliaChatRow = memo(function JuliaChatRow({
         </div>
       </div>
 
+      {/* Retorno agendado em aberto — visível quando a busca traz conversas adiadas */}
+      {row.snoozed_until && new Date(row.snoozed_until).getTime() > Date.now() && (
+        <div className="mt-2 flex">
+          <FixedBadge
+            icon={Clock}
+            label={`Adiada até ${new Date(row.snoozed_until).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
+            width="w-auto max-w-full"
+            tone="border-violet-500/40 bg-violet-500/10 text-violet-600 dark:text-violet-400"
+            tooltip="Conversa com retorno agendado. É reaberta automaticamente se o cliente responder."
+          />
+        </div>
+      )}
+
       {/* Badges — fila sempre visível; demais ocultos até expandir */}
       <div className="mt-2.5 w-full space-y-1">
+
         {/* Linha 1 — fila + toggle / responsável / IA (quando expandido) */}
         <div className="flex items-center gap-1">
           <FixedBadge
