@@ -3,6 +3,8 @@
 // Retomada exige canal saudável: limpa cooldown apenas com confirmação humana.
 // ============================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { loadChannel, canSendNow, isUazapi } from "../_shared/dsp-core.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
