@@ -10,13 +10,15 @@ interface Props {
   /** Mapa de status de conexão das filas. */
   queueConnectionMap: Map<string, boolean | null>;
   clientId?: string | null;
+  /** Fecha o painel expansível ao iniciar a conversa. */
+  onStarted?: () => void;
 }
 
 /**
  * Painel expansível "Iniciar nova conversa" do JulIA Chat — mesma UX e mesmas regras do
  * rodapé da lista (só filas uazapi conectadas entram no dialog).
  */
-export function JuliaNewConversationPanel({ queues, queueConnectionMap, clientId }: Props) {
+export function JuliaNewConversationPanel({ queues, queueConnectionMap, clientId, onStarted }: Props) {
   const { user } = useAuth();
   const [country, setCountry] = useState('55');
   const [phone, setPhone] = useState('');
@@ -59,7 +61,7 @@ export function JuliaNewConversationPanel({ queues, queueConnectionMap, clientId
           size="sm"
           className="h-8 shrink-0 px-3 text-xs"
           disabled={phone.replace(/\D/g, '').length < 10}
-          onClick={() => setOpen(true)}
+          onClick={() => { setOpen(true); onStarted?.(); }}
         >
           <MessageSquarePlus className="mr-1 h-3.5 w-3.5" />
           Conversar
