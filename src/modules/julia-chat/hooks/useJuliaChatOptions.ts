@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../extend/db';
 
-export interface OptionItem { id: string; name: string; color?: string | null; channel_type?: string | null }
+export interface OptionItem {
+  id: string;
+  name: string;
+  color?: string | null;
+  channel_type?: string | null;
+  /** Hub de conexão da fila ('uazapi' | 'waba' | ...). */
+  hub?: string | null;
+  /** Credenciais UaZapi — necessárias para iniciar nova conversa. */
+  evo_url?: string | null;
+  evo_apikey?: string | null;
+  evo_instance?: string | null;
+}
+
 
 /**
  * Listas dos filtros: filas e etiquetas (Supabase direto) + responsáveis e
