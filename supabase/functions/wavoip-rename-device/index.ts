@@ -77,25 +77,50 @@ Deno.serve(async (req) => {
       }).eq('id', provider.id);
     }
 
-    let res = await apiFetch(provider.api_base, `/v2/devices/${device.wavoip_device_id}/name`, token!, {
-      method: 'PUT', body: JSON.stringify({ name: desiredName }),
-    });
-    if (res.status === 401) {
+    const renamePath = `/v2/devices/${device.wavoip_device_id}/name`;
+    const doRename = (tk: string) =>
+      apiFetch(provider.api_base, renamePath, tk, { method: 'PUT', body: JSON.stringify({ name: desiredName }) });
+
+    let res = await doRename(token!);
+    // 401/403: o JWT salvo pode estar expirado/revogado — refaz login e tenta 1x.
+    if (res.status === 401 || res.status === 403) {
       const login = await wavoipLogin(provider.api_base, provider.username, provider.password);
-      if (!login.ok) return json(502, { error: `Login expirado: ${login.error}` });
+      if (!login.ok) {
+        await admin.from('wavoip_providers').update({
+          last_login_status: 'error', last_login_error: login.error,
+        }).eq('id', provider.id);
+        return json(502, { error: `Login expirado: ${login.error}` });
+      }
       token = login.token;
       await admin.from('wavoip_providers').update({
         token, token_updated_at: new Date().toISOString(),
         last_login_status: 'ok', last_login_error: null,
       }).eq('id', provider.id);
-      res = await apiFetch(provider.api_base, `/v2/devices/${device.wavoip_device_id}/name`, token!, {
+      res = await doRename(token!);
+    }
+
+    // Fallback: painel WAV aceita rename via settings autenticado pelo device_token.
+    if (!res.ok && device.device_token) {
+      const alt = await apiFetch(provider.api_base, `/devices/${device.wavoip_device_id}/settings`, device.device_token, {
         method: 'PUT', body: JSON.stringify({ name: desiredName }),
       });
+      if (alt.ok) res = alt;
+      else console.error('[wavoip-rename-device] fallback settings failed', alt.status, alt.data);
     }
+
     if (!res.ok) {
-      console.error('[wavoip-rename-device] PUT name failed', res);
-      return json(502, { error: res.data?.message || `Falha ao renomear (HTTP ${res.status})`, details: res.data });
+      console.error('[wavoip-rename-device] PUT name failed', res.status, res.data);
+      await admin.from('wavoip_devices').update({
+        metadata: {
+          ...((device.metadata && typeof device.metadata === 'object') ? device.metadata : {}),
+          last_rename_error_at: new Date().toISOString(),
+          last_rename_error: res.data?.message || `HTTP ${res.status}`,
+        },
+      }).eq('id', device.id);
+      // Rename remoto é apenas cosmético (nome exibido no discador); o nome local já foi salvo.
+      return json(200, { ok: false, remote_synced: false, error: res.data?.message || `Falha ao renomear (HTTP ${res.status})`, details: res.data });
     }
+
 
     const rawObj = (device.wavoip_raw && typeof device.wavoip_raw === 'object') ? device.wavoip_raw : {};
     const metaObj = (device.metadata && typeof device.metadata === 'object') ? device.metadata : {};
