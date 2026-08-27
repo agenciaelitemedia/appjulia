@@ -262,7 +262,8 @@ export default function Login() {
             <MascoteAnimado className="h-24 w-24" />
             <div className="min-w-0">
               <h1 className="text-2xl font-bold leading-tight">
-                Somos os parceiros oficiais da Meta. Ajudamos a advogados a fechar contratos todo dia.
+                Somos os parceiros oficiais da Meta. 
+                Dispare mensagens sem perder seu número.
               </h1>
             </div>
           </div>
