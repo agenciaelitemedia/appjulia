@@ -88,6 +88,9 @@ export function NewConversationDialog({ open, onOpenChange, queues, initialPhone
 
   const sendUaZapiMessage = async () => {
     if (!selectedQueue) return;
+    if (!selectedQueue.evo_url || !selectedQueue.evo_apikey) {
+      throw new Error('A fila selecionada não possui credenciais de conexão (URL/token). Verifique a configuração da fila.');
+    }
     const client = new UaZapiClient({
       baseUrl: selectedQueue.evo_url,
       token: selectedQueue.evo_apikey,
