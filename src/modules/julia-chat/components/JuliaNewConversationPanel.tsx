@@ -10,6 +10,8 @@ interface Props {
   /** Mapa de status de conexão das filas. */
   queueConnectionMap: Map<string, boolean | null>;
   clientId?: string | null;
+  /** Fecha o painel expansível ao iniciar a conversa. */
+  onStarted?: () => void;
 }
 
 /**
