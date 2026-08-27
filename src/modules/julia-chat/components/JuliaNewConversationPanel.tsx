@@ -61,7 +61,7 @@ export function JuliaNewConversationPanel({ queues, queueConnectionMap, clientId
           size="sm"
           className="h-8 shrink-0 px-3 text-xs"
           disabled={phone.replace(/\D/g, '').length < 10}
-          onClick={() => { setOpen(true); onStarted?.(); }}
+          onClick={() => setOpen(true)}
         >
           <MessageSquarePlus className="mr-1 h-3.5 w-3.5" />
           Conversar
@@ -70,7 +70,14 @@ export function JuliaNewConversationPanel({ queues, queueConnectionMap, clientId
 
       <NewConversationDialog
         open={open}
-        onOpenChange={(v: boolean) => { setOpen(v); if (!v) setPhone(''); }}
+        onOpenChange={(v: boolean) => {
+          setOpen(v);
+          if (!v) {
+            setPhone('');
+            // fecha o painel expansível apenas após o dialog encerrar (evita desmontar o dialog)
+            onStarted?.();
+          }
+        }}
         queues={dialogQueues}
         initialPhone={country + phone.replace(/\D/g, '')}
         clientId={clientId || undefined}
