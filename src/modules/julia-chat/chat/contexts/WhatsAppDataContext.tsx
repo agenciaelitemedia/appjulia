@@ -2283,7 +2283,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     try {
       const queue = await getEffectiveQueue(contactId);
       // Mark read on UaZapi server when applicable
-      if (!isWabaChannel(queue?.channel_type) && queue.evo_apikey && queue.evo_url) {
+      if (queue && !isWabaChannel(queue.channel_type) && queue.evo_apikey && queue.evo_url) {
         try {
           await supabase.functions.invoke('uazapi-proxy', {
             body: {
