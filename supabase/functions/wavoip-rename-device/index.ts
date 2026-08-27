@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const { data: device, error: dErr } = await admin
       .from('wavoip_devices')
-      .select('id, provider_id, wavoip_device_id, device_name, friendly_code, wavoip_raw, metadata')
+      .select('id, provider_id, wavoip_device_id, device_name, friendly_code, wavoip_raw, metadata, device_token')
       .eq('id', device_id)
       .single();
     if (dErr || !device) return json(404, { error: 'Dispositivo não encontrado' });
