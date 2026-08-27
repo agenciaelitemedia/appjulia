@@ -104,10 +104,10 @@ function MetaProviderBadge() {
             />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">
-                Agora somos Tech Provider Oficial da Meta 💙
+                Somos parceiros Oficial da Meta 💙
               </p>
               <p className="aj-muted truncate text-xs">
-                Soluções oficiais para WhatsApp, Instagram e Facebook.
+                Somos a primeira IA para advogados do Brasil
               </p>
             </div>
           </div>
@@ -132,7 +132,7 @@ function MetaProviderBadge() {
               />
               <div>
                 <p className="text-sm font-bold leading-snug">
-                  Agora somos Tech Provider Oficial da Meta 💙
+                  Somos parceitos oficiais da Meta 💙
                 </p>
                 <p className="mt-1 text-xs font-medium text-white/70">
                   Parceiros reconhecidos para oferecer soluções oficiais, seguras e escaláveis.
