@@ -685,6 +685,7 @@ export function JuliaChatFiltersBar({
                   queues={queues}
                   queueConnectionMap={queueConnectionMap}
                   clientId={clientId}
+                  onStarted={() => setOpen(false)}
                 />
               )}
             </CollapsibleContent>
