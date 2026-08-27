@@ -206,7 +206,7 @@ const PedidosPage = () => {
         </CardContent>
       </Card>
 
-      <OrderDetailSheet order={selectedOrder} open={!!selectedOrder} onClose={() => setSelectedOrder(null)} />
+      <OrderDetailSheet order={selectedOrder} open={!!selectedOrder} onClose={() => setSelectedOrder(null)} onUpdated={refetch} />
 
       <Dialog open={!!contractOrder} onOpenChange={(o) => !o && setContractOrder(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
