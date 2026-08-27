@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ExternalLink, ChevronDown, Copy, FileText } from 'lucide-react';
 import type { JuliaOrder } from '../hooks/useOrders';
+import { ManualPaymentDialog } from './ManualPaymentDialog';
 import { toast } from 'sonner';
 
 const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -32,9 +33,10 @@ interface Props {
   order: JuliaOrder | null;
   open: boolean;
   onClose: () => void;
+  onUpdated?: () => void;
 }
 
-export const OrderDetailSheet = ({ order, open, onClose }: Props) => {
+export const OrderDetailSheet = ({ order, open, onClose, onUpdated }: Props) => {
   if (!order) return null;
 
   const st = statusMap[order.status] || { label: order.status, variant: 'outline' as const };
@@ -104,8 +106,14 @@ export const OrderDetailSheet = ({ order, open, onClose }: Props) => {
             </div>
           </section>
 
-          {/* Links */}
+          {/* Ações */}
           <div className="flex flex-wrap gap-2">
+            {order.status !== 'paid' && (
+              <ManualPaymentDialog
+                order={order}
+                onDone={() => { onUpdated?.(); onClose(); }}
+              />
+            )}
             {order.checkout_url && (
               <a href={order.checkout_url} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm">

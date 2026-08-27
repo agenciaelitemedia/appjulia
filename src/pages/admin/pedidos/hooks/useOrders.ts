@@ -91,3 +91,29 @@ export async function deleteOrder(orderId: string) {
   const { error } = await supabase.from('julia_orders').delete().eq('id', orderId);
   if (error) throw error;
 }
+
+export interface ManualPaymentInput {
+  paidAmountCents: number;
+  feeAmountCents: number;
+  paidAt: string; // ISO
+  notes?: string;
+}
+
+/** Baixa manual: marca o pedido como pago informando valores e data. */
+export async function markOrderPaidManually(order: JuliaOrder, input: ManualPaymentInput) {
+  const net = Math.max(0, input.paidAmountCents - (input.feeAmountCents || 0));
+  const noteLine = `[Baixa manual em ${new Date().toLocaleString('pt-BR')}]${input.notes ? ` ${input.notes}` : ''}`;
+  const { error } = await supabase
+    .from('julia_orders')
+    .update({
+      status: 'paid',
+      paid_amount: input.paidAmountCents,
+      fee_amount: input.feeAmountCents || 0,
+      net_amount: net,
+      paid_at: input.paidAt,
+      notes: order.notes ? `${order.notes}\n${noteLine}` : noteLine,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', order.id);
+  if (error) throw error;
+}
