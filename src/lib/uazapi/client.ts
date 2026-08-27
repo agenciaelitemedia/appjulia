@@ -71,8 +71,14 @@ export class UaZapiClient {
     options?: RequestOptions
   ): Promise<T> {
     const { retries = this.defaultRetries } = options || {};
-    
+
+    // Evita chamar o proxy sem credenciais (retornava 400 genérico e quebrava a tela)
+    if (!this.config.baseUrl || !this.config.token) {
+      throw new UaZapiError('Credenciais da fila ausentes (URL/token). Verifique a configuração da fila.', 400);
+    }
+
     let lastError: Error | null = null;
+
     
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
