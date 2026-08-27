@@ -1708,6 +1708,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         externalMessageId = data?.messageId || data?.messages?.[0]?.id;
       } else {
         // UaZapi send via proxy with queue credentials
+        assertUazapiCreds(queue);
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
@@ -1873,6 +1874,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     }));
 
     try {
+      assertUazapiCreds(queue);
       const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
         body: {
           method: 'POST',
@@ -2067,6 +2069,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         const fileField = isAudioMessage
           ? `data:${sendMimetype || 'audio/webm;codecs=opus'};base64,${base64}`
           : persistedUrl;
+        assertUazapiCreds(queue);
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
@@ -2452,6 +2455,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     setIsSyncing(true);
     try {
       if (!isWabaChannel(selectedQueue.channel_type)) {
+        assertUazapiCreds(queue);
         const { data: response, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
