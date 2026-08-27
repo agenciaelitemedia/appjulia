@@ -262,8 +262,7 @@ export default function Login() {
             <MascoteAnimado className="h-24 w-24" />
             <div className="min-w-0">
               <h1 className="text-2xl font-bold leading-tight">
-                Seu atendimento continua.{' '}
-                <span className="aj-text-gradient">Você só precisa entrar.</span>
+                Somos os parceiros oficiais da Meta. Ajudamos a advogados a fechar contratos todo dia.
               </h1>
             </div>
           </div>
@@ -272,8 +271,7 @@ export default function Login() {
           <div className="hidden lg:block">
             <div>
               <h1 className="max-w-xl text-4xl font-bold leading-[1.08] xl:text-5xl">
-                Seu atendimento continua.{' '}
-                <span className="aj-text-gradient">Você só precisa entrar.</span>
+                Somos os parceiros oficiais da Meta. Ajudamos a advogados a fechar contratos todo dia.
               </h1>
               <p className="aj-muted mt-5 max-w-lg text-base leading-relaxed">
                 Acesse sua conta para acompanhar, organizar e conduzir seus atendimentos com a Julia.
