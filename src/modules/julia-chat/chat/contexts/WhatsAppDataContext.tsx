@@ -37,6 +37,16 @@ export type ChatPeriodFilter =
 
 const CONTACTS_PAGE_SIZE = 50;
 
+// Official API (Meta/WABA) queues are stored with either alias — both must
+// skip the UaZapi proxy, which requires evo_apikey/evo_url credentials.
+const isWabaChannel = (t?: string | null) => t === 'waba' || t === 'whatsapp_waba';
+
+const assertUazapiCreds = (queue: { evo_apikey?: string | null; evo_url?: string | null }) => {
+  if (!queue?.evo_apikey || !queue?.evo_url) {
+    throw new Error('Fila sem credenciais de conexão (token/URL) configuradas.');
+  }
+};
+
 // ─── Send-error normalization ───────────────────────────────────────
 // Maps provider error codes / messages to user-friendly toasts so the
 // agent knows whether to wait, switch number or send a template.
@@ -1672,12 +1682,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       let externalMessageId: string | undefined;
 
       // Groups: UaZapi expects the group JID (id@g.us); WABA (official) can't send to groups.
-      if (contact.is_group && queue.channel_type === 'waba') {
+      if (contact.is_group && isWabaChannel(queue.channel_type)) {
         throw new Error('WhatsApp oficial (WABA) não suporta envio para grupos.');
       }
       const target = contact.is_group ? (contact.remote_jid || `${contact.phone}@g.us`) : contact.phone;
 
-      if (queue.channel_type === 'waba') {
+      if (isWabaChannel(queue.channel_type)) {
         // WABA send via edge function
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: {
@@ -1698,6 +1708,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         externalMessageId = data?.messageId || data?.messages?.[0]?.id;
       } else {
         // UaZapi send via proxy with queue credentials
+        assertUazapiCreds(queue);
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
@@ -1840,7 +1851,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       toast.error('Sem fila ativa para este contato');
       return;
     }
-    if (queue.channel_type === 'waba') {
+    if (isWabaChannel(queue.channel_type)) {
       toast.error('A API oficial do WhatsApp não permite editar mensagens.');
       return;
     }
@@ -1863,6 +1874,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     }));
 
     try {
+      assertUazapiCreds(queue);
       const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
         body: {
           method: 'POST',
@@ -1965,7 +1977,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
       // Meta requires a true OGG/Opus container for browser-recorded WebM audio.
       // UaZapi, on the other hand, handles the native WebM/Opus recording more reliably.
-      if (queue.channel_type === 'waba' && isAudioMessage && (file.type || '').toLowerCase().includes('webm')) {
+      if (isWabaChannel(queue.channel_type) && isAudioMessage && (file.type || '').toLowerCase().includes('webm')) {
         let remux;
         try {
           remux = await webmBlobToOggOpusStrict(file);
@@ -2029,12 +2041,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       let externalMessageId: string | undefined;
 
       // Groups: UaZapi expects the group JID (id@g.us); WABA can't send to groups.
-      if (contact.is_group && queue.channel_type === 'waba') {
+      if (contact.is_group && isWabaChannel(queue.channel_type)) {
         throw new Error('WhatsApp oficial (WABA) não suporta envio para grupos.');
       }
       const target = contact.is_group ? (contact.remote_jid || `${contact.phone}@g.us`) : contact.phone;
 
-      if (queue.channel_type === 'waba') {
+      if (isWabaChannel(queue.channel_type)) {
         const { data, error } = await supabase.functions.invoke('waba-send', {
           body: {
             action: 'send_media',
@@ -2057,6 +2069,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
         const fileField = isAudioMessage
           ? `data:${sendMimetype || 'audio/webm;codecs=opus'};base64,${base64}`
           : persistedUrl;
+        assertUazapiCreds(queue);
         const { data, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
@@ -2270,7 +2283,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     try {
       const queue = await getEffectiveQueue(contactId);
       // Mark read on UaZapi server when applicable
-      if (queue?.channel_type === 'uazapi' && queue.evo_apikey && queue.evo_url) {
+      if (!isWabaChannel(queue?.channel_type) && queue.evo_apikey && queue.evo_url) {
         try {
           await supabase.functions.invoke('uazapi-proxy', {
             body: {
@@ -2441,7 +2454,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
     setIsSyncing(true);
     try {
-      if (selectedQueue.channel_type === 'uazapi') {
+      if (!isWabaChannel(selectedQueue.channel_type)) {
+        assertUazapiCreds(selectedQueue);
         const { data: response, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
