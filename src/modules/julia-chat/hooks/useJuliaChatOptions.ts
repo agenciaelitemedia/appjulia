@@ -30,12 +30,21 @@ export function useJuliaChatOptions(clientId: string | null) {
     let alive = true;
     (async () => {
       const [q, t, opts] = await Promise.all([
-        supabase.from('queues').select('id, name, channel_type').eq('client_id', clientId).eq('is_deleted', false).eq('is_active', true).order('name'),
+        supabase.from('queues').select('id, name, channel_type, hub, evo_url, evo_apikey, evo_instance').eq('client_id', clientId).eq('is_deleted', false).eq('is_active', true).order('name'),
         supabase.from('chat_tags').select('id, name, color').eq('client_id', clientId).order('name'),
         supabase.functions.invoke('julia-chat-list-feed', { body: { client_id: clientId, options: true } }),
       ]);
       if (!alive) return;
-      setQueues(((q.data as any[]) || []).map((r) => ({ id: r.id, name: r.name, channel_type: r.channel_type })));
+      setQueues(((q.data as any[]) || []).map((r) => ({
+        id: r.id,
+        name: r.name,
+        channel_type: r.channel_type,
+        hub: r.hub ?? null,
+        evo_url: r.evo_url ?? null,
+        evo_apikey: r.evo_apikey ?? null,
+        evo_instance: r.evo_instance ?? null,
+      })));
+
       setTags(((t.data as any[]) || []).map((r) => ({ id: r.id, name: r.name, color: r.color })));
       const data = (opts as any)?.data ?? null;
       setOwners(Array.isArray(data?.owners) ? data.owners : []);
