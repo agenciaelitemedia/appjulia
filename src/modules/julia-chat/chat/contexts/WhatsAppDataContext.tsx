@@ -2455,7 +2455,7 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     setIsSyncing(true);
     try {
       if (!isWabaChannel(selectedQueue.channel_type)) {
-        assertUazapiCreds(queue);
+        assertUazapiCreds(selectedQueue);
         const { data: response, error } = await supabase.functions.invoke('uazapi-proxy', {
           body: {
             method: 'POST',
