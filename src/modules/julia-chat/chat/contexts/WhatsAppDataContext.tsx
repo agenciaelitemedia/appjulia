@@ -37,6 +37,16 @@ export type ChatPeriodFilter =
 
 const CONTACTS_PAGE_SIZE = 50;
 
+// Official API (Meta/WABA) queues are stored with either alias — both must
+// skip the UaZapi proxy, which requires evo_apikey/evo_url credentials.
+const isWabaChannel = (t?: string | null) => t === 'waba' || t === 'whatsapp_waba';
+
+const assertUazapiCreds = (queue: { evo_apikey?: string | null; evo_url?: string | null }) => {
+  if (!queue?.evo_apikey || !queue?.evo_url) {
+    throw new Error('Fila sem credenciais de conexão (token/URL) configuradas.');
+  }
+};
+
 // ─── Send-error normalization ───────────────────────────────────────
 // Maps provider error codes / messages to user-friendly toasts so the
 // agent knows whether to wait, switch number or send a template.
