@@ -23,7 +23,8 @@ const TYPE_LABELS: Record<string, string> = {
   location: '📍 Localização',
   contact: '👤 Contato',
   reaction: '💬 Reação',
-  revoked: '🚫 Mensagem apagada',
+revoked: '🚫 Mensagem apagada',
+  unsupported: '⚠️ Mensagem não suportada',
 };
 
 const MAX_CHARS = 35;

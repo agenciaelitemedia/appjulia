@@ -125,6 +125,9 @@ export interface MessageMetadata {
     domain?: string | null;
   };
 
+// Human-readable detail for WABA unsupported messages (from Meta errors)
+  unsupported_detail?: string;
+
   // Any extra fields
   [key: string]: unknown;
 }
