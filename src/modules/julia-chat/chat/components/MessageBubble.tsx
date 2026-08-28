@@ -17,6 +17,7 @@ import { forceDownload } from '@/lib/forceDownload';
 import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { useQueueAutomationFlags } from '@/hooks/useQueueAutomationFlags';
 import { MascoteLoader } from "@/components/ui/mascote-loader";
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -537,7 +538,7 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
     const hasQuote = message.metadata?.quoted_message;
     const isInternalNote = !!message.metadata?.internal_note;
 
-    if (message.type === 'revoked') {
+if (message.type === 'revoked') {
       return (
         <div
           ref={ref}
@@ -549,6 +550,36 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
           <div className="px-3 py-1.5 rounded-lg bg-muted/50 text-muted-foreground italic text-sm">
             🚫 Mensagem apagada
           </div>
+        </div>
+      );
+    }
+
+    if (message.type === 'unsupported') {
+      const detail = message.metadata?.unsupported_detail;
+      const bubble = (
+        <div className="px-3 py-1.5 rounded-lg bg-muted/50 text-muted-foreground italic text-sm flex items-center gap-1.5">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          Mensagem não suportada pelo WhatsApp Oficial — conteúdo não disponível
+        </div>
+      );
+      return (
+        <div
+          ref={ref}
+          className={cn(
+            'flex',
+            message.from_me ? 'justify-end' : 'justify-start'
+          )}
+        >
+          {detail ? (
+            <Tooltip>
+              <TooltipTrigger asChild>{bubble}</TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs">
+                {detail}
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            bubble
+          )}
         </div>
       );
     }

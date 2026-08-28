@@ -386,8 +386,8 @@ async function persistMessage(
       timestamp: message.timestamp
         ? new Date(parseInt(message.timestamp) * 1000).toISOString()
         : new Date().toISOString(),
-      raw_payload: message,
-      metadata: quotedMeta ? { quoted_message: quotedMeta } : null,
+raw_payload: message,
+      metadata: buildMetadata(quotedMeta, msgType, message),
     })
     .select('id')
     .maybeSingle();
@@ -409,6 +409,31 @@ async function persistMessage(
     caption,
     text: msgText,
   };
+}
+
+/**
+ * Builds the `metadata` column for a persisted chat message.
+ * Preserves existing quote metadata and, for `unsupported` messages,
+ * carries the human-readable error detail forward so the UI can show a
+ * tooltip/subtitle. Enrichment only — never changes the message type or raw payload.
+ */
+function buildMetadata(
+  quotedMeta: any,
+  msgType: string,
+  message: any,
+): Record<string, unknown> | null {
+  const meta: Record<string, unknown> = {};
+  if (quotedMeta) meta.quoted_message = quotedMeta;
+
+  if (msgType === 'unsupported') {
+    const unsupportedDetail =
+      message.errors?.[0]?.error_data?.details ??
+      message.errors?.[0]?.message ??
+      (message.unsupported ? JSON.stringify(message.unsupported) : null);
+    if (unsupportedDetail) meta.unsupported_detail = String(unsupportedDetail);
+  }
+
+  return Object.keys(meta).length > 0 ? meta : null;
 }
 
 // ─── X-Julia: enfileira mensagem WABA na fila durável ─────────────

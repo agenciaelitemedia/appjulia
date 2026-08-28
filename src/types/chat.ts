@@ -14,7 +14,8 @@ export type MessageType =
   | 'location' 
   | 'contact'
   | 'reaction'
-  | 'revoked';
+  | 'revoked'
+  | 'unsupported';
 
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
@@ -123,6 +124,9 @@ export interface MessageMetadata {
     site_name?: string | null;
     domain?: string | null;
   };
+
+// Human-readable detail for WABA unsupported messages (from Meta errors)
+  unsupported_detail?: string;
 
   // Any extra fields
   [key: string]: unknown;
