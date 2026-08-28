@@ -386,8 +386,8 @@ async function persistMessage(
       timestamp: message.timestamp
         ? new Date(parseInt(message.timestamp) * 1000).toISOString()
         : new Date().toISOString(),
-      raw_payload: message,
-      metadata: quotedMeta ? { quoted_message: quotedMeta } : null,
+raw_payload: message,
+      metadata: buildMetadata(quotedMeta, msgType, message),
     })
     .select('id')
     .maybeSingle();
