@@ -17,6 +17,7 @@ import { forceDownload } from '@/lib/forceDownload';
 import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { useQueueAutomationFlags } from '@/hooks/useQueueAutomationFlags';
 import { MascoteLoader } from "@/components/ui/mascote-loader";
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface MessageBubbleProps {
   message: ChatMessage;
