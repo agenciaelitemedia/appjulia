@@ -14,7 +14,8 @@ export type MessageType =
   | 'location' 
   | 'contact'
   | 'reaction'
-  | 'revoked';
+  | 'revoked'
+  | 'unsupported';
 
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
