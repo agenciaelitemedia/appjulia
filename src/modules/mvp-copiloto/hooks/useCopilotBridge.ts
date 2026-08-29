@@ -76,12 +76,31 @@ export function useCopilotBridge() {
     setState('checking');
     setVersion(null);
     setSession(null);
-    const id = newRequestId();
-    pingIdRef.current = id;
-    send({ source: REQ, id, action: 'PING' });
 
-    window.setTimeout(() => {
-      setState((prev) => (prev === 'checking' ? 'missing' : prev));
+    // O content script pode ainda não estar pronto (instalação recente, iframe
+    // do preview): tentamos o PING algumas vezes antes de desistir.
+    let attempts = 0;
+    const ping = () => {
+      const id = newRequestId();
+      pingIdRef.current = id;
+      send({ source: REQ, id, action: 'PING' });
+    };
+
+    ping();
+    const interval = window.setInterval(() => {
+      attempts += 1;
+      setState((prev) => {
+        if (prev !== 'checking') {
+          window.clearInterval(interval);
+          return prev;
+        }
+        if (attempts >= 6) {
+          window.clearInterval(interval);
+          return 'missing';
+        }
+        ping();
+        return prev;
+      });
     }, HANDSHAKE_TIMEOUT_MS);
   }, []);
 

@@ -8,7 +8,18 @@ const RES = 'JULIA_COPILOT_RES';
 const VERSION = '0.1.1';
 
 function reply(payload) {
-  window.postMessage({ source: RES, ...payload }, window.location.origin);
+  try {
+    window.postMessage({ source: RES, ...payload }, window.location.origin);
+  } catch {
+    window.postMessage({ source: RES, ...payload }, '*');
+  }
+}
+
+// Marcador para diagnóstico rápido (o app não depende dele).
+try {
+  document.documentElement.setAttribute('data-julia-companion', VERSION);
+} catch {
+  /* noop */
 }
 
 window.addEventListener('message', (event) => {
