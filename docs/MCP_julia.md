@@ -146,3 +146,39 @@ Prompts: `analise_atendimento`, `parecer_viabilidade`, `auditoria_documental`,
 - Sem Bearer: `401` com `WWW-Authenticate`.
 - Token de um escritório nunca retorna dados de outro (filtro por `client_id` e `cod_agent`).
 - Nenhuma tool executa `insert`, `update` ou `delete`.
+
+## Endereço do conector e autenticação (atualizado)
+
+O issuer OAuth passou a ser a **raiz do domínio da Julia**
+(`https://acesso.atendejulia.com.br`), porque clientes MCP montam
+`/authorize` relativo à raiz do issuer — com o issuer em subcaminho do backend o
+OpenClaw chamava `https://<backend>/authorize` e recebia
+`{"error":"requested path is invalid"}`.
+
+Peças envolvidas:
+
+- `public/.well-known/oauth-authorization-server` (+ `.json`) e
+  `public/.well-known/oauth-protected-resource` (+ `.json`) — documentos de descoberta
+  servidos na raiz do domínio do app. Só ficam ativos após publicar o frontend.
+- Rota `/authorize` do app (`src/pages/CopilotoAuthorizeRedirect.tsx`) — repassa a query
+  original para `copiloto-oauth/authorize`, que cria o pedido e abre
+  `/copiloto/consentimento`.
+- `copiloto-oauth` publica `issuer` e `authorization_endpoint` no domínio do app;
+  `token`, `register` e `revoke` continuam nas URLs absolutas da function (são POST do
+  cliente, não passam pelo app estático).
+- `copiloto-mcp` responde 401 com
+  `WWW-Authenticate: Bearer resource_metadata="https://acesso.atendejulia.com.br/.well-known/oauth-protected-resource"`.
+
+### Caminho 2 — chave de acesso (Bearer estático)
+
+Para clientes que não concluem o OAuth, `/mvp-copiloto` gera uma **chave de acesso**
+(`POST copiloto-oauth/access-key`, exige e-mail e senha da Julia, validade 30/90/365 dias,
+`kind = key`). No cliente MCP basta configurar o servidor remoto com:
+
+```text
+URL:    https://<backend>/functions/v1/copiloto-mcp
+Header: Authorization: Bearer <chave>
+```
+
+A chave carrega o escritório resolvido no servidor, é somente leitura, registra
+`last_used_at` e pode ser revogada na própria página (exige senha).
