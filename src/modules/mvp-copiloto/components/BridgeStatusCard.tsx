@@ -51,9 +51,10 @@ export function BridgeStatusCard({ state, version, session, onRecheck }: Props) 
               </p>
               <p className="text-xs text-muted-foreground">
                 {state === 'connected'
-                  ? `${session?.email || 'conta conectada'}${session?.plan ? ` · plano ${session.plan}` : ''}`
+                  ? `${session?.email || 'conta conectada'}${session?.plan ? ` · plano ${session.plan}` : ''} · mantenha uma aba do chatgpt.com aberta`
                   : 'A extensão usa a sua própria sessão do navegador — nenhum token é salvo no sistema.'}
               </p>
+
             </div>
           </div>
 
