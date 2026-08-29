@@ -67,7 +67,7 @@ export async function requestTestToken(email: string, password: string): Promise
 /** Chamada JSON-RPC direta ao MCP, para o testador de ferramentas. */
 
 export async function mcpCall(token: string, method: string, params?: unknown) {
-  const res = await fetch(MCP_URL, {
+  const res = await fetch(MCP_INTERNAL_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
