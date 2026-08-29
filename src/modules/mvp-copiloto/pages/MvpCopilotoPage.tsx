@@ -53,12 +53,12 @@ export default function MvpCopilotoPage() {
               clique em <strong>Autorizar</strong>.
             </li>
             <li>
-              De volta ao OpenClaw, as ferramentas aparecem: <code>buscar_lead</code>,{' '}
-              <code>obter_historico</code> e <code>analisar_atendimento</code>.
+              De volta ao OpenClaw, o catálogo completo de ferramentas aparece (contatos, atendimento, CRM,
+              contratos, operação e análises) — veja a lista abaixo.
             </li>
             <li>
-              Peça no chat, por exemplo: <em>"busque o lead 5519982045075 na Julia e faça a análise jurídica do
-              atendimento"</em>.
+              Peça no chat, por exemplo: <em>"busque o lead 5519982045075 na Julia, leia a conversa, os documentos
+              enviados e faça o parecer de viabilidade jurídica"</em>.
             </li>
           </ol>
           <p className="text-xs text-muted-foreground">
