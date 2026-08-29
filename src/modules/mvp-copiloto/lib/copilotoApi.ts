@@ -4,8 +4,17 @@
  */
 const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
+/** Endpoints internos (POST do próprio app/simulador) — não exibidos ao usuário. */
 export const OAUTH_BASE = `${FUNCTIONS_BASE}/copiloto-oauth`;
-export const MCP_URL = `${FUNCTIONS_BASE}/copiloto-mcp`;
+const MCP_INTERNAL_URL = `${FUNCTIONS_BASE}/copiloto-mcp`;
+
+/**
+ * URL pública do conector MCP, sempre no domínio da Julia.
+ * Um proxy (Cloudflare Worker / Nginx) em mcp.atendejulia.com.br repassa as
+ * chamadas ao backend — ver docs/MCP_julia.md.
+ */
+export const MCP_URL = 'https://mcp.atendejulia.com.br';
+
 
 export interface ConsentRequestInfo {
   request_id: string;
@@ -58,7 +67,7 @@ export async function requestTestToken(email: string, password: string): Promise
 /** Chamada JSON-RPC direta ao MCP, para o testador de ferramentas. */
 
 export async function mcpCall(token: string, method: string, params?: unknown) {
-  const res = await fetch(MCP_URL, {
+  const res = await fetch(MCP_INTERNAL_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

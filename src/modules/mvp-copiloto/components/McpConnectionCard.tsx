@@ -8,14 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Copy, Eye, EyeOff, Plug, ShieldCheck, Trash2 } from 'lucide-react';
+import { Copy, Plug, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
 import { useAuth } from '../extend/auth';
 import { MCP_URL, OAUTH_BASE } from '../lib/copilotoApi';
 
-/** Exibição mascarada: o endereço real só sai daqui pelo botão Copiar. */
-const MASKED_URL = '•••••••••••••••••••••••••••/functions/v1/copiloto-mcp';
 
 
 interface TokenRow {
@@ -33,7 +31,7 @@ export function McpConnectionCard() {
   const queryClient = useQueryClient();
   const [password, setPassword] = useState('');
   const [revoking, setRevoking] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState(false);
+  
 
 
   const { data: tokens } = useQuery<TokenRow[]>({
@@ -99,28 +97,17 @@ export function McpConnectionCard() {
             URL do servidor MCP
           </div>
           <div className="flex items-center gap-2">
-            <Input
-              readOnly
-              value={revealed ? MCP_URL : MASKED_URL}
-              className="font-mono text-xs"
-            />
-            <Button
-              size="icon"
-              variant="outline"
-              title={revealed ? 'Ocultar' : 'Mostrar'}
-              onClick={() => setRevealed((v) => !v)}
-            >
-              {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </Button>
+            <Input readOnly value={MCP_URL} className="font-mono text-xs" />
             <Button size="icon" variant="outline" onClick={() => copy(MCP_URL, 'URL do conector')}>
               <Copy className="h-4 w-4" />
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Endereço oculto por segurança — use <strong>Copiar</strong> e cole direto no cliente MCP. Ao
-            conectar, ele descobre sozinho o OAuth, você faz login na Julia e aprova o acesso de leitura
-            (escopos <code>leads:read</code> e <code>julia:read</code>). Não é preciso chave nem header manual.
+            Endereço oficial no domínio da Julia — cole essa URL no cliente MCP. Ao conectar, ele descobre
+            sozinho o OAuth, você faz login na Julia e aprova o acesso de leitura (escopos{' '}
+            <code>leads:read</code> e <code>julia:read</code>). Não é preciso chave nem header manual.
           </p>
+
         </div>
 
 
