@@ -42,6 +42,7 @@ const CreateOfficePage = lazy(() => import("./modules/escritorios/pages/CreateOf
 const OfficeDetailsPage = lazy(() => import("./modules/escritorios/pages/OfficeDetailsPage"));
 const OfficeDashboardPage = lazy(() => import("./modules/escritorios/pages/OfficeDashboardPage"));
 const DisparosPage = lazy(() => import("./modules/disparos/pages/DisparosPage"));
+const MvpCopilotoPage = lazy(() => import("./modules/mvp-copiloto/pages/MvpCopilotoPage"));
 
 const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
 const CreateAgentPage = lazy(() => import("./pages/agents/CreateAgentPage"));
@@ -207,6 +208,8 @@ const App = () => (
                   <Route path="/video/queue" element={<VideoQueuePage />} />
                   {/* Chat oficial — JulIA Chat */}
                   <Route path="/chat" element={<JuliaChatPage />} />
+                  {/* MVP Copiloto Pro — validação da extensão-ponte (sem menu) */}
+                  <Route path="/mvp-copiloto" element={<MvpCopilotoPage />} />
                   {/* Backup temporário do chat antigo (sem item de menu) */}
                   <Route path="/chat-old" element={<ChatPage />} />
                   <Route path="/chat/canais" element={<ChatChannelsPage />} />

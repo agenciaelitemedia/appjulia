@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Julia AI Companion (MVP)",
+  "version": "0.1.0",
+  "description": "Ponte local entre o app Julia e a sessão do ChatGPT Pro do navegador. Nenhum token sai do navegador.",
+  "permissions": ["cookies"],
+  "host_permissions": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://*.lovable.app/*",
+        "https://acesso.atendejulia.com.br/*",
+        "https://blitzleads.atendejulia.com.br/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
