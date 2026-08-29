@@ -365,32 +365,9 @@ Deno.serve(async (req) => {
       }
       return json({ error: "invalid_request" }, 400);
     }
+    // Chaves de acesso estáticas foram descontinuadas: o único caminho de
+    // conexão é o OAuth (authorize → consentimento → token).
 
-    // ---------- Chave de acesso (Bearer estático, sem OAuth) ----------
-    // Para clientes MCP que aceitam header Authorization fixo. Mesmo isolamento:
-    // o escritório vem do login e fica gravado no token; somente leitura.
-    if (path === "/access-key" && req.method === "POST") {
-      const { email, password, label, days } = await req.json().catch(() => ({}));
-      const identity = await juliaLogin(String(email || ""), String(password || ""));
-      if (!identity) return json({ error: "invalid_credentials" }, 401);
-
-      const validDays = [30, 90, 365].includes(Number(days)) ? Number(days) : 90;
-      const access = rand(32);
-      const { error } = await supabase.from("cop_oauth_tokens").insert({
-        access_token: access,
-        client_id: "chave-de-acesso",
-        client_name: String(label || "Chave de acesso").slice(0, 80),
-        scope: "leads:read julia:read",
-        julia_user_id: identity.userId,
-        julia_client_id: identity.clientId,
-        julia_user_email: identity.email,
-        kind: "key",
-        expires_at: new Date(Date.now() + validDays * 86400_000).toISOString(),
-      });
-      if (error) return json({ error: "server_error", error_description: error.message }, 500);
-
-      return json({ access_token: access, expires_in: validDays * 86400, scope: "leads:read julia:read" });
-    }
 
     // ---------- Token curto para o simulador interno ----------
     if (path === "/test-token" && req.method === "POST") {

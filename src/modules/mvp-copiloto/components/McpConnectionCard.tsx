@@ -89,6 +89,9 @@ export function McpConnectionCard() {
         </p>
 
         <div className="space-y-2">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            URL do servidor MCP
+          </div>
           <div className="flex items-center gap-2">
             <Input readOnly value={MCP_URL} className="font-mono text-xs" />
             <Button size="icon" variant="outline" onClick={() => copy(MCP_URL, 'URL do conector')}>
@@ -96,10 +99,12 @@ export function McpConnectionCard() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Ao conectar, você fará login na Julia e aprovará o acesso de leitura aos leads (escopo{' '}
-            <code>leads:read</code>).
+            É essa (e só essa) URL que você cola no cliente MCP. Ao conectar, ele descobre sozinho o OAuth,
+            você faz login na Julia e aprova o acesso de leitura (escopos <code>leads:read</code> e{' '}
+            <code>julia:read</code>). Não é preciso nenhuma chave ou header manual.
           </p>
         </div>
+
 
         <div className="space-y-2">
           <div className="flex items-center gap-2 font-medium">

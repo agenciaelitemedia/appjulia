@@ -3,7 +3,6 @@ import { HelpCircle, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { McpConnectionCard } from '../components/McpConnectionCard';
 import { McpSimulatorCard } from '../components/McpSimulatorCard';
-import { AccessKeysCard } from '../components/AccessKeysCard';
 import { LeadPicker } from '../components/LeadPicker';
 import { ToolCatalogCard } from '../components/ToolCatalogCard';
 import type { MvpLeadOption } from '../hooks/useMvpLeadSearch';
@@ -40,12 +39,14 @@ export default function MvpCopilotoPage() {
         <CardContent className="space-y-3 text-sm">
           <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground">
             <li>
-              Copie a <strong>URL do conector</strong> no cartão abaixo.
+              Copie a <strong>URL do servidor MCP</strong> no cartão abaixo (é a única coisa que você precisa —
+              não use chave nem header manual).
             </li>
             <li>
-              No OpenClaw, adicione um <strong>servidor MCP remoto</strong> (HTTP) e cole essa URL. Ele detecta
-              sozinho que o servidor exige OAuth.
+              No OpenClaw, adicione um <strong>servidor MCP remoto</strong> (HTTP) e cole essa URL. Ele descobre
+              sozinho o OAuth pelo domínio da Julia.
             </li>
+
             <li>
               O navegador abre a <strong>tela de login da Julia</strong>; entre com o e-mail e senha do escritório
               que deve ser acessado.
@@ -77,7 +78,6 @@ export default function MvpCopilotoPage() {
         <McpSimulatorCard contactId={lead?.contactId ?? null} />
       </div>
 
-      <AccessKeysCard />
 
 
       <ToolCatalogCard />

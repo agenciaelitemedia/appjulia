@@ -55,26 +55,8 @@ export async function requestTestToken(email: string, password: string): Promise
   return data.access_token as string;
 }
 
-/** Chave de acesso de longa duração (Bearer estático) para clientes MCP. */
-export async function createAccessKey(
-  email: string,
-  password: string,
-  label: string,
-  days: number,
-): Promise<string> {
-  const res = await fetch(`${OAUTH_BASE}/access-key`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, label, days }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error === 'invalid_credentials' ? 'E-mail ou senha inválidos.' : 'Falha ao gerar a chave.');
-  }
-  return data.access_token as string;
-}
-
 /** Chamada JSON-RPC direta ao MCP, para o testador de ferramentas. */
+
 export async function mcpCall(token: string, method: string, params?: unknown) {
   const res = await fetch(MCP_URL, {
     method: 'POST',
