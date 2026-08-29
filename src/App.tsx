@@ -44,6 +44,7 @@ const OfficeDashboardPage = lazy(() => import("./modules/escritorios/pages/Offic
 const DisparosPage = lazy(() => import("./modules/disparos/pages/DisparosPage"));
 const MvpCopilotoPage = lazy(() => import("./modules/mvp-copiloto/pages/MvpCopilotoPage"));
 const CopilotoConsentPage = lazy(() => import("./pages/CopilotoConsentPage"));
+const CopilotoAuthorizeRedirect = lazy(() => import("./pages/CopilotoAuthorizeRedirect"));
 
 
 const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
@@ -193,6 +194,8 @@ const App = () => (
                 <Route path="/call/:roomName" element={<JoinCallPage />} />
                 {/* Consentimento OAuth do conector Copiloto (rota pública) */}
                 <Route path="/copiloto/consentimento" element={<CopilotoConsentPage />} />
+                {/* Authorize na raiz do domínio: clientes MCP resolvem /authorize a partir do issuer */}
+                <Route path="/authorize" element={<CopilotoAuthorizeRedirect />} />
 
                 <Route path="/tv/master" element={<ProtectedRoute><TvMasterPage /></ProtectedRoute>} />
                 <Route path="/crm-notificacoes" element={<ProtectedRoute module="notifications_alerts"><CrmNotificacoesStandalonePage /></ProtectedRoute>} />

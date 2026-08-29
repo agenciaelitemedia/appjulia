@@ -88,11 +88,13 @@ Deno.serve(async (req) => {
 
   try {
     // ---------- Discovery ----------
+    // O issuer é a RAIZ do domínio da Julia: clientes MCP montam /authorize
+    // relativo ao issuer, e a rota /authorize do app repassa para cá.
     if (path.endsWith("/.well-known/oauth-authorization-server")) {
       const b = baseUrl(req);
       return json({
-        issuer: b,
-        authorization_endpoint: `${b}/authorize`,
+        issuer: APP_URL,
+        authorization_endpoint: `${APP_URL}/authorize`,
         token_endpoint: `${b}/token`,
         registration_endpoint: `${b}/register`,
         revocation_endpoint: `${b}/revoke`,
@@ -105,14 +107,14 @@ Deno.serve(async (req) => {
     }
 
     if (path.endsWith("/.well-known/oauth-protected-resource")) {
-      const b = baseUrl(req);
       return json({
         resource: `${publicOrigin(req)}/functions/v1/copiloto-mcp`,
-        authorization_servers: [b],
+        authorization_servers: [APP_URL],
         scopes_supported: ["leads:read", "julia:read"],
         bearer_methods_supported: ["header"],
       });
     }
+
 
     // ---------- Dynamic Client Registration ----------
     if (path === "/register" && req.method === "POST") {
@@ -362,6 +364,32 @@ Deno.serve(async (req) => {
         return json({ revoked: true });
       }
       return json({ error: "invalid_request" }, 400);
+    }
+
+    // ---------- Chave de acesso (Bearer estático, sem OAuth) ----------
+    // Para clientes MCP que aceitam header Authorization fixo. Mesmo isolamento:
+    // o escritório vem do login e fica gravado no token; somente leitura.
+    if (path === "/access-key" && req.method === "POST") {
+      const { email, password, label, days } = await req.json().catch(() => ({}));
+      const identity = await juliaLogin(String(email || ""), String(password || ""));
+      if (!identity) return json({ error: "invalid_credentials" }, 401);
+
+      const validDays = [30, 90, 365].includes(Number(days)) ? Number(days) : 90;
+      const access = rand(32);
+      const { error } = await supabase.from("cop_oauth_tokens").insert({
+        access_token: access,
+        client_id: "chave-de-acesso",
+        client_name: String(label || "Chave de acesso").slice(0, 80),
+        scope: "leads:read julia:read",
+        julia_user_id: identity.userId,
+        julia_client_id: identity.clientId,
+        julia_user_email: identity.email,
+        kind: "key",
+        expires_at: new Date(Date.now() + validDays * 86400_000).toISOString(),
+      });
+      if (error) return json({ error: "server_error", error_description: error.message }, 500);
+
+      return json({ access_token: access, expires_in: validDays * 86400, scope: "leads:read julia:read" });
     }
 
     // ---------- Token curto para o simulador interno ----------
