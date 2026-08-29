@@ -1,6 +1,0 @@
-{
-  "resource": "https://mcp.atendejulia.com.br",
-  "authorization_servers": ["https://acesso.atendejulia.com.br"],
-  "scopes_supported": ["leads:read", "julia:read"],
-  "bearer_methods_supported": ["header"]
-}
