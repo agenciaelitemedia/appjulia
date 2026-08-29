@@ -10,7 +10,7 @@ Rota de gestão no painel: `/mvp-copiloto`.
 
 | Função | URL | Papel |
 | --- | --- | --- |
-| `copiloto-mcp` | URL pública: `${SUPABASE_URL}/functions/v1/copiloto-mcp` | Resource Server MCP (JSON-RPC / Streamable HTTP) |
+| `copiloto-mcp` | público: `https://mcp.atendejulia.com.br` (proxy) | Resource Server MCP (JSON-RPC / Streamable HTTP) |
 | `copiloto-oauth` | discovery/authorize em `https://acesso.atendejulia.com.br`; token/register/revoke na function | Authorization Server (OAuth 2.1 + PKCE S256 + DCR) |
 
 
