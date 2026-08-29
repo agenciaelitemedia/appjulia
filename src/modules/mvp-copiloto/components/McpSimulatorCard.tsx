@@ -71,7 +71,14 @@ export function McpSimulatorCard({ contactId }: { contactId: string | null }) {
           className="max-w-xs"
         />
         <div className="flex flex-wrap gap-2">
-          {['tools/list', 'obter_historico', 'analisar_atendimento'].map((tool) => (
+          {[
+            'tools/list',
+            'julia_chat_ler_mensagens',
+            'julia_contatos_obter_perfil',
+            'julia_analise_atendimento',
+            'julia_analise_viabilidade_juridica',
+            'julia_analise_documental',
+          ].map((tool) => (
             <Button key={tool} size="sm" variant="outline" disabled={!!busy} onClick={() => run(tool)}>
               {busy === tool && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
               {tool}
