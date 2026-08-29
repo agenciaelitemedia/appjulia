@@ -8,8 +8,12 @@ const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 export const OAUTH_BASE = `${FUNCTIONS_BASE}/copiloto-oauth`;
 const MCP_INTERNAL_URL = `${FUNCTIONS_BASE}/copiloto-mcp`;
 
-/** URL pública do conector MCP. */
-export const MCP_URL = MCP_INTERNAL_URL;
+/**
+ * URL pública do conector MCP — raiz do subdomínio servido pelo proxy
+ * (Cloudflare Worker em `infra/cloudflare/mcp-proxy-worker.js`). É essa raiz que
+ * também responde o discovery OAuth e /authorize, como os clientes MCP esperam.
+ */
+export const MCP_URL = 'https://mcp.atendejulia.com.br';
 
 
 
