@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   const url = new URL(req.url);
-  const origin = `https://${req.headers.get("x-forwarded-host") || url.host}`;
+  
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
   // Issuer publicado é a raiz do domínio da Julia (clientes MCP resolvem
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
 
 
   const wwwAuth = {
-    "WWW-Authenticate": `Bearer resource_metadata="${APP_URL}/.well-known/oauth-protected-resource"`,
+    "WWW-Authenticate": `Bearer resource_metadata="${ISSUER}/.well-known/oauth-protected-resource"`,
   };
 
   const auth = req.headers.get("authorization") || "";
