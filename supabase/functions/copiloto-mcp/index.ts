@@ -80,19 +80,19 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   const url = new URL(req.url);
-  const origin = `https://${req.headers.get("x-forwarded-host") || url.host}`;
+  
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
   // Issuer publicado é a raiz do domínio da Julia (clientes MCP resolvem
   // /authorize relativo ao issuer; o app repassa para o conector).
-  const APP_URL = Deno.env.get("COPILOTO_APP_URL") || "https://acesso.atendejulia.com.br";
-  // URL pública do MCP é a própria edge function.
-  const MCP_PUBLIC_URL = `${origin}/functions/v1/copiloto-mcp`;
+  // Issuer OAuth e URL pública do conector: raiz do subdomínio do proxy.
+  const ISSUER = Deno.env.get("COPILOTO_ISSUER") || "https://mcp.atendejulia.com.br";
+  const MCP_PUBLIC_URL = ISSUER;
 
   if (url.pathname.endsWith("/.well-known/oauth-protected-resource")) {
     return json({
       resource: MCP_PUBLIC_URL,
-      authorization_servers: [APP_URL],
+      authorization_servers: [ISSUER],
       scopes_supported: ["leads:read", "julia:read"],
       bearer_methods_supported: ["header"],
     });
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
 
 
   const wwwAuth = {
-    "WWW-Authenticate": `Bearer resource_metadata="${APP_URL}/.well-known/oauth-protected-resource"`,
+    "WWW-Authenticate": `Bearer resource_metadata="${ISSUER}/.well-known/oauth-protected-resource"`,
   };
 
   const auth = req.headers.get("authorization") || "";

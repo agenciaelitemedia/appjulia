@@ -10,7 +10,7 @@ Rota de gestão no painel: `/mvp-copiloto`.
 
 | Função | URL | Papel |
 | --- | --- | --- |
-| `copiloto-mcp` | URL pública: `${SUPABASE_URL}/functions/v1/copiloto-mcp` | Resource Server MCP (JSON-RPC / Streamable HTTP) |
+| `copiloto-mcp` | público: `https://mcp.atendejulia.com.br` (proxy) | Resource Server MCP (JSON-RPC / Streamable HTTP) |
 | `copiloto-oauth` | discovery/authorize em `https://acesso.atendejulia.com.br`; token/register/revoke na function | Authorization Server (OAuth 2.1 + PKCE S256 + DCR) |
 
 
@@ -158,33 +158,49 @@ OpenClaw chamava `https://<backend>/authorize` e recebia
 
 Peças envolvidas:
 
-- `public/.well-known/oauth-authorization-server` (+ `.json`) e
-  `public/.well-known/oauth-protected-resource` (+ `.json`) — documentos de descoberta
-  servidos na raiz do domínio do app. Só ficam ativos após publicar o frontend.
-- Rota `/authorize` do app (`src/pages/CopilotoAuthorizeRedirect.tsx`) — repassa a query
-  original para `copiloto-oauth/authorize`, que cria o pedido e abre
-  `/copiloto/consentimento`.
-- `copiloto-oauth` publica `issuer` e `authorization_endpoint` no domínio do app;
-  `token`, `register` e `revoke` continuam nas URLs absolutas da function (são POST do
-  cliente, não passam pelo app estático).
-- `copiloto-mcp` responde 401 com
-  `WWW-Authenticate: Bearer resource_metadata="https://acesso.atendejulia.com.br/.well-known/oauth-protected-resource"`.
+### Por que existe um proxy (e não só a URL da function)
 
-### Caminho único — OAuth, com URL no domínio da Julia
+Clientes MCP resolvem os endpoints OAuth **relativos à raiz do issuer**. Dois becos sem
+saída foram comprovados por teste:
+
+| Tentativa | Resultado |
+| --- | --- |
+| Issuer no domínio do app, discovery em `public/.well-known/*` | `404 Not found` — a hospedagem reserva `/.well-known/` (o `robots.txt` do mesmo `public/` responde 200) |
+| Issuer na raiz do host do backend | `404 {"error":"requested path is invalid"}` |
+| CNAME apontando para a function | Falha no TLS — o backend não tem certificado para o nosso hostname |
+
+Por isso o conector é publicado na **raiz de um subdomínio nosso**, servido por um
+Cloudflare Worker (`infra/cloudflare/mcp-proxy-worker.js`), que atende:
+
+```text
+mcp.atendejulia.com.br
+├── /.well-known/oauth-authorization-server   discovery (gerado no Worker)
+├── /.well-known/oauth-protected-resource     discovery do recurso
+├── /authorize                                → copiloto-oauth/authorize (302 p/ consentimento)
+├── /token /register /revoke                  → copiloto-oauth/<rota>
+└── /  (POST JSON-RPC, SSE)                   → copiloto-mcp
+```
+
+Publicação do Worker: instruções no cabeçalho do próprio arquivo. Variável obrigatória:
+`BACKEND_FUNCTIONS_BASE` (a base `/functions/v1` do backend).
+
+### Caminho único — OAuth
 
 Não existe chave de acesso estática: a conexão é sempre por OAuth
 (descoberta → registro dinâmico → login/consentimento → token, renovável e revogável).
-A URL pública a colar no cliente MCP é a própria edge function:
+A URL a colar no cliente MCP é:
 
 ```text
-https://<projeto>.supabase.co/functions/v1/copiloto-mcp
+https://mcp.atendejulia.com.br
 ```
 
-O mesmo endereço atende o discovery `/.well-known/oauth-protected-resource` e as
-chamadas JSON-RPC. A página `/mvp-copiloto` exibe a URL pronta com botão de copiar.
+A tela de consentimento continua em `acesso.atendejulia.com.br/copiloto/consentimento`
+(é onde o usuário tem sessão/login). A rota `/authorize` do app
+(`src/pages/CopilotoAuthorizeRedirect.tsx`) permanece como atalho compatível.
 
-Alterando o endereço: `MCP_URL` em `src/modules/mvp-copiloto/lib/copilotoApi.ts` e o
-cálculo de `MCP_PUBLIC_URL` na function `copiloto-mcp`.
+Alterando o endereço: `MCP_URL` em `src/modules/mvp-copiloto/lib/copilotoApi.ts` e a
+variável `COPILOTO_ISSUER` nas functions `copiloto-oauth` e `copiloto-mcp` (padrão
+`https://mcp.atendejulia.com.br`).
 
 O escritório é resolvido no servidor no consentimento e gravado no token; o escopo é
 somente leitura e a conexão pode ser revogada em `/mvp-copiloto`.
