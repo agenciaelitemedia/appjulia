@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { McpConnectionCard } from '../components/McpConnectionCard';
 import { McpSimulatorCard } from '../components/McpSimulatorCard';
 import { LeadPicker } from '../components/LeadPicker';
+import { ToolCatalogCard } from '../components/ToolCatalogCard';
 import type { MvpLeadOption } from '../hooks/useMvpLeadSearch';
 
 /**
