@@ -68,9 +68,15 @@ async function juliaLogin(email: string, password: string) {
   };
 }
 
-function baseUrl(req: Request) {
+/** Origem pública (o runtime recebe http atrás do proxy). */
+function publicOrigin(req: Request) {
   const u = new URL(req.url);
-  return `${u.origin}/functions/v1/copiloto-oauth`;
+  const host = req.headers.get("x-forwarded-host") || u.host;
+  return `https://${host}`;
+}
+
+function baseUrl(req: Request) {
+  return `${publicOrigin(req)}/functions/v1/copiloto-oauth`;
 }
 
 Deno.serve(async (req) => {
