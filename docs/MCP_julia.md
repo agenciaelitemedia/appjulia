@@ -10,8 +10,9 @@ Rota de gestão no painel: `/mvp-copiloto`.
 
 | Função | URL | Papel |
 | --- | --- | --- |
-| `copiloto-mcp` | `https://<projeto>.supabase.co/functions/v1/copiloto-mcp` | Resource Server MCP (JSON-RPC / Streamable HTTP) |
-| `copiloto-oauth` | `.../functions/v1/copiloto-oauth` | Authorization Server (OAuth 2.1 + PKCE S256 + DCR) |
+| `copiloto-mcp` | público: `https://mcp.atendejulia.com.br` (proxy) | Resource Server MCP (JSON-RPC / Streamable HTTP) |
+| `copiloto-oauth` | discovery/authorize em `https://acesso.atendejulia.com.br`; token/register/revoke na function | Authorization Server (OAuth 2.1 + PKCE S256 + DCR) |
+
 
 Discovery: `/.well-known/oauth-authorization-server` (no OAuth) e
 `/.well-known/oauth-protected-resource` (nos dois). Sem Bearer válido, o MCP
