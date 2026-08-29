@@ -99,28 +99,17 @@ export function McpConnectionCard() {
             URL do servidor MCP
           </div>
           <div className="flex items-center gap-2">
-            <Input
-              readOnly
-              value={revealed ? MCP_URL : MASKED_URL}
-              className="font-mono text-xs"
-            />
-            <Button
-              size="icon"
-              variant="outline"
-              title={revealed ? 'Ocultar' : 'Mostrar'}
-              onClick={() => setRevealed((v) => !v)}
-            >
-              {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </Button>
+            <Input readOnly value={MCP_URL} className="font-mono text-xs" />
             <Button size="icon" variant="outline" onClick={() => copy(MCP_URL, 'URL do conector')}>
               <Copy className="h-4 w-4" />
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Endereço oculto por segurança — use <strong>Copiar</strong> e cole direto no cliente MCP. Ao
-            conectar, ele descobre sozinho o OAuth, você faz login na Julia e aprova o acesso de leitura
-            (escopos <code>leads:read</code> e <code>julia:read</code>). Não é preciso chave nem header manual.
+            Endereço oficial no domínio da Julia — cole essa URL no cliente MCP. Ao conectar, ele descobre
+            sozinho o OAuth, você faz login na Julia e aprova o acesso de leitura (escopos{' '}
+            <code>leads:read</code> e <code>julia:read</code>). Não é preciso chave nem header manual.
           </p>
+
         </div>
 
 
