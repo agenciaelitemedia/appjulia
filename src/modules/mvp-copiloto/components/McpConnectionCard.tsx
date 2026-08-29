@@ -8,14 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Copy, Eye, EyeOff, Plug, ShieldCheck, Trash2 } from 'lucide-react';
+import { Copy, Plug, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
 import { useAuth } from '../extend/auth';
 import { MCP_URL, OAUTH_BASE } from '../lib/copilotoApi';
 
-/** Exibição mascarada: o endereço real só sai daqui pelo botão Copiar. */
-const MASKED_URL = '•••••••••••••••••••••••••••/functions/v1/copiloto-mcp';
 
 
 interface TokenRow {
