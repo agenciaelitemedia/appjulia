@@ -169,16 +169,16 @@ Peças envolvidas:
 - `copiloto-mcp` responde 401 com
   `WWW-Authenticate: Bearer resource_metadata="https://acesso.atendejulia.com.br/.well-known/oauth-protected-resource"`.
 
-### Caminho 2 — chave de acesso (Bearer estático)
+### Caminho único — OAuth
 
-Para clientes que não concluem o OAuth, `/mvp-copiloto` gera uma **chave de acesso**
-(`POST copiloto-oauth/access-key`, exige e-mail e senha da Julia, validade 30/90/365 dias,
-`kind = key`). No cliente MCP basta configurar o servidor remoto com:
+Não existe mais chave de acesso estática: a conexão é sempre por OAuth
+(descoberta → registro dinâmico → login/consentimento → token, renovável e revogável).
+A URL a colar no cliente MCP é:
 
 ```text
-URL:    https://<backend>/functions/v1/copiloto-mcp
-Header: Authorization: Bearer <chave>
+https://<backend>/functions/v1/copiloto-mcp
 ```
 
-A chave carrega o escritório resolvido no servidor, é somente leitura, registra
-`last_used_at` e pode ser revogada na própria página (exige senha).
+O escritório é resolvido no servidor no consentimento e gravado no token; o escopo é
+somente leitura e a conexão pode ser revogada em `/mvp-copiloto`.
+
