@@ -285,7 +285,7 @@ export const operacaoTools: CopilotoTool[] = [
       const since = new Date(Date.now() - dias * 86400000).toISOString();
       const { data, error } = await ctx.supabase
         .from("chat_conversations")
-        .select("status, assigned_to, opened_at, first_response_at, last_customer_message_at, last_agent_message_at")
+        .select("status, assigned_to, opened_at, first_response_at, last_customer_message_at, last_message_from_me")
         .eq("client_id", ctx.clientId)
         .gte("opened_at", since)
         .limit(2000);
@@ -308,9 +308,8 @@ export const operacaoTools: CopilotoTool[] = [
           frtSum += (new Date(c.first_response_at).getTime() - new Date(c.opened_at).getTime()) / 60000;
           frtCount++;
         }
-        const lc = c.last_customer_message_at ? new Date(c.last_customer_message_at).getTime() : 0;
-        const la = c.last_agent_message_at ? new Date(c.last_agent_message_at).getTime() : 0;
-        if (lc && lc > la) semResposta++;
+        // Sem coluna de "última mensagem do agente": usamos o flag da última mensagem.
+        if (c.last_customer_message_at && !c.last_message_from_me) semResposta++;
       }
 
       return [
