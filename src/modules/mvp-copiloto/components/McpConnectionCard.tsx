@@ -31,7 +31,7 @@ export function McpConnectionCard() {
   const queryClient = useQueryClient();
   const [password, setPassword] = useState('');
   const [revoking, setRevoking] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState(false);
+  
 
 
   const { data: tokens } = useQuery<TokenRow[]>({
