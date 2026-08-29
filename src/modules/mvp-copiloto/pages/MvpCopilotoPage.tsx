@@ -75,6 +75,8 @@ export default function MvpCopilotoPage() {
         <McpSimulatorCard contactId={lead?.contactId ?? null} />
       </div>
 
+      <ToolCatalogCard />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <LeadPicker term={term} onTermChange={setTerm} selected={lead} onSelect={setLead} />
         <Card>
