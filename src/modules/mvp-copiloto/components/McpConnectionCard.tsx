@@ -103,7 +103,7 @@ export function McpConnectionCard() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Endereço oficial no domínio da Julia — cole essa URL no cliente MCP. Ao conectar, ele descobre
+            Endereço oficial do conector — cole essa URL no cliente MCP. Ao conectar, ele descobre
             sozinho o OAuth, você faz login na Julia e aprova o acesso de leitura (escopos{' '}
             <code>leads:read</code> e <code>julia:read</code>). Não é preciso chave nem header manual.
           </p>

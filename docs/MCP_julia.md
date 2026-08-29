@@ -10,7 +10,7 @@ Rota de gestão no painel: `/mvp-copiloto`.
 
 | Função | URL | Papel |
 | --- | --- | --- |
-| `copiloto-mcp` | público: `https://mcp.atendejulia.com.br` (proxy) | Resource Server MCP (JSON-RPC / Streamable HTTP) |
+| `copiloto-mcp` | URL pública: `${SUPABASE_URL}/functions/v1/copiloto-mcp` | Resource Server MCP (JSON-RPC / Streamable HTTP) |
 | `copiloto-oauth` | discovery/authorize em `https://acesso.atendejulia.com.br`; token/register/revoke na function | Authorization Server (OAuth 2.1 + PKCE S256 + DCR) |
 
 
@@ -174,28 +174,17 @@ Peças envolvidas:
 
 Não existe chave de acesso estática: a conexão é sempre por OAuth
 (descoberta → registro dinâmico → login/consentimento → token, renovável e revogável).
-A URL pública a colar no cliente MCP é:
+A URL pública a colar no cliente MCP é a própria edge function:
 
 ```text
-https://mcp.atendejulia.com.br
+https://<projeto>.supabase.co/functions/v1/copiloto-mcp
 ```
 
-O host do backend nunca é exposto: esse endereço é um **proxy** que repassa as chamadas
-para a edge function. O script pronto está em `infra/cloudflare/mcp-proxy-worker.js`
-(Cloudflare Worker), com os passos de publicação no próprio arquivo:
+O mesmo endereço atende o discovery `/.well-known/oauth-protected-resource` e as
+chamadas JSON-RPC. A página `/mvp-copiloto` exibe a URL pronta com botão de copiar.
 
-1. criar o Worker e colar o script;
-2. definir a variável/secret `MCP_ORIGIN` com a URL completa da function MCP;
-3. adicionar o domínio customizado `mcp.atendejulia.com.br` ao Worker (CNAME `mcp` proxied);
-4. validar: `POST https://mcp.atendejulia.com.br` sem Bearer → 401, e
-   `GET https://mcp.atendejulia.com.br/.well-known/oauth-protected-resource` → documento.
-
-Se preferir Nginx no próprio servidor, o equivalente é um `proxy_pass` para a URL da
-function, preservando método, `Authorization` e corpo (sem buffering, para SSE).
-
-Alterando o endereço: `MCP_URL` em `src/modules/mvp-copiloto/lib/copilotoApi.ts`,
-`COPILOTO_MCP_PUBLIC_URL` na function `copiloto-mcp` e o campo `resource` em
-`public/.well-known/oauth-protected-resource{,.json}`.
+Alterando o endereço: `MCP_URL` em `src/modules/mvp-copiloto/lib/copilotoApi.ts` e o
+cálculo de `MCP_PUBLIC_URL` na function `copiloto-mcp`.
 
 O escritório é resolvido no servidor no consentimento e gravado no token; o escopo é
 somente leitura e a conexão pode ser revogada em `/mvp-copiloto`.

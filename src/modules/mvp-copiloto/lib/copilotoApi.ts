@@ -8,12 +8,9 @@ const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 export const OAUTH_BASE = `${FUNCTIONS_BASE}/copiloto-oauth`;
 const MCP_INTERNAL_URL = `${FUNCTIONS_BASE}/copiloto-mcp`;
 
-/**
- * URL pública do conector MCP, sempre no domínio da Julia.
- * Um proxy (Cloudflare Worker / Nginx) em mcp.atendejulia.com.br repassa as
- * chamadas ao backend — ver docs/MCP_julia.md.
- */
-export const MCP_URL = 'https://mcp.atendejulia.com.br';
+/** URL pública do conector MCP. */
+export const MCP_URL = MCP_INTERNAL_URL;
+
 
 
 export interface ConsentRequestInfo {
