@@ -44,10 +44,43 @@ export default function MvpCopilotoPage() {
           Copiloto Pro
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Conecte o ChatGPT ou o Claude ao conector MCP da Julia, ou gere a análise aqui mesmo pelo gateway
-          oficial. Nada é gravado no sistema nesta etapa.
+          Análise jurídica de atendimentos com sua conta Pro — pelo caminho oficial das plataformas.
         </p>
       </div>
+
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <HelpCircle className="h-4 w-4 text-primary" />
+            O que preciso fazer? — 2 caminhos
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-2 text-sm">
+          <div className="space-y-2">
+            <p className="font-semibold">Caminho 1 — Analisar aqui mesmo (mais rápido)</p>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>Em <strong>Lead</strong> (abaixo), busque e selecione o lead pelo nome ou telefone.</li>
+              <li>Confira a prévia do histórico que será enviado à IA.</li>
+              <li>Na primeira análise, informe sua <strong>senha da Julia</strong> (autoriza por 15 min).</li>
+              <li>Clique em <strong>Analisar atendimento</strong> e acompanhe o resumo jurídico ao lado.</li>
+            </ol>
+          </div>
+          <div className="space-y-2">
+            <p className="font-semibold">Caminho 2 — Usar dentro do ChatGPT/Claude (sua conta Pro)</p>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>Copie a <strong>URL do conector</strong> no cartão "Conector oficial (MCP)".</li>
+              <li>No ChatGPT: <em>Settings → Connectors → Developer mode → Add</em> (ou Claude: <em>Settings → Connectors → Add custom</em>).</li>
+              <li>Cole a URL e conecte — você fará <strong>login na Julia</strong> e aprovará o acesso de leitura.</li>
+              <li>Pronto: peça no chat, ex.: <em>"analise o atendimento do lead 55119... com a Julia"</em>.</li>
+              <li>Para desconectar depois, revogue a conexão no cartão do conector (exige sua senha).</li>
+            </ol>
+          </div>
+          <p className="text-xs text-muted-foreground md:col-span-2">
+            🔒 Seguro e permitido: nenhum cookie/sessão de terceiros é usado; a autorização é OAuth com PKCE,
+            por escritório, e pode ser revogada a qualquer momento. Nada é gravado no sistema nesta etapa.
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <McpConnectionCard />
