@@ -3228,6 +3228,144 @@ export type Database = {
           },
         ]
       }
+      cop_oauth_clients: {
+        Row: {
+          client_id: string
+          client_name: string
+          client_secret: string | null
+          created_at: string
+          id: string
+          redirect_uris: string[]
+        }
+        Insert: {
+          client_id: string
+          client_name?: string
+          client_secret?: string | null
+          created_at?: string
+          id?: string
+          redirect_uris?: string[]
+        }
+        Update: {
+          client_id?: string
+          client_name?: string
+          client_secret?: string | null
+          created_at?: string
+          id?: string
+          redirect_uris?: string[]
+        }
+        Relationships: []
+      }
+      cop_oauth_codes: {
+        Row: {
+          approved_at: string | null
+          client_id: string
+          code: string | null
+          code_challenge: string | null
+          code_challenge_method: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          julia_client_id: string | null
+          julia_user_email: string | null
+          julia_user_id: string | null
+          redirect_uri: string
+          request_id: string
+          resource: string | null
+          scope: string
+          state: string | null
+          used_at: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          client_id: string
+          code?: string | null
+          code_challenge?: string | null
+          code_challenge_method?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          julia_client_id?: string | null
+          julia_user_email?: string | null
+          julia_user_id?: string | null
+          redirect_uri: string
+          request_id: string
+          resource?: string | null
+          scope?: string
+          state?: string | null
+          used_at?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          client_id?: string
+          code?: string | null
+          code_challenge?: string | null
+          code_challenge_method?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          julia_client_id?: string | null
+          julia_user_email?: string | null
+          julia_user_id?: string | null
+          redirect_uri?: string
+          request_id?: string
+          resource?: string | null
+          scope?: string
+          state?: string | null
+          used_at?: string | null
+        }
+        Relationships: []
+      }
+      cop_oauth_tokens: {
+        Row: {
+          access_token: string
+          client_id: string
+          client_name: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          julia_client_id: string
+          julia_user_email: string | null
+          julia_user_id: string
+          kind: string
+          last_used_at: string | null
+          refresh_token: string | null
+          revoked_at: string | null
+          scope: string
+        }
+        Insert: {
+          access_token: string
+          client_id: string
+          client_name?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          julia_client_id: string
+          julia_user_email?: string | null
+          julia_user_id: string
+          kind?: string
+          last_used_at?: string | null
+          refresh_token?: string | null
+          revoked_at?: string | null
+          scope?: string
+        }
+        Update: {
+          access_token?: string
+          client_id?: string
+          client_name?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          julia_client_id?: string
+          julia_user_email?: string | null
+          julia_user_id?: string
+          kind?: string
+          last_used_at?: string | null
+          refresh_token?: string | null
+          revoked_at?: string | null
+          scope?: string
+        }
+        Relationships: []
+      }
       crm_audit_log: {
         Row: {
           action: string
