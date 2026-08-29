@@ -86,7 +86,7 @@ export function BridgeStatusCard({ state, version, session, onRecheck }: Props) 
             <p>1. Clique em <strong>Baixar extensão (.zip)</strong> acima e descompacte o arquivo.</p>
             <p>2. No Chrome ou Edge, abra <code>chrome://extensions</code> e ative o Modo do desenvolvedor.</p>
             <p>3. Clique em "Carregar sem compactação" e selecione a pasta descompactada.</p>
-            <p>4. Faça login em <code>chatgpt.com</code> e recarregue esta página.</p>
+            <p>4. Faça login em <code>chatgpt.com</code>, deixe uma aba dele aberta e recarregue esta página.</p>
           </div>
         )}
 
