@@ -44,6 +44,7 @@ const OfficeDashboardPage = lazy(() => import("./modules/escritorios/pages/Offic
 const DisparosPage = lazy(() => import("./modules/disparos/pages/DisparosPage"));
 const MvpCopilotoPage = lazy(() => import("./modules/mvp-copiloto/pages/MvpCopilotoPage"));
 const CopilotoConsentPage = lazy(() => import("./pages/CopilotoConsentPage"));
+const CopilotoAuthorizeRedirect = lazy(() => import("./pages/CopilotoAuthorizeRedirect"));
 
 
 const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
