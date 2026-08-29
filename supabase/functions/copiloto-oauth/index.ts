@@ -88,11 +88,13 @@ Deno.serve(async (req) => {
 
   try {
     // ---------- Discovery ----------
+    // O issuer é a RAIZ do domínio da Julia: clientes MCP montam /authorize
+    // relativo ao issuer, e a rota /authorize do app repassa para cá.
     if (path.endsWith("/.well-known/oauth-authorization-server")) {
       const b = baseUrl(req);
       return json({
-        issuer: b,
-        authorization_endpoint: `${b}/authorize`,
+        issuer: APP_URL,
+        authorization_endpoint: `${APP_URL}/authorize`,
         token_endpoint: `${b}/token`,
         registration_endpoint: `${b}/register`,
         revocation_endpoint: `${b}/revoke`,
@@ -105,14 +107,14 @@ Deno.serve(async (req) => {
     }
 
     if (path.endsWith("/.well-known/oauth-protected-resource")) {
-      const b = baseUrl(req);
       return json({
         resource: `${publicOrigin(req)}/functions/v1/copiloto-mcp`,
-        authorization_servers: [b],
+        authorization_servers: [APP_URL],
         scopes_supported: ["leads:read", "julia:read"],
         bearer_methods_supported: ["header"],
       });
     }
+
 
     // ---------- Dynamic Client Registration ----------
     if (path === "/register" && req.method === "POST") {
