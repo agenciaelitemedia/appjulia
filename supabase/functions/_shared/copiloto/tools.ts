@@ -1,6 +1,6 @@
 /**
  * Núcleo de ferramentas do Copiloto — usado pelo conector MCP (`copiloto-mcp`)
- * e pelo fallback interno (`copiloto-analisar`).
+ * A análise é produzida pelo cliente MCP (OpenClaw/ChatGPT/Claude).
  *
  * Regra inviolável: `client_id` (escritório) NUNCA vem de argumento da tool.
  * Ele chega no contexto, resolvido no servidor a partir do token OAuth.
