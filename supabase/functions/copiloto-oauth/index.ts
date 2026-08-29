@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         token_endpoint: `${b}/token`,
         registration_endpoint: `${b}/register`,
         revocation_endpoint: `${b}/revoke`,
-        scopes_supported: ["leads:read"],
+        scopes_supported: ["leads:read", "julia:read"],
         response_types_supported: ["code"],
         grant_types_supported: ["authorization_code", "refresh_token"],
         code_challenge_methods_supported: ["S256"],
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       return json({
         resource: `${publicOrigin(req)}/functions/v1/copiloto-mcp`,
         authorization_servers: [b],
-        scopes_supported: ["leads:read"],
+        scopes_supported: ["leads:read", "julia:read"],
         bearer_methods_supported: ["header"],
       });
     }
