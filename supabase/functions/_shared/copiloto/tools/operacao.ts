@@ -308,9 +308,8 @@ export const operacaoTools: CopilotoTool[] = [
           frtSum += (new Date(c.first_response_at).getTime() - new Date(c.opened_at).getTime()) / 60000;
           frtCount++;
         }
-        const lc = c.last_customer_message_at ? new Date(c.last_customer_message_at).getTime() : 0;
-        const la = c.last_agent_message_at ? new Date(c.last_agent_message_at).getTime() : 0;
-        if (lc && lc > la) semResposta++;
+        // Sem coluna de "última mensagem do agente": usamos o flag da última mensagem.
+        if (c.last_customer_message_at && !c.last_message_from_me) semResposta++;
       }
 
       return [
