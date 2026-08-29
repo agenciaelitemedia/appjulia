@@ -124,7 +124,6 @@ async function ask({ prompt }, onDelta) {
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      world: 'MAIN',
       func: driveChatGpt,
       args: [prompt],
     });
