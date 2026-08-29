@@ -1,0 +1,6 @@
+{
+  "resource": "https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/copiloto-mcp",
+  "authorization_servers": ["https://acesso.atendejulia.com.br"],
+  "scopes_supported": ["leads:read", "julia:read"],
+  "bearer_methods_supported": ["header"]
+}
