@@ -1,7 +1,12 @@
 /**
  * Service worker da extensão "Julia AI Companion" (MVP).
- * Único componente que enxerga o accessToken da sessão web do ChatGPT.
- * Ele nunca devolve o token para a página — só status e o texto da resposta.
+ *
+ * v0.2.0 — mudança de estratégia:
+ * O endpoint interno /backend-api/conversation exige tokens anti-bot (sentinel /
+ * proof-of-work) gerados pela própria página; chamá-lo por fetch resulta em
+ * 403 "Unusual activity has been detected from your device".
+ * Agora a extensão automatiza a própria interface do chatgpt.com em uma aba:
+ * digita o prompt, envia e lê a resposta do DOM enquanto ela é gerada.
  */
 const ORIGIN = 'https://chatgpt.com';
 
@@ -10,94 +15,124 @@ async function getSession() {
     const res = await fetch(`${ORIGIN}/api/auth/session`, { credentials: 'include' });
     if (!res.ok) return { loggedIn: false, email: null, plan: null, hasAccessToken: false };
     const data = await res.json();
-    const token = data?.accessToken || null;
     return {
       loggedIn: !!data?.user,
       email: data?.user?.email ?? null,
       plan: data?.user?.planType ?? data?.accountPlan ?? null,
-      hasAccessToken: !!token,
+      hasAccessToken: !!data?.accessToken,
     };
-  } catch (e) {
+  } catch {
     return { loggedIn: false, email: null, plan: null, hasAccessToken: false };
   }
 }
 
-async function getAccessToken() {
-  const res = await fetch(`${ORIGIN}/api/auth/session`, { credentials: 'include' });
-  if (!res.ok) throw new Error('Não foi possível ler a sessão do ChatGPT. Faça login em chatgpt.com.');
-  const data = await res.json();
-  if (!data?.accessToken) throw new Error('Sessão do ChatGPT sem token. Faça login novamente em chatgpt.com.');
-  return data.accessToken;
-}
-
-function uuid() {
-  return crypto.randomUUID();
-}
-
-/** Envia o prompt ao endpoint de conversa do ChatGPT web e faz streaming SSE. */
-async function ask({ prompt, model }, onDelta) {
-  const token = await getAccessToken();
-
-  const res = await fetch(`${ORIGIN}/backend-api/conversation`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      Accept: 'text/event-stream',
-    },
-    body: JSON.stringify({
-      action: 'next',
-      model: model || 'gpt-4o',
-      messages: [
-        {
-          id: uuid(),
-          author: { role: 'user' },
-          content: { content_type: 'text', parts: [prompt] },
-        },
-      ],
-      parent_message_id: uuid(),
-      history_and_training_disabled: false,
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`ChatGPT respondeu ${res.status}. ${body.slice(0, 200)}`);
+/** Encontra (ou abre) uma aba do ChatGPT pronta para uso. */
+async function ensureChatTab() {
+  const tabs = await chrome.tabs.query({ url: [`${ORIGIN}/*`, 'https://chat.openai.com/*'] });
+  let tab = tabs.find((t) => t.status === 'complete') || tabs[0];
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: `${ORIGIN}/`, active: false });
   }
+  // aguarda carregamento
+  for (let i = 0; i < 60; i += 1) {
+    const current = await chrome.tabs.get(tab.id);
+    if (current.status === 'complete') return current;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error('A aba do ChatGPT não terminou de carregar. Abra chatgpt.com e tente novamente.');
+}
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let text = '';
+/** Roda dentro da página do chatgpt.com: digita, envia e observa a resposta. */
+function driveChatGpt(prompt) {
+  return new Promise((resolve, reject) => {
+    const findComposer = () =>
+      document.querySelector('div#prompt-textarea[contenteditable="true"]') ||
+      document.querySelector('div.ProseMirror[contenteditable="true"]') ||
+      document.querySelector('textarea#prompt-textarea') ||
+      document.querySelector('textarea[data-testid="prompt-textarea"]');
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const parts = buffer.split('\n');
-    buffer = parts.pop() || '';
-
-    for (const line of parts) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith('data:')) continue;
-      const data = trimmed.slice(5).trim();
-      if (!data || data === '[DONE]') continue;
-      try {
-        const json = JSON.parse(data);
-        const parts2 = json?.message?.content?.parts;
-        if (Array.isArray(parts2) && typeof parts2[0] === 'string' && parts2[0].length >= text.length) {
-          text = parts2[0];
-          onDelta(text);
-        }
-      } catch {
-        // linhas de keep-alive / metadados ignoradas
-      }
+    const composer = findComposer();
+    if (!composer) {
+      reject(new Error('Campo de mensagem do ChatGPT não encontrado. Abra uma conversa em chatgpt.com.'));
+      return;
     }
-  }
 
-  return text;
+    composer.focus();
+    if (composer.tagName === 'TEXTAREA') {
+      composer.value = prompt;
+      composer.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      document.execCommand('selectAll', false, null);
+      document.execCommand('insertText', false, prompt);
+    }
+
+    const before = document.querySelectorAll('[data-message-author-role="assistant"]').length;
+
+    setTimeout(() => {
+      const sendBtn =
+        document.querySelector('button[data-testid="send-button"]') ||
+        document.querySelector('button#composer-submit-button');
+      if (sendBtn && !sendBtn.disabled) {
+        sendBtn.click();
+      } else {
+        composer.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true }),
+        );
+      }
+
+      let last = '';
+      let stableSince = 0;
+      const started = Date.now();
+
+      const timer = setInterval(() => {
+        const nodes = document.querySelectorAll('[data-message-author-role="assistant"]');
+        const node = nodes.length > before ? nodes[nodes.length - 1] : null;
+        const text = node ? (node.innerText || '').trim() : '';
+
+        if (text && text !== last) {
+          last = text;
+          stableSince = Date.now();
+          chrome.runtime.sendMessage({ type: 'JULIA_DELTA', text });
+        }
+
+        const generating =
+          !!document.querySelector('button[data-testid="stop-button"]') ||
+          !!document.querySelector('[data-testid="stop-button"]');
+
+        if (last && !generating && stableSince && Date.now() - stableSince > 1500) {
+          clearInterval(timer);
+          resolve(last);
+        }
+        if (Date.now() - started > 180000) {
+          clearInterval(timer);
+          if (last) resolve(last);
+          else reject(new Error('Tempo esgotado esperando a resposta do ChatGPT.'));
+        }
+      }, 600);
+    }, 350);
+  });
+}
+
+async function ask({ prompt }, onDelta) {
+  const tab = await ensureChatTab();
+
+  const relay = (msg, sender) => {
+    if (msg?.type === 'JULIA_DELTA' && sender?.tab?.id === tab.id) onDelta(msg.text);
+  };
+  chrome.runtime.onMessage.addListener(relay);
+
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: driveChatGpt,
+      args: [prompt],
+    });
+    const text = result?.result;
+    if (!text) throw new Error('O ChatGPT não retornou texto. Confira a aba do ChatGPT.');
+    return text;
+  } finally {
+    chrome.runtime.onMessage.removeListener(relay);
+  }
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

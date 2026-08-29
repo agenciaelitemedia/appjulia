@@ -46,3 +46,14 @@ A fonte de verdade do protocolo está em `../lib/bridgeProtocol.ts`.
   Cloudflare pode exigir novo login/captcha.
 - Sem persistência da análise no banco.
 - Verifique os termos de uso da OpenAI antes de qualquer uso em produção.
+
+## v0.2.0 — por que mudou
+
+O endpoint interno `/backend-api/conversation` exige tokens anti-bot gerados pela
+própria página do ChatGPT. Chamá-lo diretamente devolve
+`403 Unusual activity has been detected from your device`.
+
+Nesta versão a extensão passa a **automatizar a interface do chatgpt.com**:
+mantenha uma aba do ChatGPT aberta e logada no mesmo navegador; a extensão digita
+o prompt nessa aba, envia e lê a resposta do DOM em streaming.
+Permissões novas: `tabs` e `scripting`.
