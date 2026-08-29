@@ -6,7 +6,6 @@ const FUNCTIONS_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
 
 export const OAUTH_BASE = `${FUNCTIONS_BASE}/copiloto-oauth`;
 export const MCP_URL = `${FUNCTIONS_BASE}/copiloto-mcp`;
-export const ANALYZE_URL = `${FUNCTIONS_BASE}/copiloto-analisar`;
 
 export interface ConsentRequestInfo {
   request_id: string;
@@ -44,19 +43,19 @@ export async function denyConsent(requestId: string): Promise<string> {
   return data.redirect_url as string;
 }
 
-/** Token curto (15 min) usado apenas pelo simulador dentro da Julia. */
-export async function requestSimulatorToken(email: string, password: string): Promise<string> {
-  const res = await fetch(`${OAUTH_BASE}/simulate-token`, {
+/** Token curto (15 min) usado apenas para testar as ferramentas dentro da Julia. */
+export async function requestTestToken(email: string, password: string): Promise<string> {
+  const res = await fetch(`${OAUTH_BASE}/test-token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error === 'invalid_credentials' ? 'Senha inválida.' : 'Falha ao gerar token do simulador.');
+  if (!res.ok) throw new Error(data?.error === 'invalid_credentials' ? 'Senha inválida.' : 'Falha ao gerar token de teste.');
   return data.access_token as string;
 }
 
-/** Chamada JSON-RPC direta ao MCP, para o simulador. */
+/** Chamada JSON-RPC direta ao MCP, para o testador de ferramentas. */
 export async function mcpCall(token: string, method: string, params?: unknown) {
   const res = await fetch(MCP_URL, {
     method: 'POST',
