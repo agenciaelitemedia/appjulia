@@ -83,17 +83,21 @@ Deno.serve(async (req) => {
   const origin = `https://${req.headers.get("x-forwarded-host") || url.host}`;
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
+  // Issuer publicado é a raiz do domínio da Julia (clientes MCP resolvem
+  // /authorize relativo ao issuer; o app repassa para o conector).
+  const APP_URL = Deno.env.get("COPILOTO_APP_URL") || "https://acesso.atendejulia.com.br";
+
   if (url.pathname.endsWith("/.well-known/oauth-protected-resource")) {
     return json({
       resource: `${origin}/functions/v1/copiloto-mcp`,
-      authorization_servers: [`${origin}/functions/v1/copiloto-oauth`],
+      authorization_servers: [APP_URL],
       scopes_supported: ["leads:read", "julia:read"],
       bearer_methods_supported: ["header"],
     });
   }
 
   const wwwAuth = {
-    "WWW-Authenticate": `Bearer resource_metadata="${origin}/functions/v1/copiloto-oauth/.well-known/oauth-protected-resource"`,
+    "WWW-Authenticate": `Bearer resource_metadata="${APP_URL}/.well-known/oauth-protected-resource"`,
   };
 
   const auth = req.headers.get("authorization") || "";
