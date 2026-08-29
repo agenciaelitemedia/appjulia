@@ -33,19 +33,20 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   const url = new URL(req.url);
+  const origin = `https://${req.headers.get("x-forwarded-host") || url.host}`;
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
   if (url.pathname.endsWith("/.well-known/oauth-protected-resource")) {
     return json({
-      resource: `${url.origin}/functions/v1/copiloto-mcp`,
-      authorization_servers: [`${url.origin}/functions/v1/copiloto-oauth`],
+      resource: `${origin}/functions/v1/copiloto-mcp`,
+      authorization_servers: [`${origin}/functions/v1/copiloto-oauth`],
       scopes_supported: ["leads:read"],
       bearer_methods_supported: ["header"],
     });
   }
 
   const wwwAuth = {
-    "WWW-Authenticate": `Bearer resource_metadata="${url.origin}/functions/v1/copiloto-oauth/.well-known/oauth-protected-resource"`,
+    "WWW-Authenticate": `Bearer resource_metadata="${origin}/functions/v1/copiloto-oauth/.well-known/oauth-protected-resource"`,
   };
 
   const auth = req.headers.get("authorization") || "";

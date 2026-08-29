@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     if (path.endsWith("/.well-known/oauth-protected-resource")) {
       const b = baseUrl(req);
       return json({
-        resource: `${url.origin}/functions/v1/copiloto-mcp`,
+        resource: `${publicOrigin(req)}/functions/v1/copiloto-mcp`,
         authorization_servers: [b],
         scopes_supported: ["leads:read"],
         bearer_methods_supported: ["header"],
