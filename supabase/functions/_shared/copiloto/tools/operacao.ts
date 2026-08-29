@@ -285,7 +285,7 @@ export const operacaoTools: CopilotoTool[] = [
       const since = new Date(Date.now() - dias * 86400000).toISOString();
       const { data, error } = await ctx.supabase
         .from("chat_conversations")
-        .select("status, assigned_to, opened_at, first_response_at, last_customer_message_at, last_agent_message_at")
+        .select("status, assigned_to, opened_at, first_response_at, last_customer_message_at, last_message_from_me")
         .eq("client_id", ctx.clientId)
         .gte("opened_at", since)
         .limit(2000);
