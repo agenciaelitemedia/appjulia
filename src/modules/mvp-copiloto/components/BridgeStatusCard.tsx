@@ -1,9 +1,29 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, PlugZap, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { Download, Loader2, PlugZap, RefreshCw, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { toast } from 'sonner';
 import type { BridgeState } from '../hooks/useCopilotBridge';
 import type { BridgeSessionInfo } from '../lib/bridgeProtocol';
+
+const EXTENSION_ZIP = '/julia-companion-extension.zip';
+
+/** Download via fetch+blob: link direto falha no preview autenticado. */
+async function downloadExtension() {
+  try {
+    const res = await fetch(EXTENSION_ZIP);
+    if (!res.ok) throw new Error(`Falha ao baixar (${res.status})`);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'julia-companion-extension.zip';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e: any) {
+    toast.error(e?.message || 'Não foi possível baixar a extensão.');
+  }
+}
+
 
 interface Props {
   state: BridgeState;
