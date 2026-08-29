@@ -57,8 +57,12 @@ export function BridgeStatusCard({ state, version, session, onRecheck }: Props) 
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {version && <Badge variant="secondary">extensão v{version}</Badge>}
+            <Button size="sm" variant="outline" onClick={downloadExtension} className="gap-1.5">
+              <Download className="h-3.5 w-3.5" />
+              Baixar extensão (.zip)
+            </Button>
             <Button size="sm" variant="outline" onClick={onRecheck} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" />
               Verificar
@@ -79,12 +83,13 @@ export function BridgeStatusCard({ state, version, session, onRecheck }: Props) 
         {state === 'missing' && (
           <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground space-y-1">
             <p className="font-medium text-foreground">Como instalar a extensão (MVP)</p>
-            <p>1. Baixe/copie a pasta <code>src/modules/mvp-copiloto/extension</code> do projeto.</p>
+            <p>1. Clique em <strong>Baixar extensão (.zip)</strong> acima e descompacte o arquivo.</p>
             <p>2. No Chrome ou Edge, abra <code>chrome://extensions</code> e ative o Modo do desenvolvedor.</p>
-            <p>3. Clique em "Carregar sem compactação" e selecione essa pasta.</p>
+            <p>3. Clique em "Carregar sem compactação" e selecione a pasta descompactada.</p>
             <p>4. Faça login em <code>chatgpt.com</code> e recarregue esta página.</p>
           </div>
         )}
+
       </CardContent>
     </Card>
   );
