@@ -127,3 +127,12 @@ verify_jwt = false
 
 [functions.x-julia-tick]
 verify_jwt = false
+
+[functions.copiloto-oauth]
+verify_jwt = false
+
+[functions.copiloto-mcp]
+verify_jwt = false
+
+[functions.copiloto-analisar]
+verify_jwt = false

@@ -1,30 +1,38 @@
 import { useMemo, useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { BridgeStatusCard } from '../components/BridgeStatusCard';
+import { McpConnectionCard } from '../components/McpConnectionCard';
+import { McpSimulatorCard } from '../components/McpSimulatorCard';
 import { LeadPicker } from '../components/LeadPicker';
 import { ContextPreview } from '../components/ContextPreview';
 import { AnalysisResult } from '../components/AnalysisResult';
-import { useCopilotBridge } from '../hooks/useCopilotBridge';
 import { useMvpLeadContext } from '../hooks/useMvpLeadContext';
-import { buildAnalysisPrompt } from '../lib/prompts';
+import { useCopilotoAnalysis } from '../hooks/useCopilotoAnalysis';
+import { useAuth } from '../extend/auth';
 import type { MvpLeadOption } from '../hooks/useMvpLeadSearch';
+import { Input } from '@/components/ui/input';
 
 /**
- * MVP Copiloto Pro — valida a ponte com a conta ChatGPT Pro via extensão
- * de navegador: escolher lead, compilar histórico, analisar o atendimento.
+ * Copiloto Pro — caminho permitido pelas plataformas: conector MCP com OAuth
+ * (ChatGPT/Claude) + análise interna pelo gateway oficial da Julia.
  */
 export default function MvpCopilotoPage() {
+  const { user } = useAuth();
   const [term, setTerm] = useState('');
   const [lead, setLead] = useState<MvpLeadOption | null>(null);
+  const [password, setPassword] = useState('');
 
-  const bridge = useCopilotBridge();
   const { data: context, isLoading } = useMvpLeadContext(lead);
+  const analysis = useCopilotoAnalysis();
 
   const leadLabel = useMemo(() => lead?.name || lead?.phone || null, [lead]);
 
-  const analyze = () => {
-    if (!context?.text) return;
-    bridge.ask(buildAnalysisPrompt(context.text));
+  const analyze = async () => {
+    if (!lead?.contactId) return;
+    try {
+      await analysis.analyze(lead.contactId, String(user?.email || ''), password || undefined);
+    } catch {
+      /* precisa de senha — o campo já está visível */
+    }
   };
 
   return (
@@ -32,20 +40,18 @@ export default function MvpCopilotoPage() {
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Sparkles className="h-6 w-6 text-primary" />
-          MVP Copiloto Pro
+          Copiloto Pro
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Prova de conceito: análise do atendimento usando a sua assinatura ChatGPT Pro, via extensão do navegador.
-          Nada é gravado no sistema nesta etapa.
+          Conecte o ChatGPT ou o Claude ao conector MCP da Julia, ou gere a análise aqui mesmo pelo gateway
+          oficial. Nada é gravado no sistema nesta etapa.
         </p>
       </div>
 
-      <BridgeStatusCard
-        state={bridge.state}
-        version={bridge.version}
-        session={bridge.session}
-        onRecheck={bridge.check}
-      />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <McpConnectionCard />
+        <McpSimulatorCard contactId={lead?.contactId ?? null} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <LeadPicker
@@ -54,21 +60,31 @@ export default function MvpCopilotoPage() {
           selected={lead}
           onSelect={(l) => {
             setLead(l);
-            bridge.reset();
+            analysis.reset();
           }}
         />
-        <ContextPreview
-          lead={lead}
-          context={context}
-          isLoading={isLoading}
-          canAnalyze={bridge.state === 'connected'}
-          streaming={bridge.streaming}
-          onAnalyze={analyze}
-        />
+        <div className="space-y-3">
+          <ContextPreview
+            lead={lead}
+            context={context}
+            isLoading={isLoading}
+            canAnalyze={!!lead?.contactId}
+            streaming={analysis.streaming}
+            onAnalyze={analyze}
+          />
+          {!analysis.hasToken() && (
+            <Input
+              type="password"
+              placeholder="Sua senha Julia (autoriza a análise por 15 min)"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          )}
+        </div>
         <AnalysisResult
-          answer={bridge.answer}
-          streaming={bridge.streaming}
-          error={bridge.error}
+          answer={analysis.answer}
+          streaming={analysis.streaming}
+          error={analysis.error}
           leadLabel={leadLabel}
         />
       </div>

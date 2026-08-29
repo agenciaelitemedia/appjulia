@@ -43,6 +43,8 @@ const OfficeDetailsPage = lazy(() => import("./modules/escritorios/pages/OfficeD
 const OfficeDashboardPage = lazy(() => import("./modules/escritorios/pages/OfficeDashboardPage"));
 const DisparosPage = lazy(() => import("./modules/disparos/pages/DisparosPage"));
 const MvpCopilotoPage = lazy(() => import("./modules/mvp-copiloto/pages/MvpCopilotoPage"));
+const CopilotoConsentPage = lazy(() => import("./pages/CopilotoConsentPage"));
+
 
 const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
 const CreateAgentPage = lazy(() => import("./pages/agents/CreateAgentPage"));
@@ -189,6 +191,9 @@ const App = () => (
                 <Route path="/comprar" element={<ComprarPage />} />
                 <Route path="/comprar/sucesso" element={<ComprarSucessoPage />} />
                 <Route path="/call/:roomName" element={<JoinCallPage />} />
+                {/* Consentimento OAuth do conector Copiloto (rota pública) */}
+                <Route path="/copiloto/consentimento" element={<CopilotoConsentPage />} />
+
                 <Route path="/tv/master" element={<ProtectedRoute><TvMasterPage /></ProtectedRoute>} />
                 <Route path="/crm-notificacoes" element={<ProtectedRoute module="notifications_alerts"><CrmNotificacoesStandalonePage /></ProtectedRoute>} />
                 <Route element={<MainLayout />}>
