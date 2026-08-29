@@ -42,20 +42,21 @@ Nada disso muda a segurança: o escritório continua sendo resolvido no servidor
 consentimento e gravado no token; as tools ignoram qualquer identificador vindo do cliente;
 escopo somente leitura; revogável.
 
-## Limite conhecido (e como cobrimos)
+## Limite conhecido (e por isso entregamos os dois caminhos juntos)
 
 `/token`, `/register` e `/revoke` são chamadas **POST feitas pelo próprio OpenClaw**, e a
 hospedagem do app é estática — não é possível responder POST numa rota do app. Elas ficam
 nas URLs absolutas do conector, publicadas no documento de descoberta. Se o OpenClaw usar as
-URLs do documento (comportamento normal), o fluxo fecha. Se ele também resolver `/token` à
-raiz, aparecerá erro de JSON inválido no token — e nesse caso a validação abaixo mostra isso
-imediatamente e ativamos o plano B, sem retrabalho:
+URLs do documento (comportamento normal), o OAuth fecha. Se ele também resolver `/token` à
+raiz, o token falha — e para não deixar você travado, o segundo caminho vai implementado na
+mesma entrega:
 
-**Plano B (fallback já previsto):** conexão por **chave de acesso** — cartão em
+**Caminho 2 (entregue junto, garante a conexão):** conexão por **chave de acesso** — cartão em
 `/mvp-copiloto` para gerar um token de longa duração (rótulo, validade, exibido uma única
 vez, com lista e revogação), e o OpenClaw configurado com header
 `Authorization: Bearer <chave>`, sem OAuth. Funciona em qualquer cliente MCP e mantém o
-mesmo isolamento por escritório.
+mesmo isolamento por escritório, somente leitura e revogação imediata.
+
 
 ## Detalhes técnicos
 
