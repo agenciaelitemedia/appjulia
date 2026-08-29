@@ -13,7 +13,7 @@
  *   POST /deny                { request_id }
  *   POST /token               (authorization_code | refresh_token)
  *   POST /revoke              { token } | { token_id, email, password }
- *   POST /simulate-token      { email, password }  → token curto para o simulador
+ *   POST /test-token          { email, password }  → token curto para testar as tools
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -365,7 +365,7 @@ Deno.serve(async (req) => {
     }
 
     // ---------- Token curto para o simulador interno ----------
-    if (path === "/simulate-token" && req.method === "POST") {
+    if (path === "/test-token" && req.method === "POST") {
       const { email, password } = await req.json().catch(() => ({}));
       const identity = await juliaLogin(String(email || ""), String(password || ""));
       if (!identity) return json({ error: "invalid_credentials" }, 401);
@@ -373,13 +373,13 @@ Deno.serve(async (req) => {
       const access = rand(32);
       const { error } = await supabase.from("cop_oauth_tokens").insert({
         access_token: access,
-        client_id: "simulador-julia",
-        client_name: "Simulador Julia",
+        client_id: "teste-julia",
+        client_name: "Teste de ferramentas (Julia)",
         scope: "leads:read",
         julia_user_id: identity.userId,
         julia_client_id: identity.clientId,
         julia_user_email: identity.email,
-        kind: "simulator",
+        kind: "test",
         expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
       });
       if (error) return json({ error: "server_error", error_description: error.message }, 500);
