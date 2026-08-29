@@ -8,10 +8,5 @@ routes = [
 ]
 
 [vars]
-# Substitua pela base real do seu projeto quando for fazer deploy
-# BACKEND_FUNCTIONS_BASE = "https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1"
-# ISSUER = "https://mcp.atendejulia.com.br"
-
-# Variáveis sensíveis devem ser definidas via secrets:
-# wrangler secret put BACKEND_FUNCTIONS_BASE
-# wrangler secret put ISSUER
+BACKEND_FUNCTIONS_BASE = "https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1"
+ISSUER = "https://mcp.atendejulia.com.br"
