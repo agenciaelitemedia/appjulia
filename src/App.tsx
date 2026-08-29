@@ -208,6 +208,8 @@ const App = () => (
                   <Route path="/video/queue" element={<VideoQueuePage />} />
                   {/* Chat oficial — JulIA Chat */}
                   <Route path="/chat" element={<JuliaChatPage />} />
+                  {/* MVP Copiloto Pro — validação da extensão-ponte (sem menu) */}
+                  <Route path="/mvp-copiloto" element={<MvpCopilotoPage />} />
                   {/* Backup temporário do chat antigo (sem item de menu) */}
                   <Route path="/chat-old" element={<ChatPage />} />
                   <Route path="/chat/canais" element={<ChatChannelsPage />} />
