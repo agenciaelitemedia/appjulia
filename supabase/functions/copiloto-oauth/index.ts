@@ -19,7 +19,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+/** Domínio do app: onde vive a tela de consentimento (login do usuário). */
 const APP_URL = Deno.env.get("COPILOTO_APP_URL") || "https://acesso.atendejulia.com.br";
+/** Issuer OAuth = raiz do subdomínio do conector (proxy Cloudflare). */
+const ISSUER = Deno.env.get("COPILOTO_ISSUER") || "https://mcp.atendejulia.com.br";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -88,16 +91,16 @@ Deno.serve(async (req) => {
 
   try {
     // ---------- Discovery ----------
-    // O issuer é a RAIZ do domínio da Julia: clientes MCP montam /authorize
-    // relativo ao issuer, e a rota /authorize do app repassa para cá.
+    // O issuer é a RAIZ do subdomínio do conector (proxy), onde /authorize,
+    // /token, /register e /revoke respondem na raiz — é isso que os clientes MCP
+    // esperam. O proxy também serve estes documentos; aqui ficam como espelho.
     if (path.endsWith("/.well-known/oauth-authorization-server")) {
-      const b = baseUrl(req);
       return json({
-        issuer: APP_URL,
-        authorization_endpoint: `${APP_URL}/authorize`,
-        token_endpoint: `${b}/token`,
-        registration_endpoint: `${b}/register`,
-        revocation_endpoint: `${b}/revoke`,
+        issuer: ISSUER,
+        authorization_endpoint: `${ISSUER}/authorize`,
+        token_endpoint: `${ISSUER}/token`,
+        registration_endpoint: `${ISSUER}/register`,
+        revocation_endpoint: `${ISSUER}/revoke`,
         scopes_supported: ["leads:read", "julia:read"],
         response_types_supported: ["code"],
         grant_types_supported: ["authorization_code", "refresh_token"],
@@ -108,8 +111,8 @@ Deno.serve(async (req) => {
 
     if (path.endsWith("/.well-known/oauth-protected-resource")) {
       return json({
-        resource: `${publicOrigin(req)}/functions/v1/copiloto-mcp`,
-        authorization_servers: [APP_URL],
+        resource: ISSUER,
+        authorization_servers: [ISSUER],
         scopes_supported: ["leads:read", "julia:read"],
         bearer_methods_supported: ["header"],
       });
