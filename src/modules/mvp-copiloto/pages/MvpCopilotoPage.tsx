@@ -3,7 +3,6 @@ import { HelpCircle, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { McpConnectionCard } from '../components/McpConnectionCard';
 import { McpSimulatorCard } from '../components/McpSimulatorCard';
-import { AccessKeysCard } from '../components/AccessKeysCard';
 import { LeadPicker } from '../components/LeadPicker';
 import { ToolCatalogCard } from '../components/ToolCatalogCard';
 import type { MvpLeadOption } from '../hooks/useMvpLeadSearch';
@@ -77,7 +76,6 @@ export default function MvpCopilotoPage() {
         <McpSimulatorCard contactId={lead?.contactId ?? null} />
       </div>
 
-      <AccessKeysCard />
 
 
       <ToolCatalogCard />
