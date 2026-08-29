@@ -1,7 +1,7 @@
 /**
- * Simulador local: executa as mesmas tools do conector MCP (buscar_lead,
- * obter_historico, analisar_atendimento) usando um token curto do próprio
- * usuário, para validar o conector antes de conectar o ChatGPT/Claude.
+ * Testador de ferramentas: executa as mesmas tools do conector MCP
+ * (buscar_lead, obter_historico, analisar_atendimento) com um token curto do
+ * próprio usuário, para validar o conector antes de conectar o OpenClaw.
  */
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,9 +11,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, TerminalSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../extend/auth';
-import { mcpCall, requestSimulatorToken } from '../lib/copilotoApi';
+import { mcpCall, requestTestToken } from '../lib/copilotoApi';
 
-const STORAGE_KEY = 'copiloto.sim.token';
+const STORAGE_KEY = 'copiloto.test.token';
 
 export function McpSimulatorCard({ contactId }: { contactId: string | null }) {
   const { user } = useAuth();
@@ -24,8 +24,8 @@ export function McpSimulatorCard({ contactId }: { contactId: string | null }) {
   const token = async () => {
     const cached = sessionStorage.getItem(STORAGE_KEY);
     if (cached) return cached;
-    if (!password) throw new Error('Informe sua senha para gerar o token do simulador.');
-    const fresh = await requestSimulatorToken(String(user?.email || ''), password);
+    if (!password) throw new Error('Informe sua senha para gerar o token de teste.');
+    const fresh = await requestTestToken(String(user?.email || ''), password);
     sessionStorage.setItem(STORAGE_KEY, fresh);
     return fresh;
   };
@@ -55,13 +55,17 @@ export function McpSimulatorCard({ contactId }: { contactId: string | null }) {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <TerminalSquare className="h-4 w-4 text-primary" />
-          Simulador do conector
+          Testar ferramentas
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        <p className="text-xs text-muted-foreground">
+          Confira o que o OpenClaw vai receber. Nada é enviado a terceiros aqui — é só uma chamada ao seu
+          próprio conector, limitada ao seu escritório.
+        </p>
         <Input
           type="password"
-          placeholder="Sua senha Julia (token de 15 min)"
+          placeholder="Sua senha Julia (token de teste de 15 min)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="max-w-xs"
