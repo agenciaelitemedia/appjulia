@@ -5,7 +5,7 @@
  */
 const REQ = 'JULIA_COPILOT_REQ';
 const RES = 'JULIA_COPILOT_RES';
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 function reply(payload) {
   window.postMessage({ source: RES, ...payload }, window.location.origin);
