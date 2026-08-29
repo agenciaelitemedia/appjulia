@@ -42,6 +42,7 @@ const CreateOfficePage = lazy(() => import("./modules/escritorios/pages/CreateOf
 const OfficeDetailsPage = lazy(() => import("./modules/escritorios/pages/OfficeDetailsPage"));
 const OfficeDashboardPage = lazy(() => import("./modules/escritorios/pages/OfficeDashboardPage"));
 const DisparosPage = lazy(() => import("./modules/disparos/pages/DisparosPage"));
+const MvpCopilotoPage = lazy(() => import("./modules/mvp-copiloto/pages/MvpCopilotoPage"));
 
 const AgentsList = lazy(() => import("./pages/agents/AgentsList"));
 const CreateAgentPage = lazy(() => import("./pages/agents/CreateAgentPage"));
