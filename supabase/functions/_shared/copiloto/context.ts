@@ -102,12 +102,23 @@ export function buildLeadContext(lead: CopilotoLead, messages: CopilotoMessage[]
 
   const lines: string[] = [];
   const attachments: string[] = [];
+  const files: { label: string; name: string; url: string | null }[] = [];
 
   for (const m of ordered) {
     const content = body(m);
     if (!content) continue;
     lines.push(`[${fmt(m.timestamp)}] [${author(m)}]: ${content}`);
     if (m.file_name && !attachments.includes(m.file_name)) attachments.push(m.file_name);
+
+    const type = m.type || "text";
+    if (MEDIA_LABELS[type]) {
+      const url = usableLink(m.media_url);
+      files.push({
+        label: MEDIA_LABELS[type],
+        name: m.file_name || `${MEDIA_LABELS[type]} sem nome`,
+        url,
+      });
+    }
   }
 
   const header = [
@@ -122,10 +133,13 @@ export function buildLeadContext(lead: CopilotoLead, messages: CopilotoMessage[]
     .filter(Boolean)
     .join("\n");
 
-  const docs = attachments.length
-    ? `\n\n=== DOCUMENTOS/ARQUIVOS CITADOS NA CONVERSA ===\n${attachments
-        .map((a, i) => `${i + 1}. ${a}`)
-        .join("\n")}\n(Observação: os arquivos não foram enviados — apenas os nomes estão disponíveis nesta análise.)`
+  const docs = files.length
+    ? `\n\n=== ARQUIVOS DA CONVERSA ===\n${files
+        .map(
+          (f, i) =>
+            `${i + 1}. ${f.label} — ${f.name}${f.url ? `\n   ${f.url}` : "\n   (link indisponível)"}`,
+        )
+        .join("\n")}`
     : "";
 
   const text = `${header}\n\n=== HISTÓRICO CRONOLÓGICO DA CONVERSA ===\n${
