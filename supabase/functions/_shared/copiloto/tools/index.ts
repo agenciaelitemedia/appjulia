@@ -230,6 +230,8 @@ export async function dispatchCopilotoTool(ctx: CopilotoContext, name: string, a
     client_id: ctx.clientId ?? null,
     token_id: ctx.tokenId ?? null,
     arg_keys: argKeys,
+    arg_summary: summarizeArgs(args),
+
   };
 
   try {
