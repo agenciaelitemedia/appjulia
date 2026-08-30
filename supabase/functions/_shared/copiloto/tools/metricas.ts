@@ -5,7 +5,7 @@
  */
 import { coverage, dateOut, isoOrNull, ok, safeDbError, tzOf, type ToolOutput } from "../envelope.ts";
 import { agentCodes, legacyRaw } from "../legacy.ts";
-import { MAX_ROWS, num, SCOPE_READ, str, type CopilotoContext, type CopilotoTool } from "../types.ts";
+import { num, SCOPE_READ, str, type CopilotoContext, type CopilotoTool } from "../types.ts";
 
 interface Metric {
   chave: string;
@@ -316,4 +316,3 @@ export const metricaTools: CopilotoTool[] = [
   },
 ];
 
-export const _unusedRows = MAX_ROWS;
