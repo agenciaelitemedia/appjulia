@@ -21,6 +21,7 @@ import { chatTools } from "./chat.ts";
 import { contatoTools } from "./contatos.ts";
 import { contratoTools } from "./contratos.ts";
 import { crmTools } from "./crm.ts";
+import { dossieTools } from "./dossie.ts";
 import { escritaTools } from "./escrita.ts";
 import { leadTools } from "./leads.ts";
 import { metaTools, registerCatalogSource } from "./meta.ts";
@@ -35,6 +36,7 @@ export const TOOL_DOMAINS: { domain: string; label: string; tools: CopilotoTool[
   { domain: "crm", label: "CRM de Leads e CRM Builder", tools: crmTools },
   { domain: "contratos", label: "Contratos ZapSign", tools: contratoTools },
   { domain: "operacao", label: "Filas, equipe, campanhas, telefonia e tickets", tools: operacaoTools },
+  { domain: "dossie", label: "Documentos, contratos (timeline) e presença", tools: dossieTools },
   { domain: "metricas", label: "Métricas de funil, SLA e qualidade", tools: metricaTools },
   { domain: "analise", label: "Análises jurídicas e de atendimento", tools: analiseTools },
   { domain: "escrita", label: "Escrita controlada (dry-run, aprovação e auditoria)", tools: escritaTools },
