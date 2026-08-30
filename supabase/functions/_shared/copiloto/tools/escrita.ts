@@ -81,7 +81,7 @@ async function audit(
       target_id: row.target_id,
       idempotency_key: row.env.key,
       reason: row.env.reason,
-      approved_by: row.env.applied ? row.env.approvedBy : row.env.approvedBy,
+      approved_by: row.env.approvedBy ?? null,
       dry_run: row.env.dryRun,
       applied: row.applied,
       before_data: row.before ?? null,

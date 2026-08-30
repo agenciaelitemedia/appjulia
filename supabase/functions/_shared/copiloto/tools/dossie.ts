@@ -109,7 +109,7 @@ export const dossieTools: CopilotoTool[] = [
           message_id: m.message_id ?? m.id,
           tipo: kindOf(m.type),
           nome_arquivo: m.file_name ?? null,
-          legenda: m.caption ? untrusted(m.caption) : null,
+          legenda: m.caption ? untrusted("mensagem_do_lead", m.caption) : null,
           autor: m.from_me ? m.sender_name || "escritório" : contato.name || "lead",
           direcao: m.from_me ? "saida" : "entrada",
           canal: m.channel_type ?? null,
@@ -146,7 +146,7 @@ export const dossieTools: CopilotoTool[] = [
             complete: !hasMore,
             warnings: items.some((i) => !i.link) ? ["Alguns arquivos exigem materialização no painel para gerar link público."] : [],
           }),
-          nextCursor: hasMore ? btoa(String(page[page.length - 1]?.timestamp ?? "")) : null,
+          next_cursor_unused: hasMore ? btoa(String(page[page.length - 1]?.timestamp ?? "")) : null,
           text: `Documentos e mídias de ${contato.name || contato.phone}:\n${text}`,
         },
       );

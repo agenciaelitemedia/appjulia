@@ -116,7 +116,8 @@ export const leadTools: CopilotoTool[] = [
       }
 
       let out = items.map((r) => {
-        const c = byId.get(r.contact_id);
+        // deno-lint-ignore no-explicit-any
+        const c = byId.get(r.contact_id) as any;
         const digits = String(c?.phone || "").replace(/\D/g, "").slice(-8);
         return {
           contato_id: r.contact_id,
@@ -234,7 +235,8 @@ export const leadTools: CopilotoTool[] = [
       const byId = new Map((contacts || []).map((c: any) => [c.id, c]));
 
       const out = items.map((r) => {
-        const c = byId.get(r.contact_id);
+        // deno-lint-ignore no-explicit-any
+        const c = byId.get(r.contact_id) as any;
         const horasEspera = r.last_customer_message_at
           ? Math.round(((Date.now() - new Date(r.last_customer_message_at).getTime()) / 3600_000) * 10) / 10
           : null;
