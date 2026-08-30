@@ -4,9 +4,106 @@
  */
 import { buildLeadContext, type CopilotoMessage } from "../context.ts";
 import { bullets, clip, fmtDate, MAX_MESSAGES, MAX_ROWS, num, str, type CopilotoContext, type CopilotoTool } from "../types.ts";
+import {
+  coverage,
+  dateOut,
+  dayRangeInTz,
+  invalid,
+  ok,
+  periodRangeInTz,
+  safeDbError,
+  tzOf,
+  zonedInputToUtcIso,
+} from "../envelope.ts";
+import { agentCodes, legacyRaw } from "../legacy.ts";
 
 const MSG_FIELDS =
   "id, text, caption, type, from_me, internal_note, sender_name, file_name, timestamp, metadata, media_url, channel_type, message_id";
+
+/* ----------------------------- origem do lead ------------------------------ */
+
+export interface LeadCampaign {
+  campanha_id: string | null;
+  titulo: string | null;
+  plataforma: string | null;
+  url: string | null;
+  entrou_em: string | null;
+}
+
+const CHANNEL_LABELS: Record<string, string> = {
+  whatsapp_uazapi: "WhatsApp (API não oficial)",
+  whatsapp_waba: "WhatsApp (API Oficial Meta)",
+  instagram: "Instagram Direct",
+  webchat: "WebChat do site",
+};
+
+/** Frase curta de origem, sempre preenchida (nunca devolve lacuna silenciosa). */
+// deno-lint-ignore no-explicit-any
+function describeOrigin(r: any, campanha: LeadCampaign | null): string {
+  const canal = String(r.channel || r.channel_type || "");
+  const parts = [CHANNEL_LABELS[canal] || canal || "canal não identificado"];
+  if (r.channel_source) parts.push(`origem ${r.channel_source}`);
+  if (r.queue_name) parts.push(`fila ${r.queue_name}`);
+  if (r.cod_agent) parts.push(`agente ${r.cod_agent}`);
+  if (campanha) {
+    parts.push(`campanha ${campanha.titulo || campanha.campanha_id}${campanha.plataforma ? ` (${campanha.plataforma})` : ""}`);
+  } else {
+    parts.push("sem campanha de anúncio registrada");
+  }
+  return parts.join(" · ");
+}
+
+/**
+ * Campanha de anúncio (Meta Ads) do lead, no banco legado `campaing_ads`,
+ * casada por telefone normalizado e escopada aos cod_agent do escritório.
+ */
+async function fetchCampaignOrigins(
+  ctx: CopilotoContext,
+  // deno-lint-ignore no-explicit-any
+  rows: any[],
+  warnings: string[],
+): Promise<Map<string, LeadCampaign>> {
+  const map = new Map<string, LeadCampaign>();
+  const phones = [...new Set(rows.map((r) => String(r.phone || "").replace(/\D/g, "")).filter((p) => p.length >= 8))];
+  if (!phones.length) return map;
+
+  try {
+    const codes = await agentCodes(ctx);
+    if (!codes.length) return map;
+    const legacyRows = await legacyRaw<{
+      matched_phone: string;
+      created_at: string;
+      // deno-lint-ignore no-explicit-any
+      campaign_data: any;
+    }>(
+      ctx,
+      `SELECT DISTINCT ON (matched_phone)
+              regexp_replace(COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone',''), s.whatsapp_number::text, ''), '\\D', '', 'g') AS matched_phone,
+              ca.created_at,
+              (ca.campaign_data::jsonb) AS campaign_data
+         FROM campaing_ads ca
+         LEFT JOIN sessions s ON s.id = ca.session_id::bigint
+        WHERE ca.cod_agent::text = ANY($1::varchar[])
+          AND regexp_replace(COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone',''), s.whatsapp_number::text, ''), '\\D', '', 'g') = ANY($2::varchar[])
+        ORDER BY matched_phone, ca.created_at DESC`,
+      [codes, phones],
+    );
+    for (const row of legacyRows) {
+      const d = row.campaign_data || {};
+      map.set(String(row.matched_phone), {
+        campanha_id: d.sourceID ?? null,
+        titulo: d.title ?? null,
+        plataforma: d.sourceApp ?? null,
+        url: d.sourceURL ?? null,
+        entrou_em: row.created_at ?? null,
+      });
+    }
+  } catch {
+    warnings.push("Origem de campanha indisponível nesta consulta (banco legado não respondeu); canal e fila seguem completos.");
+  }
+  return map;
+}
+
 
 /* ------------------------- resolução de links de mídia --------------------- */
 
