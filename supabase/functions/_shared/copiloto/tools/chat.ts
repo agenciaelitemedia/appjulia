@@ -6,7 +6,67 @@ import { buildLeadContext, type CopilotoMessage } from "../context.ts";
 import { bullets, clip, fmtDate, MAX_MESSAGES, MAX_ROWS, num, str, type CopilotoContext, type CopilotoTool } from "../types.ts";
 
 const MSG_FIELDS =
-  "id, text, caption, type, from_me, internal_note, sender_name, file_name, timestamp, metadata";
+  "id, text, caption, type, from_me, internal_note, sender_name, file_name, timestamp, metadata, media_url, channel_type, message_id";
+
+/* ------------------------- resolução de links de mídia --------------------- */
+
+const MEDIA_TYPES = ["image", "video", "audio", "ptt", "sticker", "document"];
+/** Máximo de arquivos materializados por leitura (evita estourar tempo da função). */
+const MEDIA_LINK_CAP = 30;
+
+function hasUsableLink(u: string | null | undefined): boolean {
+  if (!u) return false;
+  if (u.startsWith("waba_media:")) return false;
+  if (u.includes(".enc") || u.includes("mmg.whatsapp.net")) return false;
+  return /^https?:\/\//i.test(u);
+}
+
+/**
+ * Materializa mídias criptografadas no bucket público chat-media (mesmo fluxo
+ * do chat ao abrir a conversa) e devolve mapa message_id -> URL pública.
+ */
+async function resolveMediaLinks(messages: { id: string; type: string | null; media_url?: string | null }[]): Promise<Map<string, string>> {
+  const targets = messages
+    .filter((m) => MEDIA_TYPES.includes(String(m.type || "")) && !hasUsableLink(m.media_url ?? null))
+    .slice(0, MEDIA_LINK_CAP);
+  const out = new Map<string, string>();
+  if (!targets.length) return out;
+
+  const base = Deno.env.get("SUPABASE_URL")!;
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  for (let i = 0; i < targets.length; i += 5) {
+    const chunk = targets.slice(i, i + 5);
+    const results = await Promise.all(
+      chunk.map(async (m) => {
+        try {
+          const res = await fetch(`${base}/functions/v1/chat-media-download`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+            body: JSON.stringify({ messageId: m.id }),
+          });
+          if (!res.ok) return null;
+          const json = await res.json();
+          return typeof json?.url === "string" && json.url ? ([m.id, json.url] as const) : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    for (const r of results) if (r) out.set(r[0], r[1]);
+  }
+  return out;
+}
+
+/** Preenche `media_url` das mensagens com os links recém-materializados. */
+function applyLinks<T extends { id: string; media_url?: string | null }>(messages: T[], links: Map<string, string>): T[] {
+  for (const m of messages) {
+    if (!hasUsableLink(m.media_url ?? null)) {
+      const u = links.get(m.id);
+      if (u) m.media_url = u;
+    }
+  }
+  return messages;
+}
 
 export async function fetchContact(ctx: CopilotoContext, contactId: string) {
   const { data, error } = await ctx.supabase
