@@ -4,9 +4,106 @@
  */
 import { buildLeadContext, type CopilotoMessage } from "../context.ts";
 import { bullets, clip, fmtDate, MAX_MESSAGES, MAX_ROWS, num, str, type CopilotoContext, type CopilotoTool } from "../types.ts";
+import {
+  coverage,
+  dateOut,
+  dayRangeInTz,
+  invalid,
+  ok,
+  periodRangeInTz,
+  safeDbError,
+  tzOf,
+  zonedInputToUtcIso,
+} from "../envelope.ts";
+import { agentCodes, legacyRaw } from "../legacy.ts";
 
 const MSG_FIELDS =
   "id, text, caption, type, from_me, internal_note, sender_name, file_name, timestamp, metadata, media_url, channel_type, message_id";
+
+/* ----------------------------- origem do lead ------------------------------ */
+
+export interface LeadCampaign {
+  campanha_id: string | null;
+  titulo: string | null;
+  plataforma: string | null;
+  url: string | null;
+  entrou_em: string | null;
+}
+
+const CHANNEL_LABELS: Record<string, string> = {
+  whatsapp_uazapi: "WhatsApp (API não oficial)",
+  whatsapp_waba: "WhatsApp (API Oficial Meta)",
+  instagram: "Instagram Direct",
+  webchat: "WebChat do site",
+};
+
+/** Frase curta de origem, sempre preenchida (nunca devolve lacuna silenciosa). */
+// deno-lint-ignore no-explicit-any
+function describeOrigin(r: any, campanha: LeadCampaign | null): string {
+  const canal = String(r.channel || r.channel_type || "");
+  const parts = [CHANNEL_LABELS[canal] || canal || "canal não identificado"];
+  if (r.channel_source) parts.push(`origem ${r.channel_source}`);
+  if (r.queue_name) parts.push(`fila ${r.queue_name}`);
+  if (r.cod_agent) parts.push(`agente ${r.cod_agent}`);
+  if (campanha) {
+    parts.push(`campanha ${campanha.titulo || campanha.campanha_id}${campanha.plataforma ? ` (${campanha.plataforma})` : ""}`);
+  } else {
+    parts.push("sem campanha de anúncio registrada");
+  }
+  return parts.join(" · ");
+}
+
+/**
+ * Campanha de anúncio (Meta Ads) do lead, no banco legado `campaing_ads`,
+ * casada por telefone normalizado e escopada aos cod_agent do escritório.
+ */
+async function fetchCampaignOrigins(
+  ctx: CopilotoContext,
+  // deno-lint-ignore no-explicit-any
+  rows: any[],
+  warnings: string[],
+): Promise<Map<string, LeadCampaign>> {
+  const map = new Map<string, LeadCampaign>();
+  const phones = [...new Set(rows.map((r) => String(r.phone || "").replace(/\D/g, "")).filter((p) => p.length >= 8))];
+  if (!phones.length) return map;
+
+  try {
+    const codes = await agentCodes(ctx);
+    if (!codes.length) return map;
+    const legacyRows = await legacyRaw<{
+      matched_phone: string;
+      created_at: string;
+      // deno-lint-ignore no-explicit-any
+      campaign_data: any;
+    }>(
+      ctx,
+      `SELECT DISTINCT ON (matched_phone)
+              regexp_replace(COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone',''), s.whatsapp_number::text, ''), '\\D', '', 'g') AS matched_phone,
+              ca.created_at,
+              (ca.campaign_data::jsonb) AS campaign_data
+         FROM campaing_ads ca
+         LEFT JOIN sessions s ON s.id = ca.session_id::bigint
+        WHERE ca.cod_agent::text = ANY($1::varchar[])
+          AND regexp_replace(COALESCE(NULLIF((ca.campaign_data::jsonb)->>'phone',''), s.whatsapp_number::text, ''), '\\D', '', 'g') = ANY($2::varchar[])
+        ORDER BY matched_phone, ca.created_at DESC`,
+      [codes, phones],
+    );
+    for (const row of legacyRows) {
+      const d = row.campaign_data || {};
+      map.set(String(row.matched_phone), {
+        campanha_id: d.sourceID ?? null,
+        titulo: d.title ?? null,
+        plataforma: d.sourceApp ?? null,
+        url: d.sourceURL ?? null,
+        entrou_em: row.created_at ?? null,
+      });
+    }
+  } catch {
+    warnings.push("Origem de campanha indisponível nesta consulta (banco legado não respondeu); canal e fila seguem completos.");
+  }
+  return map;
+}
+
 
 /* ------------------------- resolução de links de mídia --------------------- */
 
@@ -140,8 +237,9 @@ export async function compileLeadContext(
 export const chatTools: CopilotoTool[] = [
   {
     name: "julia_chat_listar_conversas",
+    version: "1.2.0",
     description:
-      "Lista atendimentos do inbox com a MESMA consulta unificada da tela de chat: contato, fila, status, prioridade, protocolo, responsável, não lidas, última mensagem, SLA, etiquetas, ticket, CRM (Builder e Julia), campanha e adiamento. Aceita filtros de status, aba, fila, responsáveis, busca, período, etiquetas, prioridade, ticket, CRM, SLA e ordenação. Use o conversation_id nas demais tools.",
+      "Lista atendimentos do inbox com a MESMA consulta unificada da tela de chat: contato, ORIGEM do lead (canal, canal de origem, fila, agente e campanha de anúncio quando registrada), fila, status, prioridade, protocolo, responsável, não lidas, última mensagem, SLA, etiquetas, ticket e CRM. Janelas de tempo são resolvidas no fuso do escritório (padrão America/Sao_Paulo): use `data` para um dia civil completo 00:00–23:59:59.999 ou `de`/`ate`. Use o conversation_id nas demais tools.",
     inputSchema: {
       type: "object",
       properties: {
@@ -153,37 +251,56 @@ export const chatTools: CopilotoTool[] = [
         assigned_user_id: { type: "string", description: "ID numérico do atendente responsável." },
         unassigned: { type: "boolean", description: "true = somente sem responsável." },
         busca: { type: "string", description: "Nome ou telefone do lead." },
-        periodo: { type: "string", enum: ["all", "today", "7d", "30d", "3m", "month"], description: "Período da última movimentação (padrão: all)." },
+        periodo: { type: "string", enum: ["all", "today", "7d", "30d", "3m", "month"], description: "Período relativo da última movimentação, resolvido no fuso informado (padrão: all)." },
+        data: { type: "string", description: "Dia civil completo no fuso do escritório (YYYY-MM-DD): 00:00:00.000 até 23:59:59.999." },
+        de: { type: "string", description: "Início da janela. Aceita YYYY-MM-DD, YYYY-MM-DDTHH:mm (hora local do fuso) ou ISO com offset." },
+        ate: { type: "string", description: "Fim da janela, mesmo formato de `de`." },
+        timezone: { type: "string", description: "IANA time zone usado nas janelas e na formatação (padrão America/Sao_Paulo)." },
         tag_ids: { type: "array", items: { type: "string" }, description: "UUIDs de etiquetas." },
         prioridade: { type: "string", enum: ["low", "normal", "high", "urgent"], description: "Prioridade da conversa." },
         com_ticket: { type: "boolean", description: "true = só com ticket vinculado." },
         com_crm_builder: { type: "boolean", description: "true = só com card no CRM Builder." },
         sla: { type: "array", items: { type: "string", enum: ["on_track", "at_risk", "breached"] }, description: "Situação de SLA." },
         ordenar: { type: "string", enum: ["recent", "oldest", "unread", "sla"], description: "Ordenação (padrão: recent)." },
+        incluir_origem_campanha: { type: "boolean", description: "Busca a campanha de anúncio no banco legado (padrão: true)." },
         limite: { type: "number", description: "Máx. 200 (padrão 20)." },
         offset: { type: "number", description: "Pular N registros (paginação)." },
       },
       additionalProperties: false,
     },
     run: async (ctx, args) => {
+      const tz = tzOf(args);
       const limit = num(args.limite, 20, MAX_ROWS);
       const offset = Math.max(0, Math.floor(Number(args.offset) || 0));
+      const warnings: string[] = [];
 
-      // Período -> from/to (mesma semântica do chat)
+      // Janela de tempo — sempre no fuso do escritório, nunca no UTC do runtime.
       let from: string | null = null;
       let to: string | null = null;
+      let janelaOrigem = "sem filtro de período";
+      const dataDia = str(args.data);
+      const de = str(args.de);
+      const ate = str(args.ate);
       const periodo = str(args.periodo);
-      if (periodo && periodo !== "all") {
-        const now = new Date();
-        const start = new Date(now);
-        if (periodo === "today") start.setHours(0, 0, 0, 0);
-        else if (periodo === "7d") start.setDate(start.getDate() - 7);
-        else if (periodo === "30d") start.setDate(start.getDate() - 30);
-        else if (periodo === "3m") start.setMonth(start.getMonth() - 3);
-        else if (periodo === "month") start.setDate(1), start.setHours(0, 0, 0, 0);
-        from = start.toISOString();
-        to = now.toISOString();
+
+      if (dataDia) {
+        const r = dayRangeInTz(dataDia, tz);
+        from = r.from;
+        to = r.to;
+        janelaOrigem = `dia civil ${dataDia} (${tz})`;
+      } else if (de || ate) {
+        from = zonedInputToUtcIso(de, "de", tz);
+        to = zonedInputToUtcIso(ate, "ate", tz);
+        janelaOrigem = `intervalo informado (${tz})`;
+      } else if (periodo && periodo !== "all") {
+        const r = periodRangeInTz(periodo, tz);
+        if (r) {
+          from = r.from;
+          to = r.to;
+          janelaOrigem = `período "${periodo}" (${tz})`;
+        }
       }
+      if (from && to && new Date(from) > new Date(to)) throw invalid("`de` não pode ser posterior a `ate`.");
 
       const queueIds = Array.isArray(args.queue_ids) ? args.queue_ids.filter(Boolean).map(String) : [];
       if (str(args.queue_id) && !queueIds.includes(str(args.queue_id))) queueIds.push(str(args.queue_id));
@@ -211,57 +328,136 @@ export const chatTools: CopilotoTool[] = [
         p_limit: limit,
         p_offset: offset,
       });
-      if (error) throw new Error(error.message);
+      if (error) throw safeDbError("database", error);
 
       // deno-lint-ignore no-explicit-any
       const rows: any[] = Array.isArray(feed?.rows) ? feed.rows : [];
-      if (!rows.length) return "Nenhuma conversa encontrada com esses filtros.";
-
       const assignedUserId = str(args.assigned_user_id);
       const filtered = assignedUserId ? rows.filter((r) => String(r.assigned_user_id) === assignedUserId) : rows;
-      if (!filtered.length) return "Nenhuma conversa encontrada com esses filtros.";
+      if (assignedUserId && filtered.length !== rows.length) {
+        warnings.push("Filtro assigned_user_id aplicado após a página do banco; contadores referem-se ao escopo sem esse filtro.");
+      }
 
-      const body = filtered
-        .map((r) => {
-          const slaPart = r.sla_status
-            ? ` · SLA ${r.sla_type || ""} ${r.sla_status}${
-                r.sla_remaining_minutes != null ? ` (${Math.abs(r.sla_remaining_minutes)}min ${r.sla_remaining_minutes >= 0 ? "restantes" : "estourado"})` : ""
-              }`
-            : "";
-          const crmParts = [
-            r.crm_board_name ? `CRM Builder: ${r.crm_board_name}${r.crm_pipeline_name ? ` / ${r.crm_pipeline_name}` : ""}` : null,
-            r.julia_stage_name ? `CRM Julia: ${r.julia_stage_name}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ");
-          return [
-            `- ${r.contact_name || "(sem nome)"} · ${r.phone || "sem telefone"} · ${r.channel_source || r.channel || "whatsapp"}`,
-            `fila ${r.queue_name || "sem fila"} · status ${r.status} · prioridade ${r.priority || "normal"} · protocolo ${r.protocol || "—"} · não lidas ${r.unread_count ?? 0}`,
-            `responsável ${r.assigned_to || "sem responsável"} · última msg ${fmtDate(r.last_message_at)}${r.last_message_text ? `: "${clip(String(r.last_message_text), 80)}"` : ""}${slaPart}${r.snoozed_until ? ` · pausado até ${fmtDate(r.snoozed_until)}` : ""}`,
-            `${(r.tags || []).map((t: { name: string }) => t.name).join(", ") || "sem etiquetas"}${
-              r.active_ticket_protocol ? ` · ticket ${r.active_ticket_protocol} (#${r.active_ticket_number})` : ""
-            }${crmParts ? ` · ${crmParts}` : ""}${r.session_is_active != null ? ` · sessão Julia ${r.session_is_active ? "ativa" : "inativa"}` : ""}${
-              r.campaign ? " · veio de campanha" : ""
-            }`,
-            `  conversation_id: ${r.conversation_id} · contato_id: ${r.contact_id}`,
-          ].join("\n  ");
-        })
-        .join("\n");
+      // Origem do lead: canal/fila sempre; campanha de anúncio no banco legado (best-effort).
+      const campanhas = (args.incluir_origem_campanha === false ? new Map() : await fetchCampaignOrigins(ctx, filtered, warnings)) as Map<
+        string,
+        LeadCampaign
+      >;
+
+      const itens = filtered.map((r) => {
+        const digits = String(r.phone || "").replace(/\D/g, "");
+        const campanha = campanhas.get(digits) ?? null;
+        return {
+          conversation_id: r.conversation_id,
+          contato_id: r.contact_id,
+          contato: r.contact_name || null,
+          nome_completo: r.lead_full_name || null,
+          telefone: r.phone || null,
+          is_grupo: !!r.is_group,
+          origem: {
+            canal: r.channel || r.channel_type || null,
+            canal_origem: r.channel_source || null,
+            fila_id: r.queue_id ?? null,
+            fila: r.queue_name || null,
+            cod_agent: r.cod_agent ?? null,
+            campanha,
+            resumo: describeOrigin(r, campanha),
+          },
+          fila: r.queue_name || null,
+          status: r.status,
+          prioridade: r.priority || "normal",
+          protocolo: r.protocol || null,
+          responsavel: r.assigned_to || null,
+          assigned_user_id: r.assigned_user_id ?? null,
+          nao_lidas: r.unread_count ?? 0,
+          ultima_mensagem: {
+            ...dateOut(r.last_message_at, tz),
+            texto: r.last_message_text ? clip(String(r.last_message_text), 200) : null,
+            do_escritorio: r.last_message_from_me ?? null,
+          },
+          aberta_em: dateOut(r.opened_at, tz),
+          sla: r.sla_status
+            ? { tipo: r.sla_type || null, situacao: r.sla_status, minutos_restantes: r.sla_remaining_minutes ?? null, meta_minutos: r.sla_target_minutes ?? null }
+            : null,
+          etiquetas: (r.tags || []).map((t: { name: string }) => t.name),
+          ticket: r.active_ticket_protocol ? { protocolo: r.active_ticket_protocol, numero: r.active_ticket_number ?? null } : null,
+          crm: {
+            builder_board: r.crm_board_name || null,
+            builder_pipeline: r.crm_pipeline_name || null,
+            julia_etapa: r.julia_stage_name || null,
+          },
+          pausado_ate: r.snoozed_until ? dateOut(r.snoozed_until, tz) : null,
+          sessao_julia_ativa: r.session_is_active ?? null,
+        };
+      });
 
       const c = feed?.counters || {};
-      const summary = [
-        "",
-        "=== CONTADORES DO ESCOPO ===",
-        `total ${c.total ?? "—"} · pendentes ${c.pending ?? "—"} · abertos ${c.open ?? "—"} · resolvidos ${c.resolved ?? "—"} · fechados ${c.closed ?? "—"} · não lidas ${c.unread ?? "—"}`,
-        c.sla_breached != null || c.sla_at_risk != null ? `SLA estourado ${c.sla_breached ?? 0} · em risco ${c.sla_at_risk ?? 0}` : null,
-        feed?.has_more ? `Há mais resultados — peça com offset ${offset + filtered.length}.` : null,
-      ]
-        .filter(Boolean)
-        .join("\n");
+      const body = itens.length
+        ? itens
+            .map((i) => {
+              const slaPart = i.sla
+                ? ` · SLA ${i.sla.tipo || ""} ${i.sla.situacao}${
+                    i.sla.minutos_restantes != null
+                      ? ` (${Math.abs(i.sla.minutos_restantes)}min ${i.sla.minutos_restantes >= 0 ? "restantes" : "estourado"})`
+                      : ""
+                  }`
+                : "";
+              return [
+                `- ${i.contato || "(sem nome)"} · ${i.telefone || "sem telefone"} · origem: ${i.origem.resumo}`,
+                `fila ${i.fila || "sem fila"} · status ${i.status} · prioridade ${i.prioridade} · protocolo ${i.protocolo || "—"} · não lidas ${i.nao_lidas}`,
+                `responsável ${i.responsavel || "sem responsável"} · última msg ${i.ultima_mensagem.legivel}${
+                  i.ultima_mensagem.texto ? `: "${clip(i.ultima_mensagem.texto, 80)}"` : ""
+                }${slaPart}${i.pausado_ate ? ` · pausado até ${i.pausado_ate.legivel}` : ""}`,
+                `${i.etiquetas.join(", ") || "sem etiquetas"}${i.ticket ? ` · ticket ${i.ticket.protocolo} (#${i.ticket.numero})` : ""}${
+                  i.crm.builder_board ? ` · CRM Builder: ${i.crm.builder_board}${i.crm.builder_pipeline ? ` / ${i.crm.builder_pipeline}` : ""}` : ""
+                }${i.crm.julia_etapa ? ` · CRM Julia: ${i.crm.julia_etapa}` : ""}`,
+                `  conversation_id: ${i.conversation_id} · contato_id: ${i.contato_id}`,
+              ].join("\n  ");
+            })
+            .join("\n")
+        : "Nenhuma conversa encontrada com esses filtros.";
 
-      return clip(body + "\n" + summary, 24000);
+      const janelaTxt = from || to
+        ? `Janela (${tz}): ${dateOut(from, tz).legivel} → ${dateOut(to, tz).legivel} [UTC ${from ?? "—"} → ${to ?? "—"}]`
+        : `Janela: ${janelaOrigem}`;
+
+      const text = clip(
+        [
+          body,
+          "",
+          "=== JANELA E FUSO ===",
+          janelaTxt,
+          "=== CONTADORES DO ESCOPO ===",
+          `total ${c.total ?? "—"} · pendentes ${c.pending ?? "—"} · abertos ${c.open ?? "—"} · resolvidos ${c.resolved ?? "—"} · fechados ${c.closed ?? "—"} · não lidas ${c.unread ?? "—"}`,
+          c.sla_breached != null || c.sla_at_risk != null ? `SLA estourado ${c.sla_breached ?? 0} · em risco ${c.sla_at_risk ?? 0}` : null,
+          feed?.has_more ? `Há mais resultados — repita com offset ${offset + itens.length}.` : "Fim da lista para esta janela.",
+          warnings.length ? `Avisos: ${warnings.join(" | ")}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        24000,
+      );
+
+      return ok(
+        {
+          itens,
+          contadores: c,
+          janela: { de: from, ate: to, timezone: tz, origem: janelaOrigem },
+          proximo_offset: feed?.has_more ? offset + itens.length : null,
+        },
+        {
+          requestId: ctx.requestId ?? "",
+          toolName: "julia_chat_listar_conversas",
+          toolVersion: "1.2.0",
+          timezone: tz,
+          coverage: coverage({ complete: !feed?.has_more, from, to, warnings }),
+          pagination: { has_more: !!feed?.has_more, next_cursor: null, total_count: typeof c.total === "number" ? c.total : null },
+          text,
+        },
+      );
     },
   },
+
   {
     name: "julia_chat_obter_conversa",
     description:
