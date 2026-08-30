@@ -30,6 +30,7 @@ A lógica de contagem replica exatamente `src/hooks/useTeamDashboardMetrics.ts` 
 ## Regras preservadas
 
 - Tool continua somente leitura; isolamento por `client_id` mantido em todas as consultas (server-side, sem parâmetro de client do chamador).
+- A query de `crm_deals` ganha filtro explícito de `client_id` (na tela a contagem depende de RLS; na edge function com service role o filtro é obrigatório para não vazar cross-tenant).
 - Limite de 200 usuários e clipping de saída existentes no dispatcher permanecem.
 - Sem chamada de IA interna.
 
