@@ -2,7 +2,17 @@
 
 Conector remoto (Model Context Protocol) que expõe os dados do escritório na Julia
 para clientes oficiais de IA — OpenClaw, ChatGPT, Claude — usando a assinatura Pro
-do próprio usuário. **Somente leitura.**
+do próprio usuário. **Leitura por padrão; escrita apenas em cinco operações
+explícitas, que simulam antes de aplicar.**
+
+Contrato de resposta (schema `2026-08-30`, server `3.0.0`): toda tool devolve
+`content[0].text` (resumo legível) **e** `structuredContent` com o JSON do
+envelope: `coverage`, `pagination`, `timezone`, `tool`, `tool_version`,
+`schema_version`, `server_version`, `generated_at`, `request_id`, `latency_ms`.
+Erros vêm como `{ error: { code, message, retryable, dependency, details } }`
+com `isError: true`. Códigos: `INVALID_INPUT`, `NOT_FOUND`, `AMBIGUOUS_MATCH`,
+`PERMISSION_DENIED`, `RATE_LIMITED`, `DEPENDENCY_UNAVAILABLE`, `CONFLICT`,
+`INTERNAL`.
 
 Rota de gestão no painel: `/mvp-copiloto`.
 
@@ -24,7 +34,18 @@ Métodos JSON-RPC suportados: `initialize`, `notifications/initialized`, `ping`,
 
 ## Modelo de segurança
 
-- O escopo (`leads:read`, `julia:read`) e o **escritório** ficam gravados no token
+- Escopos: `leads:read`/`julia:read` (leitura), `julia:write:crm` (lead, etapa,
+  responsável, follow-up) e `julia:write:messages` (envio de mensagem). O
+  dispatcher recusa a tool quando o token não tem o escopo exigido.
+- Escrita: `dry_run` é `true` por padrão; aplicar exige `dry_run: false`,
+  `idempotency_key`, `approved_by` e `reason`. Toda tentativa (simulada ou
+  aplicada) é gravada em `cop_write_audit`, e a mesma `idempotency_key` aplicada
+  não repete a operação. Alterações de registro conferem `expected_version`
+  (`updated_at`) e devolvem `CONFLICT` quando o dado mudou.
+- Rate limit por token: 120 leituras e 20 escritas por minuto.
+- Conteúdo enviado por leads (mensagens, legendas) sai delimitado em
+  `<untrusted_content>` — é dado, nunca instrução.
+- O escopo e o **escritório** ficam gravados no token
   (`cop_oauth_tokens.julia_client_id`), resolvidos no servidor durante o consentimento.
 - **Nenhuma tool aceita `client_id`**, SQL ou nome de tabela como argumento. Todo
   filtro de tenant é aplicado no servidor.
@@ -33,8 +54,31 @@ Métodos JSON-RPC suportados: `initialize`, `notifications/initialized`, `ping`,
   (`supabase/functions/_shared/copiloto/legacy.ts`).
 - Limites: 100 mensagens por leitura de conversa, 200 registros por listagem,
   truncamento de texto para não estourar a janela do modelo.
-- Nenhuma operação de escrita existe no conector. Tokens expiram, são renovados por
-  refresh token e podem ser revogados na página do conector.
+- Tokens expiram, são renovados por refresh token e podem ser revogados na página
+  do conector.
+
+## Ferramentas acrescentadas nesta versão
+
+| Tool | Papel |
+| --- | --- |
+| `mcp_capabilities` | Inventário de tools, versões, escopos, limites e campos cobertos. |
+| `mcp_health` | Saúde de banco, base legada, presença, mensageria, contratos e arquivos. |
+| `julia_leads_listar` | Coorte de leads com filtros, cursor opaco e cobertura declarada. |
+| `julia_followups_pendentes` | Follow-ups abertos e atrasados, com responsável e prazo. |
+| `julia_documentos_listar` | Documentos/mídias do lead com tipo, autor, data e link direto. |
+| `julia_contrato_timeline` | Envio, cadências de cobrança e assinatura de um contrato. |
+| `julia_equipe_presenca` | Presença/atividade da equipe, separada do cadastro de usuários. |
+| `julia_funil_metricas` | Conversão por etapa, permanência e gargalos. |
+| `julia_atendimento_metricas` | 1ª resposta, SLA, volume por canal, transferências e devoluções. |
+| `julia_lead_atualizar` | **Escrita**: campos permitidos do lead (allowlist + versão esperada). |
+| `julia_lead_atribuir_responsavel` | **Escrita**: define responsável do lead/atendimento. |
+| `julia_lead_alterar_estagio` | **Escrita**: move o lead de etapa no mesmo funil. |
+| `julia_followup_registrar` | **Escrita**: cria follow-up com prazo e responsável. |
+| `julia_mensagem_enviar` | **Escrita**: envia mensagem pela fila do atendimento (WABA ou UaZapi). |
+
+`julia_contatos_buscar` passou a ser determinística (v2): aceita `contato_id`,
+`telefone`, `email` ou `nome`, devolve `match_type`/`confidence` e responde
+`AMBIGUOUS_MATCH` com os candidatos em vez de escolher um homônimo.
 
 ## Arquitetura de arquivos
 

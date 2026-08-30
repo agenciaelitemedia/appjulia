@@ -7,7 +7,21 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Badge } from '@/components/ui/badge';
 import { BookOpen } from 'lucide-react';
 
-const CATALOG: { label: string; tools: [string, string][] }[] = [
+const CATALOG: { label: string; write?: boolean; tools: [string, string][] }[] = [
+  {
+    label: 'Conector: capacidades e saúde',
+    tools: [
+      ['mcp_capabilities', 'Inventário das ferramentas, versões, escopos, limites e campos cobertos.'],
+      ['mcp_health', 'Saúde das dependências (banco, base legada, presença, mensageria, contratos, arquivos).'],
+    ],
+  },
+  {
+    label: 'Coorte de leads e follow-ups',
+    tools: [
+      ['julia_leads_listar', 'Coorte de leads com filtros, paginação por cursor e cobertura declarada.'],
+      ['julia_followups_pendentes', 'Follow-ups em aberto e atrasados, com responsável e prazo.'],
+    ],
+  },
   {
     label: 'Contatos e leads',
     tools: [
@@ -63,6 +77,32 @@ const CATALOG: { label: string; tools: [string, string][] }[] = [
     ],
   },
   {
+    label: 'Documentos, contratos e presença',
+    tools: [
+      ['julia_documentos_listar', 'Documentos e mídias do lead com tipo, autor, data e link direto do arquivo.'],
+      ['julia_contrato_timeline', 'Timeline do contrato: envio, cadências de cobrança e assinatura.'],
+      ['julia_equipe_presenca', 'Presença da equipe (online/ausente/offline), login, logout e tempo online do dia.'],
+    ],
+  },
+  {
+    label: 'Métricas de funil, SLA e qualidade',
+    tools: [
+      ['julia_funil_metricas', 'Conversão por etapa, contratos, tempo de permanência e gargalos.'],
+      ['julia_atendimento_metricas', 'Tempo de 1ª resposta, SLA, volume por canal, transferências e devoluções.'],
+    ],
+  },
+  {
+    label: 'Escrita controlada (simula por padrão)',
+    write: true,
+    tools: [
+      ['julia_lead_atualizar', 'Atualiza campos permitidos do lead no CRM (com versão esperada).'],
+      ['julia_lead_atribuir_responsavel', 'Define o responsável pelo lead/atendimento.'],
+      ['julia_lead_alterar_estagio', 'Move o lead de etapa dentro do mesmo funil.'],
+      ['julia_followup_registrar', 'Cria um follow-up com prazo e responsável.'],
+      ['julia_mensagem_enviar', 'Envia mensagem pelo canal da fila do atendimento.'],
+    ],
+  },
+  {
     label: 'Análises (o parecer é escrito pelo seu modelo)',
     tools: [
       ['julia_analise_atendimento', 'Dossiê + comando para avaliar como o atendimento foi conduzido.'],
@@ -84,7 +124,7 @@ export function ToolCatalogCard() {
         <CardTitle className="text-base flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-primary" />
           Ferramentas disponíveis
-          <Badge variant="secondary">{total} · somente leitura</Badge>
+          <Badge variant="secondary">{total} ferramentas</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -94,6 +134,11 @@ export function ToolCatalogCard() {
               <AccordionTrigger className="text-sm">
                 {domain.label}
                 <span className="text-xs text-muted-foreground ml-2">{domain.tools.length}</span>
+                {domain.write && (
+                  <Badge variant="outline" className="ml-2 text-[10px]">
+                    exige aprovação
+                  </Badge>
+                )}
               </AccordionTrigger>
               <AccordionContent>
                 <ul className="space-y-2 text-sm">

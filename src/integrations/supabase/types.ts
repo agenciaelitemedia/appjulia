@@ -3366,6 +3366,66 @@ export type Database = {
         }
         Relationships: []
       }
+      cop_write_audit: {
+        Row: {
+          action: string
+          actor_email: string | null
+          after_data: Json | null
+          applied: boolean
+          approved_by: string | null
+          before_data: Json | null
+          client_id: string
+          created_at: string
+          dry_run: boolean
+          id: string
+          idempotency_key: string
+          reason: string | null
+          request_id: string | null
+          result: string | null
+          target_id: string | null
+          target_table: string
+          token_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          after_data?: Json | null
+          applied?: boolean
+          approved_by?: string | null
+          before_data?: Json | null
+          client_id: string
+          created_at?: string
+          dry_run?: boolean
+          id?: string
+          idempotency_key: string
+          reason?: string | null
+          request_id?: string | null
+          result?: string | null
+          target_id?: string | null
+          target_table: string
+          token_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          after_data?: Json | null
+          applied?: boolean
+          approved_by?: string | null
+          before_data?: Json | null
+          client_id?: string
+          created_at?: string
+          dry_run?: boolean
+          id?: string
+          idempotency_key?: string
+          reason?: string | null
+          request_id?: string | null
+          result?: string | null
+          target_id?: string | null
+          target_table?: string
+          token_id?: string | null
+        }
+        Relationships: []
+      }
       crm_audit_log: {
         Row: {
           action: string

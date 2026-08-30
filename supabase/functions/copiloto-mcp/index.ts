@@ -7,7 +7,7 @@
  * token — nunca aceito como argumento das tools.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getToolCatalogMarkdown, getToolDefinitions, runCopilotoTool, TOOL_DOMAINS } from "../_shared/copiloto/tools/index.ts";
+import { dispatchCopilotoTool, getToolCatalogMarkdown, getToolDefinitions, TOOL_DOMAINS } from "../_shared/copiloto/tools/index.ts";
 import {
   ANALYSIS_ATENDIMENTO,
   ANALYSIS_CONTRATO,
@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     return json({
       resource: MCP_PUBLIC_URL,
       authorization_servers: [ISSUER],
-      scopes_supported: ["leads:read", "julia:read"],
+      scopes_supported: ["leads:read", "julia:read", "julia:write:crm", "julia:write:messages"],
       bearer_methods_supported: ["header"],
     });
   }
@@ -123,6 +123,8 @@ Deno.serve(async (req) => {
     supabase,
     clientId: String(token.julia_client_id),
     userEmail: token.julia_user_email,
+    scopes: String(token.scope || "leads:read").split(/[\s,]+/).filter(Boolean),
+    tokenId: String(token.id),
     _agentCodes: null as string[] | null,
   };
 
@@ -140,7 +142,7 @@ Deno.serve(async (req) => {
         return rpc(id, {
           protocolVersion: "2025-06-18",
           capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} },
-          serverInfo: { name: "julia-copiloto", version: "2.0.0" },
+          serverInfo: { name: "julia-copiloto", version: "3.0.0" },
           instructions:
             "Conector de leitura do sistema Julia do escritório. Fluxo recomendado: julia_contatos_buscar → julia_contatos_obter_perfil → julia_chat_ler_mensagens. " +
             "Para pareceres, use as ferramentas julia_analise_* : elas devolvem o dossiê + o comando de análise, e VOCÊ escreve a análise. " +
@@ -160,12 +162,12 @@ Deno.serve(async (req) => {
 
       case "tools/call": {
         const name = params?.name;
-        try {
-          const text = await runCopilotoTool(ctx, name, params?.arguments ?? {});
-          return rpc(id, { content: [{ type: "text", text }] });
-        } catch (e) {
-          return rpc(id, { content: [{ type: "text", text: (e as Error).message }], isError: true });
-        }
+        const out = await dispatchCopilotoTool(ctx, name, params?.arguments ?? {});
+        return rpc(id, {
+          content: [{ type: "text", text: out.text }],
+          structuredContent: out.structuredContent,
+          isError: out.isError,
+        });
       }
 
       case "resources/list":
