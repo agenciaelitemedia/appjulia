@@ -37,7 +37,7 @@ export const contatoTools: CopilotoTool[] = [
       const telefoneArg = str(args.telefone) || (termo.replace(/\D/g, "").length >= 4 ? termo : "");
       const nome = nomeArg || (!telefoneArg && termo ? termo : "");
 
-      const SELECT = "id, name, phone, email, channel_type, last_message_at, last_message_text, unread_count, created_at";
+      const SELECT = "id, name, phone, lead_email, channel_type, last_message_at, last_message_text, unread_count, created_at";
       let matchType: "id" | "phone" | "email" | "name" = "name";
       let q = ctx.supabase.from("chat_contacts").select(SELECT).eq("client_id", ctx.clientId);
 
@@ -51,7 +51,7 @@ export const contatoTools: CopilotoTool[] = [
         q = q.eq("is_group", false).ilike("phone", `%${digits.slice(-8)}%`).order("last_message_at", { ascending: false, nullsFirst: false }).limit(limite);
       } else if (emailArg) {
         matchType = "email";
-        q = q.eq("is_group", false).ilike("email", emailArg).limit(limite);
+        q = q.eq("is_group", false).ilike("lead_email", emailArg).limit(limite);
       } else if (nome) {
         matchType = "name";
         q = q.eq("is_group", false).ilike("name", `%${nome}%`).order("last_message_at", { ascending: false, nullsFirst: false }).limit(limite);
