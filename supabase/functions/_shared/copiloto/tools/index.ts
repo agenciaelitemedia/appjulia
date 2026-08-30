@@ -109,6 +109,65 @@ function rateLimit(key: string, limit: number) {
   hits.set(key, list);
 }
 
+/* ------------------------------ telemetria -------------------------------- */
+
+const DOMAIN_BY_TOOL = new Map<string, string>(
+  TOOL_DOMAINS.flatMap((d) => d.tools.map((t) => [t.name, d.domain] as [string, string])),
+);
+
+interface TelemetryRow {
+  request_id: string;
+  tool_name: string;
+  domain: string | null;
+  tool_version: string | null;
+  mode: string;
+  client_id: string | null;
+  token_id: string | null;
+  status: "ok" | "error";
+  error_code: string | null;
+  retryable: boolean;
+  dependency: string | null;
+  latency_ms: number;
+  dry_run: boolean | null;
+  coverage_complete: boolean | null;
+  coverage_warnings: number;
+  result_count: number | null;
+  arg_keys: string[];
+}
+
+/**
+ * Grava a telemetria da chamada (fire-and-forget) e emite um log estruturado
+ * em linha única. Nunca carrega conteúdo de lead, argumento cru ou token.
+ */
+function recordCall(ctx: CopilotoContext, row: TelemetryRow) {
+  try {
+    console.log(JSON.stringify({ evt: "mcp_tool_call", ...row, token_id: row.token_id ? "set" : null }));
+  } catch {
+    // log nunca derruba a tool
+  }
+  try {
+    const p = ctx.supabase?.from("cop_tool_calls").insert(row);
+    if (p && typeof p.then === "function") {
+      p.then((res: { error?: unknown }) => {
+        if (res?.error) console.log(JSON.stringify({ evt: "mcp_tool_call_log_failed", request_id: row.request_id }));
+      }).catch(() => {});
+    }
+  } catch {
+    // telemetria é best-effort
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+function resultCountOf(json: Record<string, any>): number | null {
+  if (!json || typeof json !== "object") return null;
+  if (typeof json.total === "number") return json.total;
+  if (typeof json.count === "number") return json.count;
+  for (const value of Object.values(json)) {
+    if (Array.isArray(value)) return value.length;
+  }
+  return null;
+}
+
 /* -------------------------------- dispatch -------------------------------- */
 
 export interface DispatchResult {
@@ -123,6 +182,18 @@ export async function dispatchCopilotoTool(ctx: CopilotoContext, name: string, a
   const started = Date.now();
   const tool = BY_NAME.get(name);
   const callCtx: CopilotoContext = { ...ctx, requestId: rid };
+  const argKeys = args && typeof args === "object" && !Array.isArray(args) ? Object.keys(args) : [];
+
+  const baseRow = {
+    request_id: rid,
+    tool_name: name,
+    domain: DOMAIN_BY_TOOL.get(name) ?? null,
+    tool_version: tool?.version ?? null,
+    mode: tool?.mode ?? "read",
+    client_id: ctx.clientId ?? null,
+    token_id: ctx.tokenId ?? null,
+    arg_keys: argKeys,
+  };
 
   try {
     if (!tool) {
@@ -171,18 +242,47 @@ export async function dispatchCopilotoTool(ctx: CopilotoContext, name: string, a
           }
         : raw;
 
+    const latency = Date.now() - started;
+    const cov = output.json?.coverage;
+    recordCall(ctx, {
+      ...baseRow,
+      status: "ok",
+      error_code: null,
+      retryable: false,
+      dependency: null,
+      latency_ms: latency,
+      dry_run: typeof output.json?.dry_run === "boolean" ? output.json.dry_run : null,
+      coverage_complete: typeof cov?.complete === "boolean" ? cov.complete : null,
+      coverage_warnings: Array.isArray(cov?.warnings) ? cov.warnings.length : 0,
+      result_count: resultCountOf(output.json),
+    });
+
     return {
       text: output.text,
-      structuredContent: { ...output.json, latency_ms: Date.now() - started },
+      structuredContent: { ...output.json, latency_ms: latency },
       isError: false,
     };
   } catch (e) {
     const envelope = errorEnvelope(e, rid, name);
+    const latency = Date.now() - started;
+    recordCall(ctx, {
+      ...baseRow,
+      status: "error",
+      error_code: envelope.error.code ?? "INTERNAL",
+      retryable: Boolean(envelope.error.retryable),
+      dependency: envelope.error.dependency ?? null,
+      latency_ms: latency,
+      dry_run: null,
+      coverage_complete: false,
+      coverage_warnings: 0,
+      result_count: null,
+    });
     return {
       text: `Erro ${envelope.error.code}: ${envelope.error.message}${envelope.error.dependency ? ` (dependência: ${envelope.error.dependency})` : ""}`,
-      structuredContent: { ...envelope, latency_ms: Date.now() - started },
+      structuredContent: { ...envelope, latency_ms: latency },
       isError: true,
     };
+
   }
 }
 
