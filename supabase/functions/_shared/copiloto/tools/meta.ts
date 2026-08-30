@@ -128,24 +128,43 @@ export const metaTools: CopilotoTool[] = [
       const degraded = dependencies.filter((d) => d.status === "degraded");
       const status: DepStatus = down.length ? (down.length === dependencies.length ? "unavailable" : "degraded") : degraded.length ? "degraded" : "healthy";
 
+      // Telemetria da última hora (best-effort: nunca derruba o health check).
+      // deno-lint-ignore no-explicit-any
+      let recent: Record<string, any> | null = null;
+      try {
+        const to = new Date();
+        const { data } = await ctx.supabase.rpc("cop_tool_call_stats", {
+          p_client_id: ctx.clientId,
+          p_from: new Date(to.getTime() - 3600_000).toISOString(),
+          p_to: to.toISOString(),
+        });
+        recent = data?.totals ?? null;
+      } catch {
+        recent = null;
+      }
+
       const text = [
         `Status geral: ${status}`,
         ...dependencies.map((d) => `- ${d.name}: ${d.status} (${d.latency_ms}ms)${d.error_code ? ` · ${d.error_code}` : ""}`),
+        recent
+          ? `\nÚltima hora: ${recent.calls ?? 0} chamadas · ${recent.error_rate ?? 0}% de erro · p95 ${recent.p95_ms ?? 0}ms`
+          : "",
         down.length ? `\nFerramentas que dependem de ${down.map((d) => d.name).join(", ")} podem responder com cobertura incompleta.` : "",
       ]
         .filter(Boolean)
         .join("\n");
 
       return ok(
-        { status, dependencies },
+        { status, dependencies, recent_hour: recent },
         {
           requestId: ctx.requestId!,
           toolName: "mcp_health",
-          toolVersion: "1.0.0",
+          toolVersion: "1.1.0",
           coverage: coverage({ complete: !down.length, warnings: down.map((d) => `Dependência indisponível: ${d.name}`) }),
           text,
         },
       );
+
     },
   },
   {
