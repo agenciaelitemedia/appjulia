@@ -322,26 +322,31 @@ export const chatTools: CopilotoTool[] = [
   {
     name: "julia_chat_ler_mensagens",
     description:
-      "Histórico cronológico da conversa do lead (até 100 mensagens), com papel (CLIENTE / ATENDENTE / NOTA INTERNA), transcrição de áudios e nomes dos anexos. Aceita conversation_id ou contato_id.",
+      "Histórico cronológico da conversa do lead (até 200 mensagens), no mesmo padrão do chat: papel (CLIENTE / ATENDENTE / NOTA INTERNA), transcrição de áudios e LINK público de cada arquivo (imagem, áudio, vídeo, documento) para leitura pela IA. Aceita conversation_id ou contato_id.",
     inputSchema: {
       type: "object",
       properties: {
         conversation_id: { type: "string", description: "UUID da conversa." },
         contato_id: { type: "string", description: "ID do contato (alternativa ao conversation_id)." },
-        limite: { type: "number", description: "Quantidade de mensagens (máx. 100)." },
+        limite: { type: "number", description: "Quantidade de mensagens (máx. 200)." },
+        incluir_links: { type: "boolean", description: "Incluir links dos arquivos de mídia (padrão: true)." },
       },
       additionalProperties: false,
     },
     run: async (ctx, args) => {
       const { contactId } = await resolveTarget(ctx, args);
-      const compiled = await compileLeadContext(ctx, contactId, num(args.limite, MAX_MESSAGES, MAX_MESSAGES));
+      const withLinks = typeof args.incluir_links === "boolean" ? args.incluir_links : true;
+      const compiled = await compileLeadContext(ctx, contactId, num(args.limite, MAX_MESSAGES, 200), {
+        withLinks,
+        maxMessages: 200,
+      });
       return clip(compiled.text, 24000);
     },
   },
   {
     name: "julia_chat_listar_arquivos",
     description:
-      "Lista os anexos trocados no atendimento (documentos, imagens, áudios, vídeos) com nome do arquivo, quem enviou, data e message_id para leitura do conteúdo.",
+      "Lista os anexos trocados no atendimento (documentos, imagens, áudios, vídeos) com nome, quem enviou, data, LINK público do arquivo e message_id para extração de texto.",
     inputSchema: {
       type: "object",
       properties: {
@@ -357,20 +362,25 @@ export const chatTools: CopilotoTool[] = [
         .select("id, type, file_name, caption, from_me, timestamp, media_url")
         .eq("client_id", ctx.clientId)
         .eq("contact_id", contactId)
-        .in("type", ["document", "image", "audio", "ptt", "video"])
+        .in("type", ["document", "image", "audio", "ptt", "video", "sticker"])
         .order("timestamp", { ascending: false })
         .limit(MAX_ROWS);
       if (error) throw new Error(error.message);
       if (!data?.length) return "Nenhum anexo neste atendimento.";
       // deno-lint-ignore no-explicit-any
-      return data
-        .map(
-          (m: any) =>
-            `- ${m.file_name || `(${m.type} sem nome)`} · tipo ${m.type} · enviado por ${m.from_me ? "ATENDENTE" : "CLIENTE"} · ${fmtDate(m.timestamp)}${
-              m.caption ? ` · legenda: ${m.caption}` : ""
-            }\n  message_id: ${m.id}${m.media_url ? "" : " (sem mídia armazenada)"}`,
-        )
-        .join("\n");
+      const messages = data as any[];
+      applyLinks(messages, await resolveMediaLinks(messages));
+      return clip(
+        messages
+          .map(
+            (m) =>
+              `- ${m.file_name || `(${m.type} sem nome)`} · tipo ${m.type} · enviado por ${m.from_me ? "ATENDENTE" : "CLIENTE"} · ${fmtDate(m.timestamp)}${
+                m.caption ? ` · legenda: ${m.caption}` : ""
+              }\n  message_id: ${m.id}\n  arquivo: ${hasUsableLink(m.media_url) ? m.media_url : "(link indisponível)"}`,
+          )
+          .join("\n"),
+        24000,
+      );
     },
   },
   {
