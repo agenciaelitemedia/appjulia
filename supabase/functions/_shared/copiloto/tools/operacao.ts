@@ -43,7 +43,7 @@ export const operacaoTools: CopilotoTool[] = [
   {
     name: "julia_equipe_listar",
     description:
-      "Equipe do escritório: nome, e-mail, papel (admin/user/time/advogado/comercial) e se o acesso está ativo. Não retorna senhas.",
+      "Equipe do escritório espelhando o dashboard de Equipe: nome, e-mail, papel, acesso ativo, status de presença (Online/Ausente/Offline e 'ativo há X'), último login, último logout (com selo Inatividade/Manual), alerta de som ativo e contadores de chats abertos, cards de CRM abertos e tarefas abertas por usuário. Não retorna senhas.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     run: async (ctx) => {
       const rows = await legacyRaw(
@@ -55,15 +55,142 @@ export const operacaoTools: CopilotoTool[] = [
         [ctx.clientId],
       );
       if (!rows.length) return "Nenhum usuário encontrado neste escritório.";
+
       // deno-lint-ignore no-explicit-any
-      return rows
-        .map(
-          (u: any) =>
-            `- ${u.name || "(sem nome)"} · ${u.email} · papel ${u.role || "—"} · ${
-              u.is_active ? "ativo" : "inativo"
-            } · desde ${fmtDate(u.created_at)} (user_id: ${u.id})`,
-        )
-        .join("\n");
+      const users = rows as any[];
+      const ids = users.map((u) => Number(u.id)).filter((n) => Number.isFinite(n));
+      const names = [...new Set(users.map((u) => String(u.name || "").trim()).filter(Boolean))];
+      const nameToIds: Record<string, string[]> = {};
+      for (const u of users) {
+        const key = String(u.name || "").trim();
+        if (!key) continue;
+        (nameToIds[key] ||= []).push(String(u.id));
+      }
+      const idsCsv = ids.join(",") || "0";
+      const namesCsv = names.map((n) => `"${n.replace(/"/g, '\\"')}"`).join(",");
+      const nameOrIdFilter = `assigned_user_id.in.(${idsCsv}),assigned_to.in.(${namesCsv})`;
+
+      const [presenceRes, activityRes, settingsRes, chatsRes, dealsRes, tasksRes] = await Promise.all([
+        ctx.supabase
+          .from("user_presence_status")
+          .select("user_id,last_seen_at,is_online,is_away")
+          .eq("client_id", Number(ctx.clientId)),
+        ctx.supabase.from("user_last_activity").select("*").in("user_id", ids),
+        ctx.supabase.from("chat_client_settings").select("settings").eq("client_id", ctx.clientId).maybeSingle(),
+        names.length
+          ? ctx.supabase
+              .from("chat_conversations")
+              .select("assigned_to, assigned_user_id")
+              .eq("client_id", ctx.clientId)
+              .in("status", ["open", "pending"])
+              .or(nameOrIdFilter)
+          : Promise.resolve({ data: [] }),
+        names.length
+          ? ctx.supabase
+              .from("crm_deals")
+              .select("assigned_to, assigned_user_id, status")
+              .eq("client_id", ctx.clientId)
+              .or(nameOrIdFilter)
+          : Promise.resolve({ data: [] }),
+        ctx.supabase
+          .from("tasks")
+          .select("assigned_to, assigned_user_id")
+          .eq("client_id", ctx.clientId)
+          .in("status", ["pending", "in_progress"])
+          .or(`assigned_user_id.in.(${idsCsv}),assigned_to.in.(${ids.map((i: number) => `"${i}"`).join(",")})`),
+      ]);
+
+      // Presença / atividade / som
+      // deno-lint-ignore no-explicit-any
+      const presence = new Map<number, any>(
+        (presenceRes.data || []).map((r: any) => [Number(r.user_id), r]),
+      );
+      // deno-lint-ignore no-explicit-any
+      const activity = new Map<number, any>(
+        (activityRes.data || []).map((r: any) => [Number(r.user_id), r]),
+      );
+      const s = (settingsRes.data?.settings || {}) as Record<string, unknown>;
+      const soundEnabled = Boolean(s.sound_alert_enabled ?? true);
+      const muted = (s.sound_alert_muted_users || {}) as Record<string, boolean>;
+      const soundActiveFor = (id: number) => soundEnabled && !muted[String(id)];
+
+      // Contadores (mesma lógica do dashboard: id primeiro, fallback por nome)
+      const counters: Record<string, { chats: number; deals: number; tasks: number }> = {};
+      for (const id of ids) counters[String(id)] = { chats: 0, deals: 0, tasks: 0 };
+      // deno-lint-ignore no-explicit-any
+      const resolveIds = (row: any): string[] => {
+        if (row.assigned_user_id != null) {
+          const id = String(row.assigned_user_id);
+          return counters[id] ? [id] : [];
+        }
+        const key = String(row.assigned_to || "").trim();
+        return key ? nameToIds[key] || [] : [];
+      };
+      // deno-lint-ignore no-explicit-any
+      for (const row of (chatsRes.data || []) as any[]) for (const id of resolveIds(row)) counters[id].chats++;
+      // deno-lint-ignore no-explicit-any
+      for (const row of (dealsRes.data || []) as any[]) {
+        const st = String(row.status || "").toLowerCase();
+        if (st === "won" || st === "lost") continue;
+        for (const id of resolveIds(row)) counters[id].deals++;
+      }
+      // deno-lint-ignore no-explicit-any
+      for (const row of (tasksRes.data || []) as any[]) {
+        const st = String(row.assigned_to || "").trim();
+        const target = row.assigned_user_id != null
+          ? [String(row.assigned_user_id)]
+          : (counters[st] ? [st] : []);
+        for (const id of target) if (counters[id]) counters[id].tasks++;
+      }
+
+      const statusOf = (id: number): string => {
+        const p = presence.get(id);
+        if (p?.is_online) return "Online";
+        if (p?.is_away) return "Ausente";
+        return "Offline";
+      };
+      const relativeSeen = (id: number): string => {
+        const ts = presence.get(id)?.last_seen_at;
+        if (!ts) return "";
+        const diff = Date.now() - new Date(ts).getTime();
+        if (diff < 60_000) return "ativo agora";
+        const min = Math.floor(diff / 60_000);
+        if (min < 60) return `ativo há ${min} min`;
+        const h = Math.floor(min / 60);
+        if (h < 24) return `ativo há ${h} h`;
+        const d = Math.floor(h / 24);
+        return d < 7 ? `ativo há ${d} d` : "ativo há +7 d";
+      };
+
+      let chatsTotal = 0, dealsTotal = 0, tasksTotal = 0, onlineTotal = 0;
+      const lines = users.map((u) => {
+        const id = Number(u.id);
+        const status = statusOf(id);
+        if (status === "Online") onlineTotal++;
+        const act = activity.get(id);
+        const c = counters[String(id)] || { chats: 0, deals: 0, tasks: 0 };
+        chatsTotal += c.chats; dealsTotal += c.deals; tasksTotal += c.tasks;
+        const seen = status !== "Online" ? relativeSeen(id) : "";
+        const logout = status === "Online"
+          ? "—"
+          : act?.last_logout_at
+          ? `${fmtDate(act.last_logout_at)} (${act.last_logout_type === "logout_inactivity" ? "Inatividade" : "Manual"})`
+          : "—";
+        return (
+          `- ${u.name || "(sem nome)"} · ${u.email} · papel ${u.role || "—"} · ${
+            u.is_active ? "ativo" : "inativo"
+          } (user_id: ${u.id})\n` +
+          `  status: ${status}${seen ? ` · ${seen}` : ""} · último login: ${
+            act?.last_login_at ? fmtDate(act.last_login_at) : "—"
+          } · último logout: ${logout}\n` +
+          `  som: ${soundActiveFor(id) ? "ativo" : "desativado"} · chats abertos: ${c.chats} · CRM abertos: ${c.deals} · tarefas abertas: ${c.tasks}`
+        );
+      });
+
+      return (
+        `Resumo: ${onlineTotal}/${users.length} online · chats atribuídos: ${chatsTotal} · CRM atribuídos: ${dealsTotal} · tarefas abertas: ${tasksTotal}\n\n` +
+        lines.join("\n")
+      );
     },
   },
   {
