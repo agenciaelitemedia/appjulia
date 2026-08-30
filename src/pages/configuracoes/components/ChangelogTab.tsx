@@ -9,6 +9,22 @@ type ChangelogItem = {
 
 const releases = [
   {
+    version: 'v2.23',
+    date: '30 de agosto de 2026',
+    highlight: 'Conector MCP da Julia com escrita controlada, observabilidade e nova identidade de link.',
+    items: [
+      { category: 'novo', text: 'Conector MCP com 50 ferramentas em 6 domínios (chat, contatos, CRM, contratos, operação e análises jurídicas), com envelope JSON + resumo em texto.' },
+      { category: 'novo', text: 'Ferramentas de escrita com simulação (dry-run) padrão, aprovação humana, idempotência e auditoria completa.' },
+      { category: 'novo', text: 'Painel de Observabilidade do MCP: volume de chamadas, latências p50/p95/p99, erros, tendências e busca por request_id.' },
+      { category: 'novo', text: 'Listagem de conversas via MCP com origem do lead (canal, fila, campanha), filtros por período e fuso America/Sao_Paulo.' },
+      { category: 'melhoria', text: 'Preview de link e favicon do sistema com a identidade Atende Julia, sem referências externas.' },
+      { category: 'correcao', text: 'Datas inválidas nos gráficos de observabilidade corrigidas na origem (timestamps UTC padronizados).' },
+      { category: 'correcao', text: 'Mensagens não suportadas do WhatsApp Oficial passam a exibir aviso em vez de bolha vazia.' },
+      { category: 'correcao', text: 'Textos da parceria Meta na tela de login revisados.' },
+    ] as ChangelogItem[],
+  },
+  {
+
     version: 'v2.22',
     date: '26 de agosto de 2026',
     highlight: 'Selo Tech Provider Oficial da Meta na tela de login.',
