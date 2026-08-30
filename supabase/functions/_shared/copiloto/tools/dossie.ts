@@ -146,7 +146,11 @@ export const dossieTools: CopilotoTool[] = [
             complete: !hasMore,
             warnings: items.some((i) => !i.link) ? ["Alguns arquivos exigem materialização no painel para gerar link público."] : [],
           }),
-          next_cursor_unused: hasMore ? btoa(String(page[page.length - 1]?.timestamp ?? "")) : null,
+          pagination: {
+            next_cursor: hasMore ? btoa(String(page[page.length - 1]?.timestamp ?? "")) : null,
+            has_more: hasMore,
+            total_count: null,
+          },
           text: `Documentos e mídias de ${contato.name || contato.phone}:\n${text}`,
         },
       );
