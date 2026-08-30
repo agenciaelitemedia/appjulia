@@ -116,6 +116,9 @@ export default function MvpCopilotoPage() {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
+
   );
 }
