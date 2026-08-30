@@ -405,7 +405,16 @@ export const chatTools: CopilotoTool[] = [
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!msg) throw new Error("Mensagem não encontrada neste escritório.");
-      if (!msg.media_url) return "Esta mensagem não tem arquivo armazenado para leitura.";
+
+      // Materializa a mídia criptografada (UaZapi .enc / waba_media:) se necessário.
+      if (!hasUsableLink(msg.media_url)) {
+        const links = await resolveMediaLinks([{ id: msg.id, type: msg.type, media_url: msg.media_url }]);
+        const u = links.get(msg.id);
+        if (u) msg.media_url = u;
+      }
+      if (!hasUsableLink(msg.media_url)) {
+        return "Esta mensagem não tem arquivo armazenado para leitura (mídia expirada ou indisponível no provedor).";
+      }
 
       const maxPages = num(args.max_paginas, 10, 30);
       const res = await fetch(msg.media_url);
