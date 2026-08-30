@@ -527,25 +527,55 @@ export const escritaTools: CopilotoTool[] = [
         .maybeSingle();
       if (!contact?.phone) throw new CopilotoError("INVALID_INPUT", "Contato sem telefone para envio.");
 
-      const preview = { conversation_id: convId, contato: contact.name, telefone: contact.phone, queue_id: conv.queue_id, texto };
+      // Fila do escritório: define o canal real de envio (WABA oficial ou UaZapi).
+      const { data: queue } = await ctx.supabase
+        .from("queues")
+        .select("id, name, channel_type, evo_url, evo_apikey, waba_token, waba_number_id")
+        .eq("client_id", ctx.clientId)
+        .eq("id", conv.queue_id)
+        .maybeSingle();
+      if (!queue) throw new CopilotoError("NOT_FOUND", "Fila do atendimento não pertence a este escritório.");
+      const isWaba = String(queue.channel_type || "").toLowerCase().includes("waba") || (!queue.evo_url && !!queue.waba_token);
+      if (isWaba ? !queue.waba_token : !(queue.evo_url && queue.evo_apikey)) {
+        throw new CopilotoError("INVALID_INPUT", "A fila do atendimento não possui credenciais de envio configuradas.");
+      }
+
+      const preview = {
+        conversation_id: convId,
+        contato: contact.name,
+        telefone: contact.phone,
+        queue_id: conv.queue_id,
+        fila: queue.name,
+        canal: isWaba ? "waba" : "uazapi",
+        texto,
+      };
 
       let applied = false;
       // deno-lint-ignore no-explicit-any
       let sendResult: any = null;
       if (!env.dryRun) {
-        const { data, error: sendError } = await ctx.supabase.functions.invoke("chat-send-message", {
-          body: {
-            clientId: ctx.clientId,
-            conversationId: convId,
-            contactId: conv.contact_id,
-            queueId: conv.queue_id,
-            phone: contact.phone,
-            text: texto,
-            source: "mcp",
-            senderName: ctx.userEmail || "MCP",
-          },
-        });
-        if (sendError) {
+        const invocation = isWaba
+          ? ctx.supabase.functions.invoke("waba-send", {
+              body: {
+                action: "send_text",
+                queue_id: conv.queue_id,
+                to: String(contact.phone).replace(/\D/g, ""),
+                text: texto,
+                sender_name: ctx.userEmail || "MCP",
+                source: "mcp",
+              },
+            })
+          : ctx.supabase.functions.invoke("uazapi-proxy", {
+              body: {
+                method: "POST",
+                endpoint: "/send/text",
+                token: queue.evo_apikey,
+                baseUrl: queue.evo_url,
+                body: { number: String(contact.phone).replace(/\D/g, ""), text: texto },
+              },
+            });
+        const { data, error: sendError } = await invocation;
+        if (sendError || data?.error) {
           throw new CopilotoError("DEPENDENCY_UNAVAILABLE", "Falha ao enviar a mensagem pelo canal do escritório.", {
             retryable: true,
             dependency: "messaging",
@@ -554,6 +584,7 @@ export const escritaTools: CopilotoTool[] = [
         sendResult = data ?? { ok: true };
         applied = true;
       }
+
 
       const auditId = await audit(ctx, {
         action: "mensagem_enviar",
