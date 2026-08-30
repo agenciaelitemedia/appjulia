@@ -133,7 +133,44 @@ interface TelemetryRow {
   coverage_warnings: number;
   result_count: number | null;
   arg_keys: string[];
+  arg_summary: Record<string, unknown> | null;
 }
+
+/**
+ * Resumo redigido dos argumentos: mantém IDs, limites, cursores, datas e flags;
+ * omite qualquer texto livre/conteúdo e trunca valores longos.
+ * Nunca grava mensagem de lead, mídia, token ou credencial.
+ */
+const REDACT_KEY = /(mensagem|message|texto|text|body|conteudo|content|caption|prompt|observacao|nota|note|midia|media|url|token|senha|password|secret|key|arquivo|file|base64)/i;
+const MAX_VALUE_LEN = 64;
+const MAX_SUMMARY_KEYS = 20;
+
+function redactValue(value: unknown): unknown {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "boolean" || typeof value === "number") return value;
+  if (typeof value === "string") {
+    if (value.length > MAX_VALUE_LEN) return `${value.slice(0, MAX_VALUE_LEN)}…(${value.length})`;
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return { tipo: "array", itens: value.length, amostra: value.slice(0, 3).map((v) => redactValue(v)) };
+  }
+  if (typeof value === "object") {
+    const keys = Object.keys(value as Record<string, unknown>);
+    return { tipo: "objeto", chaves: keys.slice(0, 10) };
+  }
+  return "[omitido]";
+}
+
+function summarizeArgs(args: ToolArgs): Record<string, unknown> | null {
+  if (!args || typeof args !== "object" || Array.isArray(args)) return null;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args).slice(0, MAX_SUMMARY_KEYS)) {
+    out[key] = REDACT_KEY.test(key) ? "[omitido]" : redactValue(value);
+  }
+  return out;
+}
+
 
 /**
  * Grava a telemetria da chamada (fire-and-forget) e emite um log estruturado
