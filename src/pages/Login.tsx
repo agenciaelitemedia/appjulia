@@ -104,7 +104,7 @@ function MetaProviderBadge() {
             />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">
-                Somos parceiros Oficial da Meta 💙
+                Somos parceiros oficiais da Meta 💙
               </p>
               <p className="aj-muted truncate text-xs">
                 Somos a primeira IA para advogados do Brasil
@@ -132,7 +132,7 @@ function MetaProviderBadge() {
               />
               <div>
                 <p className="text-sm font-bold leading-snug">
-                  Somos parceitos oficiais da Meta 💙
+                  Somos parceiros oficiais da Meta 💙
                 </p>
                 <p className="mt-1 text-xs font-medium text-white/70">
                   Parceiros reconhecidos para oferecer soluções oficiais, seguras e escaláveis.
