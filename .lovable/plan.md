@@ -1,72 +1,55 @@
-# Tela de chat com o agente Julia do OpenClaw (`/mvp-gpt`)
+# MCP: listagem de conversas via query unificada + histórico com links de mídia
 
-Objetivo: falar com o agente supervisor da Julia que já usa o MCP `atende_julia`, direto de uma tela do sistema, sem terminal e sem Telegram. Somente leitura nesta primeira versão.
+Objetivo: as tools de chat do conector MCP (usadas pelo agente no OpenClaw) passarem a devolver a mesma riqueza de dados da lista do chat atual, e o histórico da conversa trazer links de arquivos (imagem, áudio, vídeo, documento) para a IA conseguir ler o conteúdo.
 
-## Decisões assumidas (você deixou a meu critério)
+## Situação atual (verificada no código)
 
-- Rota `/mvp-gpt`, módulo isolado em `src/modules/mvp-gpt/`, com `extend/` como nos módulos recentes.
-- Acesso restrito a **admin** (mesma regra do `AdminRoute`), por ser MVP com acesso amplo de leitura.
-- Credenciais do Gateway ficam como **secrets do backend**, criados vazios e preenchidos por você antes do primeiro teste: `OPENCLAW_GATEWAY_URL`, `OPENCLAW_GATEWAY_TOKEN`, `OPENCLAW_AGENT_ID` (padrão `julia-supervisora`).
-- Nenhum token trafega para o navegador.
+- `julia_chat_listar_conversas` (`supabase/functions/_shared/copiloto/tools/chat.ts`) monta a lista com um `select` manual em `chat_conversations` + um segundo `select` em `chat_contacts`. Não traz fila, etiquetas, SLA, ticket, CRM, não lidos, etapa da Júlia nem campanha.
+- A lista real do chat usa uma única chamada: `julia-chat-list-feed` → RPC `chat_list_feed` (existe no banco, aceita `p_client_id`, filas, status, aba, responsáveis, busca, período, etiquetas, prioridade, ticket, CRM, SLA, ordenação, limite/offset, esconder adiados).
+- `julia_chat_ler_mensagens` usa `buildLeadContext` (`_shared/copiloto/context.ts`), que hoje só cita o **nome** do arquivo e ainda avisa "os arquivos não foram enviados".
+- Mídia: o bucket `chat-media` é público e a função `chat-media-download` materializa a mídia (UaZapi `.enc` e `waba_media:<id>`) nesse bucket, gravando `media_url` público na mensagem. Ou seja, existe caminho pronto para gerar link legível.
 
-## Fluxo
+## Mudança 1 — listagem pela query unificada
 
-```text
-Tela /mvp-gpt
-  -> POST edge function  mvp-gpt-chat  { conversationId, message, userId }
-       - valida usuário no banco legado (db-query) e resolve client_id efetivo
-       - grava mensagem do usuário
-       - chama Gateway OpenClaw /v1/responses (stream) com
-           x-openclaw-agent-id: <OPENCLAW_AGENT_ID>
-           x-openclaw-session-key: julia:{clientId}:{conversationId}
-       - repassa o stream (SSE) para a tela
-       - ao final grava a resposta do assistente
-  -> agente consulta o MCP atende_julia (OAuth já publicado em mcp.atendejulia.com.br)
-```
+Reescrever `julia_chat_listar_conversas` para chamar a RPC `chat_list_feed` com o `client_id` do token (nunca do argumento), repassando filtros equivalentes:
 
-## Backend
+- `status` (all/pending/open/resolved/closed), `tab` (individual/groups), `queue_ids`, responsáveis (`owners`) e `unassigned`, `busca`, período (`from`/`to`), `tag_ids`, `priority`, `has_ticket`, `has_crm_builder`, `sla_status`, `sort`, `limite` (máx. 200) e `offset`.
 
-Nova edge function `mvp-gpt-chat` (`verify_jwt=false`, padrão do projeto, validação em código):
+Cada linha passa a ser formatada com os campos que o feed já entrega: nome/telefone/canal, fila, status, prioridade, protocolo, responsável, não lidos, última mensagem (data + prévia), SLA (tipo, situação e minutos restantes), etiquetas, ticket vinculado, board/pipeline do CRM Builder, etapa do CRM da Júlia, sessão da Júlia ativa ou não, campanha de origem, adiado até, além de `conversation_id` e `contato_id`.
 
-- Entrada validada com zod: `conversationId` (uuid), `message` (1..4000), `userId`.
-- Autorização: consulta o usuário via `db-query` (ativo, role admin) e resolve `client_id` efetivo pela mesma regra de herança já usada no sistema. **O `client_id` nunca vem do corpo da requisição.**
-- Verifica que a conversa pertence ao par (`client_id`, `user_id`) antes de continuar.
-- Rate limit simples por usuário (ex.: 20 mensagens / 5 min), contando em tabela.
-- Chamada ao Gateway sempre em **streaming**, sem timeout por temporizador; cancelamento apenas se o usuário abortar (repassa `request.signal`).
-- Erros traduzidos para mensagens amigáveis: gateway sem configuração, `401/403` (inclui o caso `Auth required` do MCP, com dica de reautorizar o conector), `429`, `5xx`.
-- Logs sem token e sem conteúdo das mensagens — apenas ids, tamanho, duração e status.
+No fim da resposta, incluir os contadores do feed (total, pendentes, abertos, resolvidos, fechados, não lidos, SLA estourado/em risco) e se há mais páginas.
 
-Duas tabelas novas (Supabase), com GRANT e RLS habilitada:
+Efeito colateral positivo: as regras de escopo, deduplicação por contato e ordenação passam a ser exatamente as do chat, sem lógica duplicada.
 
-```text
-gpt_conversations  id, client_id, user_id, title, created_at, updated_at
-gpt_messages       id, conversation_id, role, content, status, created_at
-```
+## Mudança 2 — histórico no padrão do chat, com links de arquivo
 
-Como a autenticação do sistema não é Supabase Auth, o isolamento efetivo é feito na edge function (service role); as políticas ficam restritivas, sem acesso anônimo direto.
+No módulo de chat do MCP:
 
-## Frontend (`src/modules/mvp-gpt/`)
+1. Passar a selecionar também os campos de mídia da mensagem (`media_url`, `mime`/`metadata.mimetype`, `storage_path` em `metadata`, `channel_type`, `message_id`) além dos atuais.
+2. Antes de montar o texto, para cada mensagem de mídia sem link utilizável (vazio, `waba_media:...`, `.enc`, `mmg.whatsapp.net`), chamar `chat-media-download` para materializar o arquivo no bucket público e obter a URL. Limite por chamada (ex.: 30 arquivos por leitura) e execução em pequenos lotes, para não estourar tempo; o que não resolver aparece como "link indisponível".
+3. Ampliar o compilador de contexto para que cada linha de mídia fique assim:
+   - `[data] [CLIENTE]: (imagem: contrato.jpg) https://.../chat-media/...`
+   - áudio: mantém a transcrição quando existir **e** acrescenta o link do áudio.
+   - documento: nome + link.
+4. Trocar o bloco final por `=== ARQUIVOS DA CONVERSA ===` com numeração, tipo, nome e URL, removendo o aviso de que os arquivos não estão disponíveis.
 
-- `pages/MvpGptPage.tsx`: lista de mensagens, campo de texto, enviar, “Nova conversa”, indicador “Julia está analisando”, erro com botão de tentar novamente.
-- Barra lateral simples com as conversas do usuário.
-- Quatro sugestões iniciais: resumo dos atendimentos de hoje, leads para follow-up, casos prioritários, gargalos da operação.
-- Streaming renderizado incrementalmente; o texto pensado/parcial aparece conforme chega.
-- Aviso fixo: agente em modo leitura; nada é enviado a clientes.
-- `extend/db.ts` e `extend/auth.ts` reexportando `supabase` e `useAuth`, sem tocar em nada existente.
-- Rota registrada em `App.tsx` dentro do guard de admin.
+Também vale expor um parâmetro opcional `incluir_links` (padrão ligado) e manter o teto de 100 mensagens.
 
-## Fora do escopo deste MVP
+## Documentação e telas
 
-Voz, anexos, múltiplos agentes, execução automática e qualquer operação de escrita/envio pelo agente.
+- Atualizar as descrições das duas tools (o texto aparece no OpenClaw) e o catálogo em `/mvp-copiloto` (`ToolCatalogCard.tsx`).
+- Atualizar `docs/MCP_julia.md` com os novos campos e o comportamento de links.
 
-## Bloqueio conhecido
+## Detalhes técnicos
 
-O MCP respondeu `Auth required` no seu teste anterior. A tela funciona sem isso, mas o agente só consulta dados da Julia depois de a autorização OAuth do conector estar concluída para o escritório. A tela mostrará esse estado explicitamente quando o agente reportar falta de autorização.
+- Arquivos: `supabase/functions/_shared/copiloto/tools/chat.ts`, `supabase/functions/_shared/copiloto/context.ts`, `supabase/functions/_shared/copiloto/prompts` (se citar formato), `docs/MCP_julia.md`, `src/modules/mvp-copiloto/components/ToolCatalogCard.tsx`.
+- Redeploy de `copiloto-mcp` (os arquivos em `_shared` só valem após deploy).
+- Somente leitura: nenhuma escrita além do efeito já existente de `chat-media-download` (persistir a mídia baixada), que é o mesmo comportamento do chat ao abrir a conversa.
+- Isolamento: `p_client_id` e todos os filtros derivam do token; conversa/contato continuam validados no escopo do escritório.
 
 ## Validação
 
-1. Enviar “Resuma os atendimentos de hoje” e ver resposta em streaming.
-2. Recarregar a página e confirmar que o histórico persiste.
-3. Conferir no banco que a conversa está gravada com o `client_id` da sessão.
-4. Tentar abrir conversa de outro escritório e receber recusa.
-5. Confirmar que nenhum token aparece na aba de rede do navegador.
+1. No simulador de ferramentas em `/mvp-copiloto`, rodar `julia_chat_listar_conversas` sem filtros e conferir campos ricos + contadores.
+2. Repetir com filtro de fila, status e busca por telefone e comparar com a tela `/chat`.
+3. Rodar `julia_chat_ler_mensagens` em uma conversa com imagem, áudio e documento e conferir que os links abrem no navegador.
+4. Conferir que conversa de outro escritório continua sendo recusada.
