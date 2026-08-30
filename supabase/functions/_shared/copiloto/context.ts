@@ -15,6 +15,8 @@ export interface CopilotoMessage {
   file_name: string | null;
   timestamp: string | null;
   metadata: Record<string, unknown> | null;
+  /** URL pública do arquivo no bucket chat-media (quando resolvida). */
+  media_url?: string | null;
 }
 
 export interface CopilotoLead {
@@ -65,20 +67,30 @@ function author(m: CopilotoMessage): string {
   return m.sender_name ? `ATENDENTE (${m.sender_name})` : "ESCRITÓRIO";
 }
 
+/** Link utilizável = URL http(s) pública (bucket chat-media), não um placeholder criptografado. */
+function usableLink(u: string | null | undefined): string | null {
+  if (!u) return null;
+  if (u.startsWith("waba_media:")) return null;
+  if (u.includes(".enc") || u.includes("mmg.whatsapp.net")) return null;
+  return /^https?:\/\//i.test(u) ? u : null;
+}
+
 function body(m: CopilotoMessage): string | null {
   const transcribed = transcription(m);
   const text = (m.text || m.caption || "").trim();
   const type = m.type || "text";
+  const link = usableLink(m.media_url);
+  const linkPart = link ? `\nArquivo: ${link}` : "";
 
-  if (transcribed) return `(áudio transcrito): ${transcribed}`;
+  if (transcribed) return `(áudio transcrito): ${transcribed}${linkPart}`;
   if (text) {
     if (type !== "text" && MEDIA_LABELS[type]) {
-      return `(${MEDIA_LABELS[type]}${m.file_name ? `: ${m.file_name}` : ""}): ${text}`;
+      return `(${MEDIA_LABELS[type]}${m.file_name ? `: ${m.file_name}` : ""}): ${text}${linkPart}`;
     }
     return text;
   }
   if (MEDIA_LABELS[type]) {
-    return `[${MEDIA_LABELS[type]} enviado${m.file_name ? `: ${m.file_name}` : " sem legenda"}]`;
+    return `[${MEDIA_LABELS[type]} enviado${m.file_name ? `: ${m.file_name}` : " sem legenda"}]${linkPart}`;
   }
   if (type === "revoked") return "[mensagem apagada]";
   if (type === "unsupported") return "[mensagem não suportada pelo WhatsApp]";
