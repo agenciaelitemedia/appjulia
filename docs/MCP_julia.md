@@ -64,7 +64,7 @@ src/modules/mvp-copiloto/                    UI de gestão do conector
 
 | Tool | Argumentos | Retorno | Origem |
 | --- | --- | --- | --- |
-| `julia_chat_listar_conversas` | `status`, `queue_id`, `assigned_user_id`, `busca`, `limite` | protocolo, status, prioridade, canal, responsável, snooze | `chat_conversations` + `chat_contacts` |
+| `julia_chat_listar_conversas` | `status`, `tab`, `queue_id(s)`, `responsavel`, `assigned_user_id`, `unassigned`, `busca`, `periodo`, `tag_ids`, `prioridade`, `com_ticket`, `com_crm_builder`, `sla`, `ordenar`, `limite`, `offset` | mesma consulta unificada da tela `/chat` (RPC `chat_list_feed`): contato, fila, protocolo, não lidas, última mensagem, SLA, etiquetas, ticket, CRM Builder, etapa CRM Julia, sessão Julia, campanha, snooze + contadores do escopo | RPC `chat_list_feed` |
 | `julia_chat_obter_conversa` | `conversation_id` | dossiê do atendimento (fila, SLA, tags, encerramento, ticket) | `chat_conversations`, `queues`, `chat_conversation_tags` |
 | `julia_chat_ler_mensagens` | `conversation_id` ou `contato_id`, `limite` | histórico cronológico com papéis e transcrições | `chat_messages` |
 | `julia_chat_listar_arquivos` | `conversation_id` ou `contato_id` | anexos com `message_id` | `chat_messages` |
