@@ -165,6 +165,109 @@ export function isoOrNull(value: unknown, field: string): string | null {
   return d.toISOString();
 }
 
+/* ---------------------- janelas de tempo com fuso real --------------------- */
+
+/** Offset (minutos) do timezone no instante dado. */
+export function tzOffsetMinutes(date: Date, tz: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const p: Record<string, string> = {};
+  for (const part of dtf.formatToParts(date)) if (part.type !== "literal") p[part.type] = part.value;
+  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  return Math.round((asUtc - date.getTime()) / 60000);
+}
+
+/** Componentes de data/hora do instante no timezone pedido. */
+export function zonedParts(date: Date, tz: string) {
+  const off = tzOffsetMinutes(date, tz);
+  const shifted = new Date(date.getTime() + off * 60000);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+    hour: shifted.getUTCHours(),
+    minute: shifted.getUTCMinutes(),
+    second: shifted.getUTCSeconds(),
+    offsetMinutes: off,
+  };
+}
+
+/** "Hora de parede" no timezone -> instante UTC. */
+export function zonedWallClockToUtc(
+  y: number,
+  mo: number,
+  d: number,
+  h = 0,
+  mi = 0,
+  s = 0,
+  ms = 0,
+  tz = DEFAULT_TZ,
+): Date {
+  const guess = Date.UTC(y, mo - 1, d, h, mi, s, ms);
+  const off1 = tzOffsetMinutes(new Date(guess), tz);
+  let utc = guess - off1 * 60000;
+  const off2 = tzOffsetMinutes(new Date(utc), tz);
+  if (off2 !== off1) utc = guess - off2 * 60000;
+  return new Date(utc);
+}
+
+/** Aceita `YYYY-MM-DD`, `YYYY-MM-DDTHH:mm[:ss]` (hora local do tz) ou ISO com offset. */
+export function zonedInputToUtcIso(value: unknown, field: string, tz = DEFAULT_TZ): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  const raw = String(value).trim();
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (m) {
+    const [, y, mo, d, h, mi, s] = m;
+    return zonedWallClockToUtc(+y, +mo, +d, +(h ?? 0), +(mi ?? 0), +(s ?? 0), 0, tz).toISOString();
+  }
+  return isoOrNull(raw, field);
+}
+
+/** Dia civil completo (00:00:00.000 → 23:59:59.999) no timezone pedido. */
+export function dayRangeInTz(dateStr: string, tz = DEFAULT_TZ): { from: string; to: string } {
+  const m = String(dateStr).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) throw invalid(`Data inválida: ${dateStr}. Use o formato YYYY-MM-DD.`);
+  const [, y, mo, d] = m;
+  return {
+    from: zonedWallClockToUtc(+y, +mo, +d, 0, 0, 0, 0, tz).toISOString(),
+    to: zonedWallClockToUtc(+y, +mo, +d, 23, 59, 59, 999, tz).toISOString(),
+  };
+}
+
+/**
+ * Período relativo (`today`, `7d`, `30d`, `3m`, `month`) resolvido no fuso do
+ * escritório — e não no UTC do runtime da Edge Function.
+ */
+export function periodRangeInTz(periodo: string, tz = DEFAULT_TZ): { from: string; to: string } | null {
+  const p = String(periodo || "").trim();
+  if (!p || p === "all") return null;
+  const now = new Date();
+  const z = zonedParts(now, tz);
+  const to = now.toISOString();
+
+  if (p === "today") return { from: zonedWallClockToUtc(z.year, z.month, z.day, 0, 0, 0, 0, tz).toISOString(), to };
+  if (p === "month") return { from: zonedWallClockToUtc(z.year, z.month, 1, 0, 0, 0, 0, tz).toISOString(), to };
+  if (p === "7d" || p === "30d") {
+    const days = p === "7d" ? 7 : 30;
+    const start = zonedWallClockToUtc(z.year, z.month, z.day - days, z.hour, z.minute, z.second, 0, tz);
+    return { from: start.toISOString(), to };
+  }
+  if (p === "3m") {
+    const start = zonedWallClockToUtc(z.year, z.month - 3, z.day, z.hour, z.minute, z.second, 0, tz);
+    return { from: start.toISOString(), to };
+  }
+  throw invalid(`Período inválido: ${p}.`);
+}
+
+
 /** Data legível no timezone pedido + ISO com offset preservado. */
 export function dateOut(ts: unknown, tz = DEFAULT_TZ): { iso: string | null; legivel: string } {
   if (!ts) return { iso: null, legivel: "—" };
