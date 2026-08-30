@@ -101,13 +101,22 @@ Origem: view legada `vw_painelv2_desempenho_julia_contratos`.
 | Tool | Argumentos | Origem |
 | --- | --- | --- |
 | `julia_filas_listar` | — | `queues`, `queue_agent_links` |
-| `julia_equipe_listar` | — | `users` (legado) |
+| `julia_equipe_listar` | — | `users` (legado) + `user_presence_status`, `user_last_activity`, `chat_client_settings`, `chat_conversations`, `crm_deals`, `tasks` |
 | `julia_agentes_listar` | — | `agents` (legado) |
 | `julia_campanhas_listar` | `status`, `limite` | `dsp_campaigns` |
 | `julia_telefonia_listar_chamadas` | `contato_id`, `dias`, `limite` | `wavoip_call_logs`, `phone_call_logs` |
 | `julia_tickets_listar` | `status`, `limite` | `support_tickets` |
 | `julia_tickets_obter` | `ticket_id` | `support_tickets`, `support_ticket_messages` |
 | `julia_operacao_indicadores` | `dias` | `chat_conversations` (agregação em memória) |
+
+`julia_equipe_listar` espelha o dashboard de Equipe (`/equipe`): além de nome,
+e-mail, papel e acesso, retorna por usuário o status de presença
+(Online/Ausente/Offline + "ativo há X", da view `user_presence_status`), último
+login, último logout com selo Inatividade/Manual (view `user_last_activity`),
+alerta de som ativo (`chat_client_settings.settings`) e os contadores de chats
+abertos (open/pending), cards de CRM abertos (≠ won/lost) e tarefas abertas
+(pending/in_progress), com a mesma regra de atribuição do dashboard
+(`assigned_user_id` primeiro, fallback por nome). Abre com um resumo agregado.
 
 ### Análises
 
