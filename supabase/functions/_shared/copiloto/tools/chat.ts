@@ -103,16 +103,28 @@ export async function resolveTarget(
   return { contactId, conversationId: null };
 }
 
-export async function compileLeadContext(ctx: CopilotoContext, contactId: string, limit = MAX_MESSAGES) {
+export async function compileLeadContext(
+  ctx: CopilotoContext,
+  contactId: string,
+  limit = MAX_MESSAGES,
+  opts?: { withLinks?: boolean; maxMessages?: number },
+) {
   const contact = await fetchContact(ctx, contactId);
+  const cap = opts?.maxMessages ?? MAX_MESSAGES;
   const { data, error } = await ctx.supabase
     .from("chat_messages")
     .select(MSG_FIELDS)
     .eq("client_id", ctx.clientId)
     .eq("contact_id", contactId)
     .order("timestamp", { ascending: false })
-    .limit(num(limit, MAX_MESSAGES, MAX_MESSAGES));
+    .limit(num(limit, cap, cap));
   if (error) throw new Error(error.message);
+  // deno-lint-ignore no-explicit-any
+  let messages = (data || []) as any[];
+  if (opts?.withLinks !== false) {
+    const links = await resolveMediaLinks(messages);
+    applyLinks(messages, links);
+  }
   return buildLeadContext(
     {
       contactId,
@@ -121,7 +133,7 @@ export async function compileLeadContext(ctx: CopilotoContext, contactId: string
       phone: contact.phone ?? null,
       channel: contact.channel_type ?? null,
     },
-    (data || []) as CopilotoMessage[],
+    messages as CopilotoMessage[],
   );
 }
 
