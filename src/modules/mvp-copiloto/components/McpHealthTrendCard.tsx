@@ -47,18 +47,25 @@ export function McpHealthTrendCard() {
 
   const chart = useMemo(
     () =>
-      (trend?.timeline || []).map((p) => ({
-        label: new Date(p.bucket).toLocaleDateString('pt-BR', {
-          day: '2-digit',
-          month: '2-digit',
-          timeZone: 'America/Sao_Paulo',
-        }),
-        chamadas: p.calls,
-        'erro %': Number(p.error_rate) || 0,
-        p95: p.p95_ms || 0,
-      })),
+      (trend?.timeline || []).map((p) => {
+        const raw = String(p.bucket || '').replace(/([+-]\d{2})$/, '$1:00');
+        const date = new Date(raw);
+        return {
+          label: Number.isNaN(date.getTime())
+            ? String(p.bucket ?? '—')
+            : date.toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                timeZone: 'America/Sao_Paulo',
+              }),
+          chamadas: p.calls,
+          'erro %': Number(p.error_rate) || 0,
+          p95: p.p95_ms || 0,
+        };
+      }),
     [trend?.timeline],
   );
+
 
   /** Dependências vistas nas falhas: separa problema nosso de problema do provedor. */
   const dependencies = useMemo(() => {

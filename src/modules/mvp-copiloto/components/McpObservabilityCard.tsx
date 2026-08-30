@@ -131,18 +131,26 @@ export function McpObservabilityCard() {
 
   const chartData = useMemo(
     () =>
-      (stats?.timeline || []).map((p) => ({
-        label: new Date(p.bucket).toLocaleString('pt-BR', {
-          ...(bucket === 'day'
-            ? { day: '2-digit' as const, month: '2-digit' as const }
-            : { hour: '2-digit' as const, minute: '2-digit' as const }),
-          timeZone: 'America/Sao_Paulo',
-        }),
-        ok: Math.max((p.calls || 0) - (p.errors || 0), 0),
-        erros: p.errors || 0,
-      })),
+      (stats?.timeline || []).map((p) => {
+        // O bucket pode vir com offset curto (ex.: "+00"), que o navegador não parseia.
+        const raw = String(p.bucket || '').replace(/([+-]\d{2})$/, '$1:00');
+        const date = new Date(raw);
+        return {
+          label: Number.isNaN(date.getTime())
+            ? String(p.bucket ?? '—')
+            : date.toLocaleString('pt-BR', {
+                ...(bucket === 'day'
+                  ? { day: '2-digit' as const, month: '2-digit' as const }
+                  : { hour: '2-digit' as const, minute: '2-digit' as const }),
+                timeZone: 'America/Sao_Paulo',
+              }),
+          ok: Math.max((p.calls || 0) - (p.errors || 0), 0),
+          erros: p.errors || 0,
+        };
+      }),
     [stats?.timeline, bucket],
   );
+
 
   const tools: McpToolStat[] = useMemo(() => {
     const list = [...(stats?.by_tool || [])];
