@@ -3228,6 +3228,42 @@ export type Database = {
           },
         ]
       }
+      cop_alert_thresholds: {
+        Row: {
+          client_id: string
+          created_at: string
+          enabled: boolean
+          error_rate_limit: number
+          id: string
+          min_volume: number
+          p95_limit_ms: number
+          tool_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          enabled?: boolean
+          error_rate_limit?: number
+          id?: string
+          min_volume?: number
+          p95_limit_ms?: number
+          tool_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          enabled?: boolean
+          error_rate_limit?: number
+          id?: string
+          min_volume?: number
+          p95_limit_ms?: number
+          tool_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cop_oauth_clients: {
         Row: {
           client_id: string
@@ -3369,6 +3405,7 @@ export type Database = {
       cop_tool_calls: {
         Row: {
           arg_keys: string[]
+          arg_summary: Json | null
           client_id: string | null
           coverage_complete: boolean | null
           coverage_warnings: number
@@ -3390,6 +3427,7 @@ export type Database = {
         }
         Insert: {
           arg_keys?: string[]
+          arg_summary?: Json | null
           client_id?: string | null
           coverage_complete?: boolean | null
           coverage_warnings?: number
@@ -3411,6 +3449,7 @@ export type Database = {
         }
         Update: {
           arg_keys?: string[]
+          arg_summary?: Json | null
           client_id?: string | null
           coverage_complete?: boolean | null
           coverage_warnings?: number
@@ -12243,9 +12282,24 @@ export type Database = {
         | { Args: never; Returns: number }
         | { Args: { p_retention_days?: number }; Returns: number }
       clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
+      cop_tool_call_detail: {
+        Args: { p_client_id: string; p_request_id: string }
+        Returns: Json
+      }
       cop_tool_call_recent: {
-        Args: { p_client_id: string; p_limit?: number }
+        Args: {
+          p_client_id: string
+          p_domain?: string
+          p_from?: string
+          p_limit?: number
+          p_mode?: string
+          p_status?: string
+          p_to?: string
+          p_tool?: string
+        }
         Returns: {
+          arg_keys: string[]
+          arg_summary: Json
           coverage_complete: boolean
           coverage_warnings: number
           created_at: string
@@ -12257,12 +12311,23 @@ export type Database = {
           mode: string
           request_id: string
           result_count: number
+          retryable: boolean
           status: string
           tool_name: string
+          tool_version: string
         }[]
       }
       cop_tool_call_stats: {
-        Args: { p_client_id: string; p_from: string; p_to: string }
+        Args: {
+          p_bucket?: string
+          p_client_id: string
+          p_domain?: string
+          p_from: string
+          p_mode?: string
+          p_status?: string
+          p_to: string
+          p_tool?: string
+        }
         Returns: Json
       }
       cop_tool_calls_cleanup: {
