@@ -169,15 +169,19 @@ export const metaTools: CopilotoTool[] = [
   },
   {
     name: "mcp_metrics",
-    version: "1.0.0",
+    version: "1.1.0",
     mode: "read",
     requiredScope: SCOPE_READ,
     description:
-      "Observabilidade do conector no escritório atual: volume de chamadas, taxa de erro, latência (p50/p95/máx), ranking por ferramenta, distribuição de erros tipados e série temporal. Aceita janela 1h, 24h, 7d ou 30d.",
+      "Observabilidade do conector no escritório atual: volume de chamadas, taxa de erro, latência (p50/p95/p99/máx), ranking por ferramenta com estado de alerta, distribuição de erros tipados e série temporal. Aceita janela 1h, 24h, 7d ou 30d e filtros por ferramenta, domínio, modo e status.",
     inputSchema: {
       type: "object",
       properties: {
         janela: { type: "string", enum: ["1h", "24h", "7d", "30d"], description: "Janela de análise. Padrão: 24h." },
+        ferramenta: { type: "string", description: "Filtrar por nome exato de uma tool." },
+        dominio: { type: "string", description: "Filtrar por domínio (chat, crm, operacao, ...)." },
+        modo: { type: "string", enum: ["read", "write"], description: "Filtrar por leitura ou escrita." },
+        status: { type: "string", enum: ["ok", "error"], description: "Filtrar por resultado." },
       },
       additionalProperties: false,
     },
@@ -191,6 +195,11 @@ export const metaTools: CopilotoTool[] = [
         p_client_id: ctx.clientId,
         p_from: from.toISOString(),
         p_to: to.toISOString(),
+        p_tool: args?.ferramenta ? String(args.ferramenta) : null,
+        p_domain: args?.dominio ? String(args.dominio) : null,
+        p_mode: args?.modo ? String(args.modo) : null,
+        p_status: args?.status ? String(args.status) : null,
+        p_bucket: hours > 48 ? "day" : "hour",
       });
       if (error) throw dependencyDown("database", "Não foi possível ler a telemetria do conector agora.");
 
@@ -199,17 +208,67 @@ export const metaTools: CopilotoTool[] = [
       const byTool = Array.isArray(stats.by_tool) ? stats.by_tool : [];
       const byError = Array.isArray(stats.by_error) ? stats.by_error : [];
 
+      // limites de alerta configurados pelo escritório (padrão = tool_name nulo)
+      const { data: thresholds } = await ctx.supabase
+        .from("cop_alert_thresholds")
+        .select("tool_name, p95_limit_ms, error_rate_limit, min_volume, enabled")
+        .eq("client_id", ctx.clientId);
+
+      // deno-lint-ignore no-explicit-any
+      const rules: any[] = Array.isArray(thresholds) ? thresholds : [];
+      // deno-lint-ignore no-explicit-any
+      const ruleFor = (tool: string): any =>
+        rules.find((r) => r.tool_name === tool) ?? rules.find((r) => !r.tool_name) ?? null;
+
+      // deno-lint-ignore no-explicit-any
+      const evaluated = byTool.map((t: any) => {
+        const rule = ruleFor(t.tool_name);
+        if (!rule || rule.enabled === false || (t.calls ?? 0) < (rule.min_volume ?? 5)) {
+          return { ...t, alert_state: "ok", alert_reasons: [] };
+        }
+        const reasons: string[] = [];
+        let state = "ok";
+        const p95Limit = Number(rule.p95_limit_ms ?? 0);
+        const errLimit = Number(rule.error_rate_limit ?? 0);
+        if (p95Limit > 0) {
+          if ((t.p95_ms ?? 0) > p95Limit) {
+            state = "critical";
+            reasons.push(`p95 ${t.p95_ms}ms acima do limite de ${p95Limit}ms`);
+          } else if ((t.p95_ms ?? 0) >= p95Limit * 0.8) {
+            state = state === "critical" ? state : "warning";
+            reasons.push(`p95 ${t.p95_ms}ms próximo do limite de ${p95Limit}ms`);
+          }
+        }
+        if (errLimit > 0) {
+          if (Number(t.error_rate ?? 0) > errLimit) {
+            state = "critical";
+            reasons.push(`taxa de erro ${t.error_rate}% acima do limite de ${errLimit}%`);
+          } else if (Number(t.error_rate ?? 0) >= errLimit * 0.8) {
+            state = state === "critical" ? state : "warning";
+            reasons.push(`taxa de erro ${t.error_rate}% próxima do limite de ${errLimit}%`);
+          }
+        }
+        return { ...t, alert_state: state, alert_reasons: reasons };
+      });
+
+      // deno-lint-ignore no-explicit-any
+      const alerts = evaluated.filter((t: any) => t.alert_state !== "ok");
+
       const text = [
         `Observabilidade do conector — janela ${janela}`,
         `Chamadas: ${totals.calls ?? 0} · erros: ${totals.errors ?? 0} (${totals.error_rate ?? 0}%) · escritas: ${totals.writes ?? 0}`,
-        `Latência: p50 ${totals.p50_ms ?? 0}ms · p95 ${totals.p95_ms ?? 0}ms · máx ${totals.max_ms ?? 0}ms`,
+        `Latência: p50 ${totals.p50_ms ?? 0}ms · p95 ${totals.p95_ms ?? 0}ms · p99 ${totals.p99_ms ?? 0}ms · máx ${totals.max_ms ?? 0}ms`,
+        alerts.length ? `\nAlertas (${alerts.length}):` : "\nSem alertas ativos.",
+        // deno-lint-ignore no-explicit-any
+        ...alerts.map((t: any) => `- [${t.alert_state}] ${t.tool_name}: ${t.alert_reasons.join("; ")}`),
         "",
         "Top ferramentas:",
-        ...byTool
+        ...evaluated
           .slice(0, 15)
           .map(
             // deno-lint-ignore no-explicit-any
-            (t: any) => `- ${t.tool_name}: ${t.calls} chamadas · ${t.error_rate}% erro · p95 ${t.p95_ms}ms`,
+            (t: any) =>
+              `- ${t.tool_name}: ${t.calls} chamadas · ${t.error_rate}% erro · p95 ${t.p95_ms}ms · p99 ${t.p99_ms ?? 0}ms`,
           ),
         byError.length ? "\nErros por código:" : "",
         // deno-lint-ignore no-explicit-any
@@ -219,16 +278,24 @@ export const metaTools: CopilotoTool[] = [
         .join("\n");
 
       return ok(
-        { window: janela, totals, by_tool: byTool, by_error: byError, timeline: stats.timeline ?? [] },
+        {
+          window: janela,
+          totals,
+          by_tool: evaluated,
+          alerts,
+          by_error: byError,
+          timeline: stats.timeline ?? [],
+        },
         {
           requestId: ctx.requestId!,
           toolName: "mcp_metrics",
-          toolVersion: "1.0.0",
+          toolVersion: "1.1.0",
           coverage: coverage({ complete: true, from: from.toISOString(), to: to.toISOString() }),
           text,
         },
       );
     },
   },
+
 ];
 
