@@ -7,6 +7,7 @@ import { McpSimulatorCard } from '../components/McpSimulatorCard';
 import { LeadPicker } from '../components/LeadPicker';
 import { ToolCatalogCard } from '../components/ToolCatalogCard';
 import { McpObservabilityCard } from '../components/McpObservabilityCard';
+import { McpHealthTrendCard } from '../components/McpHealthTrendCard';
 import type { MvpLeadOption } from '../hooks/useMvpLeadSearch';
 
 /**
@@ -35,10 +36,15 @@ export default function MvpCopilotoPage() {
         <TabsList>
           <TabsTrigger value="conexao">Conexão e ferramentas</TabsTrigger>
           <TabsTrigger value="observabilidade">Observabilidade</TabsTrigger>
+          <TabsTrigger value="saude">Saúde e tendências</TabsTrigger>
         </TabsList>
 
         <TabsContent value="observabilidade" className="space-y-4">
           <McpObservabilityCard />
+        </TabsContent>
+
+        <TabsContent value="saude" className="space-y-4">
+          <McpHealthTrendCard />
         </TabsContent>
 
         <TabsContent value="conexao" className="space-y-4">
