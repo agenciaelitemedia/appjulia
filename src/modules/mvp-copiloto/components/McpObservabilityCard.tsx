@@ -39,8 +39,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { useAuth } from '../extend/auth';
-import { isOwner } from '@/lib/auth/isOwner';
+import { useIsOwner } from '@/lib/auth/isOwner';
 import {
   evaluateAlerts,
   resolveRange,
@@ -109,8 +108,7 @@ function Metric({
 }
 
 export function McpObservabilityCard() {
-  const { user } = useAuth();
-  const canEdit = isOwner(user);
+  const canEdit = useIsOwner();
 
   const [filters, setFilters] = useState<McpFilters>({ window: '24h' });
   const [autoRefresh, setAutoRefresh] = useState(true);
