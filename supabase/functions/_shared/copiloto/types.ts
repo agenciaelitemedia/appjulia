@@ -4,6 +4,7 @@
  * Regra inviolável: `clientId` (escritório) NUNCA vem de argumento de tool.
  * Ele é resolvido no servidor a partir do token OAuth (`cop_oauth_tokens`).
  */
+import type { ToolOutput } from "./envelope.ts";
 
 export interface CopilotoContext {
   // deno-lint-ignore no-explicit-any
@@ -11,6 +12,12 @@ export interface CopilotoContext {
   /** client_id do escritório, vindo do token OAuth. */
   clientId: string;
   userEmail?: string | null;
+  /** Escopos concedidos ao token (ex.: ["julia:read", "julia:write.crm"]). */
+  scopes?: string[];
+  /** ID do token OAuth — usado em rate limit e auditoria de escrita. */
+  tokenId?: string | null;
+  /** request_id da chamada em curso (injetado pelo dispatcher). */
+  requestId?: string;
   /** Cache dos cod_agent do escritório (usado nas consultas ao banco legado). */
   _agentCodes?: string[] | null;
 }
@@ -18,14 +25,30 @@ export interface CopilotoContext {
 // deno-lint-ignore no-explicit-any
 export type ToolArgs = Record<string, any>;
 
+export type ToolMode = "read" | "write";
+
 export interface CopilotoTool {
   name: string;
+  /** Versão semântica da tool (aparece em mcp_capabilities). */
+  version?: string;
+  mode?: ToolMode;
+  /** Escopo OAuth exigido. Padrão: leitura. */
+  requiredScope?: string;
+  deprecated?: boolean;
+  replacedBy?: string;
+  removalDate?: string;
   description: string;
   // deno-lint-ignore no-explicit-any
   inputSchema: Record<string, any>;
-  /** Sempre devolve texto pronto para o modelo (Markdown/lista). */
-  run: (ctx: CopilotoContext, args: ToolArgs) => Promise<string>;
+  /** Devolve texto pronto (legado) ou o envelope `{ json, text }`. */
+  run: (ctx: CopilotoContext, args: ToolArgs) => Promise<string | ToolOutput>;
 }
+
+export const SCOPE_READ = "julia:read";
+export const SCOPE_WRITE_CRM = "julia:write.crm";
+export const SCOPE_WRITE_MESSAGES = "julia:write.messages";
+/** Escopo legado, equivalente a leitura. */
+export const SCOPE_LEGACY_READ = "leads:read";
 
 export const MAX_MESSAGES = 100;
 export const MAX_ROWS = 200;
