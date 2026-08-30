@@ -66,9 +66,9 @@ src/modules/mvp-copiloto/                    UI de gestão do conector
 | --- | --- | --- | --- |
 | `julia_chat_listar_conversas` | `status`, `tab`, `queue_id(s)`, `responsavel`, `assigned_user_id`, `unassigned`, `busca`, `periodo`, `tag_ids`, `prioridade`, `com_ticket`, `com_crm_builder`, `sla`, `ordenar`, `limite`, `offset` | mesma consulta unificada da tela `/chat` (RPC `chat_list_feed`): contato, fila, protocolo, não lidas, última mensagem, SLA, etiquetas, ticket, CRM Builder, etapa CRM Julia, sessão Julia, campanha, snooze + contadores do escopo | RPC `chat_list_feed` |
 | `julia_chat_obter_conversa` | `conversation_id` | dossiê do atendimento (fila, SLA, tags, encerramento, ticket) | `chat_conversations`, `queues`, `chat_conversation_tags` |
-| `julia_chat_ler_mensagens` | `conversation_id` ou `contato_id`, `limite` | histórico cronológico com papéis e transcrições | `chat_messages` |
-| `julia_chat_listar_arquivos` | `conversation_id` ou `contato_id` | anexos com `message_id` | `chat_messages` |
-| `julia_chat_ler_conteudo_arquivo` | `message_id`, `max_paginas` | texto extraído de PDF/TXT/CSV | `chat_messages` + download da mídia |
+| `julia_chat_ler_mensagens` | `conversation_id` ou `contato_id`, `limite` (máx. 200), `incluir_links` (padrão true) | histórico cronológico com papéis, transcrições e **link público de cada arquivo** (imagem/áudio/vídeo/documento) + bloco `=== ARQUIVOS DA CONVERSA ===` | `chat_messages` + `chat-media-download` (materializa mídia criptografada no bucket público `chat-media`) |
+| `julia_chat_listar_arquivos` | `conversation_id` ou `contato_id` | anexos com `message_id` e link público do arquivo | `chat_messages` + `chat-media-download` |
+| `julia_chat_ler_conteudo_arquivo` | `message_id`, `max_paginas` | texto extraído de PDF/TXT/CSV (resolve link de mídia criptografada automaticamente) | `chat_messages` + `chat-media-download` |
 | `julia_chat_historico_atendimento` | `conversation_id` | auditoria de transferências, devoluções e pausas | `chat_conversation_history` |
 | `julia_chat_listar_resumos` | `conversation_id` ou `contato_id` | resumos de IA já gravados | `chat_conversation_summaries` |
 | `julia_chat_listar_tags` | — | tags do escritório | `chat_tags` |
