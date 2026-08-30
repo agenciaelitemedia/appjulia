@@ -259,3 +259,39 @@ O escritório é resolvido no servidor no consentimento e gravado no token; o es
 somente leitura e a conexão pode ser revogada em `/mvp-copiloto`.
 
 
+
+## Observabilidade (métricas e logs estruturados)
+
+Toda chamada de `tools/call` é registrada pelo dispatcher em `cop_tool_calls`,
+em modo *fire-and-forget* (falha de telemetria nunca derruba a tool):
+
+| Campo | Descrição |
+|---|---|
+| `request_id` | Mesmo id devolvido no envelope — rastreia a chamada ponta a ponta |
+| `tool_name`, `domain`, `tool_version`, `mode` | Identificação da ferramenta (`read`/`write`) |
+| `client_id`, `token_id` | Escritório e token OAuth (resolvidos no servidor) |
+| `status`, `error_code`, `retryable`, `dependency` | Erros tipados (`INVALID_INPUT`, `RATE_LIMITED`, `DEPENDENCY_UNAVAILABLE`, ...) |
+| `latency_ms` | Latência total da chamada |
+| `coverage_complete`, `coverage_warnings`, `result_count`, `dry_run` | Qualidade da resposta |
+| `arg_keys` | Apenas os nomes dos parâmetros recebidos — nunca valores |
+
+Nada de conteúdo de lead, argumento cru, token ou SQL é gravado. Em paralelo,
+o dispatcher emite um log JSON de linha única (`evt: "mcp_tool_call"`) nos logs
+da Edge Function, pesquisável por `request_id`, `tool_name` e `error_code`.
+
+### Tools
+
+- **`mcp_metrics`** — volume, taxa de erro, latência p50/p95/máx, ranking por
+  ferramenta, distribuição de erros tipados e série temporal. Janelas: `1h`,
+  `24h`, `7d`, `30d`. Isolado por `client_id`.
+- **`mcp_health` v1.1.0** — agora inclui `recent_hour` (chamadas, taxa de erro
+  e p95 da última hora) além do status por dependência.
+
+### Painel
+
+Aba **Observabilidade** em `/mvp-copiloto`: cartões de resumo, gráfico de volume
+(ok vs erro), tabela por tool ordenável (volume, % erro, p95) e lista das últimas
+chamadas com `request_id` copiável. Lê as funções `cop_tool_call_stats` e
+`cop_tool_call_recent`, ambas filtradas pelo escritório do usuário.
+
+Retenção: `cop_tool_calls_cleanup(30)` remove registros com mais de 30 dias.

@@ -3366,6 +3366,72 @@ export type Database = {
         }
         Relationships: []
       }
+      cop_tool_calls: {
+        Row: {
+          arg_keys: string[]
+          client_id: string | null
+          coverage_complete: boolean | null
+          coverage_warnings: number
+          created_at: string
+          dependency: string | null
+          domain: string | null
+          dry_run: boolean | null
+          error_code: string | null
+          id: string
+          latency_ms: number
+          mode: string
+          request_id: string
+          result_count: number | null
+          retryable: boolean
+          status: string
+          token_id: string | null
+          tool_name: string
+          tool_version: string | null
+        }
+        Insert: {
+          arg_keys?: string[]
+          client_id?: string | null
+          coverage_complete?: boolean | null
+          coverage_warnings?: number
+          created_at?: string
+          dependency?: string | null
+          domain?: string | null
+          dry_run?: boolean | null
+          error_code?: string | null
+          id?: string
+          latency_ms?: number
+          mode?: string
+          request_id: string
+          result_count?: number | null
+          retryable?: boolean
+          status?: string
+          token_id?: string | null
+          tool_name: string
+          tool_version?: string | null
+        }
+        Update: {
+          arg_keys?: string[]
+          client_id?: string | null
+          coverage_complete?: boolean | null
+          coverage_warnings?: number
+          created_at?: string
+          dependency?: string | null
+          domain?: string | null
+          dry_run?: boolean | null
+          error_code?: string | null
+          id?: string
+          latency_ms?: number
+          mode?: string
+          request_id?: string
+          result_count?: number | null
+          retryable?: boolean
+          status?: string
+          token_id?: string | null
+          tool_name?: string
+          tool_version?: string | null
+        }
+        Relationships: []
+      }
       cop_write_audit: {
         Row: {
           action: string
@@ -12177,6 +12243,32 @@ export type Database = {
         | { Args: never; Returns: number }
         | { Args: { p_retention_days?: number }; Returns: number }
       clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
+      cop_tool_call_recent: {
+        Args: { p_client_id: string; p_limit?: number }
+        Returns: {
+          coverage_complete: boolean
+          coverage_warnings: number
+          created_at: string
+          dependency: string
+          domain: string
+          dry_run: boolean
+          error_code: string
+          latency_ms: number
+          mode: string
+          request_id: string
+          result_count: number
+          status: string
+          tool_name: string
+        }[]
+      }
+      cop_tool_call_stats: {
+        Args: { p_client_id: string; p_from: string; p_to: string }
+        Returns: Json
+      }
+      cop_tool_calls_cleanup: {
+        Args: { p_retention_days?: number }
+        Returns: number
+      }
       dsp_pick_queue_items: {
         Args: { p_limit?: number; p_worker_id: string }
         Returns: {

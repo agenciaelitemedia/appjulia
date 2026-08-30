@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { HelpCircle, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { McpConnectionCard } from '../components/McpConnectionCard';
 import { McpSimulatorCard } from '../components/McpSimulatorCard';
 import { LeadPicker } from '../components/LeadPicker';
 import { ToolCatalogCard } from '../components/ToolCatalogCard';
+import { McpObservabilityCard } from '../components/McpObservabilityCard';
 import type { MvpLeadOption } from '../hooks/useMvpLeadSearch';
 
 /**
@@ -29,7 +31,19 @@ export default function MvpCopilotoPage() {
         </p>
       </div>
 
+      <Tabs defaultValue="conexao" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="conexao">Conexão e ferramentas</TabsTrigger>
+          <TabsTrigger value="observabilidade">Observabilidade</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="observabilidade" className="space-y-4">
+          <McpObservabilityCard />
+        </TabsContent>
+
+        <TabsContent value="conexao" className="space-y-4">
       <Card className="border-primary/30 bg-primary/5">
+
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <HelpCircle className="h-4 w-4 text-primary" />
@@ -103,6 +117,9 @@ export default function MvpCopilotoPage() {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
+
   );
 }
