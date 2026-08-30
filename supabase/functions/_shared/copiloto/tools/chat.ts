@@ -141,67 +141,125 @@ export const chatTools: CopilotoTool[] = [
   {
     name: "julia_chat_listar_conversas",
     description:
-      "Lista atendimentos do inbox do escritório com filtros (status, fila, responsável, busca por nome/telefone). Retorna protocolo, canal, prioridade, responsável e datas — use o conversation_id nas demais tools.",
+      "Lista atendimentos do inbox com a MESMA consulta unificada da tela de chat: contato, fila, status, prioridade, protocolo, responsável, não lidas, última mensagem, SLA, etiquetas, ticket, CRM (Builder e Julia), campanha e adiamento. Aceita filtros de status, aba, fila, responsáveis, busca, período, etiquetas, prioridade, ticket, CRM, SLA e ordenação. Use o conversation_id nas demais tools.",
     inputSchema: {
       type: "object",
       properties: {
         status: { type: "string", enum: ["all", "pending", "open", "resolved", "closed"], description: "Status do atendimento (padrão: all)." },
+        tab: { type: "string", enum: ["individual", "groups"], description: "Aba: individuais ou grupos (padrão: ambos)." },
         queue_id: { type: "string", description: "UUID da fila." },
-        assigned_user_id: { type: "string", description: "ID do atendente responsável." },
+        queue_ids: { type: "array", items: { type: "string" }, description: "Várias filas (UUIDs)." },
+        responsavel: { type: "string", description: "Nome do atendente responsável (ex.: 'Dra. Nicole')." },
+        assigned_user_id: { type: "string", description: "ID numérico do atendente responsável." },
+        unassigned: { type: "boolean", description: "true = somente sem responsável." },
         busca: { type: "string", description: "Nome ou telefone do lead." },
+        periodo: { type: "string", enum: ["all", "today", "7d", "30d", "3m", "month"], description: "Período da última movimentação (padrão: all)." },
+        tag_ids: { type: "array", items: { type: "string" }, description: "UUIDs de etiquetas." },
+        prioridade: { type: "string", enum: ["low", "normal", "high", "urgent"], description: "Prioridade da conversa." },
+        com_ticket: { type: "boolean", description: "true = só com ticket vinculado." },
+        com_crm_builder: { type: "boolean", description: "true = só com card no CRM Builder." },
+        sla: { type: "array", items: { type: "string", enum: ["on_track", "at_risk", "breached"] }, description: "Situação de SLA." },
+        ordenar: { type: "string", enum: ["recent", "oldest", "unread", "sla"], description: "Ordenação (padrão: recent)." },
         limite: { type: "number", description: "Máx. 200 (padrão 20)." },
+        offset: { type: "number", description: "Pular N registros (paginação)." },
       },
       additionalProperties: false,
     },
     run: async (ctx, args) => {
       const limit = num(args.limite, 20, MAX_ROWS);
-      let contactIds: string[] | null = null;
-      const busca = str(args.busca);
-      if (busca) {
-        const digits = busca.replace(/\D/g, "");
-        let q = ctx.supabase.from("chat_contacts").select("id").eq("client_id", ctx.clientId).limit(200);
-        q = digits.length >= 4 ? q.ilike("phone", `%${digits}%`) : q.ilike("name", `%${busca}%`);
-        const { data } = await q;
-        contactIds = (data || []).map((c: { id: string }) => c.id);
-        if (!contactIds.length) return "Nenhuma conversa encontrada para esta busca.";
+      const offset = Math.max(0, Math.floor(Number(args.offset) || 0));
+
+      // Período -> from/to (mesma semântica do chat)
+      let from: string | null = null;
+      let to: string | null = null;
+      const periodo = str(args.periodo);
+      if (periodo && periodo !== "all") {
+        const now = new Date();
+        const start = new Date(now);
+        if (periodo === "today") start.setHours(0, 0, 0, 0);
+        else if (periodo === "7d") start.setDate(start.getDate() - 7);
+        else if (periodo === "30d") start.setDate(start.getDate() - 30);
+        else if (periodo === "3m") start.setMonth(start.getMonth() - 3);
+        else if (periodo === "month") start.setDate(1), start.setHours(0, 0, 0, 0);
+        from = start.toISOString();
+        to = now.toISOString();
       }
 
-      let query = ctx.supabase
-        .from("chat_conversations")
-        .select("id, protocol, status, priority, channel, queue_id, assigned_to, assigned_user_id, opened_at, updated_at, contact_id, snoozed_until")
-        .eq("client_id", ctx.clientId)
-        .order("updated_at", { ascending: false })
-        .limit(limit);
+      const queueIds = Array.isArray(args.queue_ids) ? args.queue_ids.filter(Boolean).map(String) : [];
+      if (str(args.queue_id) && !queueIds.includes(str(args.queue_id))) queueIds.push(str(args.queue_id));
+      const owners = str(args.responsavel) ? [str(args.responsavel)] : null;
+      const sla = Array.isArray(args.sla) ? args.sla.filter(Boolean).map(String) : null;
+      const tagIds = Array.isArray(args.tag_ids) ? args.tag_ids.filter(Boolean).map(String) : null;
 
-      const status = str(args.status);
-      if (status && status !== "all") query = query.eq("status", status);
-      if (str(args.queue_id)) query = query.eq("queue_id", str(args.queue_id));
-      if (str(args.assigned_user_id)) query = query.eq("assigned_user_id", str(args.assigned_user_id));
-      if (contactIds) query = query.in("contact_id", contactIds);
-
-      const { data, error } = await query;
+      const { data: feed, error } = await ctx.supabase.rpc("chat_list_feed", {
+        p_client_id: ctx.clientId,
+        p_queue_ids: queueIds.length ? queueIds : null,
+        p_status: str(args.status) && str(args.status) !== "all" ? str(args.status) : null,
+        p_tab: str(args.tab) || null,
+        p_owners: owners,
+        p_unassigned: typeof args.unassigned === "boolean" ? args.unassigned : null,
+        p_search: str(args.busca) || null,
+        p_from: from,
+        p_to: to,
+        p_tag_ids: tagIds?.length ? tagIds : null,
+        p_priority: str(args.prioridade) || null,
+        p_has_ticket: typeof args.com_ticket === "boolean" ? args.com_ticket : null,
+        p_has_crm_builder: typeof args.com_crm_builder === "boolean" ? args.com_crm_builder : null,
+        p_sla_status: sla?.length ? sla : null,
+        p_sort: str(args.ordenar) || "recent",
+        p_hide_snoozed: true,
+        p_limit: limit,
+        p_offset: offset,
+      });
       if (error) throw new Error(error.message);
-      if (!data?.length) return "Nenhuma conversa encontrada com esses filtros.";
-
-      const ids = [...new Set(data.map((c: { contact_id: string }) => c.contact_id))];
-      const { data: contacts } = await ctx.supabase
-        .from("chat_contacts")
-        .select("id, name, phone")
-        .in("id", ids);
-      const byId = new Map((contacts || []).map((c: { id: string }) => [c.id, c]));
 
       // deno-lint-ignore no-explicit-any
-      return data
-        .map((c: any) => {
-          const ct = byId.get(c.contact_id) as { name?: string; phone?: string } | undefined;
+      const rows: any[] = Array.isArray(feed?.rows) ? feed.rows : [];
+      if (!rows.length) return "Nenhuma conversa encontrada com esses filtros.";
+
+      const assignedUserId = str(args.assigned_user_id);
+      const filtered = assignedUserId ? rows.filter((r) => String(r.assigned_user_id) === assignedUserId) : rows;
+      if (!filtered.length) return "Nenhuma conversa encontrada com esses filtros.";
+
+      const body = filtered
+        .map((r) => {
+          const slaPart = r.sla_status
+            ? ` · SLA ${r.sla_type || ""} ${r.sla_status}${
+                r.sla_remaining_minutes != null ? ` (${Math.abs(r.sla_remaining_minutes)}min ${r.sla_remaining_minutes >= 0 ? "restantes" : "estourado"})` : ""
+              }`
+            : "";
+          const crmParts = [
+            r.crm_board_name ? `CRM Builder: ${r.crm_board_name}${r.crm_pipeline_name ? ` / ${r.crm_pipeline_name}` : ""}` : null,
+            r.julia_stage_name ? `CRM Julia: ${r.julia_stage_name}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
           return [
-            `- ${ct?.name || "(sem nome)"} · ${ct?.phone || "sem telefone"}`,
-            `protocolo ${c.protocol || "—"} · status ${c.status} · prioridade ${c.priority || "normal"} · canal ${c.channel || "whatsapp"}`,
-            `responsável ${c.assigned_to || "sem responsável"} · atualizado ${fmtDate(c.updated_at)}${c.snoozed_until ? ` · pausado até ${fmtDate(c.snoozed_until)}` : ""}`,
-            `  conversation_id: ${c.id} · contato_id: ${c.contact_id}`,
+            `- ${r.contact_name || "(sem nome)"} · ${r.phone || "sem telefone"} · ${r.channel_source || r.channel || "whatsapp"}`,
+            `fila ${r.queue_name || "sem fila"} · status ${r.status} · prioridade ${r.priority || "normal"} · protocolo ${r.protocol || "—"} · não lidas ${r.unread_count ?? 0}`,
+            `responsável ${r.assigned_to || "sem responsável"} · última msg ${fmtDate(r.last_message_at)}${r.last_message_text ? `: "${clip(String(r.last_message_text), 80)}"` : ""}${slaPart}${r.snoozed_until ? ` · pausado até ${fmtDate(r.snoozed_until)}` : ""}`,
+            `${(r.tags || []).map((t: { name: string }) => t.name).join(", ") || "sem etiquetas"}${
+              r.active_ticket_protocol ? ` · ticket ${r.active_ticket_protocol} (#${r.active_ticket_number})` : ""
+            }${crmParts ? ` · ${crmParts}` : ""}${r.session_is_active != null ? ` · sessão Julia ${r.session_is_active ? "ativa" : "inativa"}` : ""}${
+              r.campaign ? " · veio de campanha" : ""
+            }`,
+            `  conversation_id: ${r.conversation_id} · contato_id: ${r.contact_id}`,
           ].join("\n  ");
         })
         .join("\n");
+
+      const c = feed?.counters || {};
+      const summary = [
+        "",
+        "=== CONTADORES DO ESCOPO ===",
+        `total ${c.total ?? "—"} · pendentes ${c.pending ?? "—"} · abertos ${c.open ?? "—"} · resolvidos ${c.resolved ?? "—"} · fechados ${c.closed ?? "—"} · não lidas ${c.unread ?? "—"}`,
+        c.sla_breached != null || c.sla_at_risk != null ? `SLA estourado ${c.sla_breached ?? 0} · em risco ${c.sla_at_risk ?? 0}` : null,
+        feed?.has_more ? `Há mais resultados — peça com offset ${offset + filtered.length}.` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      return clip(body + "\n" + summary, 24000);
     },
   },
   {
