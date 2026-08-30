@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { HelpCircle, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { McpConnectionCard } from '../components/McpConnectionCard';
 import { McpSimulatorCard } from '../components/McpSimulatorCard';
 import { LeadPicker } from '../components/LeadPicker';
