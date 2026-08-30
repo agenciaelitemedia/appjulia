@@ -33,7 +33,7 @@ No módulo de chat do MCP:
    - documento: nome + link.
 4. Trocar o bloco final por `=== ARQUIVOS DA CONVERSA ===` com numeração, tipo, nome e URL, removendo o aviso de que os arquivos não estão disponíveis.
 
-Também vale expor um parâmetro opcional `incluir_links` (padrão ligado) e manter o teto de 100 mensagens.
+Também vale expor um parâmetro opcional `incluir_links` (padrão ligado) e manter o teto de 200 mensagens.
 
 ## Documentação e telas
 
