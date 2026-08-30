@@ -2,7 +2,7 @@
  * Domínio: metadados do próprio conector — inventário de capacidades e saúde
  * das dependências (P0.1 e P0.2 do backlog).
  */
-import { coverage, ok, SCHEMA_VERSION, SERVER_VERSION, type ToolOutput } from "../envelope.ts";
+import { coverage, dependencyDown, ok, SCHEMA_VERSION, SERVER_VERSION, type ToolOutput } from "../envelope.ts";
 import { legacyRaw } from "../legacy.ts";
 import { SCOPE_READ, type CopilotoContext, type CopilotoTool } from "../types.ts";
 
