@@ -249,7 +249,7 @@ export function useMcpCallDetail(requestId: string | null) {
         p_request_id: requestId,
       });
       if (error) throw error;
-      return (data || null) as McpRecentCall | null;
+      return (data as unknown as McpRecentCall | null) ?? null;
     },
   });
 }
@@ -333,7 +333,7 @@ export function evaluateAlerts(tools: McpToolStat[], thresholds: McpThreshold[])
         state = 'critical';
         reasons.push(`p95 ${tool.p95_ms}ms > limite ${p95Limit}ms`);
       } else if (tool.p95_ms >= p95Limit * 0.8) {
-        if (state !== 'critical') state = 'warning';
+        state = 'warning';
         reasons.push(`p95 ${tool.p95_ms}ms perto do limite ${p95Limit}ms`);
       }
     }
