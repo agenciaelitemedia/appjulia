@@ -18,10 +18,10 @@ const CATALOG: { label: string; tools: [string, string][] }[] = [
   {
     label: 'Atendimento e mensagens',
     tools: [
-      ['julia_chat_listar_conversas', 'Lista atendimentos com filtros de status, fila, responsável e busca.'],
+      ['julia_chat_listar_conversas', 'Mesma consulta unificada da tela de chat: fila, SLA, etiquetas, ticket, CRM, campanha e contadores.'],
       ['julia_chat_obter_conversa', 'Detalhes do atendimento: protocolo, fila, SLA, tags, snooze e encerramento.'],
-      ['julia_chat_ler_mensagens', 'Histórico cronológico (até 100 mensagens) com transcrição de áudios.'],
-      ['julia_chat_listar_arquivos', 'Anexos trocados no atendimento, com message_id para leitura.'],
+      ['julia_chat_ler_mensagens', 'Histórico cronológico (até 200 mensagens) com transcrição de áudios e link público de cada arquivo.'],
+      ['julia_chat_listar_arquivos', 'Anexos trocados no atendimento, com link do arquivo e message_id para leitura.'],
       ['julia_chat_ler_conteudo_arquivo', 'Extrai o texto de PDFs e arquivos de texto enviados pelo lead.'],
       ['julia_chat_historico_atendimento', 'Auditoria: transferências, devoluções à fila, pausas e encerramentos.'],
       ['julia_chat_listar_resumos', 'Resumos de IA já gravados no atendimento.'],

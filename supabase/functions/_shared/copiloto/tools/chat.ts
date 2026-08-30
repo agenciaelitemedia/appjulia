@@ -6,7 +6,67 @@ import { buildLeadContext, type CopilotoMessage } from "../context.ts";
 import { bullets, clip, fmtDate, MAX_MESSAGES, MAX_ROWS, num, str, type CopilotoContext, type CopilotoTool } from "../types.ts";
 
 const MSG_FIELDS =
-  "id, text, caption, type, from_me, internal_note, sender_name, file_name, timestamp, metadata";
+  "id, text, caption, type, from_me, internal_note, sender_name, file_name, timestamp, metadata, media_url, channel_type, message_id";
+
+/* ------------------------- resolução de links de mídia --------------------- */
+
+const MEDIA_TYPES = ["image", "video", "audio", "ptt", "sticker", "document"];
+/** Máximo de arquivos materializados por leitura (evita estourar tempo da função). */
+const MEDIA_LINK_CAP = 30;
+
+function hasUsableLink(u: string | null | undefined): boolean {
+  if (!u) return false;
+  if (u.startsWith("waba_media:")) return false;
+  if (u.includes(".enc") || u.includes("mmg.whatsapp.net")) return false;
+  return /^https?:\/\//i.test(u);
+}
+
+/**
+ * Materializa mídias criptografadas no bucket público chat-media (mesmo fluxo
+ * do chat ao abrir a conversa) e devolve mapa message_id -> URL pública.
+ */
+async function resolveMediaLinks(messages: { id: string; type: string | null; media_url?: string | null }[]): Promise<Map<string, string>> {
+  const targets = messages
+    .filter((m) => MEDIA_TYPES.includes(String(m.type || "")) && !hasUsableLink(m.media_url ?? null))
+    .slice(0, MEDIA_LINK_CAP);
+  const out = new Map<string, string>();
+  if (!targets.length) return out;
+
+  const base = Deno.env.get("SUPABASE_URL")!;
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  for (let i = 0; i < targets.length; i += 5) {
+    const chunk = targets.slice(i, i + 5);
+    const results = await Promise.all(
+      chunk.map(async (m) => {
+        try {
+          const res = await fetch(`${base}/functions/v1/chat-media-download`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+            body: JSON.stringify({ messageId: m.id }),
+          });
+          if (!res.ok) return null;
+          const json = await res.json();
+          return typeof json?.url === "string" && json.url ? ([m.id, json.url] as const) : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    for (const r of results) if (r) out.set(r[0], r[1]);
+  }
+  return out;
+}
+
+/** Preenche `media_url` das mensagens com os links recém-materializados. */
+function applyLinks<T extends { id: string; media_url?: string | null }>(messages: T[], links: Map<string, string>): T[] {
+  for (const m of messages) {
+    if (!hasUsableLink(m.media_url ?? null)) {
+      const u = links.get(m.id);
+      if (u) m.media_url = u;
+    }
+  }
+  return messages;
+}
 
 export async function fetchContact(ctx: CopilotoContext, contactId: string) {
   const { data, error } = await ctx.supabase
@@ -43,16 +103,28 @@ export async function resolveTarget(
   return { contactId, conversationId: null };
 }
 
-export async function compileLeadContext(ctx: CopilotoContext, contactId: string, limit = MAX_MESSAGES) {
+export async function compileLeadContext(
+  ctx: CopilotoContext,
+  contactId: string,
+  limit = MAX_MESSAGES,
+  opts?: { withLinks?: boolean; maxMessages?: number },
+) {
   const contact = await fetchContact(ctx, contactId);
+  const cap = opts?.maxMessages ?? MAX_MESSAGES;
   const { data, error } = await ctx.supabase
     .from("chat_messages")
     .select(MSG_FIELDS)
     .eq("client_id", ctx.clientId)
     .eq("contact_id", contactId)
     .order("timestamp", { ascending: false })
-    .limit(num(limit, MAX_MESSAGES, MAX_MESSAGES));
+    .limit(num(limit, cap, cap));
   if (error) throw new Error(error.message);
+  // deno-lint-ignore no-explicit-any
+  let messages = (data || []) as any[];
+  if (opts?.withLinks !== false) {
+    const links = await resolveMediaLinks(messages);
+    applyLinks(messages, links);
+  }
   return buildLeadContext(
     {
       contactId,
@@ -61,7 +133,7 @@ export async function compileLeadContext(ctx: CopilotoContext, contactId: string
       phone: contact.phone ?? null,
       channel: contact.channel_type ?? null,
     },
-    (data || []) as CopilotoMessage[],
+    messages as CopilotoMessage[],
   );
 }
 
@@ -69,67 +141,125 @@ export const chatTools: CopilotoTool[] = [
   {
     name: "julia_chat_listar_conversas",
     description:
-      "Lista atendimentos do inbox do escritório com filtros (status, fila, responsável, busca por nome/telefone). Retorna protocolo, canal, prioridade, responsável e datas — use o conversation_id nas demais tools.",
+      "Lista atendimentos do inbox com a MESMA consulta unificada da tela de chat: contato, fila, status, prioridade, protocolo, responsável, não lidas, última mensagem, SLA, etiquetas, ticket, CRM (Builder e Julia), campanha e adiamento. Aceita filtros de status, aba, fila, responsáveis, busca, período, etiquetas, prioridade, ticket, CRM, SLA e ordenação. Use o conversation_id nas demais tools.",
     inputSchema: {
       type: "object",
       properties: {
         status: { type: "string", enum: ["all", "pending", "open", "resolved", "closed"], description: "Status do atendimento (padrão: all)." },
+        tab: { type: "string", enum: ["individual", "groups"], description: "Aba: individuais ou grupos (padrão: ambos)." },
         queue_id: { type: "string", description: "UUID da fila." },
-        assigned_user_id: { type: "string", description: "ID do atendente responsável." },
+        queue_ids: { type: "array", items: { type: "string" }, description: "Várias filas (UUIDs)." },
+        responsavel: { type: "string", description: "Nome do atendente responsável (ex.: 'Dra. Nicole')." },
+        assigned_user_id: { type: "string", description: "ID numérico do atendente responsável." },
+        unassigned: { type: "boolean", description: "true = somente sem responsável." },
         busca: { type: "string", description: "Nome ou telefone do lead." },
+        periodo: { type: "string", enum: ["all", "today", "7d", "30d", "3m", "month"], description: "Período da última movimentação (padrão: all)." },
+        tag_ids: { type: "array", items: { type: "string" }, description: "UUIDs de etiquetas." },
+        prioridade: { type: "string", enum: ["low", "normal", "high", "urgent"], description: "Prioridade da conversa." },
+        com_ticket: { type: "boolean", description: "true = só com ticket vinculado." },
+        com_crm_builder: { type: "boolean", description: "true = só com card no CRM Builder." },
+        sla: { type: "array", items: { type: "string", enum: ["on_track", "at_risk", "breached"] }, description: "Situação de SLA." },
+        ordenar: { type: "string", enum: ["recent", "oldest", "unread", "sla"], description: "Ordenação (padrão: recent)." },
         limite: { type: "number", description: "Máx. 200 (padrão 20)." },
+        offset: { type: "number", description: "Pular N registros (paginação)." },
       },
       additionalProperties: false,
     },
     run: async (ctx, args) => {
       const limit = num(args.limite, 20, MAX_ROWS);
-      let contactIds: string[] | null = null;
-      const busca = str(args.busca);
-      if (busca) {
-        const digits = busca.replace(/\D/g, "");
-        let q = ctx.supabase.from("chat_contacts").select("id").eq("client_id", ctx.clientId).limit(200);
-        q = digits.length >= 4 ? q.ilike("phone", `%${digits}%`) : q.ilike("name", `%${busca}%`);
-        const { data } = await q;
-        contactIds = (data || []).map((c: { id: string }) => c.id);
-        if (!contactIds.length) return "Nenhuma conversa encontrada para esta busca.";
+      const offset = Math.max(0, Math.floor(Number(args.offset) || 0));
+
+      // Período -> from/to (mesma semântica do chat)
+      let from: string | null = null;
+      let to: string | null = null;
+      const periodo = str(args.periodo);
+      if (periodo && periodo !== "all") {
+        const now = new Date();
+        const start = new Date(now);
+        if (periodo === "today") start.setHours(0, 0, 0, 0);
+        else if (periodo === "7d") start.setDate(start.getDate() - 7);
+        else if (periodo === "30d") start.setDate(start.getDate() - 30);
+        else if (periodo === "3m") start.setMonth(start.getMonth() - 3);
+        else if (periodo === "month") start.setDate(1), start.setHours(0, 0, 0, 0);
+        from = start.toISOString();
+        to = now.toISOString();
       }
 
-      let query = ctx.supabase
-        .from("chat_conversations")
-        .select("id, protocol, status, priority, channel, queue_id, assigned_to, assigned_user_id, opened_at, updated_at, contact_id, snoozed_until")
-        .eq("client_id", ctx.clientId)
-        .order("updated_at", { ascending: false })
-        .limit(limit);
+      const queueIds = Array.isArray(args.queue_ids) ? args.queue_ids.filter(Boolean).map(String) : [];
+      if (str(args.queue_id) && !queueIds.includes(str(args.queue_id))) queueIds.push(str(args.queue_id));
+      const owners = str(args.responsavel) ? [str(args.responsavel)] : null;
+      const sla = Array.isArray(args.sla) ? args.sla.filter(Boolean).map(String) : null;
+      const tagIds = Array.isArray(args.tag_ids) ? args.tag_ids.filter(Boolean).map(String) : null;
 
-      const status = str(args.status);
-      if (status && status !== "all") query = query.eq("status", status);
-      if (str(args.queue_id)) query = query.eq("queue_id", str(args.queue_id));
-      if (str(args.assigned_user_id)) query = query.eq("assigned_user_id", str(args.assigned_user_id));
-      if (contactIds) query = query.in("contact_id", contactIds);
-
-      const { data, error } = await query;
+      const { data: feed, error } = await ctx.supabase.rpc("chat_list_feed", {
+        p_client_id: ctx.clientId,
+        p_queue_ids: queueIds.length ? queueIds : null,
+        p_status: str(args.status) && str(args.status) !== "all" ? str(args.status) : null,
+        p_tab: str(args.tab) || null,
+        p_owners: owners,
+        p_unassigned: typeof args.unassigned === "boolean" ? args.unassigned : null,
+        p_search: str(args.busca) || null,
+        p_from: from,
+        p_to: to,
+        p_tag_ids: tagIds?.length ? tagIds : null,
+        p_priority: str(args.prioridade) || null,
+        p_has_ticket: typeof args.com_ticket === "boolean" ? args.com_ticket : null,
+        p_has_crm_builder: typeof args.com_crm_builder === "boolean" ? args.com_crm_builder : null,
+        p_sla_status: sla?.length ? sla : null,
+        p_sort: str(args.ordenar) || "recent",
+        p_hide_snoozed: true,
+        p_limit: limit,
+        p_offset: offset,
+      });
       if (error) throw new Error(error.message);
-      if (!data?.length) return "Nenhuma conversa encontrada com esses filtros.";
-
-      const ids = [...new Set(data.map((c: { contact_id: string }) => c.contact_id))];
-      const { data: contacts } = await ctx.supabase
-        .from("chat_contacts")
-        .select("id, name, phone")
-        .in("id", ids);
-      const byId = new Map((contacts || []).map((c: { id: string }) => [c.id, c]));
 
       // deno-lint-ignore no-explicit-any
-      return data
-        .map((c: any) => {
-          const ct = byId.get(c.contact_id) as { name?: string; phone?: string } | undefined;
+      const rows: any[] = Array.isArray(feed?.rows) ? feed.rows : [];
+      if (!rows.length) return "Nenhuma conversa encontrada com esses filtros.";
+
+      const assignedUserId = str(args.assigned_user_id);
+      const filtered = assignedUserId ? rows.filter((r) => String(r.assigned_user_id) === assignedUserId) : rows;
+      if (!filtered.length) return "Nenhuma conversa encontrada com esses filtros.";
+
+      const body = filtered
+        .map((r) => {
+          const slaPart = r.sla_status
+            ? ` · SLA ${r.sla_type || ""} ${r.sla_status}${
+                r.sla_remaining_minutes != null ? ` (${Math.abs(r.sla_remaining_minutes)}min ${r.sla_remaining_minutes >= 0 ? "restantes" : "estourado"})` : ""
+              }`
+            : "";
+          const crmParts = [
+            r.crm_board_name ? `CRM Builder: ${r.crm_board_name}${r.crm_pipeline_name ? ` / ${r.crm_pipeline_name}` : ""}` : null,
+            r.julia_stage_name ? `CRM Julia: ${r.julia_stage_name}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ");
           return [
-            `- ${ct?.name || "(sem nome)"} · ${ct?.phone || "sem telefone"}`,
-            `protocolo ${c.protocol || "—"} · status ${c.status} · prioridade ${c.priority || "normal"} · canal ${c.channel || "whatsapp"}`,
-            `responsável ${c.assigned_to || "sem responsável"} · atualizado ${fmtDate(c.updated_at)}${c.snoozed_until ? ` · pausado até ${fmtDate(c.snoozed_until)}` : ""}`,
-            `  conversation_id: ${c.id} · contato_id: ${c.contact_id}`,
+            `- ${r.contact_name || "(sem nome)"} · ${r.phone || "sem telefone"} · ${r.channel_source || r.channel || "whatsapp"}`,
+            `fila ${r.queue_name || "sem fila"} · status ${r.status} · prioridade ${r.priority || "normal"} · protocolo ${r.protocol || "—"} · não lidas ${r.unread_count ?? 0}`,
+            `responsável ${r.assigned_to || "sem responsável"} · última msg ${fmtDate(r.last_message_at)}${r.last_message_text ? `: "${clip(String(r.last_message_text), 80)}"` : ""}${slaPart}${r.snoozed_until ? ` · pausado até ${fmtDate(r.snoozed_until)}` : ""}`,
+            `${(r.tags || []).map((t: { name: string }) => t.name).join(", ") || "sem etiquetas"}${
+              r.active_ticket_protocol ? ` · ticket ${r.active_ticket_protocol} (#${r.active_ticket_number})` : ""
+            }${crmParts ? ` · ${crmParts}` : ""}${r.session_is_active != null ? ` · sessão Julia ${r.session_is_active ? "ativa" : "inativa"}` : ""}${
+              r.campaign ? " · veio de campanha" : ""
+            }`,
+            `  conversation_id: ${r.conversation_id} · contato_id: ${r.contact_id}`,
           ].join("\n  ");
         })
         .join("\n");
+
+      const c = feed?.counters || {};
+      const summary = [
+        "",
+        "=== CONTADORES DO ESCOPO ===",
+        `total ${c.total ?? "—"} · pendentes ${c.pending ?? "—"} · abertos ${c.open ?? "—"} · resolvidos ${c.resolved ?? "—"} · fechados ${c.closed ?? "—"} · não lidas ${c.unread ?? "—"}`,
+        c.sla_breached != null || c.sla_at_risk != null ? `SLA estourado ${c.sla_breached ?? 0} · em risco ${c.sla_at_risk ?? 0}` : null,
+        feed?.has_more ? `Há mais resultados — peça com offset ${offset + filtered.length}.` : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      return clip(body + "\n" + summary, 24000);
     },
   },
   {
@@ -192,26 +322,31 @@ export const chatTools: CopilotoTool[] = [
   {
     name: "julia_chat_ler_mensagens",
     description:
-      "Histórico cronológico da conversa do lead (até 100 mensagens), com papel (CLIENTE / ATENDENTE / NOTA INTERNA), transcrição de áudios e nomes dos anexos. Aceita conversation_id ou contato_id.",
+      "Histórico cronológico da conversa do lead (até 200 mensagens), no mesmo padrão do chat: papel (CLIENTE / ATENDENTE / NOTA INTERNA), transcrição de áudios e LINK público de cada arquivo (imagem, áudio, vídeo, documento) para leitura pela IA. Aceita conversation_id ou contato_id.",
     inputSchema: {
       type: "object",
       properties: {
         conversation_id: { type: "string", description: "UUID da conversa." },
         contato_id: { type: "string", description: "ID do contato (alternativa ao conversation_id)." },
-        limite: { type: "number", description: "Quantidade de mensagens (máx. 100)." },
+        limite: { type: "number", description: "Quantidade de mensagens (máx. 200)." },
+        incluir_links: { type: "boolean", description: "Incluir links dos arquivos de mídia (padrão: true)." },
       },
       additionalProperties: false,
     },
     run: async (ctx, args) => {
       const { contactId } = await resolveTarget(ctx, args);
-      const compiled = await compileLeadContext(ctx, contactId, num(args.limite, MAX_MESSAGES, MAX_MESSAGES));
+      const withLinks = typeof args.incluir_links === "boolean" ? args.incluir_links : true;
+      const compiled = await compileLeadContext(ctx, contactId, num(args.limite, MAX_MESSAGES, 200), {
+        withLinks,
+        maxMessages: 200,
+      });
       return clip(compiled.text, 24000);
     },
   },
   {
     name: "julia_chat_listar_arquivos",
     description:
-      "Lista os anexos trocados no atendimento (documentos, imagens, áudios, vídeos) com nome do arquivo, quem enviou, data e message_id para leitura do conteúdo.",
+      "Lista os anexos trocados no atendimento (documentos, imagens, áudios, vídeos) com nome, quem enviou, data, LINK público do arquivo e message_id para extração de texto.",
     inputSchema: {
       type: "object",
       properties: {
@@ -227,20 +362,25 @@ export const chatTools: CopilotoTool[] = [
         .select("id, type, file_name, caption, from_me, timestamp, media_url")
         .eq("client_id", ctx.clientId)
         .eq("contact_id", contactId)
-        .in("type", ["document", "image", "audio", "ptt", "video"])
+        .in("type", ["document", "image", "audio", "ptt", "video", "sticker"])
         .order("timestamp", { ascending: false })
         .limit(MAX_ROWS);
       if (error) throw new Error(error.message);
       if (!data?.length) return "Nenhum anexo neste atendimento.";
       // deno-lint-ignore no-explicit-any
-      return data
-        .map(
-          (m: any) =>
-            `- ${m.file_name || `(${m.type} sem nome)`} · tipo ${m.type} · enviado por ${m.from_me ? "ATENDENTE" : "CLIENTE"} · ${fmtDate(m.timestamp)}${
-              m.caption ? ` · legenda: ${m.caption}` : ""
-            }\n  message_id: ${m.id}${m.media_url ? "" : " (sem mídia armazenada)"}`,
-        )
-        .join("\n");
+      const messages = data as any[];
+      applyLinks(messages, await resolveMediaLinks(messages));
+      return clip(
+        messages
+          .map(
+            (m) =>
+              `- ${m.file_name || `(${m.type} sem nome)`} · tipo ${m.type} · enviado por ${m.from_me ? "ATENDENTE" : "CLIENTE"} · ${fmtDate(m.timestamp)}${
+                m.caption ? ` · legenda: ${m.caption}` : ""
+              }\n  message_id: ${m.id}\n  arquivo: ${hasUsableLink(m.media_url) ? m.media_url : "(link indisponível)"}`,
+          )
+          .join("\n"),
+        24000,
+      );
     },
   },
   {
@@ -265,7 +405,16 @@ export const chatTools: CopilotoTool[] = [
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!msg) throw new Error("Mensagem não encontrada neste escritório.");
-      if (!msg.media_url) return "Esta mensagem não tem arquivo armazenado para leitura.";
+
+      // Materializa a mídia criptografada (UaZapi .enc / waba_media:) se necessário.
+      if (!hasUsableLink(msg.media_url)) {
+        const links = await resolveMediaLinks([{ id: msg.id, type: msg.type, media_url: msg.media_url }]);
+        const u = links.get(msg.id);
+        if (u) msg.media_url = u;
+      }
+      if (!hasUsableLink(msg.media_url)) {
+        return "Esta mensagem não tem arquivo armazenado para leitura (mídia expirada ou indisponível no provedor).";
+      }
 
       const maxPages = num(args.max_paginas, 10, 30);
       const res = await fetch(msg.media_url);

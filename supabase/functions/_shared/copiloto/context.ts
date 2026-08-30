@@ -15,6 +15,8 @@ export interface CopilotoMessage {
   file_name: string | null;
   timestamp: string | null;
   metadata: Record<string, unknown> | null;
+  /** URL pública do arquivo no bucket chat-media (quando resolvida). */
+  media_url?: string | null;
 }
 
 export interface CopilotoLead {
@@ -65,20 +67,30 @@ function author(m: CopilotoMessage): string {
   return m.sender_name ? `ATENDENTE (${m.sender_name})` : "ESCRITÓRIO";
 }
 
+/** Link utilizável = URL http(s) pública (bucket chat-media), não um placeholder criptografado. */
+function usableLink(u: string | null | undefined): string | null {
+  if (!u) return null;
+  if (u.startsWith("waba_media:")) return null;
+  if (u.includes(".enc") || u.includes("mmg.whatsapp.net")) return null;
+  return /^https?:\/\//i.test(u) ? u : null;
+}
+
 function body(m: CopilotoMessage): string | null {
   const transcribed = transcription(m);
   const text = (m.text || m.caption || "").trim();
   const type = m.type || "text";
+  const link = usableLink(m.media_url);
+  const linkPart = link ? `\nArquivo: ${link}` : "";
 
-  if (transcribed) return `(áudio transcrito): ${transcribed}`;
+  if (transcribed) return `(áudio transcrito): ${transcribed}${linkPart}`;
   if (text) {
     if (type !== "text" && MEDIA_LABELS[type]) {
-      return `(${MEDIA_LABELS[type]}${m.file_name ? `: ${m.file_name}` : ""}): ${text}`;
+      return `(${MEDIA_LABELS[type]}${m.file_name ? `: ${m.file_name}` : ""}): ${text}${linkPart}`;
     }
     return text;
   }
   if (MEDIA_LABELS[type]) {
-    return `[${MEDIA_LABELS[type]} enviado${m.file_name ? `: ${m.file_name}` : " sem legenda"}]`;
+    return `[${MEDIA_LABELS[type]} enviado${m.file_name ? `: ${m.file_name}` : " sem legenda"}]${linkPart}`;
   }
   if (type === "revoked") return "[mensagem apagada]";
   if (type === "unsupported") return "[mensagem não suportada pelo WhatsApp]";
@@ -90,12 +102,23 @@ export function buildLeadContext(lead: CopilotoLead, messages: CopilotoMessage[]
 
   const lines: string[] = [];
   const attachments: string[] = [];
+  const files: { label: string; name: string; url: string | null }[] = [];
 
   for (const m of ordered) {
     const content = body(m);
     if (!content) continue;
     lines.push(`[${fmt(m.timestamp)}] [${author(m)}]: ${content}`);
     if (m.file_name && !attachments.includes(m.file_name)) attachments.push(m.file_name);
+
+    const type = m.type || "text";
+    if (MEDIA_LABELS[type]) {
+      const url = usableLink(m.media_url);
+      files.push({
+        label: MEDIA_LABELS[type],
+        name: m.file_name || `${MEDIA_LABELS[type]} sem nome`,
+        url,
+      });
+    }
   }
 
   const header = [
@@ -110,10 +133,13 @@ export function buildLeadContext(lead: CopilotoLead, messages: CopilotoMessage[]
     .filter(Boolean)
     .join("\n");
 
-  const docs = attachments.length
-    ? `\n\n=== DOCUMENTOS/ARQUIVOS CITADOS NA CONVERSA ===\n${attachments
-        .map((a, i) => `${i + 1}. ${a}`)
-        .join("\n")}\n(Observação: os arquivos não foram enviados — apenas os nomes estão disponíveis nesta análise.)`
+  const docs = files.length
+    ? `\n\n=== ARQUIVOS DA CONVERSA ===\n${files
+        .map(
+          (f, i) =>
+            `${i + 1}. ${f.label} — ${f.name}${f.url ? `\n   ${f.url}` : "\n   (link indisponível)"}`,
+        )
+        .join("\n")}`
     : "";
 
   const text = `${header}\n\n=== HISTÓRICO CRONOLÓGICO DA CONVERSA ===\n${
