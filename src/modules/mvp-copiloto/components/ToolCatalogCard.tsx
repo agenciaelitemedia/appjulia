@@ -53,7 +53,7 @@ const CATALOG: { label: string; tools: [string, string][] }[] = [
     label: 'Operação',
     tools: [
       ['julia_filas_listar', 'Filas de atendimento, canais, números e agentes vinculados.'],
-      ['julia_equipe_listar', 'Equipe do escritório com papéis e status de acesso.'],
+      ['julia_equipe_listar', 'Equipe com presença, último login/logout, som e contadores de chats/CRM/tarefas.'],
       ['julia_agentes_listar', 'Agentes de IA (cod_agent) vinculados ao escritório.'],
       ['julia_campanhas_listar', 'Campanhas de disparo com janelas, aprovação e resultados.'],
       ['julia_telefonia_listar_chamadas', 'Ligações ZAP Call e VoIP com status, duração e transcrição.'],

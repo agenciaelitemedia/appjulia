@@ -101,7 +101,7 @@ Origem: view legada `vw_painelv2_desempenho_julia_contratos`.
 | Tool | Argumentos | Origem |
 | --- | --- | --- |
 | `julia_filas_listar` | — | `queues`, `queue_agent_links` |
-| `julia_equipe_listar` | — | `users` (legado) |
+| `julia_equipe_listar` | — | `users` (legado) + `user_presence_status`, `user_last_activity`, `chat_client_settings`, `chat_conversations`, `crm_deals`, `tasks` |
 | `julia_agentes_listar` | — | `agents` (legado) |
 | `julia_campanhas_listar` | `status`, `limite` | `dsp_campaigns` |
 | `julia_telefonia_listar_chamadas` | `contato_id`, `dias`, `limite` | `wavoip_call_logs`, `phone_call_logs` |
