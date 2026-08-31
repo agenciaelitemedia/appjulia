@@ -392,7 +392,7 @@ export const chatTools: CopilotoTool[] = [
         p_has_crm_builder: typeof args.com_crm_builder === "boolean" ? args.com_crm_builder : null,
         p_sla_status: sla?.length ? sla : null,
         p_sort: str(args.ordenar) || "recent",
-        p_hide_snoozed: true,
+        p_hide_snoozed: hideSnoozed,
         p_limit: limit,
         p_offset: offset,
       });
