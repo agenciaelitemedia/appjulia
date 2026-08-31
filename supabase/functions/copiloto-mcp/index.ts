@@ -99,12 +99,14 @@ Deno.serve(async (req) => {
   }
 
 
-  const wwwAuthFor = (reason: string, description: string) => ({
-    "WWW-Authenticate":
+  const wwwAuthFor = (reason: string, description: string) => {
+    const value =
       `Bearer resource_metadata="${ISSUER}/.well-known/oauth-protected-resource", ` +
       `error="${reason === "sem_bearer" ? "invalid_request" : "invalid_token"}", ` +
-      `error_description="${description.replace(/"/g, "'")}"`,
-  });
+      `error_description="${description.replace(/"/g, "'")}"`;
+    // Alguns gateways sanitizam WWW-Authenticate; o alias garante o diagnóstico.
+    return { "WWW-Authenticate": value, "X-MCP-WWW-Authenticate": value };
+  };
 
   /** Registra a recusa (sem expor o token) para diagnóstico no painel. */
   const logAuthFailure = async (reason: string, description: string, detail?: Record<string, unknown>) => {
