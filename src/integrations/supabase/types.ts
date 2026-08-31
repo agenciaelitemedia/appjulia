@@ -3264,6 +3264,42 @@ export type Database = {
         }
         Relationships: []
       }
+      cop_auth_failures: {
+        Row: {
+          client_hint: string | null
+          created_at: string
+          detail: string | null
+          id: string
+          julia_client_id: string | null
+          method: string | null
+          path: string | null
+          reason: string
+          token_hint: string | null
+        }
+        Insert: {
+          client_hint?: string | null
+          created_at?: string
+          detail?: string | null
+          id?: string
+          julia_client_id?: string | null
+          method?: string | null
+          path?: string | null
+          reason: string
+          token_hint?: string | null
+        }
+        Update: {
+          client_hint?: string | null
+          created_at?: string
+          detail?: string | null
+          id?: string
+          julia_client_id?: string | null
+          method?: string | null
+          path?: string | null
+          reason?: string
+          token_hint?: string | null
+        }
+        Relationships: []
+      }
       cop_oauth_clients: {
         Row: {
           client_id: string
@@ -3364,6 +3400,9 @@ export type Database = {
           julia_user_id: string
           kind: string
           last_used_at: string | null
+          previous_access_token: string | null
+          previous_refresh_token: string | null
+          previous_token_expires_at: string | null
           refresh_token: string | null
           revoked_at: string | null
           scope: string
@@ -3380,6 +3419,9 @@ export type Database = {
           julia_user_id: string
           kind?: string
           last_used_at?: string | null
+          previous_access_token?: string | null
+          previous_refresh_token?: string | null
+          previous_token_expires_at?: string | null
           refresh_token?: string | null
           revoked_at?: string | null
           scope?: string
@@ -3396,6 +3438,9 @@ export type Database = {
           julia_user_id?: string
           kind?: string
           last_used_at?: string | null
+          previous_access_token?: string | null
+          previous_refresh_token?: string | null
+          previous_token_expires_at?: string | null
           refresh_token?: string | null
           revoked_at?: string | null
           scope?: string
@@ -12282,6 +12327,15 @@ export type Database = {
         | { Args: never; Returns: number }
         | { Args: { p_retention_days?: number }; Returns: number }
       clear_user_presence: { Args: { p_user_id: number }; Returns: undefined }
+      cop_auth_failure_stats: {
+        Args: { p_hours?: number }
+        Returns: {
+          reason: string
+          total: number
+          ultima: string
+        }[]
+      }
+      cop_auth_failures_cleanup: { Args: never; Returns: undefined }
       cop_tool_call_detail: {
         Args: { p_client_id: string; p_request_id: string }
         Returns: Json
