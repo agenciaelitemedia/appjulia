@@ -371,7 +371,7 @@ function buildPrompt(ctx: Awaited<ReturnType<typeof loadContext>>, question?: st
 
   parts.push("\n# CONVERSA");
   parts.push(`Fila: ${ctx.queue?.name || "(não informada)"}`);
-  parts.push(`Canal: ${ctx.conv.channel_source || "(não informado)"}`);
+  parts.push(`Canal: ${ctx.conv.channel || "(não informado)"}`);
   parts.push(`Status: ${ctx.conv.status || "(não informado)"}`);
 
   parts.push("\n# RESUMOS ANTERIORES");
