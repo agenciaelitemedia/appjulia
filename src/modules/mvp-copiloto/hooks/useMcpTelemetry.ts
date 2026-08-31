@@ -289,10 +289,35 @@ export function useSaveMcpThreshold() {
       min_volume: number;
       enabled: boolean;
     }) => {
-      const payload = { ...input, client_id: clientId };
+      const { id, ...values } = input;
+
+      let targetId = id;
+      if (!targetId) {
+        // O índice único é sobre coalesce(tool_name,'*'), então não serve como
+        // conflict target do PostgREST: buscamos a linha existente antes.
+        let q = supabase
+          .from('cop_alert_thresholds')
+          .select('id')
+          .eq('client_id', clientId);
+        q = values.tool_name === null ? q.is('tool_name', null) : q.eq('tool_name', values.tool_name);
+        const { data: existing, error: findError } = await q.maybeSingle();
+        if (findError) throw findError;
+        targetId = existing?.id;
+      }
+
+      if (targetId) {
+        const { error } = await supabase
+          .from('cop_alert_thresholds')
+          .update(values)
+          .eq('id', targetId)
+          .eq('client_id', clientId);
+        if (error) throw error;
+        return;
+      }
+
       const { error } = await supabase
         .from('cop_alert_thresholds')
-        .upsert(payload, { onConflict: 'id' });
+        .insert({ ...values, client_id: clientId });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['copiloto', 'mcp-thresholds', clientId] }),
