@@ -483,6 +483,10 @@ export const chatTools: CopilotoTool[] = [
               ].join("\n  ");
             })
             .join("\n")
+        : isIdentifier
+        ? `CONCLUSIVO: nenhum atendimento com esse ${search!.kind} (${rawSearch}) existe no escritório desta sessão (client_id ${ctx.clientId}). ` +
+          "A busca cobriu todos os status e também os atendimentos pausados. Não pagine nem varra a lista: o identificador não pertence a este escritório. " +
+          "Se o registro deveria existir, a conexão OAuth em uso está vinculada a outro escritório."
         : "Nenhuma conversa encontrada com esses filtros.";
 
       const janelaTxt = from || to
@@ -495,16 +499,22 @@ export const chatTools: CopilotoTool[] = [
           "",
           "=== JANELA E FUSO ===",
           janelaTxt,
+          search ? `Busca: ${rawSearch} (interpretada como ${search.kind}${isIdentifier ? `, termo "${search.term}"` : ""})` : null,
           "=== CONTADORES DO ESCOPO ===",
           `total ${c.total ?? "—"} · pendentes ${c.pending ?? "—"} · abertos ${c.open ?? "—"} · resolvidos ${c.resolved ?? "—"} · fechados ${c.closed ?? "—"} · não lidas ${c.unread ?? "—"}`,
           c.sla_breached != null || c.sla_at_risk != null ? `SLA estourado ${c.sla_breached ?? 0} · em risco ${c.sla_at_risk ?? 0}` : null,
-          feed?.has_more ? `Há mais resultados — repita com offset ${offset + itens.length}.` : "Fim da lista para esta janela.",
+          isIdentifier && !itens.length
+            ? "Fim da busca por identificador — nada a paginar."
+            : feed?.has_more
+            ? `Há mais resultados — repita com offset ${offset + itens.length}.`
+            : "Fim da lista para esta janela.",
           warnings.length ? `Avisos: ${warnings.join(" | ")}` : null,
         ]
           .filter(Boolean)
           .join("\n"),
         24000,
       );
+
 
       return ok(
         {
