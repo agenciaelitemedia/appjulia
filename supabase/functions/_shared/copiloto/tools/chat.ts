@@ -621,7 +621,9 @@ export const chatTools: CopilotoTool[] = [
         queueIds.length ? ctx.supabase.from("queues").select("id, name").in("id", queueIds) : Promise.resolve({ data: [] }),
       ]);
       // deno-lint-ignore no-explicit-any
-      const contactById = new Map((contacts || []).map((c: any) => [String(c.id), c]));
+      // deno-lint-ignore no-explicit-any
+      const contactById = new Map<string, any>((contacts || []).map((c: any) => [String(c.id), c]));
+
       // deno-lint-ignore no-explicit-any
       const queueById = new Map((queues || []).map((q: any) => [String(q.id), q.name]));
 
