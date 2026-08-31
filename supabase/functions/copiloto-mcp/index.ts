@@ -100,10 +100,17 @@ Deno.serve(async (req) => {
 
 
   const wwwAuthFor = (reason: string, description: string) => {
+    // Cabeçalhos HTTP aceitam apenas ASCII: a descrição em português é
+    // normalizada aqui (o texto completo vai no corpo JSON da resposta).
+    const ascii = description
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\x20-\x7E]/g, "")
+      .replace(/"/g, "'");
     const value =
       `Bearer resource_metadata="${ISSUER}/.well-known/oauth-protected-resource", ` +
       `error="${reason === "sem_bearer" ? "invalid_request" : "invalid_token"}", ` +
-      `error_description="${description.replace(/"/g, "'")}"`;
+      `error_description="${ascii}"`;
     // Alguns gateways sanitizam WWW-Authenticate; o alias garante o diagnóstico.
     return { "WWW-Authenticate": value, "X-MCP-WWW-Authenticate": value };
   };
