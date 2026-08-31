@@ -298,9 +298,10 @@ export async function dispatchCopilotoTool(ctx: CopilotoContext, name: string, a
       result_count: resultCountOf(output.json),
     });
 
+    const escopo = await scopeInfo(callCtx);
     return {
-      text: output.text,
-      structuredContent: { ...output.json, latency_ms: latency },
+      text: `${output.text}\n\n=== ESCOPO DESTA SESSÃO ===\n${scopeLine(escopo)}`,
+      structuredContent: { ...output.json, escopo, latency_ms: latency },
       isError: false,
     };
   } catch (e) {
@@ -318,11 +319,13 @@ export async function dispatchCopilotoTool(ctx: CopilotoContext, name: string, a
       coverage_warnings: 0,
       result_count: null,
     });
+    const escopo = await scopeInfo(callCtx);
     return {
-      text: `Erro ${envelope.error.code}: ${envelope.error.message}${envelope.error.dependency ? ` (dependência: ${envelope.error.dependency})` : ""}`,
-      structuredContent: { ...envelope, latency_ms: latency },
+      text: `Erro ${envelope.error.code}: ${envelope.error.message}${envelope.error.dependency ? ` (dependência: ${envelope.error.dependency})` : ""}\n${scopeLine(escopo)}`,
+      structuredContent: { ...envelope, escopo, latency_ms: latency },
       isError: true,
     };
+
 
   }
 }
