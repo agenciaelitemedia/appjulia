@@ -98,7 +98,7 @@ export function useLidia({ clientId, conversationId, userEmail, enabled }: UseLi
         .eq('conversation_id', conversationId)
         .maybeSingle();
       if (error) throw error;
-      return data as {
+      return data as unknown as {
         phase: string;
         last_analysis: LidiaOutput;
         confidence: number | null;
