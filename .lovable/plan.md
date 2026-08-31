@@ -61,7 +61,14 @@ A IA responde em JSON estruturado (fase, próximo passo, perguntas, resposta sug
 - Análise apenas com a aba aberta + debounce; cache da última análise em `lidia_sessions` para reabrir sem gastar chamada.
 - Erros da IA (402/403/429) são exibidos no painel com a mensagem real, reutilizando o padrão de alerta de cobrança já existente.
 
+## Liberação restrita (piloto)
+
+- Na primeira fase, a aba LÍDIA aparece **somente** para a conta `tellmoitas@gmail.com`. Para qualquer outro usuário nada muda no chat (nenhuma aba extra, nenhuma chamada de IA).
+- Gate em dois níveis: no frontend, a aba só é montada quando o e-mail do usuário autenticado está na allowlist; na Edge Function, a mesma allowlist é verificada no servidor antes de qualquer chamada de IA (bloqueio real, não só visual).
+- A allowlist fica em um único ponto (`src/modules/lidia/access.ts` + constante espelhada na função), pronta para virar permissão de módulo/flag por escritório quando o piloto for aprovado.
+
 ## Entrega em etapas
+
 
 1. Migration + Edge Function `lidia-copilot` (analyze/chat) e contexto reaproveitando resumos e mensagens.
 2. Aba LÍDIA no `ChatRightBar` com fase, próximo passo, perguntas e resposta sugerida (com envio ao composer).
