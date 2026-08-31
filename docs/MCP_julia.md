@@ -194,6 +194,27 @@ Prompts: `analise_atendimento`, `parecer_viabilidade`, `auditoria_documental`,
    leia a conversa e os documentos e faça o parecer de viabilidade"*.
 5. Revogue a conexão a qualquer momento no cartão de conexões da página.
 
+## Autenticação: tolerância na rotação e diagnóstico de 401
+
+- **Janela de graça (5 min).** Ao renovar (`grant_type=refresh_token`), o par anterior é guardado em
+  `cop_oauth_tokens.previous_access_token` / `previous_refresh_token` com validade de 5 minutos. Durante essa
+  janela, o token antigo continua aceito e o refresh antigo devolve o par vigente (retentativa idempotente),
+  evitando 401 quando dois processos do mesmo cliente renovam em paralelo.
+- **Motivos classificados.** Toda recusa devolve `401` com `{ error, reason, error_description }` e o cabeçalho
+  `WWW-Authenticate` (mais o alias `X-MCP-WWW-Authenticate`). Os `reason` possíveis são `sem_bearer`,
+  `token_desconhecido`, `rotacionado`, `revogado` e `expirado`.
+- **Somente ASCII no cabeçalho.** A descrição no `WWW-Authenticate` é normalizada para ASCII; acentos ali fazem o
+  runtime descartar o cabeçalho inteiro (foi a causa de clientes MCP não descobrirem o servidor OAuth e chamarem
+  as tools sem token). O texto completo em português vai no corpo JSON.
+- **Auditoria.** Recusas ficam em `public.cop_auth_failures` (motivo, caminho, método, pista do token com 4+4
+  caracteres, user-agent) e aparecem em `/mvp-copiloto` → Observabilidade → “Falhas de autenticação”. Retenção de
+  30 dias via `cop_auth_failures_cleanup()`.
+- **GET com token válido** responde `405` explicando que o transporte é POST JSON-RPC, sem parecer erro de
+  autenticação.
+- **Escopos anunciados** no discovery e no protected-resource: `leads:read`, `julia:read`, `julia:write.crm`,
+  `julia:write.messages` (forma com ponto, igual à validada pelo dispatcher).
+
+
 ## Validação
 
 - `tools/list` retorna 27 tools em 6 domínios; `resources/list` retorna 3; `prompts/list` retorna 6.
