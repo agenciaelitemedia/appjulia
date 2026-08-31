@@ -298,7 +298,16 @@ export const chatTools: CopilotoTool[] = [
         responsavel: { type: "string", description: "Nome do atendente responsável (ex.: 'Dra. Nicole')." },
         assigned_user_id: { type: "string", description: "ID numérico do atendente responsável." },
         unassigned: { type: "boolean", description: "true = somente sem responsável." },
-        busca: { type: "string", description: "Nome ou telefone do lead." },
+        busca: {
+          type: "string",
+          description:
+            "Nome, telefone (com ou sem máscara e com ou sem o 9º dígito) OU protocolo do atendimento (#2026-059468, 2026-059468 ou 2026059468).",
+        },
+        incluir_pausados: {
+          type: "boolean",
+          description: "Incluir atendimentos pausados (snooze). Padrão: false; forçado a true quando a busca é por telefone/protocolo.",
+        },
+
         periodo: { type: "string", enum: ["all", "today", "7d", "30d", "3m", "month"], description: "Período relativo da última movimentação, resolvido no fuso informado (padrão: all)." },
         data: { type: "string", description: "Dia civil completo no fuso do escritório (YYYY-MM-DD): 00:00:00.000 até 23:59:59.999." },
         de: { type: "string", description: "Início da janela. Aceita YYYY-MM-DD, YYYY-MM-DDTHH:mm (hora local do fuso) ou ISO com offset." },
