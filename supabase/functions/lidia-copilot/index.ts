@@ -237,7 +237,7 @@ async function loadContext(
 ) {
   const { data: conv, error: convError } = await supabase
     .from("chat_conversations")
-    .select("id, contact_id, client_id, queue_id, assigned_member_id, status, channel_source")
+    .select("id, contact_id, client_id, queue_id, assigned_user_id, status, channel")
     .eq("id", conversationId)
     .maybeSingle();
 
