@@ -31,10 +31,18 @@ Contexto montado no servidor a cada análise:
 - Últimas N mensagens da conversa, com transcrição de áudios quando existir.
 - Dados do contato, fila/canal, card do CRM vinculado (etapa, valor, responsável) e histórico de fases já registradas pela LÍDIA.
 
+## Tom e linguagem
+
+A LÍDIA fala com o atendente, não com um advogado ou vendedor experiente:
+- **Zero jargão**: termos como "prescrição", "liquidação", "honorários de êxito" vêm acompanhados de explicação curta.
+- **Instruções acionáveis**: cada sugestão começa com um verbo ("Pergunte...", "Explique...", "Ligue...") e termina com o objetivo ("...para descobrir se o caso ainda está dentro do prazo").
+- **Sem suposição de conhecimento**: a LÍDIA explica o porquê de cada pergunta e o que fazer com a resposta.
+- **Tom parceiro, não robótico**: usa linguagem calorosa, como um colega experiente ao lado do atendente.
+- **Feedback visual de confiança**: cada sugestão mostra o nível de confiança da LÍDIA e avisa quando a informação ainda é incompleta ("Preciso que o cliente confirme isso").
 
 ## Saída estruturada
 
-A IA responde em JSON estruturado (fase, próximo passo, perguntas, resposta sugerida, análise jurídica, objeções, necessidade de ligação + roteiro, confiança), e a UI renderiza cada bloco em cartão. Nada de "parede de texto".
+A IA responde em JSON estruturado (fase, próximo passo, perguntas com explicação do porquê, resposta sugerida, análise jurídica simplificada, objeções, necessidade de ligação + roteiro, confiança, avisos de informação incompleta), e a UI renderiza cada bloco em cartão. Nada de "parede de texto".
 
 ## Detalhes técnicos
 
