@@ -32,7 +32,9 @@ const CATALOG: { label: string; write?: boolean; tools: [string, string][] }[] =
   {
     label: 'Atendimento e mensagens',
     tools: [
-      ['julia_chat_listar_conversas', 'Consulta unificada da tela de chat + origem do lead (canal, fila, agente, campanha). Janela por dia civil no fuso do escritório.'],
+      ['julia_chat_localizar', 'Localiza direto por telefone, protocolo ou conversation_id — sem paginar, cobrindo todos os status e pausados. Vazio é conclusivo.'],
+      ['julia_chat_listar_conversas', 'Consulta unificada da tela de chat + origem do lead (canal, fila, agente, campanha). Busca aceita nome, telefone ou protocolo. Janela por dia civil no fuso do escritório.'],
+
       ['julia_chat_obter_conversa', 'Detalhes do atendimento: protocolo, fila, SLA, tags, snooze e encerramento.'],
       ['julia_chat_ler_mensagens', 'Histórico cronológico (até 200 mensagens) com transcrição de áudios e link público de cada arquivo.'],
       ['julia_chat_listar_arquivos', 'Anexos trocados no atendimento, com link do arquivo e message_id para leitura.'],
