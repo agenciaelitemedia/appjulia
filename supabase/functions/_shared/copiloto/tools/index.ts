@@ -9,6 +9,8 @@
  * (JSON estruturado + resumo em texto) ou um erro estruturado.
  */
 import { CopilotoError, errorEnvelope, requestId as newRequestId, SCHEMA_VERSION, type ToolOutput } from "../envelope.ts";
+import { officeLabel } from "../legacy.ts";
+
 import {
   SCOPE_LEGACY_READ,
   SCOPE_READ,
