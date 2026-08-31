@@ -80,11 +80,11 @@ export function ChatRightBar({
   const { data: stages = [] } = useCRMStages();
 
   const allTabs: { id: RightBarTabId; label: string; icon: typeof Info }[] = [
+    ...(isLidiaAllowed(user?.email) ? [{ id: 'lidia' as const, label: 'LÍDIA', icon: Sparkles }] : []),
     { id: 'contact', label: 'Contato', icon: Info },
     { id: 'crm', label: 'CRM', icon: Kanban },
     { id: 'phone', label: 'Telefonia', icon: Phone },
     ...(leadCodAgent ? [{ id: 'lead' as const, label: 'Julia', icon: Eye }] : []),
-    ...(isLidiaAllowed(user?.email) ? [{ id: 'lidia' as const, label: 'LÍDIA', icon: Sparkles }] : []),
   ];
   const tabs = visibleTabs ? allTabs.filter((t) => visibleTabs.includes(t.id)) : allTabs;
 
