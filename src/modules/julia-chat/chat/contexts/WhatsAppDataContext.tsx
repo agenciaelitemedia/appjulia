@@ -430,9 +430,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     return window.innerWidth >= 1024;
   });
   const [rightBarTab, setRightBarTabState] = useState<'contact' | 'crm' | 'lead' | 'phone' | 'lidia'>(() => {
-    if (typeof window === 'undefined') return 'contact';
+    if (typeof window === 'undefined') return 'lidia';
     const stored = window.localStorage.getItem('chat_rightbar_tab');
-    return stored === 'crm' || stored === 'lead' || stored === 'phone' || stored === 'lidia' ? stored : 'contact';
+    return stored === 'lidia' || stored === 'contact' || stored === 'crm' || stored === 'lead' || stored === 'phone' ? stored : 'lidia';
   });
 
   const setShowDetailPanel = useCallback((show: boolean) => {
