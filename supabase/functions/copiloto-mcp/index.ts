@@ -93,28 +93,97 @@ Deno.serve(async (req) => {
     return json({
       resource: MCP_PUBLIC_URL,
       authorization_servers: [ISSUER],
-      scopes_supported: ["leads:read", "julia:read", "julia:write:crm", "julia:write:messages"],
+      scopes_supported: ["leads:read", "julia:read", "julia:write.crm", "julia:write.messages"],
       bearer_methods_supported: ["header"],
     });
   }
 
 
-  const wwwAuth = {
-    "WWW-Authenticate": `Bearer resource_metadata="${ISSUER}/.well-known/oauth-protected-resource"`,
+  const wwwAuthFor = (reason: string, description: string) => ({
+    "WWW-Authenticate":
+      `Bearer resource_metadata="${ISSUER}/.well-known/oauth-protected-resource", ` +
+      `error="${reason === "sem_bearer" ? "invalid_request" : "invalid_token"}", ` +
+      `error_description="${description.replace(/"/g, "'")}"`,
+  });
+
+  /** Registra a recusa (sem expor o token) para diagnóstico no painel. */
+  const logAuthFailure = async (reason: string, description: string, detail?: Record<string, unknown>) => {
+    try {
+      await supabase.from("cop_auth_failures").insert({
+        reason,
+        path: url.pathname,
+        method: req.method,
+        token_hint: detail?.token_hint ?? null,
+        client_hint: req.headers.get("user-agent")?.slice(0, 180) ?? null,
+        julia_client_id: detail?.julia_client_id ? String(detail.julia_client_id) : null,
+        detail: description,
+      });
+    } catch {
+      // auditoria não deve derrubar a resposta
+    }
+  };
+
+  const deny = async (reason: string, description: string, detail?: Record<string, unknown>) => {
+    await logAuthFailure(reason, description, detail);
+    return json({ error: reason === "sem_bearer" ? "unauthorized" : "invalid_token", reason, error_description: description }, 401, wwwAuthFor(reason, description));
   };
 
   const auth = req.headers.get("authorization") || "";
   const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
-  if (!bearer) return json({ error: "unauthorized" }, 401, wwwAuth);
+  if (!bearer) {
+    return await deny("sem_bearer", "Nenhum token Bearer foi enviado nesta requisição. O runtime que executa a ferramenta precisa repassar o token da conexão OAuth.");
+  }
 
-  const { data: token } = await supabase
+  const tokenHint = `${bearer.slice(0, 4)}…${bearer.slice(-4)} (${bearer.length})`;
+
+  const SELECT_TOKEN =
+    "id, julia_client_id, julia_user_email, scope, expires_at, revoked_at, previous_access_token, previous_token_expires_at";
+
+  let { data: token } = await supabase
     .from("cop_oauth_tokens")
-    .select("id, julia_client_id, julia_user_email, scope, expires_at, revoked_at")
+    .select(SELECT_TOKEN)
     .eq("access_token", bearer)
     .maybeSingle();
 
-  if (!token || token.revoked_at || new Date(token.expires_at).getTime() < Date.now()) {
-    return json({ error: "invalid_token" }, 401, wwwAuth);
+  let usedPrevious = false;
+  if (!token) {
+    // Token recém-rotacionado: aceito durante a janela de graça de 5 min.
+    const { data: rotated } = await supabase
+      .from("cop_oauth_tokens")
+      .select(SELECT_TOKEN)
+      .eq("previous_access_token", bearer)
+      .maybeSingle();
+    if (rotated) {
+      const graceOk =
+        rotated.previous_token_expires_at && new Date(rotated.previous_token_expires_at).getTime() > Date.now();
+      if (!graceOk) {
+        return await deny(
+          "rotacionado",
+          "Este token foi substituído por um novo na renovação e a janela de tolerância expirou. Recarregue a conexão no cliente MCP para usar o token atual.",
+          { token_hint: tokenHint, julia_client_id: rotated.julia_client_id },
+        );
+      }
+      token = rotated;
+      usedPrevious = true;
+    }
+  }
+
+  if (!token) {
+    return await deny("token_desconhecido", "Token não encontrado. A conexão pode ter sido removida ou o runtime está usando um token antigo.", {
+      token_hint: tokenHint,
+    });
+  }
+  if (token.revoked_at) {
+    return await deny("revogado", "Esta conexão foi revogada no painel do conector. Reconecte para gerar um novo token.", {
+      token_hint: tokenHint,
+      julia_client_id: token.julia_client_id,
+    });
+  }
+  if (new Date(token.expires_at).getTime() < Date.now()) {
+    return await deny("expirado", "Token expirado. Use o refresh token para renovar a conexão.", {
+      token_hint: tokenHint,
+      julia_client_id: token.julia_client_id,
+    });
   }
 
   await supabase.from("cop_oauth_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", token.id);
@@ -128,7 +197,18 @@ Deno.serve(async (req) => {
     _agentCodes: null as string[] | null,
   };
 
-  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+  if (req.method !== "POST") {
+    return json(
+      {
+        error: "method_not_allowed",
+        error_description:
+          "O transporte deste conector é POST JSON-RPC (Streamable HTTP). A autenticação está válida; apenas o método HTTP não é suportado.",
+        authenticated: true,
+        grace_token: usedPrevious,
+      },
+      405,
+    );
+  }
 
   // deno-lint-ignore no-explicit-any
   const body: any = await req.json().catch(() => null);
