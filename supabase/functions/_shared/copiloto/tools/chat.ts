@@ -365,6 +365,16 @@ export const chatTools: CopilotoTool[] = [
       const sla = Array.isArray(args.sla) ? args.sla.filter(Boolean).map(String) : null;
       const tagIds = Array.isArray(args.tag_ids) ? args.tag_ids.filter(Boolean).map(String) : null;
 
+      // Busca: telefone e protocolo são identificadores — resultado vazio é conclusivo.
+      const rawSearch = str(args.busca);
+      const search = rawSearch ? classifySearch(rawSearch) : null;
+      const isIdentifier = !!search && search.kind !== "texto";
+      if (search && search.kind === "telefone" && search.term !== rawSearch.replace(/\D/g, "")) {
+        warnings.push(`Telefone pesquisado pelos 8 últimos dígitos (${search.term}) para cobrir números com e sem o 9º dígito.`);
+      }
+      // Identificador nunca deve ter ponto cego: inclui pausados (snooze).
+      const hideSnoozed = isIdentifier ? false : args.incluir_pausados === true ? false : true;
+
       const { data: feed, error } = await ctx.supabase.rpc("chat_list_feed", {
         p_client_id: ctx.clientId,
         p_queue_ids: queueIds.length ? queueIds : null,
@@ -372,7 +382,8 @@ export const chatTools: CopilotoTool[] = [
         p_tab: str(args.tab) || null,
         p_owners: owners,
         p_unassigned: typeof args.unassigned === "boolean" ? args.unassigned : null,
-        p_search: str(args.busca) || null,
+        p_search: search ? search.term : null,
+
         p_from: from,
         p_to: to,
         p_tag_ids: tagIds?.length ? tagIds : null,
