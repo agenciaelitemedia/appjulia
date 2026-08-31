@@ -544,7 +544,154 @@ export const chatTools: CopilotoTool[] = [
   },
 
   {
+    name: "julia_chat_localizar",
+    version: "1.0.0",
+    description:
+      "Localiza direto (sem paginar) o atendimento e o lead a partir de UM identificador: telefone (com ou sem máscara, com ou sem DDI 55 e com ou sem o 9º dígito), protocolo do atendimento (#2026-059468) ou conversation_id. Cobre TODOS os status e também atendimentos pausados. Resultado vazio é conclusivo: o identificador não pertence ao escritório desta sessão.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        identificador: { type: "string", description: "Telefone, protocolo (#AAAA-NNNNNN) ou UUID da conversa." },
+        timezone: { type: "string", description: "IANA time zone para formatação (padrão America/Sao_Paulo)." },
+      },
+      required: ["identificador"],
+      additionalProperties: false,
+    },
+    run: async (ctx, args) => {
+      const tz = tzOf(args);
+      const raw = str(args.identificador);
+      if (!raw) throw invalid("Informe `identificador` (telefone, protocolo ou conversation_id).");
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
+      const kind: "conversation_id" | "telefone" | "protocolo" | "texto" = isUuid ? "conversation_id" : classifySearch(raw).kind;
+      if (kind === "texto") {
+        throw invalid(
+          "`identificador` deve ser telefone, protocolo (#AAAA-NNNNNN) ou conversation_id. Para buscar por nome use julia_chat_listar_conversas com `busca`.",
+        );
+      }
+
+      const SEL =
+        "id, contact_id, protocol, status, priority, channel, queue_id, assigned_to, assigned_user_id, assigned_at, opened_at, closed_at, snoozed_until, last_customer_message_at, last_message_from_me, active_ticket_protocol, active_ticket_number, updated_at";
+
+      let rows: Record<string, unknown>[] = [];
+      if (kind === "conversation_id") {
+        const { data, error } = await ctx.supabase.from("chat_conversations").select(SEL).eq("client_id", ctx.clientId).eq("id", raw);
+        if (error) throw safeDbError("database", error);
+        rows = data || [];
+      } else if (kind === "protocolo") {
+        const term = raw.replace(/[^0-9]/g, "").slice(-6);
+        const { data, error } = await ctx.supabase
+          .from("chat_conversations")
+          .select(SEL)
+          .eq("client_id", ctx.clientId)
+          .ilike("protocol", `%${term}`)
+          .order("updated_at", { ascending: false })
+          .limit(20);
+        if (error) throw safeDbError("database", error);
+        rows = data || [];
+      } else {
+        const term = raw.replace(/\D/g, "").slice(-8);
+        const { data: contacts, error: cErr } = await ctx.supabase
+          .from("chat_contacts")
+          .select("id, name, phone, channel_type, channel_source, last_message_at")
+          .eq("client_id", ctx.clientId)
+          .ilike("phone", `%${term}%`)
+          .limit(20);
+        if (cErr) throw safeDbError("database", cErr);
+        const ids = (contacts || []).map((c: { id: string }) => c.id);
+        if (ids.length) {
+          const { data, error } = await ctx.supabase
+            .from("chat_conversations")
+            .select(SEL)
+            .eq("client_id", ctx.clientId)
+            .in("contact_id", ids)
+            .order("updated_at", { ascending: false })
+            .limit(50);
+          if (error) throw safeDbError("database", error);
+          rows = data || [];
+        }
+      }
+
+      const contactIds = [...new Set(rows.map((r) => String(r.contact_id)).filter(Boolean))];
+      const queueIds = [...new Set(rows.map((r) => r.queue_id).filter(Boolean).map(String))];
+      const [{ data: contacts }, { data: queues }] = await Promise.all([
+        contactIds.length
+          ? ctx.supabase.from("chat_contacts").select("id, name, phone, channel_type, channel_source").in("id", contactIds)
+          : Promise.resolve({ data: [] }),
+        queueIds.length ? ctx.supabase.from("queues").select("id, name").in("id", queueIds) : Promise.resolve({ data: [] }),
+      ]);
+      // deno-lint-ignore no-explicit-any
+      const contactById = new Map((contacts || []).map((c: any) => [String(c.id), c]));
+      // deno-lint-ignore no-explicit-any
+      const queueById = new Map((queues || []).map((q: any) => [String(q.id), q.name]));
+
+      const itens = rows.map((r) => {
+        const c = contactById.get(String(r.contact_id));
+        return {
+          conversation_id: r.id,
+          contato_id: r.contact_id,
+          contato: c?.name || null,
+          telefone: c?.phone || null,
+          canal: r.channel || c?.channel_type || null,
+          canal_origem: c?.channel_source || null,
+          protocolo: r.protocol || null,
+          status: r.status,
+          prioridade: r.priority || "normal",
+          fila: r.queue_id ? queueById.get(String(r.queue_id)) || null : null,
+          responsavel: r.assigned_to || null,
+          assigned_user_id: r.assigned_user_id ?? null,
+          atribuido_em: r.assigned_at ? dateOut(String(r.assigned_at), tz) : null,
+          aberta_em: r.opened_at ? dateOut(String(r.opened_at), tz) : null,
+          encerrada_em: r.closed_at ? dateOut(String(r.closed_at), tz) : null,
+          pausado_ate: r.snoozed_until ? dateOut(String(r.snoozed_until), tz) : null,
+          ultima_mensagem_do_cliente: r.last_customer_message_at ? dateOut(String(r.last_customer_message_at), tz) : null,
+          ultima_mensagem_do_escritorio: r.last_message_from_me ?? null,
+          ticket: r.active_ticket_protocol ? { protocolo: r.active_ticket_protocol, numero: r.active_ticket_number ?? null } : null,
+        };
+      });
+
+      const text = clip(
+        itens.length
+          ? [
+              `Encontrado(s) ${itens.length} atendimento(s) para ${kind} "${raw}" no escritório desta sessão (client_id ${ctx.clientId}).`,
+              ...itens.map((i) =>
+                [
+                  `- ${i.contato || "(sem nome)"} · ${i.telefone || "sem telefone"} · protocolo ${i.protocolo || "—"}`,
+                  `status ${i.status} · fila ${i.fila || "sem fila"} · responsável ${i.responsavel || "sem responsável"}${
+                    i.pausado_ate ? ` · pausado até ${i.pausado_ate.legivel}` : ""
+                  }`,
+                  `última msg do cliente ${i.ultima_mensagem_do_cliente?.legivel || "—"}${
+                    i.ticket ? ` · ticket ${i.ticket.protocolo}` : ""
+                  }`,
+                  `  conversation_id: ${i.conversation_id} · contato_id: ${i.contato_id}`,
+                ].join("\n  "),
+              ),
+              "",
+              "Use julia_chat_obter_conversa / julia_chat_historico com o conversation_id acima.",
+            ].join("\n")
+          : `CONCLUSIVO: nenhum atendimento com esse ${kind} ("${raw}") existe no escritório desta sessão (client_id ${ctx.clientId}). ` +
+            "A busca cobriu todos os status e os pausados, sem janela de tempo — não há o que paginar. " +
+            "Se o registro deveria existir, a conexão OAuth em uso pertence a outro escritório: reconecte com a conta do escritório correto.",
+        16000,
+      );
+
+      return ok(
+        { identificador: { valor: raw, tipo: kind }, total: itens.length, itens },
+        {
+          requestId: ctx.requestId ?? "",
+          toolName: "julia_chat_localizar",
+          toolVersion: "1.0.0",
+          timezone: tz,
+          coverage: coverage({ complete: true, warnings: [] }),
+          text,
+        },
+      );
+    },
+  },
+
+  {
     name: "julia_chat_obter_conversa",
+
     description:
       "Dossiê de um atendimento: protocolo, fila, responsável, prioridade, tempos de SLA (primeira resposta e resolução), motivo e nota de encerramento, tags, pausa (snooze) e ticket vinculado.",
     inputSchema: {
