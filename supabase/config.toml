@@ -133,3 +133,6 @@ verify_jwt = false
 
 [functions.copiloto-mcp]
 verify_jwt = false
+
+[functions.lidia-copilot]
+verify_jwt = false
