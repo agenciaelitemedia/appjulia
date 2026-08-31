@@ -268,13 +268,39 @@ Deno.serve(async (req) => {
       else body = Object.fromEntries(new URLSearchParams(await req.text()));
 
       if (body.grant_type === "refresh_token") {
+        const presented = String(body.refresh_token || "");
         const { data: tok } = await supabase
           .from("cop_oauth_tokens")
           .select("*")
-          .eq("refresh_token", String(body.refresh_token || ""))
+          .eq("refresh_token", presented)
           .is("revoked_at", null)
           .maybeSingle();
-        if (!tok) return json({ error: "invalid_grant" }, 400);
+
+        // Reuso do refresh token já rotacionado: dentro da janela de graça
+        // devolvemos o par vigente em vez de invalidar a conexão (OAuth 2.1
+        // tolera retentativas de clientes que perderam a resposta anterior).
+        if (!tok) {
+          const { data: rotated } = await supabase
+            .from("cop_oauth_tokens")
+            .select("*")
+            .eq("previous_refresh_token", presented)
+            .is("revoked_at", null)
+            .maybeSingle();
+          if (
+            rotated &&
+            rotated.previous_token_expires_at &&
+            new Date(rotated.previous_token_expires_at).getTime() > Date.now()
+          ) {
+            return json({
+              access_token: rotated.access_token,
+              refresh_token: rotated.refresh_token,
+              token_type: "Bearer",
+              expires_in: Math.max(60, Math.floor((new Date(rotated.expires_at).getTime() - Date.now()) / 1000)),
+              scope: rotated.scope,
+            });
+          }
+          return json({ error: "invalid_grant" }, 400);
+        }
 
         const access = rand(32);
         const refresh = rand(32);
@@ -283,6 +309,11 @@ Deno.serve(async (req) => {
           .update({
             access_token: access,
             refresh_token: refresh,
+            // O par anterior continua aceito por 5 minutos, para que outro
+            // processo/runtime do mesmo cliente não receba 401 na troca.
+            previous_access_token: tok.access_token,
+            previous_refresh_token: tok.refresh_token,
+            previous_token_expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
             expires_at: new Date(Date.now() + 30 * 86400_000).toISOString(),
           })
           .eq("id", tok.id);
