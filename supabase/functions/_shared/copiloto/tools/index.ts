@@ -9,6 +9,8 @@
  * (JSON estruturado + resumo em texto) ou um erro estruturado.
  */
 import { CopilotoError, errorEnvelope, requestId as newRequestId, SCHEMA_VERSION, type ToolOutput } from "../envelope.ts";
+import { officeLabel } from "../legacy.ts";
+
 import {
   SCOPE_LEGACY_READ,
   SCOPE_READ,
@@ -205,7 +207,31 @@ function resultCountOf(json: Record<string, any>): number | null {
   return null;
 }
 
+/* ------------------------------ escopo/tenant ------------------------------ */
+
+interface ScopeInfo {
+  client_id: string | number | null;
+  escritorio: string | null;
+  resolvido_por: "token_oauth";
+}
+
+/** Escritório efetivo da sessão — resolvido pelo token, nunca por argumento. */
+async function scopeInfo(ctx: CopilotoContext): Promise<ScopeInfo> {
+  let escritorio: string | null = null;
+  try {
+    escritorio = await officeLabel(ctx);
+  } catch {
+    escritorio = null;
+  }
+  return { client_id: ctx.clientId ?? null, escritorio, resolvido_por: "token_oauth" };
+}
+
+function scopeLine(s: ScopeInfo): string {
+  return `Escritório: ${s.escritorio ?? "(nome indisponível)"} · client_id ${s.client_id ?? "—"} (definido pelo token OAuth desta conexão; não é possível consultar outro escritório com este token).`;
+}
+
 /* -------------------------------- dispatch -------------------------------- */
+
 
 export interface DispatchResult {
   text: string;
@@ -296,9 +322,10 @@ export async function dispatchCopilotoTool(ctx: CopilotoContext, name: string, a
       result_count: resultCountOf(output.json),
     });
 
+    const escopo = await scopeInfo(callCtx);
     return {
-      text: output.text,
-      structuredContent: { ...output.json, latency_ms: latency },
+      text: `${output.text}\n\n=== ESCOPO DESTA SESSÃO ===\n${scopeLine(escopo)}`,
+      structuredContent: { ...output.json, escopo, latency_ms: latency },
       isError: false,
     };
   } catch (e) {
@@ -316,11 +343,13 @@ export async function dispatchCopilotoTool(ctx: CopilotoContext, name: string, a
       coverage_warnings: 0,
       result_count: null,
     });
+    const escopo = await scopeInfo(callCtx);
     return {
-      text: `Erro ${envelope.error.code}: ${envelope.error.message}${envelope.error.dependency ? ` (dependência: ${envelope.error.dependency})` : ""}`,
-      structuredContent: { ...envelope, latency_ms: latency },
+      text: `Erro ${envelope.error.code}: ${envelope.error.message}${envelope.error.dependency ? ` (dependência: ${envelope.error.dependency})` : ""}\n${scopeLine(escopo)}`,
+      structuredContent: { ...envelope, escopo, latency_ms: latency },
       isError: true,
     };
+
 
   }
 }

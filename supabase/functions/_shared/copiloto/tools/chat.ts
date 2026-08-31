@@ -234,12 +234,60 @@ export async function compileLeadContext(
   );
 }
 
+/* --------------------------- identificadores -------------------------------
+ * Busca por telefone/protocolo é conclusiva: se não achou, não existe NESTE
+ * escritório. Nunca sugerir paginação nesse caso.
+ * -------------------------------------------------------------------------- */
+
+/** Normaliza protocolo: aceita `#2026-059468`, `2026-059468` e `2026059468`. */
+function protocolTerm(raw: string): string | null {
+  const d = raw.replace(/[^0-9]/g, "");
+  if (d.length < 6) return null;
+  // O armazenado é `#AAAA-NNNNNN`; casar pelo sufixo numérico cobre as 3 formas.
+  return d.length > 4 ? d.slice(4) : d;
+}
+
+/**
+ * Termo de busca para telefone. Usa os 8 últimos dígitos porque números BR
+ * podem estar gravados com ou sem o 9º dígito (13 vs 12 dígitos) e a busca da
+ * consulta unificada é um ILIKE simples.
+ */
+function phoneTerm(raw: string): string | null {
+  const d = raw.replace(/\D/g, "");
+  if (d.length < 8) return null;
+  return d.slice(-8);
+}
+
+export interface IdentifierSearch {
+  kind: "telefone" | "protocolo" | "texto";
+  term: string;
+}
+
+/** Classifica o valor de `busca` e devolve o termo efetivo para o ILIKE. */
+export function classifySearch(raw: string): IdentifierSearch {
+  const value = raw.trim();
+  if (!value) return { kind: "texto", term: value };
+  const digits = value.replace(/\D/g, "");
+  const looksProtocol = /^#?\d{4}-?\d{4,8}$/.test(value.replace(/\s/g, ""));
+  if (looksProtocol) {
+    const t = protocolTerm(value);
+    if (t) return { kind: "protocolo", term: t };
+  }
+  // Só dígitos (ou dígitos com máscara telefônica) e tamanho de telefone.
+  if (digits.length >= 8 && /^[\d\s()+\-.]+$/.test(value)) {
+    const t = phoneTerm(value);
+    if (t) return { kind: "telefone", term: t };
+  }
+  return { kind: "texto", term: value };
+}
+
 export const chatTools: CopilotoTool[] = [
   {
     name: "julia_chat_listar_conversas",
-    version: "1.2.0",
+    version: "1.3.0",
     description:
-      "Lista atendimentos do inbox com a MESMA consulta unificada da tela de chat: contato, ORIGEM do lead (canal, canal de origem, fila, agente e campanha de anúncio quando registrada), fila, status, prioridade, protocolo, responsável, não lidas, última mensagem, SLA, etiquetas, ticket e CRM. Janelas de tempo são resolvidas no fuso do escritório (padrão America/Sao_Paulo): use `data` para um dia civil completo 00:00–23:59:59.999 ou `de`/`ate`. Use o conversation_id nas demais tools.",
+      "Lista atendimentos do inbox com a MESMA consulta unificada da tela de chat: contato, ORIGEM do lead (canal, canal de origem, fila, agente e campanha de anúncio quando registrada), fila, status, prioridade, protocolo, responsável, não lidas, última mensagem, SLA, etiquetas, ticket e CRM. A busca aceita nome, telefone (com ou sem máscara e com ou sem o 9º dígito) OU protocolo do atendimento — para localizar um registro específico prefira `julia_chat_localizar`. Janelas de tempo são resolvidas no fuso do escritório (padrão America/Sao_Paulo): use `data` para um dia civil completo 00:00–23:59:59.999 ou `de`/`ate`. Use o conversation_id nas demais tools.",
+
     inputSchema: {
       type: "object",
       properties: {
@@ -250,7 +298,16 @@ export const chatTools: CopilotoTool[] = [
         responsavel: { type: "string", description: "Nome do atendente responsável (ex.: 'Dra. Nicole')." },
         assigned_user_id: { type: "string", description: "ID numérico do atendente responsável." },
         unassigned: { type: "boolean", description: "true = somente sem responsável." },
-        busca: { type: "string", description: "Nome ou telefone do lead." },
+        busca: {
+          type: "string",
+          description:
+            "Nome, telefone (com ou sem máscara e com ou sem o 9º dígito) OU protocolo do atendimento (#2026-059468, 2026-059468 ou 2026059468).",
+        },
+        incluir_pausados: {
+          type: "boolean",
+          description: "Incluir atendimentos pausados (snooze). Padrão: false; forçado a true quando a busca é por telefone/protocolo.",
+        },
+
         periodo: { type: "string", enum: ["all", "today", "7d", "30d", "3m", "month"], description: "Período relativo da última movimentação, resolvido no fuso informado (padrão: all)." },
         data: { type: "string", description: "Dia civil completo no fuso do escritório (YYYY-MM-DD): 00:00:00.000 até 23:59:59.999." },
         de: { type: "string", description: "Início da janela. Aceita YYYY-MM-DD, YYYY-MM-DDTHH:mm (hora local do fuso) ou ISO com offset." },
@@ -308,6 +365,16 @@ export const chatTools: CopilotoTool[] = [
       const sla = Array.isArray(args.sla) ? args.sla.filter(Boolean).map(String) : null;
       const tagIds = Array.isArray(args.tag_ids) ? args.tag_ids.filter(Boolean).map(String) : null;
 
+      // Busca: telefone e protocolo são identificadores — resultado vazio é conclusivo.
+      const rawSearch = str(args.busca);
+      const search = rawSearch ? classifySearch(rawSearch) : null;
+      const isIdentifier = !!search && search.kind !== "texto";
+      if (search && search.kind === "telefone" && search.term !== rawSearch.replace(/\D/g, "")) {
+        warnings.push(`Telefone pesquisado pelos 8 últimos dígitos (${search.term}) para cobrir números com e sem o 9º dígito.`);
+      }
+      // Identificador nunca deve ter ponto cego: inclui pausados (snooze).
+      const hideSnoozed = isIdentifier ? false : args.incluir_pausados === true ? false : true;
+
       const { data: feed, error } = await ctx.supabase.rpc("chat_list_feed", {
         p_client_id: ctx.clientId,
         p_queue_ids: queueIds.length ? queueIds : null,
@@ -315,7 +382,8 @@ export const chatTools: CopilotoTool[] = [
         p_tab: str(args.tab) || null,
         p_owners: owners,
         p_unassigned: typeof args.unassigned === "boolean" ? args.unassigned : null,
-        p_search: str(args.busca) || null,
+        p_search: search ? search.term : null,
+
         p_from: from,
         p_to: to,
         p_tag_ids: tagIds?.length ? tagIds : null,
@@ -324,7 +392,7 @@ export const chatTools: CopilotoTool[] = [
         p_has_crm_builder: typeof args.com_crm_builder === "boolean" ? args.com_crm_builder : null,
         p_sla_status: sla?.length ? sla : null,
         p_sort: str(args.ordenar) || "recent",
-        p_hide_snoozed: true,
+        p_hide_snoozed: hideSnoozed,
         p_limit: limit,
         p_offset: offset,
       });
@@ -415,6 +483,10 @@ export const chatTools: CopilotoTool[] = [
               ].join("\n  ");
             })
             .join("\n")
+        : isIdentifier
+        ? `CONCLUSIVO: nenhum atendimento com esse ${search!.kind} (${rawSearch}) existe no escritório desta sessão (client_id ${ctx.clientId}). ` +
+          "A busca cobriu todos os status e também os atendimentos pausados. Não pagine nem varra a lista: o identificador não pertence a este escritório. " +
+          "Se o registro deveria existir, a conexão OAuth em uso está vinculada a outro escritório."
         : "Nenhuma conversa encontrada com esses filtros.";
 
       const janelaTxt = from || to
@@ -427,10 +499,15 @@ export const chatTools: CopilotoTool[] = [
           "",
           "=== JANELA E FUSO ===",
           janelaTxt,
+          search ? `Busca: ${rawSearch} (interpretada como ${search.kind}${isIdentifier ? `, termo "${search.term}"` : ""})` : null,
           "=== CONTADORES DO ESCOPO ===",
           `total ${c.total ?? "—"} · pendentes ${c.pending ?? "—"} · abertos ${c.open ?? "—"} · resolvidos ${c.resolved ?? "—"} · fechados ${c.closed ?? "—"} · não lidas ${c.unread ?? "—"}`,
           c.sla_breached != null || c.sla_at_risk != null ? `SLA estourado ${c.sla_breached ?? 0} · em risco ${c.sla_at_risk ?? 0}` : null,
-          feed?.has_more ? `Há mais resultados — repita com offset ${offset + itens.length}.` : "Fim da lista para esta janela.",
+          isIdentifier && !itens.length
+            ? "Fim da busca por identificador — nada a paginar."
+            : feed?.has_more
+            ? `Há mais resultados — repita com offset ${offset + itens.length}.`
+            : "Fim da lista para esta janela.",
           warnings.length ? `Avisos: ${warnings.join(" | ")}` : null,
         ]
           .filter(Boolean)
@@ -438,20 +515,176 @@ export const chatTools: CopilotoTool[] = [
         24000,
       );
 
+
       return ok(
         {
           itens,
           contadores: c,
           janela: { de: from, ate: to, timezone: tz, origem: janelaOrigem },
+          busca: search ? { valor: rawSearch, tipo: search.kind, termo: search.term, conclusiva: isIdentifier } : null,
+          inclui_pausados: !hideSnoozed,
           proximo_offset: feed?.has_more ? offset + itens.length : null,
         },
         {
           requestId: ctx.requestId ?? "",
           toolName: "julia_chat_listar_conversas",
-          toolVersion: "1.2.0",
+          toolVersion: "1.3.0",
           timezone: tz,
-          coverage: coverage({ complete: !feed?.has_more, from, to, warnings }),
-          pagination: { has_more: !!feed?.has_more, next_cursor: null, total_count: typeof c.total === "number" ? c.total : null },
+          coverage: coverage({ complete: isIdentifier ? true : !feed?.has_more, from, to, warnings }),
+          pagination: {
+            has_more: isIdentifier ? false : !!feed?.has_more,
+            next_cursor: null,
+            total_count: typeof c.total === "number" ? c.total : null,
+          },
+          text,
+        },
+      );
+
+    },
+  },
+
+  {
+    name: "julia_chat_localizar",
+    version: "1.0.0",
+    description:
+      "Localiza direto (sem paginar) o atendimento e o lead a partir de UM identificador: telefone (com ou sem máscara, com ou sem DDI 55 e com ou sem o 9º dígito), protocolo do atendimento (#2026-059468) ou conversation_id. Cobre TODOS os status e também atendimentos pausados. Resultado vazio é conclusivo: o identificador não pertence ao escritório desta sessão.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        identificador: { type: "string", description: "Telefone, protocolo (#AAAA-NNNNNN) ou UUID da conversa." },
+        timezone: { type: "string", description: "IANA time zone para formatação (padrão America/Sao_Paulo)." },
+      },
+      required: ["identificador"],
+      additionalProperties: false,
+    },
+    run: async (ctx, args) => {
+      const tz = tzOf(args);
+      const raw = str(args.identificador);
+      if (!raw) throw invalid("Informe `identificador` (telefone, protocolo ou conversation_id).");
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
+      const kind: "conversation_id" | "telefone" | "protocolo" | "texto" = isUuid ? "conversation_id" : classifySearch(raw).kind;
+      if (kind === "texto") {
+        throw invalid(
+          "`identificador` deve ser telefone, protocolo (#AAAA-NNNNNN) ou conversation_id. Para buscar por nome use julia_chat_listar_conversas com `busca`.",
+        );
+      }
+
+      const SEL =
+        "id, contact_id, protocol, status, priority, channel, queue_id, assigned_to, assigned_user_id, assigned_at, opened_at, closed_at, snoozed_until, last_customer_message_at, last_message_from_me, active_ticket_protocol, active_ticket_number, updated_at";
+
+      let rows: Record<string, unknown>[] = [];
+      if (kind === "conversation_id") {
+        const { data, error } = await ctx.supabase.from("chat_conversations").select(SEL).eq("client_id", ctx.clientId).eq("id", raw);
+        if (error) throw safeDbError("database", error);
+        rows = data || [];
+      } else if (kind === "protocolo") {
+        const term = raw.replace(/[^0-9]/g, "").slice(-6);
+        const { data, error } = await ctx.supabase
+          .from("chat_conversations")
+          .select(SEL)
+          .eq("client_id", ctx.clientId)
+          .ilike("protocol", `%${term}`)
+          .order("updated_at", { ascending: false })
+          .limit(20);
+        if (error) throw safeDbError("database", error);
+        rows = data || [];
+      } else {
+        const term = raw.replace(/\D/g, "").slice(-8);
+        const { data: contacts, error: cErr } = await ctx.supabase
+          .from("chat_contacts")
+          .select("id, name, phone, channel_type, channel_source, last_message_at")
+          .eq("client_id", ctx.clientId)
+          .ilike("phone", `%${term}%`)
+          .limit(20);
+        if (cErr) throw safeDbError("database", cErr);
+        const ids = (contacts || []).map((c: { id: string }) => c.id);
+        if (ids.length) {
+          const { data, error } = await ctx.supabase
+            .from("chat_conversations")
+            .select(SEL)
+            .eq("client_id", ctx.clientId)
+            .in("contact_id", ids)
+            .order("updated_at", { ascending: false })
+            .limit(50);
+          if (error) throw safeDbError("database", error);
+          rows = data || [];
+        }
+      }
+
+      const contactIds = [...new Set(rows.map((r) => String(r.contact_id)).filter(Boolean))];
+      const queueIds = [...new Set(rows.map((r) => r.queue_id).filter(Boolean).map(String))];
+      const [{ data: contacts }, { data: queues }] = await Promise.all([
+        contactIds.length
+          ? ctx.supabase.from("chat_contacts").select("id, name, phone, channel_type, channel_source").in("id", contactIds)
+          : Promise.resolve({ data: [] }),
+        queueIds.length ? ctx.supabase.from("queues").select("id, name").in("id", queueIds) : Promise.resolve({ data: [] }),
+      ]);
+      // deno-lint-ignore no-explicit-any
+      // deno-lint-ignore no-explicit-any
+      const contactById = new Map<string, any>((contacts || []).map((c: any) => [String(c.id), c]));
+
+      // deno-lint-ignore no-explicit-any
+      const queueById = new Map((queues || []).map((q: any) => [String(q.id), q.name]));
+
+      const itens = rows.map((r) => {
+        const c = contactById.get(String(r.contact_id));
+        return {
+          conversation_id: r.id,
+          contato_id: r.contact_id,
+          contato: c?.name || null,
+          telefone: c?.phone || null,
+          canal: r.channel || c?.channel_type || null,
+          canal_origem: c?.channel_source || null,
+          protocolo: r.protocol || null,
+          status: r.status,
+          prioridade: r.priority || "normal",
+          fila: r.queue_id ? queueById.get(String(r.queue_id)) || null : null,
+          responsavel: r.assigned_to || null,
+          assigned_user_id: r.assigned_user_id ?? null,
+          atribuido_em: r.assigned_at ? dateOut(String(r.assigned_at), tz) : null,
+          aberta_em: r.opened_at ? dateOut(String(r.opened_at), tz) : null,
+          encerrada_em: r.closed_at ? dateOut(String(r.closed_at), tz) : null,
+          pausado_ate: r.snoozed_until ? dateOut(String(r.snoozed_until), tz) : null,
+          ultima_mensagem_do_cliente: r.last_customer_message_at ? dateOut(String(r.last_customer_message_at), tz) : null,
+          ultima_mensagem_do_escritorio: r.last_message_from_me ?? null,
+          ticket: r.active_ticket_protocol ? { protocolo: r.active_ticket_protocol, numero: r.active_ticket_number ?? null } : null,
+        };
+      });
+
+      const text = clip(
+        itens.length
+          ? [
+              `Encontrado(s) ${itens.length} atendimento(s) para ${kind} "${raw}" no escritório desta sessão (client_id ${ctx.clientId}).`,
+              ...itens.map((i) =>
+                [
+                  `- ${i.contato || "(sem nome)"} · ${i.telefone || "sem telefone"} · protocolo ${i.protocolo || "—"}`,
+                  `status ${i.status} · fila ${i.fila || "sem fila"} · responsável ${i.responsavel || "sem responsável"}${
+                    i.pausado_ate ? ` · pausado até ${i.pausado_ate.legivel}` : ""
+                  }`,
+                  `última msg do cliente ${i.ultima_mensagem_do_cliente?.legivel || "—"}${
+                    i.ticket ? ` · ticket ${i.ticket.protocolo}` : ""
+                  }`,
+                  `  conversation_id: ${i.conversation_id} · contato_id: ${i.contato_id}`,
+                ].join("\n  "),
+              ),
+              "",
+              "Use julia_chat_obter_conversa / julia_chat_historico com o conversation_id acima.",
+            ].join("\n")
+          : `CONCLUSIVO: nenhum atendimento com esse ${kind} ("${raw}") existe no escritório desta sessão (client_id ${ctx.clientId}). ` +
+            "A busca cobriu todos os status e os pausados, sem janela de tempo — não há o que paginar. " +
+            "Se o registro deveria existir, a conexão OAuth em uso pertence a outro escritório: reconecte com a conta do escritório correto.",
+        16000,
+      );
+
+      return ok(
+        { identificador: { valor: raw, tipo: kind }, total: itens.length, itens },
+        {
+          requestId: ctx.requestId ?? "",
+          toolName: "julia_chat_localizar",
+          toolVersion: "1.0.0",
+          timezone: tz,
+          coverage: coverage({ complete: true, warnings: [] }),
           text,
         },
       );
@@ -460,6 +693,7 @@ export const chatTools: CopilotoTool[] = [
 
   {
     name: "julia_chat_obter_conversa",
+
     description:
       "Dossiê de um atendimento: protocolo, fila, responsável, prioridade, tempos de SLA (primeira resposta e resolução), motivo e nota de encerramento, tags, pausa (snooze) e ticket vinculado.",
     inputSchema: {
