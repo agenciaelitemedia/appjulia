@@ -101,14 +101,14 @@ export function ChatRightBar({
             key={t.id}
             size="sm"
             variant={rightBarTab === t.id ? 'secondary' : 'ghost'}
-            className="gap-1.5 flex-1"
+            className="gap-1 flex-1 min-w-0 px-1.5"
             onClick={() => setRightBarTab(t.id)}
           >
-            <t.icon className="h-4 w-4" />
-            {t.label}
+            <t.icon className="h-4 w-4 shrink-0" />
+            <span className="text-xs truncate">{t.label}</span>
           </Button>
         ))}
-        <Button size="icon" variant="ghost" onClick={onClose} title="Fechar painel">
+        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={onClose} title="Fechar painel">
           <PanelRightClose className="h-4 w-4" />
         </Button>
       </div>
