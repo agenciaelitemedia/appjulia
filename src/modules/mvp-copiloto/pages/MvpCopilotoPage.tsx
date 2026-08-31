@@ -8,6 +8,7 @@ import { LeadPicker } from '../components/LeadPicker';
 import { ToolCatalogCard } from '../components/ToolCatalogCard';
 import { McpObservabilityCard } from '../components/McpObservabilityCard';
 import { McpHealthTrendCard } from '../components/McpHealthTrendCard';
+import { McpAuthFailuresCard } from '../components/McpAuthFailuresCard';
 import type { MvpLeadOption } from '../hooks/useMvpLeadSearch';
 
 /**
