@@ -59,12 +59,13 @@ A IA responde em JSON estruturado (fase, próximo passo, perguntas com explicaç
 
 **Frontend**
 - `src/modules/lidia/` (módulo próprio, com `extend/` reexportando chat/auth/ui como nos módulos existentes):
-  - `components/LidiaPanel.tsx` (aba completa), `LidiaPhaseHeader`, `LidiaSuggestionCard`, `LidiaCallScriptCard`, `LidiaChatThread`.
+  - `components/LidiaPanel.tsx` (aba completa), `LidiaPhaseHeader`, `LidiaSuggestionCard`, `LidiaCallScriptCard`, `LidiaChatThread`, `LidiaUnderstandingCheck`.
   - `hooks/useLidia.ts` (React Query: análise, chat, reanalisar, realtime das mensagens do contato para disparar reanálise).
 - `ChatRightBar.tsx`: adiciona a aba `lidia` na lista de abas (ícone próprio, não `Sparkles`) e renderiza `LidiaPanel` — sem alterar as abas atuais.
 - Envio de sugestão para o composer via o mesmo mecanismo já usado pelas mensagens rápidas (preenche o `ChatInput`, atendente confirma).
 - Ligação usa os componentes de discagem existentes (`WavoipCallButton` / dialer do header), sem nova integração de telefonia.
 - Página de configuração `/admin/lidia` (ou aba dentro das configurações de IA do chat) para o perfil de vendas e prompt, com auto-registro de módulo (`useEnsureLidiaModule`) no padrão do projeto.
+- **Condução passo a passo**: a UI destaca um único "Próximo passo" por vez, esmaecendo sugestões futuras até que o atendente execute ou marque como feito. Isso evita que o atendente se perca com muitas opções.
 
 **Custos e limites**
 - Análise apenas com a aba aberta + debounce; cache da última análise em `lidia_sessions` para reabrir sem gastar chamada.
