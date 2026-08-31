@@ -207,7 +207,31 @@ function resultCountOf(json: Record<string, any>): number | null {
   return null;
 }
 
+/* ------------------------------ escopo/tenant ------------------------------ */
+
+interface ScopeInfo {
+  client_id: string | number | null;
+  escritorio: string | null;
+  resolvido_por: "token_oauth";
+}
+
+/** Escritório efetivo da sessão — resolvido pelo token, nunca por argumento. */
+async function scopeInfo(ctx: CopilotoContext): Promise<ScopeInfo> {
+  let escritorio: string | null = null;
+  try {
+    escritorio = await officeLabel(ctx);
+  } catch {
+    escritorio = null;
+  }
+  return { client_id: ctx.clientId ?? null, escritorio, resolvido_por: "token_oauth" };
+}
+
+function scopeLine(s: ScopeInfo): string {
+  return `Escritório: ${s.escritorio ?? "(nome indisponível)"} · client_id ${s.client_id ?? "—"} (definido pelo token OAuth desta conexão; não é possível consultar outro escritório com este token).`;
+}
+
 /* -------------------------------- dispatch -------------------------------- */
+
 
 export interface DispatchResult {
   text: string;
