@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
       return json({
         resource: ISSUER,
         authorization_servers: [ISSUER],
-        scopes_supported: ["leads:read", "julia:read"],
+        scopes_supported: ["leads:read", "julia:read", "julia:write.crm", "julia:write.messages"],
         bearer_methods_supported: ["header"],
       });
     }
