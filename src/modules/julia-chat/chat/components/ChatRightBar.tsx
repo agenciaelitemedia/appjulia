@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { PanelRightClose, Info, Kanban, Loader2, Eye, Phone } from 'lucide-react';
+import { PanelRightClose, Info, Kanban, Loader2, Eye, Phone, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,9 +13,11 @@ import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
 import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import { ChatContactCallsPanel } from '@/modules/julia-chat/chat/components/ChatContactCallsPanel';
+import { isLidiaAllowed } from '@/modules/lidia/access';
+import { LidiaPanel } from '@/modules/lidia/components/LidiaPanel';
 import type { ChatContact } from '@/types/chat';
 
-type RightBarTabId = 'contact' | 'crm' | 'lead' | 'phone';
+type RightBarTabId = 'contact' | 'crm' | 'lead' | 'phone' | 'lidia';
 
 interface ChatRightBarProps {
   contact: ChatContact;
@@ -82,6 +84,7 @@ export function ChatRightBar({
     { id: 'crm', label: 'CRM', icon: Kanban },
     { id: 'phone', label: 'Telefonia', icon: Phone },
     ...(leadCodAgent ? [{ id: 'lead' as const, label: 'Julia', icon: Eye }] : []),
+    ...(isLidiaAllowed(user?.email) ? [{ id: 'lidia' as const, label: 'LÍDIA', icon: Sparkles }] : []),
   ];
   const tabs = visibleTabs ? allTabs.filter((t) => visibleTabs.includes(t.id)) : allTabs;
 
@@ -144,6 +147,19 @@ export function ChatRightBar({
           ) : (
             <div className="flex items-center justify-center h-full px-6 text-center text-sm text-muted-foreground">
               Este contato ainda não possui card no CRM da Julia.
+            </div>
+          )
+        ) : rightBarTab === 'lidia' ? (
+          conversationId && clientId ? (
+            <LidiaPanel
+              conversationId={conversationId}
+              clientId={clientId}
+              userEmail={user?.email ?? ''}
+              contactName={contact?.name}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full px-6 text-center text-sm text-muted-foreground">
+              Selecione uma conversa para usar a LÍDIA.
             </div>
           )
         ) : crmContent ? (

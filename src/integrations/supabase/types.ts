@@ -6499,6 +6499,96 @@ export type Database = {
         }
         Relationships: []
       }
+      lidia_client_config: {
+        Row: {
+          client_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          sales_profile: Json
+          silence_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          sales_profile?: Json
+          silence_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          sales_profile?: Json
+          silence_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lidia_messages: {
+        Row: {
+          client_id: string
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          client_id: string
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          client_id?: string
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: []
+      }
+      lidia_sessions: {
+        Row: {
+          client_id: string
+          confidence: number | null
+          conversation_id: string
+          created_at: string
+          id: string
+          last_analysis: Json | null
+          phase: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          confidence?: number | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          last_analysis?: Json | null
+          phase?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          confidence?: number | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          last_analysis?: Json | null
+          phase?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       link_preview_cache: {
         Row: {
           description: string | null
