@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
         token_endpoint: `${ISSUER}/token`,
         registration_endpoint: `${ISSUER}/register`,
         revocation_endpoint: `${ISSUER}/revoke`,
-        scopes_supported: ["leads:read", "julia:read"],
+        scopes_supported: ["leads:read", "julia:read", "julia:write.crm", "julia:write.messages"],
         response_types_supported: ["code"],
         grant_types_supported: ["authorization_code", "refresh_token"],
         code_challenge_methods_supported: ["S256"],
