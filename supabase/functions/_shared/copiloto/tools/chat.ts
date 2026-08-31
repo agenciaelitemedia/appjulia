@@ -234,12 +234,60 @@ export async function compileLeadContext(
   );
 }
 
+/* --------------------------- identificadores -------------------------------
+ * Busca por telefone/protocolo é conclusiva: se não achou, não existe NESTE
+ * escritório. Nunca sugerir paginação nesse caso.
+ * -------------------------------------------------------------------------- */
+
+/** Normaliza protocolo: aceita `#2026-059468`, `2026-059468` e `2026059468`. */
+function protocolTerm(raw: string): string | null {
+  const d = raw.replace(/[^0-9]/g, "");
+  if (d.length < 6) return null;
+  // O armazenado é `#AAAA-NNNNNN`; casar pelo sufixo numérico cobre as 3 formas.
+  return d.length > 4 ? d.slice(4) : d;
+}
+
+/**
+ * Termo de busca para telefone. Usa os 8 últimos dígitos porque números BR
+ * podem estar gravados com ou sem o 9º dígito (13 vs 12 dígitos) e a busca da
+ * consulta unificada é um ILIKE simples.
+ */
+function phoneTerm(raw: string): string | null {
+  const d = raw.replace(/\D/g, "");
+  if (d.length < 8) return null;
+  return d.slice(-8);
+}
+
+export interface IdentifierSearch {
+  kind: "telefone" | "protocolo" | "texto";
+  term: string;
+}
+
+/** Classifica o valor de `busca` e devolve o termo efetivo para o ILIKE. */
+export function classifySearch(raw: string): IdentifierSearch {
+  const value = raw.trim();
+  if (!value) return { kind: "texto", term: value };
+  const digits = value.replace(/\D/g, "");
+  const looksProtocol = /^#?\d{4}-?\d{4,8}$/.test(value.replace(/\s/g, ""));
+  if (looksProtocol) {
+    const t = protocolTerm(value);
+    if (t) return { kind: "protocolo", term: t };
+  }
+  // Só dígitos (ou dígitos com máscara telefônica) e tamanho de telefone.
+  if (digits.length >= 8 && /^[\d\s()+\-.]+$/.test(value)) {
+    const t = phoneTerm(value);
+    if (t) return { kind: "telefone", term: t };
+  }
+  return { kind: "texto", term: value };
+}
+
 export const chatTools: CopilotoTool[] = [
   {
     name: "julia_chat_listar_conversas",
-    version: "1.2.0",
+    version: "1.3.0",
     description:
-      "Lista atendimentos do inbox com a MESMA consulta unificada da tela de chat: contato, ORIGEM do lead (canal, canal de origem, fila, agente e campanha de anúncio quando registrada), fila, status, prioridade, protocolo, responsável, não lidas, última mensagem, SLA, etiquetas, ticket e CRM. Janelas de tempo são resolvidas no fuso do escritório (padrão America/Sao_Paulo): use `data` para um dia civil completo 00:00–23:59:59.999 ou `de`/`ate`. Use o conversation_id nas demais tools.",
+      "Lista atendimentos do inbox com a MESMA consulta unificada da tela de chat: contato, ORIGEM do lead (canal, canal de origem, fila, agente e campanha de anúncio quando registrada), fila, status, prioridade, protocolo, responsável, não lidas, última mensagem, SLA, etiquetas, ticket e CRM. A busca aceita nome, telefone (com ou sem máscara e com ou sem o 9º dígito) OU protocolo do atendimento — para localizar um registro específico prefira `julia_chat_localizar`. Janelas de tempo são resolvidas no fuso do escritório (padrão America/Sao_Paulo): use `data` para um dia civil completo 00:00–23:59:59.999 ou `de`/`ate`. Use o conversation_id nas demais tools.",
+
     inputSchema: {
       type: "object",
       properties: {
