@@ -164,7 +164,7 @@ export const DEFAULT_JULIA_FILTERS: JuliaChatFilters = {
   owners: [],
   unassigned: null,
   search: '',
-  period: '7d',
+  period: 'all',
   tag_ids: [],
   priority: null,
   has_ticket: null,
