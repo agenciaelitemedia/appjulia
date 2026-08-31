@@ -40,3 +40,32 @@ export async function scopedAgentCodes(ctx: CopilotoContext, requested?: string)
   if (!requested) return codes;
   return codes.filter((c) => c === String(requested));
 }
+
+/* --------------------------- identidade do escopo --------------------------
+ * Toda resposta do MCP informa qual escritório o token resolveu. Cache curto
+ * em memória para não pagar uma consulta ao legado por chamada de tool.
+ * -------------------------------------------------------------------------- */
+
+const officeCache = new Map<string, { label: string | null; ts: number }>();
+const OFFICE_TTL_MS = 10 * 60_000;
+
+/** Nome do escritório (clients.name/business_name) do token. Best-effort. */
+export async function officeLabel(ctx: CopilotoContext): Promise<string | null> {
+  const key = String(ctx.clientId ?? "");
+  if (!key) return null;
+  const cached = officeCache.get(key);
+  if (cached && Date.now() - cached.ts < OFFICE_TTL_MS) return cached.label;
+  let label: string | null = null;
+  try {
+    const rows = await legacyRaw<{ name: string | null; business_name: string | null }>(
+      ctx,
+      "SELECT name, business_name FROM clients WHERE id = $1::bigint LIMIT 1",
+      [ctx.clientId],
+    );
+    label = rows[0]?.name || rows[0]?.business_name || null;
+  } catch {
+    label = null;
+  }
+  officeCache.set(key, { label, ts: Date.now() });
+  return label;
+}
