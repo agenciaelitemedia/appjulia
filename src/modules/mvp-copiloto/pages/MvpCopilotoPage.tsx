@@ -42,6 +42,7 @@ export default function MvpCopilotoPage() {
 
         <TabsContent value="observabilidade" className="space-y-4">
           <McpObservabilityCard />
+          <McpAuthFailuresCard />
         </TabsContent>
 
         <TabsContent value="saude" className="space-y-4">
