@@ -521,18 +521,25 @@ export const chatTools: CopilotoTool[] = [
           itens,
           contadores: c,
           janela: { de: from, ate: to, timezone: tz, origem: janelaOrigem },
+          busca: search ? { valor: rawSearch, tipo: search.kind, termo: search.term, conclusiva: isIdentifier } : null,
+          inclui_pausados: !hideSnoozed,
           proximo_offset: feed?.has_more ? offset + itens.length : null,
         },
         {
           requestId: ctx.requestId ?? "",
           toolName: "julia_chat_listar_conversas",
-          toolVersion: "1.2.0",
+          toolVersion: "1.3.0",
           timezone: tz,
-          coverage: coverage({ complete: !feed?.has_more, from, to, warnings }),
-          pagination: { has_more: !!feed?.has_more, next_cursor: null, total_count: typeof c.total === "number" ? c.total : null },
+          coverage: coverage({ complete: isIdentifier ? true : !feed?.has_more, from, to, warnings }),
+          pagination: {
+            has_more: isIdentifier ? false : !!feed?.has_more,
+            next_cursor: null,
+            total_count: typeof c.total === "number" ? c.total : null,
+          },
           text,
         },
       );
+
     },
   },
 
