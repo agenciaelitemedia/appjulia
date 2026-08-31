@@ -24,10 +24,12 @@ Comportamento automático (sem custo desnecessário):
 ## Como a LÍDIA entende o caso
 
 Contexto montado no servidor a cada análise:
+- **Agente da fila da conversa** (fonte principal de orientação): a LÍDIA identifica a fila da conversa, resolve o agente vinculado (`queue_agent_links` → agente/`cod_agent`) e usa o prompt/configuração desse agente — como ele se apresenta, áreas de atuação, política de honorários, regras de qualificação e fluxo de contrato — como base das orientações. Assim as sugestões seguem o mesmo discurso do agente daquela fila, não um script genérico.
+- Fila sem agente vinculado: a LÍDIA cai para o perfil de vendas do escritório (configurável) e, na falta dele, para um padrão jurídico genérico — sempre avisando no painel que está sem o agente da fila.
 - Resumos já persistidos da conversa (aba Resumo) como memória acumulada.
 - Últimas N mensagens da conversa, com transcrição de áudios quando existir.
 - Dados do contato, fila/canal, card do CRM vinculado (etapa, valor, responsável) e histórico de fases já registradas pela LÍDIA.
-- Perfil de vendas do escritório (áreas de atuação, faixas de honorários, argumentos e políticas de desconto) configurável — sem isso ela usa um padrão jurídico genérico.
+
 
 ## Saída estruturada
 
