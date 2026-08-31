@@ -235,11 +235,15 @@ async function loadContext(
   conversationId: string,
   clientId: string,
 ) {
-  const { data: conv } = await supabase
+  const { data: conv, error: convError } = await supabase
     .from("chat_conversations")
     .select("id, contact_id, client_id, queue_id, assigned_member_id, status, channel_source")
     .eq("id", conversationId)
     .maybeSingle();
+
+  if (convError) {
+    console.warn("[lidia-copilot] conversation lookup error:", convError);
+  }
 
   if (!conv) throw new Error("Conversa não encontrada");
   if (String(conv.client_id) !== String(clientId)) throw new Error("Escopo inválido");
