@@ -66,6 +66,21 @@ export function LidiaPanel({ conversationId, clientId, userEmail, contactName }:
       <LidiaPhaseHeader output={analysis} contactName={contactName} />
       <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-4 p-3">
+          {diagnostics.length > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/20">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <div className="space-y-1">
+                  <p className="font-medium text-amber-800 dark:text-amber-200">Contexto parcial</p>
+                  <ul className="space-y-1 text-xs text-muted-foreground">
+                    {diagnostics.map((d, i) => (
+                      <li key={i}>{d}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
           {unavailable && (
             <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
               <div className="flex items-start gap-2">
