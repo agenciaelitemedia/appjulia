@@ -56,6 +56,8 @@ interface TeamMemberSelectProps {
   size?: 'sm' | 'md';
   /** Map nome → contagem, exibida como "(N)" ao lado do nome. */
   memberCounts?: Record<string, number>;
+  /** Mostra carga "atual/teto" e desabilita atendentes que atingiram o limite. */
+  enforceCapacity?: boolean;
 }
 
 const ROLE_LABEL: Record<string, string> = {
