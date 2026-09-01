@@ -203,6 +203,7 @@ export function useLidia({ clientId, conversationId, userEmail, enabled }: UseLi
     analyzeLoading: analyzeMutation.isPending,
     analyzeError: analyzeMutation.error,
     unavailable: analyzeMutation.data?.unavailable ?? chatMutation.data?.unavailable ?? null,
+    diagnostics: analyzeMutation.data?.diagnostics ?? chatMutation.data?.diagnostics ?? [],
     chat: chatMutation.mutate,
     chatLoading: chatMutation.isPending,
     chatError: chatMutation.error,
