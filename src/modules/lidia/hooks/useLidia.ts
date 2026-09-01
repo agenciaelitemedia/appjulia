@@ -58,8 +58,17 @@ export interface LidiaMessage {
 }
 
 export interface LidiaAnalysisResponse {
-  output: LidiaOutput;
-  agent: { cod_agent: string } | null;
+  output: LidiaOutput | null;
+  agent?: { cod_agent: string } | null;
+  unavailable?: LidiaUnavailable;
+}
+
+export interface LidiaUnavailable {
+  status: 402 | 403;
+  code: 'AI_CREDITS_EXHAUSTED' | 'AI_WORKSPACE_BLOCKED';
+  message: string;
+  retryable: false;
+  requires: 'top_up' | 'admin_action';
 }
 
 interface UseLidiaOptions {
@@ -192,6 +201,7 @@ export function useLidia({ clientId, conversationId, userEmail, enabled }: UseLi
     analyze: analyzeMutation.mutate,
     analyzeLoading: analyzeMutation.isPending,
     analyzeError: analyzeMutation.error,
+    unavailable: analyzeMutation.data?.unavailable ?? chatMutation.data?.unavailable ?? null,
     chat: chatMutation.mutate,
     chatLoading: chatMutation.isPending,
     chatError: chatMutation.error,
