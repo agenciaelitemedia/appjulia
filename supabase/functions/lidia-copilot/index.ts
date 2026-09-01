@@ -492,9 +492,26 @@ async function callAI(
 
   if (res.status === 200) return { status: 200, raw: res.raw };
   if (res.status === 429) return { status: 429, error: "Limite de uso da IA atingido. Tente de novo em instantes." };
-  if (res.status === 402) return { status: 402, error: "Créditos da IA esgotados. Reponha o saldo para a LÍDIA voltar a analisar." };
+  if (res.status === 402) {
+    let error = "Créditos da IA esgotados. Reponha o saldo para a LÍDIA voltar a analisar.";
+    let requires = "top_up";
+    try {
+      const payload = JSON.parse(res.detail || "{}") as {
+        message?: string;
+        error?: { message?: string; props?: { requires?: string } };
+        props?: { requires?: string };
+      };
+      error = payload.message || payload.error?.message || error;
+      requires = payload.props?.requires || payload.error?.props?.requires || requires;
+    } catch { /* mantém a orientação padrão */ }
+    return { status: 402, error, requires };
+  }
   if (res.status === 401 || res.status === 403) {
-    return { status: res.status, error: "A chave do provedor de IA foi recusada. Atualize a chave ou selecione um modelo Lovable AI." };
+    return {
+      status: res.status,
+      error: "A IA está bloqueada pela configuração do workspace. Solicite a liberação ao administrador.",
+      requires: "admin_action",
+    };
   }
   return { status: 500, error: "Erro na IA", detail: res.detail };
 }
@@ -555,6 +572,23 @@ serve(async (req) => {
     const ctx = await loadContext(supabase, ext, conversation_id, client_id);
     const prompt = buildPrompt(ctx, question ?? null);
     const aiResult = await callAI(supabase, prompt, "lidia_copilot");
+
+    // 402/403 são bloqueios operacionais terminais, não falhas de execução da função.
+    // O status original continua explícito no payload para a interface orientar a ação
+    // correta, sem fazer o cliente tratar a chamada como RUNTIME_ERROR/tela branca.
+    if (aiResult.status === 402 || aiResult.status === 403) {
+      return json({
+        output: null,
+        unavailable: {
+          status: aiResult.status,
+          code: aiResult.status === 402 ? "AI_CREDITS_EXHAUSTED" : "AI_WORKSPACE_BLOCKED",
+          message: aiResult.error,
+          retryable: false,
+          requires: (aiResult as { requires?: string }).requires
+            || (aiResult.status === 402 ? "top_up" : "admin_action"),
+        },
+      });
+    }
 
     if (aiResult.status !== 200) {
       return json({ error: aiResult.error, detail: (aiResult as any).detail }, aiResult.status);

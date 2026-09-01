@@ -5,7 +5,7 @@ import {
   Skeleton, Separator, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
   Collapsible, CollapsibleContent, CollapsibleTrigger, cn, MascoteLoader,
 } from '../extend/ui';
-import { useLidia, type LidiaOutput, type LidiaQuestion, type LidiaMessage } from '../hooks/useLidia';
+import { useLidia, type LidiaOutput, type LidiaQuestion, type LidiaMessage, type LidiaUnavailable } from '../hooks/useLidia';
 
 interface LidiaPanelProps {
   conversationId: string;
@@ -15,7 +15,7 @@ interface LidiaPanelProps {
 }
 
 export function LidiaPanel({ conversationId, clientId, userEmail, contactName }: LidiaPanelProps) {
-  const { latest, latestLoading, messages, analyze, analyzeLoading, analyzeError, chat, chatLoading } = useLidia({
+  const { latest, latestLoading, messages, analyze, analyzeLoading, analyzeError, unavailable, chat, chatLoading } = useLidia({
     clientId,
     conversationId,
     userEmail,
@@ -45,14 +45,18 @@ export function LidiaPanel({ conversationId, clientId, userEmail, contactName }:
       <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center text-muted-foreground">
         <AlertCircle className="h-8 w-8" />
         <p className="text-sm">
-          {analyzeError instanceof Error
+          {unavailable?.message ?? (analyzeError instanceof Error
             ? analyzeError.message
-            : 'Não foi possível carregar a análise da LÍDIA.'}
+            : 'Não foi possível carregar a análise da LÍDIA.')}
         </p>
-        <Button size="sm" onClick={() => analyze()} disabled={analyzeLoading}>
-          {analyzeLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          Tentar novamente
-        </Button>
+        {unavailable ? (
+          <LidiaAvailabilityAction unavailable={unavailable} onCheck={() => analyze()} loading={analyzeLoading} />
+        ) : (
+          <Button size="sm" onClick={() => analyze()} disabled={analyzeLoading}>
+            {analyzeLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Tentar novamente
+          </Button>
+        )}
       </div>
     );
   }
@@ -62,6 +66,18 @@ export function LidiaPanel({ conversationId, clientId, userEmail, contactName }:
       <LidiaPhaseHeader output={analysis} contactName={contactName} />
       <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-4 p-3">
+          {unavailable && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <div className="space-y-2">
+                  <p>{unavailable.message}</p>
+                  <p className="text-xs text-muted-foreground">A análise anterior permanece disponível abaixo.</p>
+                  <LidiaAvailabilityAction unavailable={unavailable} onCheck={() => analyze()} loading={analyzeLoading} />
+                </div>
+              </div>
+            </div>
+          )}
           <LidiaNextStepCard output={analysis} loading={analyzeLoading} onRefresh={() => analyze()} />
           <LidiaSuggestionsCard output={analysis} />
 
@@ -70,6 +86,22 @@ export function LidiaPanel({ conversationId, clientId, userEmail, contactName }:
           <LidiaChatThread messages={messages} onSend={chat} loading={chatLoading} />
         </div>
       </ScrollArea>
+    </div>
+  );
+}
+
+function LidiaAvailabilityAction({ unavailable, onCheck, loading }: { unavailable: LidiaUnavailable; onCheck: () => void; loading: boolean }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        {unavailable.requires === 'top_up'
+          ? 'Um responsável precisa adicionar créditos ao workspace para liberar novas análises.'
+          : 'Um administrador precisa liberar o uso da IA no workspace.'}
+      </p>
+      <Button size="sm" variant="outline" onClick={onCheck} disabled={loading}>
+        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+        Verificar novamente
+      </Button>
     </div>
   );
 }
