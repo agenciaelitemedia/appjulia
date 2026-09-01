@@ -68,6 +68,7 @@ export function TransferDialog({ open, onOpenChange, onTransfer }: TransferDialo
               valueKey="name"
               allowUnassigned={false}
               showCurrentUserShortcut
+              enforceCapacity
               placeholder="Selecione um membro da equipe…"
               className="w-full"
               memberCounts={assignedCounts}
