@@ -238,6 +238,7 @@ export function ChatGeneralSettings() {
         </div>
       </div>
 
+      <BulkTransferConversationsCard />
       <BulkCloseConversationsCard />
       <ConversationEventsSettingsCard />
       <SoundAlertSettingsCard />
