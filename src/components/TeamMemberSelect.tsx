@@ -16,6 +16,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamHeartbeat } from '@/hooks/useTeamHeartbeat';
+import { useChatAgentCapacity } from '@/hooks/useChatAgentCapacity';
 
 export interface TeamMemberOption {
   id: number | string;
