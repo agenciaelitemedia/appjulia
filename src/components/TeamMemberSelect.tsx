@@ -130,10 +130,12 @@ export function TeamMemberSelect({
   hideRoleBadge = false,
   size = 'md',
   memberCounts,
+  enforceCapacity = false,
 }: TeamMemberSelectProps) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
   const { isOnline, isAway } = useTeamHeartbeat();
+  const { data: capacity } = useChatAgentCapacity(enforceCapacity);
 
   const meName = user?.name || null;
   const sortedMembers = useMemo(() => {
