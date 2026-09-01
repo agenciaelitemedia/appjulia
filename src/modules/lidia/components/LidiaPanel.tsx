@@ -15,7 +15,7 @@ interface LidiaPanelProps {
 }
 
 export function LidiaPanel({ conversationId, clientId, userEmail, contactName }: LidiaPanelProps) {
-  const { latest, latestLoading, messages, analyze, analyzeLoading, chat, chatLoading } = useLidia({
+  const { latest, latestLoading, messages, analyze, analyzeLoading, analyzeError, chat, chatLoading } = useLidia({
     clientId,
     conversationId,
     userEmail,
@@ -29,7 +29,9 @@ export function LidiaPanel({ conversationId, clientId, userEmail, contactName }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, clientId]);
 
-  if (latestLoading && !latest) {
+  const analysis = latest?.last_analysis ?? null;
+
+  if (latestLoading && !analysis) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
         <MascoteLoader size="md" />
@@ -38,11 +40,15 @@ export function LidiaPanel({ conversationId, clientId, userEmail, contactName }:
     );
   }
 
-  if (!latest && !latestLoading) {
+  if (!analysis) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center text-muted-foreground">
         <AlertCircle className="h-8 w-8" />
-        <p className="text-sm">Não foi possível carregar a análise da LÍDIA.</p>
+        <p className="text-sm">
+          {analyzeError instanceof Error
+            ? analyzeError.message
+            : 'Não foi possível carregar a análise da LÍDIA.'}
+        </p>
         <Button size="sm" onClick={() => analyze()} disabled={analyzeLoading}>
           {analyzeLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
           Tentar novamente
@@ -53,13 +59,14 @@ export function LidiaPanel({ conversationId, clientId, userEmail, contactName }:
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <LidiaPhaseHeader output={latest!.last_analysis} contactName={contactName} />
+      <LidiaPhaseHeader output={analysis} contactName={contactName} />
       <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-4 p-3">
-          <LidiaNextStepCard output={latest!.last_analysis} loading={analyzeLoading} onRefresh={() => analyze()} />
-          <LidiaSuggestionsCard output={latest!.last_analysis} />
-          <LidiaLegalAnalysisCard output={latest!.last_analysis} />
-          <LidiaCallScriptCard output={latest!.last_analysis} />
+          <LidiaNextStepCard output={analysis} loading={analyzeLoading} onRefresh={() => analyze()} />
+          <LidiaSuggestionsCard output={analysis} />
+
+          <LidiaLegalAnalysisCard output={analysis} />
+          <LidiaCallScriptCard output={analysis} />
           <LidiaChatThread messages={messages} onSend={chat} loading={chatLoading} />
         </div>
       </ScrollArea>

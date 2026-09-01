@@ -71,7 +71,20 @@ interface UseLidiaOptions {
 
 async function invokeLidia(body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('lidia-copilot', { body });
-  if (error) throw error;
+  if (error) {
+    // A edge function devolve { error: "..." } com status 402/403/429 — extrai a mensagem
+    // real para o atendente em vez de estourar um erro genérico (tela branca).
+    let message = error.message;
+    try {
+      const res = (error as any)?.context;
+      const payload = typeof res?.json === 'function' ? await res.json() : null;
+      if (payload?.error) message = String(payload.error);
+    } catch {
+      /* mantém a mensagem original */
+    }
+    throw new Error(message);
+  }
+  if ((data as any)?.error) throw new Error(String((data as any).error));
   return data as LidiaAnalysisResponse;
 }
 

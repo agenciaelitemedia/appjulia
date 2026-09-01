@@ -4,7 +4,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
-import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { resolveAI, providerHeaders, lovableAI } from "../_shared/aiGateway.ts";
 import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const PILOT_ALLOWLIST = ["tellmoitas@gmail.com"];
@@ -417,14 +417,12 @@ function buildPrompt(ctx: Awaited<ReturnType<typeof loadContext>>, question?: st
   return parts.join("\n");
 }
 
-async function callAI(
+async function callAIOnce(
   supabase: ReturnType<typeof getSupabase>,
+  ai: Awaited<ReturnType<typeof resolveAI>>,
   prompt: string,
   feature: string,
 ) {
-  const ai = await resolveAI(supabase, feature);
-  if (!ai.apiKey) throw new Error("IA não configurada (sem chave).");
-
   const started = Date.now();
   const resp = await fetch(ai.endpoint, {
     method: "POST",
@@ -444,21 +442,18 @@ async function callAI(
   });
   const duration = Date.now() - started;
 
-  if (resp.status === 429) return { status: 429, error: "Limite de uso da IA atingido." };
-  if (resp.status === 402) return { status: 402, error: "Créditos da IA esgotados." };
   if (!resp.ok) {
-    const text = await resp.text();
-  await logAIUsage(supabase, {
-    client_id: clientId,
-    feature,
-    provider: ai.provider,
+    const detail = await resp.text().catch(() => "");
+    await logAIUsage(supabase, {
+      feature,
+      provider: ai.provider,
       endpoint: ai.endpoint,
       model: ai.model,
       status: "failed",
       duration_ms: duration,
       error_reason: `ai_${resp.status}`,
     });
-    return { status: 500, error: "Erro na IA", detail: text };
+    return { status: resp.status, detail };
   }
 
   const data = await resp.json();
@@ -474,6 +469,36 @@ async function callAI(
   });
   return { status: 200, raw };
 }
+
+async function callAI(
+  supabase: ReturnType<typeof getSupabase>,
+  prompt: string,
+  feature: string,
+) {
+  let ai = await resolveAI(supabase, feature);
+  if (!ai.apiKey) throw new Error("IA não configurada (sem chave).");
+
+  let res = await callAIOnce(supabase, ai, prompt, feature);
+
+  // Provedor externo recusou por cobrança/autorização → tenta o gateway Lovable.
+  if (ai.provider === "openrouter" && [401, 402, 403].includes(res.status)) {
+    const fallback = lovableAI(feature, ai.prompt);
+    if (fallback.apiKey) {
+      console.warn(`[lidia-copilot] openrouter ${res.status}; fallback para Lovable AI`);
+      ai = fallback;
+      res = await callAIOnce(supabase, ai, prompt, feature);
+    }
+  }
+
+  if (res.status === 200) return { status: 200, raw: res.raw };
+  if (res.status === 429) return { status: 429, error: "Limite de uso da IA atingido. Tente de novo em instantes." };
+  if (res.status === 402) return { status: 402, error: "Créditos da IA esgotados. Reponha o saldo para a LÍDIA voltar a analisar." };
+  if (res.status === 401 || res.status === 403) {
+    return { status: res.status, error: "A chave do provedor de IA foi recusada. Atualize a chave ou selecione um modelo Lovable AI." };
+  }
+  return { status: 500, error: "Erro na IA", detail: res.detail };
+}
+
 
 function parseAIOutput(raw: string): any {
   try {
