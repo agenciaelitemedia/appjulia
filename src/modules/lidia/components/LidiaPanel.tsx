@@ -65,8 +65,8 @@ export function LidiaPanel({ conversationId, clientId, userEmail, contactName }:
           <LidiaNextStepCard output={analysis} loading={analyzeLoading} onRefresh={() => analyze()} />
           <LidiaSuggestionsCard output={analysis} />
 
-          <LidiaLegalAnalysisCard output={latest!.last_analysis} />
-          <LidiaCallScriptCard output={latest!.last_analysis} />
+          <LidiaLegalAnalysisCard output={analysis} />
+          <LidiaCallScriptCard output={analysis} />
           <LidiaChatThread messages={messages} onSend={chat} loading={chatLoading} />
         </div>
       </ScrollArea>
