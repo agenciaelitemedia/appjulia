@@ -192,40 +192,77 @@ interface AgentRow {
   settings: Record<string, unknown> | null;
 }
 
-async function getAgentForConversation(
+async function fetchAgentFromExt(
   ext: ReturnType<typeof postgres>,
   clientId: string,
-  queueId: string | null,
-  codAgent?: string | number | null,
+  codAgent: string | number,
 ): Promise<AgentRow | null> {
   try {
-    if (queueId) {
-      const links = await ext`
-        SELECT cod_agent FROM queue_agent_links
-        WHERE queue_id = ${queueId} AND is_primary = true
-        LIMIT 1
-      `;
-      if (links.length && links[0].cod_agent) {
-        const agent = await ext`
-          SELECT cod_agent, prompt, settings FROM agents
-          WHERE client_id = ${clientId} AND cod_agent = ${links[0].cod_agent}
-          LIMIT 1
-        `;
-        if (agent.length) return agent[0] as AgentRow;
-      }
-    }
-    if (codAgent) {
-      const agent = await ext`
-        SELECT cod_agent, prompt, settings FROM agents
-        WHERE client_id = ${clientId} AND cod_agent = ${codAgent}
-        LIMIT 1
-      `;
-      if (agent.length) return agent[0] as AgentRow;
-    }
+    const agent = await ext`
+      SELECT cod_agent, prompt, settings FROM agents
+      WHERE client_id = ${clientId} AND cod_agent = ${codAgent}
+      LIMIT 1
+    `;
+    if (agent.length) return agent[0] as AgentRow;
     return null;
   } catch (e) {
     console.warn("[lidia-copilot] agent lookup failed:", e);
     return null;
+  }
+}
+
+async function getAgentForConversation(
+  supabase: ReturnType<typeof getSupabase>,
+  ext: ReturnType<typeof postgres>,
+  clientId: string,
+  queueId: string | null,
+  codAgent?: string | number | null,
+): Promise<{ agent: AgentRow | null; diagnostics: string[] }> {
+  const diagnostics: string[] = [];
+  try {
+    if (queueId) {
+      // 1) vínculo primário da fila
+      const { data: primary } = await supabase
+        .from("queue_agent_links")
+        .select("cod_agent")
+        .eq("queue_id", queueId)
+        .eq("is_primary", true)
+        .maybeSingle();
+
+      if (primary?.cod_agent) {
+        const agent = await fetchAgentFromExt(ext, clientId, primary.cod_agent);
+        if (agent) return { agent, diagnostics };
+        diagnostics.push(`Vínculo primário da fila aponta para cod_agent=${primary.cod_agent}, mas agente não encontrado no banco legado.`);
+      }
+
+      // 2) qualquer vínculo da fila
+      const { data: anyLink } = await supabase
+        .from("queue_agent_links")
+        .select("cod_agent")
+        .eq("queue_id", queueId)
+        .order("created_at", { ascending: false })
+        .maybeSingle();
+
+      if (anyLink?.cod_agent) {
+        const agent = await fetchAgentFromExt(ext, clientId, anyLink.cod_agent);
+        if (agent) return { agent, diagnostics };
+        diagnostics.push(`Vínculo alternativo da fila aponta para cod_agent=${anyLink.cod_agent}, mas agente não encontrado no banco legado.`);
+      }
+    }
+
+    // 3) cod_agent da própria conversa
+    if (codAgent) {
+      const agent = await fetchAgentFromExt(ext, clientId, codAgent);
+      if (agent) return { agent, diagnostics };
+      diagnostics.push(`cod_agent da conversa (${codAgent}) não encontrado no banco legado.`);
+    }
+
+    diagnostics.push("Nenhum agente vinculado à fila/conversa. A LÍDIA usará o perfil de vendas do escritório ou um discurso jurídico genérico.");
+    return { agent: null, diagnostics };
+  } catch (e) {
+    console.warn("[lidia-copilot] agent lookup failed:", e);
+    diagnostics.push("Erro ao buscar agente da fila.");
+    return { agent: null, diagnostics };
   }
 }
 
