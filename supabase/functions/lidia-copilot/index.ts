@@ -117,7 +117,7 @@ function renderMessageForTranscript(m: {
     if (transcriptText) {
       return `[${who}${sender}] (áudio transcrito): ${transcriptText}`;
     }
-    return `[${who}${sender}] (áudio sem transcrição)`;
+    return `[${who}${sender}] (áudio SEM transcrição — conteúdo desconhecido: pergunte ao atendente o que foi dito nesse áudio antes de assumir qualquer coisa)`;
   }
   if (t === "image") {
     const caption = m.text?.trim();
