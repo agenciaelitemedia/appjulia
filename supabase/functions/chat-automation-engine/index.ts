@@ -5,6 +5,7 @@
 // ============================================
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { agentIdentifier, capacityBlockedMessage, checkCapacity } from "../_shared/chat/capacity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -183,6 +184,15 @@ async function executeAction(supabase: any, rule: Rule, conv: any) {
       if (!target) return;
       const targetUserId = Number(target);
       const targetUserIdSafe = Number.isFinite(targetUserId) ? targetUserId : null;
+      // Respeita a capacidade do atendente: acima do teto, não atribui.
+      const ident = agentIdentifier(targetUserIdSafe, String(target));
+      if (ident) {
+        const cap = await checkCapacity(supabase, String(conv.client_id), ident);
+        if (cap.blocked) {
+          console.warn(`[automation] auto_assign bloqueado: ${capacityBlockedMessage(cap)}`);
+          return;
+        }
+      }
       await supabase
         .from("chat_conversations")
         .update({

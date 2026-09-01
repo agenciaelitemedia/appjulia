@@ -213,6 +213,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
       currentStatus: row.status,
       contactPhone: row.phone,
       queueId: row.queue_id,
+      clientId: (user as any)?.client_id ?? null,
     });
     onChanged?.();
   };

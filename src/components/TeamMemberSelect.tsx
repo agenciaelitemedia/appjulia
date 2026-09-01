@@ -16,6 +16,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeamHeartbeat } from '@/hooks/useTeamHeartbeat';
+import { useChatAgentCapacity } from '@/hooks/useChatAgentCapacity';
 
 export interface TeamMemberOption {
   id: number | string;
@@ -56,6 +57,8 @@ interface TeamMemberSelectProps {
   size?: 'sm' | 'md';
   /** Map nome → contagem, exibida como "(N)" ao lado do nome. */
   memberCounts?: Record<string, number>;
+  /** Mostra carga "atual/teto" e desabilita atendentes que atingiram o limite. */
+  enforceCapacity?: boolean;
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -128,10 +131,12 @@ export function TeamMemberSelect({
   hideRoleBadge = false,
   size = 'md',
   memberCounts,
+  enforceCapacity = false,
 }: TeamMemberSelectProps) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
   const { isOnline, isAway } = useTeamHeartbeat();
+  const { data: capacity } = useChatAgentCapacity(enforceCapacity);
 
   const meName = user?.name || null;
   const sortedMembers = useMemo(() => {
@@ -303,15 +308,19 @@ export function TeamMemberSelect({
                     : away
                     ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
                     : 'bg-muted text-muted-foreground border-border';
+                  const cap = enforceCapacity ? capacity?.[String(m.id)] : undefined;
+                  const isFull = !!cap?.full;
                   return (
                     <CommandItem
                       key={m.id}
                       value={`${m.name} ${m.email || ''} ${roleLabel || role} ${statusLabel}`}
+                      disabled={isFull}
                       onSelect={() => {
+                        if (isFull) return;
                         onValueChange(v);
                         setOpen(false);
                       }}
-                      className="cursor-pointer gap-2"
+                      className={cn('gap-2', isFull ? 'cursor-not-allowed opacity-60' : 'cursor-pointer')}
                     >
                       <Check className={cn('h-4 w-4 flex-shrink-0', isSel ? 'opacity-100' : 'opacity-0')} />
                       <div className="relative flex-shrink-0">
@@ -336,6 +345,20 @@ export function TeamMemberSelect({
                           title="Conversas atribuídas"
                         >
                           {memberCounts[(m.name || '').trim()] ?? 0}
+                        </Badge>
+                      )}
+                      {cap && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-[10px] h-5 px-1.5 flex-shrink-0 tabular-nums',
+                            isFull
+                              ? 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30'
+                              : 'bg-muted text-muted-foreground border-border',
+                          )}
+                          title={isFull ? 'Limite de atendimentos atingido' : 'Carga atual / limite'}
+                        >
+                          {cap.load}/{cap.max_concurrent}
                         </Badge>
                       )}
                       <Badge variant="outline" className={cn('text-[10px] h-5 px-1.5 flex-shrink-0', statusBadgeClass)}>

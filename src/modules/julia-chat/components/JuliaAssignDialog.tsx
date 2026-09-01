@@ -72,6 +72,7 @@ export function JuliaAssignDialog({ open, onOpenChange, onConfirm }: Props) {
           valueKey="name"
           allowUnassigned={false}
           showCurrentUserShortcut
+          enforceCapacity
           placeholder="Selecione um membro da equipe…"
           className="w-full"
           memberCounts={assignedCounts}
