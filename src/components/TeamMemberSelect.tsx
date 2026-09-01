@@ -308,15 +308,19 @@ export function TeamMemberSelect({
                     : away
                     ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
                     : 'bg-muted text-muted-foreground border-border';
+                  const cap = enforceCapacity ? capacity?.[String(m.id)] : undefined;
+                  const isFull = !!cap?.full;
                   return (
                     <CommandItem
                       key={m.id}
                       value={`${m.name} ${m.email || ''} ${roleLabel || role} ${statusLabel}`}
+                      disabled={isFull}
                       onSelect={() => {
+                        if (isFull) return;
                         onValueChange(v);
                         setOpen(false);
                       }}
-                      className="cursor-pointer gap-2"
+                      className={cn('gap-2', isFull ? 'cursor-not-allowed opacity-60' : 'cursor-pointer')}
                     >
                       <Check className={cn('h-4 w-4 flex-shrink-0', isSel ? 'opacity-100' : 'opacity-0')} />
                       <div className="relative flex-shrink-0">
