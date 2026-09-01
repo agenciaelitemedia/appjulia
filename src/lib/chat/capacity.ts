@@ -53,7 +53,7 @@ export async function fetchCapacity(
     p_agent_identifier: id,
   } as never);
   if (error) throw error;
-  const row = (Array.isArray(data) ? data[0] : data) as
+  const row = (Array.isArray(data) ? data[0] : data ?? null) as
     | { agent_name: string | null; load: number; max_concurrent: number }
     | null;
   const load = Number(row?.load) || 0;
