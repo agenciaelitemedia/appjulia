@@ -4,7 +4,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import postgres from "https://deno.land/x/postgresjs@v3.4.4/mod.js";
-import { resolveAI, providerHeaders } from "../_shared/aiGateway.ts";
+import { resolveAI, providerHeaders, lovableAI } from "../_shared/aiGateway.ts";
 import { logAIUsage } from "../_shared/aiUsageLogger.ts";
 
 const PILOT_ALLOWLIST = ["tellmoitas@gmail.com"];
