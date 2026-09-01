@@ -192,40 +192,77 @@ interface AgentRow {
   settings: Record<string, unknown> | null;
 }
 
-async function getAgentForConversation(
+async function fetchAgentFromExt(
   ext: ReturnType<typeof postgres>,
   clientId: string,
-  queueId: string | null,
-  codAgent?: string | number | null,
+  codAgent: string | number,
 ): Promise<AgentRow | null> {
   try {
-    if (queueId) {
-      const links = await ext`
-        SELECT cod_agent FROM queue_agent_links
-        WHERE queue_id = ${queueId} AND is_primary = true
-        LIMIT 1
-      `;
-      if (links.length && links[0].cod_agent) {
-        const agent = await ext`
-          SELECT cod_agent, prompt, settings FROM agents
-          WHERE client_id = ${clientId} AND cod_agent = ${links[0].cod_agent}
-          LIMIT 1
-        `;
-        if (agent.length) return agent[0] as AgentRow;
-      }
-    }
-    if (codAgent) {
-      const agent = await ext`
-        SELECT cod_agent, prompt, settings FROM agents
-        WHERE client_id = ${clientId} AND cod_agent = ${codAgent}
-        LIMIT 1
-      `;
-      if (agent.length) return agent[0] as AgentRow;
-    }
+    const agent = await ext`
+      SELECT cod_agent, prompt, settings FROM agents
+      WHERE client_id = ${clientId} AND cod_agent = ${codAgent}
+      LIMIT 1
+    `;
+    if (agent.length) return agent[0] as AgentRow;
     return null;
   } catch (e) {
     console.warn("[lidia-copilot] agent lookup failed:", e);
     return null;
+  }
+}
+
+async function getAgentForConversation(
+  supabase: ReturnType<typeof getSupabase>,
+  ext: ReturnType<typeof postgres>,
+  clientId: string,
+  queueId: string | null,
+  codAgent?: string | number | null,
+): Promise<{ agent: AgentRow | null; diagnostics: string[] }> {
+  const diagnostics: string[] = [];
+  try {
+    if (queueId) {
+      // 1) vínculo primário da fila
+      const { data: primary } = await supabase
+        .from("queue_agent_links")
+        .select("cod_agent")
+        .eq("queue_id", queueId)
+        .eq("is_primary", true)
+        .maybeSingle();
+
+      if (primary?.cod_agent) {
+        const agent = await fetchAgentFromExt(ext, clientId, primary.cod_agent);
+        if (agent) return { agent, diagnostics };
+        diagnostics.push(`Vínculo primário da fila aponta para cod_agent=${primary.cod_agent}, mas agente não encontrado no banco legado.`);
+      }
+
+      // 2) qualquer vínculo da fila
+      const { data: anyLink } = await supabase
+        .from("queue_agent_links")
+        .select("cod_agent")
+        .eq("queue_id", queueId)
+        .order("created_at", { ascending: false })
+        .maybeSingle();
+
+      if (anyLink?.cod_agent) {
+        const agent = await fetchAgentFromExt(ext, clientId, anyLink.cod_agent);
+        if (agent) return { agent, diagnostics };
+        diagnostics.push(`Vínculo alternativo da fila aponta para cod_agent=${anyLink.cod_agent}, mas agente não encontrado no banco legado.`);
+      }
+    }
+
+    // 3) cod_agent da própria conversa
+    if (codAgent) {
+      const agent = await fetchAgentFromExt(ext, clientId, codAgent);
+      if (agent) return { agent, diagnostics };
+      diagnostics.push(`cod_agent da conversa (${codAgent}) não encontrado no banco legado.`);
+    }
+
+    diagnostics.push("Nenhum agente vinculado à fila/conversa. A LÍDIA usará o perfil de vendas do escritório ou um discurso jurídico genérico.");
+    return { agent: null, diagnostics };
+  } catch (e) {
+    console.warn("[lidia-copilot] agent lookup failed:", e);
+    diagnostics.push("Erro ao buscar agente da fila.");
+    return { agent: null, diagnostics };
   }
 }
 
@@ -237,7 +274,7 @@ async function loadContext(
 ) {
   const { data: conv, error: convError } = await supabase
     .from("chat_conversations")
-    .select("id, contact_id, client_id, queue_id, assigned_user_id, status, channel")
+    .select("id, contact_id, client_id, queue_id, assigned_user_id, status, channel, cod_agent")
     .eq("id", conversationId)
     .maybeSingle();
 
@@ -258,7 +295,13 @@ async function loadContext(
     ? await supabase.from("queues").select("id, name, channel_type").eq("id", conv.queue_id).maybeSingle()
     : { data: null };
 
-  const agent = await getAgentForConversation(ext, clientId, conv.queue_id ?? null, null);
+  const { agent, diagnostics: agentDiagnostics } = await getAgentForConversation(
+    supabase,
+    ext,
+    clientId,
+    conv.queue_id ?? null,
+    conv.cod_agent ?? null,
+  );
 
   // CRM Builder card (chat_crm_links)
   const { data: crmLink } = await supabase
@@ -268,18 +311,18 @@ async function loadContext(
     .order("created_at", { ascending: false })
     .maybeSingle();
 
-  // CRM Julia card (legacy) via phone key
+  // CRM Julia card (legacy) via phone key — não exige agente, apenas cliente + telefone
   const phone = contact?.phone ?? null;
   const key = phone ? phoneKey(phone) : "";
   let crmJulia: any = null;
-  if (key && agent) {
+  const crmDiagnostics: string[] = [];
+  if (key) {
     try {
       const rows = await ext`
         SELECT c.id, c.nome, c.telefone, c.fase, c.valor, c.status, c.cod_agent, s.nome AS stage_name
         FROM crm_atendimento_cards c
         LEFT JOIN crm_atendimento_stages s ON s.id = c.fase
         WHERE c.client_id = ${clientId}
-          AND c.cod_agent = ${agent.cod_agent}
           AND regexp_replace(c.telefone, '[^0-9]', '', 'g') LIKE ${"%" + key}
         ORDER BY c.id DESC
         LIMIT 1
@@ -287,6 +330,7 @@ async function loadContext(
       if (rows.length) crmJulia = rows[0];
     } catch (e) {
       console.warn("[lidia-copilot] crm legacy lookup failed:", e);
+      crmDiagnostics.push("Erro ao buscar card no CRM Julia legado.");
     }
   }
 
@@ -313,6 +357,9 @@ async function loadContext(
     if (page.length < PAGE) break;
   }
   const transcript = msgs.map(renderMessageForTranscript).filter((x): x is string => !!x).join("\n");
+  if (!transcript) {
+    agentDiagnostics.push("Nenhuma mensagem encontrada para esta conversa.");
+  }
 
   // Última análise LÍDIA
   const { data: session } = await supabase
@@ -340,6 +387,7 @@ async function loadContext(
     transcript,
     session,
     config,
+    diagnostics: [...agentDiagnostics, ...crmDiagnostics],
   };
 }
 
@@ -614,7 +662,11 @@ serve(async (req) => {
       content: output.next_step || "Análise concluída.",
     });
 
-    return json({ output, agent: ctx.agent ? { cod_agent: ctx.agent.cod_agent } : null });
+    return json({
+      output,
+      agent: ctx.agent ? { cod_agent: ctx.agent.cod_agent } : null,
+      diagnostics: ctx.diagnostics ?? [],
+    });
   } catch (e) {
     console.error("[lidia-copilot] error:", e);
     return json({ error: e instanceof Error ? e.message : "Erro interno" }, 500);
