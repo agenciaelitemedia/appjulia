@@ -15,7 +15,7 @@ interface LidiaPanelProps {
 }
 
 export function LidiaPanel({ conversationId, clientId, userEmail, contactName }: LidiaPanelProps) {
-  const { latest, latestLoading, messages, analyze, analyzeLoading, analyzeError, unavailable, chat, chatLoading } = useLidia({
+  const { latest, latestLoading, messages, analyze, analyzeLoading, analyzeError, unavailable, diagnostics, chat, chatLoading } = useLidia({
     clientId,
     conversationId,
     userEmail,
