@@ -61,6 +61,7 @@ export interface LidiaAnalysisResponse {
   output: LidiaOutput | null;
   agent?: { cod_agent: string } | null;
   unavailable?: LidiaUnavailable;
+  diagnostics?: string[];
 }
 
 export interface LidiaUnavailable {
