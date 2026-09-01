@@ -662,7 +662,11 @@ serve(async (req) => {
       content: output.next_step || "Análise concluída.",
     });
 
-    return json({ output, agent: ctx.agent ? { cod_agent: ctx.agent.cod_agent } : null });
+    return json({
+      output,
+      agent: ctx.agent ? { cod_agent: ctx.agent.cod_agent } : null,
+      diagnostics: ctx.diagnostics ?? [],
+    });
   } catch (e) {
     console.error("[lidia-copilot] error:", e);
     return json({ error: e instanceof Error ? e.message : "Erro interno" }, 500);
