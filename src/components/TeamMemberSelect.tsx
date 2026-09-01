@@ -347,6 +347,20 @@ export function TeamMemberSelect({
                           {memberCounts[(m.name || '').trim()] ?? 0}
                         </Badge>
                       )}
+                      {cap && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-[10px] h-5 px-1.5 flex-shrink-0 tabular-nums',
+                            isFull
+                              ? 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30'
+                              : 'bg-muted text-muted-foreground border-border',
+                          )}
+                          title={isFull ? 'Limite de atendimentos atingido' : 'Carga atual / limite'}
+                        >
+                          {cap.load}/{cap.max_concurrent}
+                        </Badge>
+                      )}
                       <Badge variant="outline" className={cn('text-[10px] h-5 px-1.5 flex-shrink-0', statusBadgeClass)}>
                         {statusLabel}
                       </Badge>
