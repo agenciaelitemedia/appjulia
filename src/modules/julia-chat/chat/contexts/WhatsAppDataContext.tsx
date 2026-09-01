@@ -7,6 +7,7 @@ import { webmBlobToOggOpusStrict } from '@/lib/audio/webmToOgg';
 import { getMessagePreview } from '@/modules/julia-chat/chat/lib/messagePreview';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { CapacityBlockedError, agentIdentifier, assertCapacity } from '@/lib/chat/capacity';
 import type {
   ChatContact,
   ChatMessage,
@@ -1291,6 +1292,12 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
 
   const assignConversation = useCallback(async (conversationId: string, assignedTo: string, assignedUserId?: number | null) => {
     try {
+      // Teto de atendimentos simultâneos — bloqueia inclusive admin.
+      await assertCapacity(
+        user?.client_id ?? clientId,
+        agentIdentifier(assignedUserId ?? null, assignedTo),
+        assignedTo,
+      );
       const updates: Record<string, unknown> = { assigned_to: assignedTo };
       if (assignedUserId !== undefined) {
         updates.assigned_user_id = assignedUserId;
@@ -1336,6 +1343,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
       toast.success('Conversa transferida');
     } catch (error) {
       console.error('Error assigning conversation:', error);
+      if (error instanceof CapacityBlockedError) {
+        toast.error(error.message);
+        throw error;
+      }
       toast.error('Erro ao transferir conversa');
     }
   }, [user?.name, user?.id, conversations, contacts, disableJuliaOnAssignOrTransfer]);

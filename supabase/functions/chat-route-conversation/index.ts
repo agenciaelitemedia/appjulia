@@ -4,6 +4,13 @@
 // Filtros: agent_pool ∖ excluded_agents → queue access → online_only → capacidade.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { fetchClientAutomationFlags } from "../_shared/agentSettings.ts";
+import {
+  DEFAULT_MAX_CONCURRENT,
+  capacityBlockedMessage,
+  checkCapacity,
+  loadCapacityCaps,
+  loadLiveLoads,
+} from "../_shared/chat/capacity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -165,26 +172,29 @@ async function pickAgent(rule: Rule): Promise<string | null> {
   if (rule.strategy === 'manual_pool') return rule.fallback_assigned_to;
   if (rule.strategy === 'random') return pool[Math.floor(Math.random() * pool.length)];
 
-  const { data: caps } = await supabase
-    .from('chat_agent_capacity')
-    .select('*')
-    .eq('client_id', rule.client_id)
-    .in('agent_identifier', pool)
-    .eq('is_active', true)
-    .eq('status', 'online');
+  // Capacidade com CARGA REAL (chat_agent_live_load) — current_load é só espelho.
+  const [loads, caps] = await Promise.all([
+    loadLiveLoads(supabase, rule.client_id),
+    loadCapacityCaps(supabase, rule.client_id),
+  ]);
 
-  // Atendentes sem registro em chat_agent_capacity passam (fail-open p/ teto default 5).
-  const capMap = new Map<string, { current_load: number; max_concurrent: number }>();
-  for (const c of (caps || [])) {
-    capMap.set(String(c.agent_identifier), {
-      current_load: Number((c as any).current_load) || 0,
-      max_concurrent: Number((c as any).max_concurrent) || 5,
-    });
-  }
   const available = pool
-    .map((id) => ({ id, ...(capMap.get(id) ?? { current_load: 0, max_concurrent: 5 }) }))
-    .filter((a) => a.current_load < a.max_concurrent);
-  if (available.length === 0) return rule.fallback_assigned_to;
+    .map((id) => {
+      const cap = caps.get(id);
+      return {
+        id,
+        current_load: loads.get(id) ?? 0,
+        max_concurrent: cap?.max ?? DEFAULT_MAX_CONCURRENT,
+        active: cap ? cap.active : true,
+      };
+    })
+    // Sem registro de capacidade => teto padrão 20 (nunca ilimitado).
+    .filter((a) => a.active && a.current_load < a.max_concurrent);
+  // Nenhum atendente com folga: a conversa permanece na fila.
+  if (available.length === 0) {
+    console.log('[chat-route] nenhum atendente com capacidade disponível; conversa segue na fila');
+    return null;
+  }
 
   if (rule.strategy === 'least_busy') {
     available.sort((a, b) => (a.current_load / a.max_concurrent) - (b.current_load / b.max_concurrent));
@@ -258,6 +268,13 @@ Deno.serve(async (req) => {
 
       const agent = await pickAgent(rule);
       if (!agent) continue;
+
+      // Guarda final: nenhuma estratégia (nem o fallback) pode estourar o teto.
+      const cap = await checkCapacity(supabase, String(conv.client_id), agent);
+      if (cap.blocked) {
+        console.log(`[chat-route] ${capacityBlockedMessage(cap)} — conversa segue na fila`);
+        continue;
+      }
 
       const agentUserId = Number(agent);
       const agentUserIdSafe = Number.isFinite(agentUserId) ? agentUserId : null;

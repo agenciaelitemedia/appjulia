@@ -5,6 +5,7 @@
  */
 import { supabase } from '../extend/db';
 import { externalDb } from '@/lib/externalDb';
+import { agentIdentifier, assertCapacity } from '@/lib/chat/capacity';
 
 interface Actor {
   name?: string | null;
@@ -55,11 +56,15 @@ export async function juliaAssignConversation(params: {
   currentStatus?: string;
   contactPhone?: string | null;
   queueId?: string | null;
+  clientId?: string | number | null;
 }) {
   const {
     conversationId, assignedTo, assignedUserId, actor,
-    openConversation, currentStatus, contactPhone, queueId,
+    openConversation, currentStatus, contactPhone, queueId, clientId,
   } = params;
+
+  // Teto de atendimentos simultâneos — bloqueia inclusive admin.
+  await assertCapacity(clientId, agentIdentifier(assignedUserId, assignedTo), assignedTo);
 
   const updates: Record<string, unknown> = {
     assigned_to: assignedTo,

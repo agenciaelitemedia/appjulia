@@ -1,6 +1,7 @@
 // Public REST API for chat conversations & messages
 // Auth: header "X-API-Key: cak_xxxxx"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { agentIdentifier, capacityBlockedMessage, checkCapacity } from "../_shared/chat/capacity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -142,6 +143,12 @@ Deno.serve(async (req) => {
         update.assigned_to = body.assigned_to;
         const n = Number(body.assigned_to);
         update.assigned_user_id = Number.isFinite(n) ? n : null;
+        // Bloqueia atribuição acima do teto de atendimentos do atendente.
+        const ident = agentIdentifier(Number.isFinite(n) ? n : null, String(body.assigned_to ?? ""));
+        if (ident) {
+          const cap = await checkCapacity(supabase, String(clientId), ident);
+          if (cap.blocked) return json({ error: capacityBlockedMessage(cap) }, 409);
+        }
       }
       if (body.tags) update.tags = body.tags;
       if (body.status === "resolved") update.resolved_at = new Date().toISOString();

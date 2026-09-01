@@ -8,6 +8,12 @@
 // ============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import {
+  agentIdentifier,
+  capacityBlockedMessage,
+  checkCapacity,
+  type CapacityInfo,
+} from '../_shared/chat/capacity.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -104,6 +110,18 @@ function applyFilters(query: any, body: Body) {
   return query;
 }
 
+/** Capacidade do destino, quando o alvo é atribuir a um atendente. */
+// deno-lint-ignore no-explicit-any
+async function targetCapacity(supabase: any, body: Body): Promise<CapacityInfo | null> {
+  if (body.target.type !== 'assign') return null;
+  const ident = agentIdentifier(
+    body.target.assigned_user_id ?? null,
+    String(body.target.assigned_to ?? ''),
+  );
+  if (!ident) return null;
+  return await checkCapacity(supabase, body.client_id, ident);
+}
+
 async function runPreview(supabase: any, body: Body) {
   const all: Array<{ id: string; queue_id: string | null; assigned_to: string | null; opened_at: string }> = [];
   const PAGE = 1000;
@@ -134,6 +152,10 @@ async function runPreview(supabase: any, body: Body) {
     if (!newest || r.opened_at > newest) newest = r.opened_at;
   }
 
+  const cap = await targetCapacity(supabase, body);
+  const slots = cap ? cap.slots : null;
+  const willTransfer = slots == null ? all.length : Math.min(all.length, slots);
+
   return {
     total: all.length,
     capped: all.length >= MAX,
@@ -141,6 +163,12 @@ async function runPreview(supabase: any, body: Body) {
     byAssignee,
     oldest,
     newest,
+    capacity: cap
+      ? { load: cap.load, max_concurrent: cap.max_concurrent, slots: cap.slots, blocked: cap.blocked }
+      : null,
+    will_transfer: willTransfer,
+    overflow: slots == null ? 0 : Math.max(0, all.length - slots),
+    capacity_message: cap && cap.blocked ? capacityBlockedMessage(cap) : null,
   };
 }
 
@@ -161,12 +189,27 @@ async function runCommit(supabase: any, body: Body) {
   let transferred = 0;
   let skipped = 0;
 
+  // Capacidade do destino: nunca transfere acima do teto do atendente.
+  const cap = await targetCapacity(supabase, body);
+  let remaining = cap ? cap.slots : Number.POSITIVE_INFINITY;
+  if (cap && cap.blocked) {
+    return {
+      batch_id: batchId,
+      transferred: 0,
+      skipped: 0,
+      blocked: true,
+      capacity_message: capacityBlockedMessage(cap),
+      capacity: { load: cap.load, max_concurrent: cap.max_concurrent, slots: 0 },
+    };
+  }
+
   for (let iter = 0; iter < 200; iter++) {
+    if (remaining <= 0) break;
     let q = supabase
       .from('chat_conversations')
       .select('id, queue_id, contact_id, assigned_to, assigned_user_id, status')
       .order('opened_at', { ascending: true })
-      .limit(BATCH_SIZE);
+      .limit(Math.min(BATCH_SIZE, Number.isFinite(remaining) ? remaining : BATCH_SIZE));
     q = applyFilters(q, body);
     const { data: rows, error } = await q;
     if (error) throw error;
@@ -220,12 +263,19 @@ async function runCommit(supabase: any, body: Body) {
       const { error: hErr } = await supabase.from('chat_conversation_history').insert(historyRows);
       if (hErr) throw hErr;
       transferred += okRows.length;
+      if (Number.isFinite(remaining)) remaining -= okRows.length;
     }
 
     if (rows.length < BATCH_SIZE) break;
   }
 
-  return { batch_id: batchId, transferred, skipped };
+  return {
+    batch_id: batchId,
+    transferred,
+    skipped,
+    blocked: false,
+    capacity: cap ? { load: cap.load + transferred, max_concurrent: cap.max_concurrent, slots: Math.max(0, cap.slots - transferred) } : null,
+  };
 }
 
 Deno.serve(async (req) => {

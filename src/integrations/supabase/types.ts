@@ -12376,6 +12376,23 @@ export type Database = {
         Args: { p_cap_seconds?: number; p_from: string; p_to: string }
         Returns: Json
       }
+      chat_agent_live_load: {
+        Args: { p_client_id: string }
+        Returns: {
+          agent_identifier: string
+          load: number
+        }[]
+      }
+      chat_capacity_check: {
+        Args: { p_agent_identifier: string; p_client_id: string }
+        Returns: {
+          agent_identifier: string
+          agent_name: string
+          blocked: boolean
+          load: number
+          max_concurrent: number
+        }[]
+      }
       chat_legacy_cache_cleanup: { Args: never; Returns: number }
       chat_list_feed: {
         Args: {
@@ -12402,6 +12419,14 @@ export type Database = {
         }
         Returns: Json
       }
+      chat_resolve_assignee_identifier: {
+        Args: {
+          p_assigned_to: string
+          p_assigned_user_id: number
+          p_client_id: string
+        }
+        Returns: string
+      }
       chat_resolve_message_ids: {
         Args: { p_ids: string[] }
         Returns: {
@@ -12409,6 +12434,10 @@ export type Database = {
         }[]
       }
       chat_retention_cleanup: { Args: never; Returns: Json }
+      chat_sync_agent_load: {
+        Args: { p_agent_identifier: string; p_client_id: string }
+        Returns: undefined
+      }
       cleanup_user_presence_daily: {
         Args: { p_retention_days?: number }
         Returns: number
