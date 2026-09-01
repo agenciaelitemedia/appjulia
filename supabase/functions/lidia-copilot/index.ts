@@ -117,7 +117,7 @@ function renderMessageForTranscript(m: {
     if (transcriptText) {
       return `[${who}${sender}] (áudio transcrito): ${transcriptText}`;
     }
-    return `[${who}${sender}] (áudio sem transcrição)`;
+    return `[${who}${sender}] (áudio SEM transcrição — conteúdo desconhecido: pergunte ao atendente o que foi dito nesse áudio antes de assumir qualquer coisa)`;
   }
   if (t === "image") {
     const caption = m.text?.trim();
@@ -342,24 +342,98 @@ async function loadContext(
     .order("last_message_ts", { ascending: false, nullsFirst: false })
     .limit(5);
 
-  // Últimas mensagens
+  // Histórico completo do CONTATO (todos os atendimentos), não só do ticket atual.
   const msgs: any[] = [];
   const PAGE = 200;
-  for (let from = 0; ; from += PAGE) {
+  const MAX_MSGS = 400;
+  for (let from = 0; from < MAX_MSGS; from += PAGE) {
     const { data: page, error } = await supabase
       .from("chat_messages")
-      .select("id, text, from_me, sender_name, timestamp, type, metadata")
-      .eq("conversation_id", conversationId)
-      .order("timestamp", { ascending: true })
+      .select("id, text, from_me, sender_name, timestamp, type, metadata, conversation_id")
+      .eq("contact_id", conv.contact_id)
+      .order("timestamp", { ascending: false })
       .range(from, from + PAGE - 1);
     if (error || !page || page.length === 0) break;
     msgs.push(...page);
     if (page.length < PAGE) break;
   }
-  const transcript = msgs.map(renderMessageForTranscript).filter((x): x is string => !!x).join("\n");
-  if (!transcript) {
-    agentDiagnostics.push("Nenhuma mensagem encontrada para esta conversa.");
+  msgs.reverse(); // cronológico
+
+  // Áudios sem transcrição: dispara a rotina existente e recarrega o metadata.
+  const untranscribed = msgs.filter((m) => {
+    const t = String(m.type ?? "").toLowerCase();
+    if (t !== "audio" && t !== "ptt") return false;
+    const tr = (m.metadata as any)?.transcription?.text;
+    return !(typeof tr === "string" && tr.trim());
+  });
+  let pendingAudio = untranscribed.length;
+  if (untranscribed.length) {
+    const targets = untranscribed.slice(-5); // os mais recentes importam mais
+    await Promise.all(
+      targets.map(async (m) => {
+        try {
+          await supabase.functions.invoke("chat-transcribe-audio", { body: { message_id: m.id } });
+        } catch (e) {
+          console.warn("[lidia-copilot] transcribe invoke failed:", e);
+        }
+      }),
+    );
+    const { data: refreshed } = await supabase
+      .from("chat_messages")
+      .select("id, metadata")
+      .in("id", targets.map((m) => m.id));
+    const byId = new Map((refreshed ?? []).map((r: any) => [r.id, r.metadata]));
+    for (const m of msgs) {
+      if (byId.has(m.id)) m.metadata = byId.get(m.id);
+    }
+    pendingAudio = msgs.filter((m) => {
+      const t = String(m.type ?? "").toLowerCase();
+      if (t !== "audio" && t !== "ptt") return false;
+      const tr = (m.metadata as any)?.transcription?.text;
+      return !(typeof tr === "string" && tr.trim());
+    }).length;
   }
+
+  // Monta o transcript separando cada atendimento e destacando o atual.
+  const lines: string[] = [];
+  const seenConvs = new Set<string>();
+  let ticketIndex = 0;
+  for (const m of msgs) {
+    const cid = String(m.conversation_id ?? "");
+    if (cid && !seenConvs.has(cid)) {
+      seenConvs.add(cid);
+      ticketIndex += 1;
+      const isCurrent = cid === conversationId;
+      lines.push(
+        `\n--- ATENDIMENTO ${ticketIndex}${isCurrent ? " (ATENDIMENTO ATUAL)" : " (atendimento anterior)"} ---`,
+      );
+    }
+    const rendered = renderMessageForTranscript(m);
+    if (rendered) lines.push(rendered);
+  }
+  const transcript = lines.join("\n").trim();
+
+  const mediaNoText = msgs.filter((m) => {
+    const t = String(m.type ?? "").toLowerCase();
+    return (t === "image" || t === "video") && !String(m.text ?? "").trim();
+  }).length;
+
+  if (!transcript) {
+    agentDiagnostics.push("Nenhuma mensagem encontrada para este contato.");
+  } else {
+    agentDiagnostics.push(
+      `Contexto: ${msgs.length} mensagem(ns) de ${seenConvs.size} atendimento(s) deste contato.`,
+    );
+    if (pendingAudio > 0) {
+      agentDiagnostics.push(
+        `${pendingAudio} áudio(s) sem transcrição — a LÍDIA não sabe o que foi dito neles.`,
+      );
+    }
+    if (mediaNoText > 0) {
+      agentDiagnostics.push(`${mediaNoText} imagem/vídeo sem legenda — conteúdo não lido.`);
+    }
+  }
+
 
   // Última análise LÍDIA
   const { data: session } = await supabase
