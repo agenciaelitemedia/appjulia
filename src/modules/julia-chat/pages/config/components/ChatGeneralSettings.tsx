@@ -11,6 +11,7 @@ import { useChatSlaConfigs, DEFAULT_SLA_BY_PRIORITY } from '@/hooks/useChatSlaCo
 import { cn } from '@/lib/utils';
 import { BulkCloseConversationsCard } from './BulkCloseConversationsCard';
 import { BulkTransferConversationsCard } from './BulkTransferConversationsCard';
+import { RebalanceOverflowCard } from './RebalanceOverflowCard';
 import { ConversationEventsSettingsCard } from './ConversationEventsSettingsCard';
 import { SoundAlertSettingsCard } from './SoundAlertSettingsCard';
 
@@ -240,6 +241,7 @@ export function ChatGeneralSettings() {
       </div>
 
       <BulkTransferConversationsCard />
+      <RebalanceOverflowCard />
       <BulkCloseConversationsCard />
       <ConversationEventsSettingsCard />
       <SoundAlertSettingsCard />
