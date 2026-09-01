@@ -274,7 +274,7 @@ async function loadContext(
 ) {
   const { data: conv, error: convError } = await supabase
     .from("chat_conversations")
-    .select("id, contact_id, client_id, queue_id, assigned_user_id, status, channel")
+    .select("id, contact_id, client_id, queue_id, assigned_user_id, status, channel, cod_agent")
     .eq("id", conversationId)
     .maybeSingle();
 
@@ -295,7 +295,13 @@ async function loadContext(
     ? await supabase.from("queues").select("id, name, channel_type").eq("id", conv.queue_id).maybeSingle()
     : { data: null };
 
-  const agent = await getAgentForConversation(ext, clientId, conv.queue_id ?? null, null);
+  const { agent, diagnostics: agentDiagnostics } = await getAgentForConversation(
+    supabase,
+    ext,
+    clientId,
+    conv.queue_id ?? null,
+    conv.cod_agent ?? null,
+  );
 
   // CRM Builder card (chat_crm_links)
   const { data: crmLink } = await supabase
@@ -305,18 +311,18 @@ async function loadContext(
     .order("created_at", { ascending: false })
     .maybeSingle();
 
-  // CRM Julia card (legacy) via phone key
+  // CRM Julia card (legacy) via phone key — não exige agente, apenas cliente + telefone
   const phone = contact?.phone ?? null;
   const key = phone ? phoneKey(phone) : "";
   let crmJulia: any = null;
-  if (key && agent) {
+  const crmDiagnostics: string[] = [];
+  if (key) {
     try {
       const rows = await ext`
         SELECT c.id, c.nome, c.telefone, c.fase, c.valor, c.status, c.cod_agent, s.nome AS stage_name
         FROM crm_atendimento_cards c
         LEFT JOIN crm_atendimento_stages s ON s.id = c.fase
         WHERE c.client_id = ${clientId}
-          AND c.cod_agent = ${agent.cod_agent}
           AND regexp_replace(c.telefone, '[^0-9]', '', 'g') LIKE ${"%" + key}
         ORDER BY c.id DESC
         LIMIT 1
@@ -324,6 +330,7 @@ async function loadContext(
       if (rows.length) crmJulia = rows[0];
     } catch (e) {
       console.warn("[lidia-copilot] crm legacy lookup failed:", e);
+      crmDiagnostics.push("Erro ao buscar card no CRM Julia legado.");
     }
   }
 
@@ -350,6 +357,9 @@ async function loadContext(
     if (page.length < PAGE) break;
   }
   const transcript = msgs.map(renderMessageForTranscript).filter((x): x is string => !!x).join("\n");
+  if (!transcript) {
+    agentDiagnostics.push("Nenhuma mensagem encontrada para esta conversa.");
+  }
 
   // Última análise LÍDIA
   const { data: session } = await supabase
@@ -377,6 +387,7 @@ async function loadContext(
     transcript,
     session,
     config,
+    diagnostics: [...agentDiagnostics, ...crmDiagnostics],
   };
 }
 
