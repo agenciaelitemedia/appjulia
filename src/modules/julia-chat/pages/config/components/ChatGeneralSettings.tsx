@@ -10,6 +10,7 @@ import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { useChatSlaConfigs, DEFAULT_SLA_BY_PRIORITY } from '@/hooks/useChatSlaConfigs';
 import { cn } from '@/lib/utils';
 import { BulkCloseConversationsCard } from './BulkCloseConversationsCard';
+import { BulkTransferConversationsCard } from './BulkTransferConversationsCard';
 import { ConversationEventsSettingsCard } from './ConversationEventsSettingsCard';
 import { SoundAlertSettingsCard } from './SoundAlertSettingsCard';
 
@@ -238,6 +239,7 @@ export function ChatGeneralSettings() {
         </div>
       </div>
 
+      <BulkTransferConversationsCard />
       <BulkCloseConversationsCard />
       <ConversationEventsSettingsCard />
       <SoundAlertSettingsCard />
