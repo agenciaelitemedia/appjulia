@@ -277,7 +277,22 @@ export default function PainelMigracaoPage() {
                   Publique cada função no novo projeto a partir de <code>supabase/functions/</code>.
                 </CardDescription>
               </div>
-              <CopyButton value={EDGE_FUNCTIONS.join('\n')} label="Copiar lista" />
+              <div className="flex gap-2">
+                <CopyButton value={EDGE_FUNCTIONS.join('\n')} label="Copiar lista" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const { count, content } = buildEdgeFunctionsFile();
+                    downloadFile('edge-functions.ts', content);
+                    toast.success(`${count} Edge Functions exportadas`);
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar edge-functions.ts
+                </Button>
+              </div>
+
             </CardHeader>
             <CardContent>
               <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
