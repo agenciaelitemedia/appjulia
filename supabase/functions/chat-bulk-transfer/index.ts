@@ -119,7 +119,9 @@ async function targetCapacity(supabase: any, body: Body): Promise<CapacityInfo |
     String(body.target.assigned_to ?? ''),
   );
   if (!ident) return null;
-  return await checkCapacity(supabase, body.client_id, ident);
+  const cap = await checkCapacity(supabase, body.client_id, ident);
+  // Sem limite configurado (ou distribuição automática desligada) => sem restrição.
+  return cap.enforced ? cap : null;
 }
 
 async function runPreview(supabase: any, body: Body) {
@@ -191,7 +193,7 @@ async function runCommit(supabase: any, body: Body) {
 
   // Capacidade do destino: nunca transfere acima do teto do atendente.
   const cap = await targetCapacity(supabase, body);
-  let remaining = cap ? cap.slots : Number.POSITIVE_INFINITY;
+  let remaining = cap && cap.slots != null ? cap.slots : Number.POSITIVE_INFINITY;
   if (cap && cap.blocked) {
     return {
       batch_id: batchId,

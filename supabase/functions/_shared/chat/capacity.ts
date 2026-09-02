@@ -148,5 +148,8 @@ export async function isAutoDistributionEnabled(supabase: any, clientId: string)
 
 export function capacityBlockedMessage(info: CapacityInfo): string {
   const who = info.name || `atendente ${info.identifier}`;
+  if (!info.enforced || info.max_concurrent == null) {
+    return `${who} não possui limite de atendimentos configurado.`;
+  }
   return `${who} está com ${info.load}/${info.max_concurrent} atendimentos — encerre atendimentos antes de receber novos.`;
 }
