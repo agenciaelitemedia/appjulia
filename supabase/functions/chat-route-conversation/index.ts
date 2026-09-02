@@ -5,9 +5,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { fetchClientAutomationFlags } from "../_shared/agentSettings.ts";
 import {
-  DEFAULT_MAX_CONCURRENT,
   capacityBlockedMessage,
   checkCapacity,
+  isAutoDistributionEnabled,
   loadCapacityCaps,
   loadLiveLoads,
 } from "../_shared/chat/capacity.ts";
@@ -173,23 +173,25 @@ async function pickAgent(rule: Rule): Promise<string | null> {
   if (rule.strategy === 'random') return pool[Math.floor(Math.random() * pool.length)];
 
   // Capacidade com CARGA REAL (chat_agent_live_load) — current_load é só espelho.
-  const [loads, caps] = await Promise.all([
+  const [loads, caps, autoOn] = await Promise.all([
     loadLiveLoads(supabase, rule.client_id),
     loadCapacityCaps(supabase, rule.client_id),
+    isAutoDistributionEnabled(supabase, rule.client_id),
   ]);
 
   const available = pool
     .map((id) => {
       const cap = caps.get(id);
+      const enforced = autoOn && !!cap && cap.active && !!cap.max && cap.max > 0;
       return {
         id,
         current_load: loads.get(id) ?? 0,
-        max_concurrent: cap?.max ?? DEFAULT_MAX_CONCURRENT,
-        active: cap ? cap.active : true,
+        // null = sem limite configurado (não bloqueia)
+        max_concurrent: enforced ? (cap!.max as number) : null,
       };
     })
-    // Sem registro de capacidade => teto padrão 20 (nunca ilimitado).
-    .filter((a) => a.active && a.current_load < a.max_concurrent);
+    // Só é descartado quem tem limite configurado e já o atingiu.
+    .filter((a) => a.max_concurrent == null || a.current_load < a.max_concurrent);
   // Nenhum atendente com folga: a conversa permanece na fila.
   if (available.length === 0) {
     console.log('[chat-route] nenhum atendente com capacidade disponível; conversa segue na fila');
@@ -197,7 +199,11 @@ async function pickAgent(rule: Rule): Promise<string | null> {
   }
 
   if (rule.strategy === 'least_busy') {
-    available.sort((a, b) => (a.current_load / a.max_concurrent) - (b.current_load / b.max_concurrent));
+    available.sort((a, b) => {
+      const ra = a.max_concurrent ? a.current_load / a.max_concurrent : a.current_load / 1000;
+      const rb = b.max_concurrent ? b.current_load / b.max_concurrent : b.current_load / 1000;
+      return ra - rb;
+    });
     return available[0].id;
   }
   // round_robin

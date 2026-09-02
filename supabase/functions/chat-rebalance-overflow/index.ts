@@ -10,7 +10,7 @@
 //         agent_identifier? (limita a um atendente), min_idle_hours? }
 // ============================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { DEFAULT_MAX_CONCURRENT, loadCapacityCaps, loadLiveLoads } from '../_shared/chat/capacity.ts';
+import { isAutoDistributionEnabled, loadCapacityCaps, loadLiveLoads } from '../_shared/chat/capacity.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -66,16 +66,21 @@ interface Overflow {
 
 // deno-lint-ignore no-explicit-any
 async function computeOverflows(supabase: any, body: Body): Promise<Overflow[]> {
-  const [loads, caps] = await Promise.all([
+  const [loads, caps, autoOn] = await Promise.all([
     loadLiveLoads(supabase, body.client_id),
     loadCapacityCaps(supabase, body.client_id),
+    isAutoDistributionEnabled(supabase, body.client_id),
   ]);
+  // Sem distribuição automática ativada não há limites: nada a rebalancear.
+  if (!autoOn) return [];
 
   const out: Overflow[] = [];
   for (const [id, load] of loads.entries()) {
     if (body.agent_identifier && id !== body.agent_identifier) continue;
     const cap = caps.get(id);
-    const max = cap?.max ?? DEFAULT_MAX_CONCURRENT;
+    // Só atendentes com limite configurado e ativo entram no rebalanceamento.
+    if (!cap || !cap.active || !cap.max || cap.max <= 0) continue;
+    const max = cap.max;
     if (load > max) {
       out.push({
         agent_identifier: id,
