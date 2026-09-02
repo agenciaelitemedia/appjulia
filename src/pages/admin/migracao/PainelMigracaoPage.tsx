@@ -1,17 +1,181 @@
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert, Copy, Check, Database, Code2, ListChecks, Info, Key } from 'lucide-react';
+import { ShieldAlert, Copy, Check, Code2, KeyRound } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
-import checklistMd from './content/checklist.md?raw';
-import inventarioMd from './content/inventario.md?raw';
 
-const SECRET_NAMES_NOTE =
-  'Os nomes dos secrets estão listados no checklist. Os valores só devem ser copiados na interface autenticada do backend (Secrets) — nunca expostos em página, log ou endpoint.';
+const EDGE_FUNCTIONS: string[] = [
+  'advbox-integration',
+  'advbox-notify',
+  'advbox-query',
+  'advbox-sync',
+  'ai-provider-key-set',
+  'alert-notifications-cron',
+  'api4com-proxy',
+  'api4com-webhook',
+  'asaas-checkout',
+  'asaas-configure-webhook',
+  'asaas-webhook',
+  'assigned-user-id-backfill-cron',
+  'assigned-user-id-backfill',
+  'batch-generate-scripts',
+  'chat-ai-assist',
+  'chat-ai-process',
+  'chat-automation-engine',
+  'chat-bulk-close',
+  'chat-bulk-transfer',
+  'chat-campaign-dispatcher',
+  'chat-contacts-enrich',
+  'chat-flow-engine',
+  'chat-flow-scheduler',
+  'chat-media-download',
+  'chat-media-upload',
+  'chat-message-react',
+  'chat-public-api',
+  'chat-rebalance-overflow',
+  'chat-reset',
+  'chat-resync-timestamps',
+  'chat-return-chat',
+  'chat-route-conversation',
+  'chat-scheduler',
+  'chat-transcribe-audio',
+  'chat-webhook-dispatcher',
+  'client-automation-flags',
+  'consulta-documento',
+  'contract-notifications-cron',
+  'contract-notifications-queue',
+  'copilot-chat',
+  'copiloto-mcp',
+  'copiloto-oauth',
+  'crm-copilot-monitor',
+  'datajud-monitor',
+  'datajud-search',
+  'db-query',
+  'dsp-audience',
+  'dsp-campaign-control',
+  'dsp-campaign-prepare',
+  'dsp-campaign-scheduler',
+  'dsp-campaign-worker',
+  'dsp-optout-scan',
+  'image-proxy',
+  'infinitypay-checkout',
+  'infinitypay-webhook',
+  'instagram-send',
+  'instagram-webhook',
+  'internal-notification-dispatch',
+  'internal-notification-scheduler',
+  'julia-chat-list-feed',
+  'lidia-copilot',
+  'link-preview',
+  'mercadopago-checkout',
+  'mercadopago-webhook',
+  'meta-ads',
+  'meta-auth',
+  'meta-conversions',
+  'meta-send-test',
+  'meta-webhook',
+  'n8n_execute-agent_and_followup-reactive',
+  'n8n_execute-followup-stop',
+  'n8n_execute',
+  'prompt-generator',
+  'queue-maintenance',
+  'queue-management',
+  'queue-order-checkout',
+  'queue-order-create',
+  'queue-provision',
+  'queue-resolve-phone',
+  'refresh-contact-avatar',
+  'seed-uazapi-provider',
+  'send-push',
+  'support-assistant-webhook',
+  'support-group-discovery',
+  'support-transcribe-audio',
+  'sync-queue-to-agent',
+  'team-member-cleanup-conversations',
+  'telemetry',
+  'telephony-notify-paid',
+  'telephony-order-checkout',
+  'telephony-order-create',
+  'telephony-provision',
+  'threecplus-proxy',
+  'threecplus-webhook',
+  'ticket-media-upload',
+  'uazapi-admin',
+  'uazapi-chat-backfill',
+  'uazapi-chat-webhook',
+  'uazapi-history-cancel',
+  'uazapi-history-dispatcher-heartbeat',
+  'uazapi-history-dispatcher',
+  'uazapi-history-force-resync',
+  'uazapi-history-import',
+  'uazapi-history-processor',
+  'uazapi-history-resume',
+  'uazapi-history-warmup',
+  'uazapi-instance-manager',
+  'uazapi-proxy',
+  'vellip-webhook',
+  'video-order-checkout',
+  'video-order-create',
+  'video-provision',
+  'video-room',
+  'waba-admin',
+  'waba-send',
+  'waba-templates',
+  'wavoip-call-webhook',
+  'wavoip-configure-webhook',
+  'wavoip-connect-device',
+  'wavoip-device-provision',
+  'wavoip-disconnect-device',
+  'wavoip-fetch-call-details',
+  'wavoip-fetch-recording',
+  'wavoip-providers',
+  'wavoip-provision-device',
+  'wavoip-reconcile-call',
+  'wavoip-reconcile-runner',
+  'wavoip-rename-device',
+  'wavoip-sync-history',
+  'wavoip-transcribe-recording',
+  'wavoip-verify-webhook',
+  'webchat-api',
+  'x-julia-admin',
+  'x-julia-engine',
+  'x-julia-followup-runner',
+  'x-julia-processor',
+  'x-julia-tick',
+  'xj-provider-config',
+  'xj-zapsign',
+  'zapsign-download',
+  'zapsign-file',
+];
+
+const SECRETS: { name: string; origin: string }[] = [
+  { name: 'DAILY_API_KEY', origin: 'painel Daily.co' },
+  { name: 'EXTERNAL_DB_CA_CERT', origin: 'Postgres externo legado' },
+  { name: 'EXTERNAL_DB_DATABASE', origin: 'Postgres externo legado' },
+  { name: 'EXTERNAL_DB_HOST', origin: 'Postgres externo legado' },
+  { name: 'EXTERNAL_DB_PASSWORD', origin: 'Postgres externo legado' },
+  { name: 'EXTERNAL_DB_PORT', origin: 'Postgres externo legado' },
+  { name: 'EXTERNAL_DB_URL', origin: 'Postgres externo legado' },
+  { name: 'EXTERNAL_DB_USERNAME', origin: 'Postgres externo legado' },
+  { name: 'LOVABLE_API_KEY', origin: 'gerenciado pela plataforma (não migrar manualmente)' },
+  { name: 'META_APP_ID', origin: 'Meta for Developers' },
+  { name: 'META_APP_SECRET', origin: 'Meta for Developers' },
+  { name: 'META_WEBHOOK_VERIFY_TOKEN', origin: 'definido por você (webhook Meta)' },
+  { name: 'N8N_HUB_SEND_URL', origin: 'n8n' },
+  { name: 'N8N_HUB_WEBHOOK_URL', origin: 'n8n' },
+  { name: 'UAZAPI_ADMIN_TOKEN', origin: 'painel UaZapi' },
+  { name: 'UAZAPI_BASE_URL', origin: 'painel UaZapi' },
+  { name: 'UAZAPI_WEBHOOK_URL', origin: 'URL do novo projeto (atualizar!)' },
+  { name: 'VAPID_PRIVATE_KEY', origin: 'VAPID (web push) — pode gerar novo par' },
+  { name: 'VAPID_PUBLIC_KEY', origin: 'VAPID (web push) — pode gerar novo par' },
+  { name: 'VAPID_SUBJECT', origin: 'VAPID (web push) — pode gerar novo par' },
+  { name: 'WAVOIP_API_KEY', origin: 'painel Wavoip' },
+  { name: 'XJ_INTERNAL_SECRET', origin: 'gerar novo valor aleatório' },
+  { name: 'ZAPSIGN_API_TOKEN', origin: 'painel ZapSign' },
+];
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -30,21 +194,6 @@ function CopyButton({ value, label }: { value: string; label: string }) {
     </Button>
   );
 }
-
-const PROJECT_URL = import.meta.env.VITE_SUPABASE_URL ?? 'não configurado';
-const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID ?? 'não configurado';
-const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? 'não configurado';
-
-const STEPS = [
-  'Criar o novo projeto de backend e anotar apenas a URL e a chave pública (anon).',
-  'Aplicar as migrations versionadas do repositório (supabase/migrations) na ordem cronológica.',
-  'Publicar as Edge Functions do repositório (supabase/functions) no novo projeto.',
-  'Cadastrar os secrets no novo projeto usando os nomes do checklist — copiando os valores direto da UI autenticada.',
-  'Exportar e importar os dados pelo próprio backend (Advanced settings → Export data).',
-  'Revisar RLS e políticas das tabelas sinalizadas no inventário.',
-  'Atualizar as variáveis do frontend (URL e chave pública) e validar login, chat, CRM e webhooks.',
-  'Apagar esta página quando a migração terminar.',
-];
 
 export default function PainelMigracaoPage() {
   const { isAdmin } = usePermission();
@@ -69,125 +218,74 @@ export default function PainelMigracaoPage() {
           <Badge variant="secondary">temporário</Badge>
         </div>
         <p className="text-muted-foreground text-sm">
-          Roteiro seguro para migrar o backend deste projeto: ordem de execução, inventário de tabelas e nomes de
-          secrets. Nenhuma chave privada é exibida aqui.
+          Apenas o essencial para a migração: as Edge Functions a publicar e os nomes dos secrets a recadastrar.
+          Nenhum valor de secret é exibido aqui.
         </p>
       </header>
 
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertTitle>Segurança</AlertTitle>
-        <AlertDescription>{SECRET_NAMES_NOTE}</AlertDescription>
-      </Alert>
-
-      <Tabs defaultValue="ordem">
+      <Tabs defaultValue="functions">
         <TabsList>
-          <TabsTrigger value="ordem">
-            <ListChecks className="h-4 w-4 mr-2" />
-            Ordem
-          </TabsTrigger>
-          <TabsTrigger value="checklist">
+          <TabsTrigger value="functions">
             <Code2 className="h-4 w-4 mr-2" />
-            Checklist
+            Edge Functions ({EDGE_FUNCTIONS.length})
           </TabsTrigger>
-          <TabsTrigger value="credenciais">
-            <Key className="h-4 w-4 mr-2" />
-            Credenciais
-          </TabsTrigger>
-          <TabsTrigger value="tabelas">
-            <Database className="h-4 w-4 mr-2" />
-            Tabelas
+          <TabsTrigger value="secrets">
+            <KeyRound className="h-4 w-4 mr-2" />
+            Secrets ({SECRETS.length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="ordem" className="mt-4">
+        <TabsContent value="functions" className="mt-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Passo a passo</CardTitle>
-              <CardDescription>Execute na ordem indicada.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ol className="space-y-2 list-decimal pl-5 text-sm">
-                {STEPS.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ol>
-              <CopyButton value={STEPS.map((s, i) => `${i + 1}. ${s}`).join('\n')} label="Copiar passos" />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="checklist" className="mt-4">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
+            <CardHeader className="flex-row items-start justify-between gap-4">
               <div>
-                <CardTitle>Checklist de migração</CardTitle>
-                <CardDescription>Nomes de secrets, Edge Functions e sequência completa.</CardDescription>
+                <CardTitle>Edge Functions</CardTitle>
+                <CardDescription>
+                  Publique cada função no novo projeto a partir de <code>supabase/functions/</code>.
+                </CardDescription>
               </div>
-              <CopyButton value={checklistMd} label="Copiar" />
+              <CopyButton value={EDGE_FUNCTIONS.join('\n')} label="Copiar lista" />
             </CardHeader>
             <CardContent>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{checklistMd}</ReactMarkdown>
-              </div>
+              <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                {EDGE_FUNCTIONS.map((fn) => (
+                  <li key={fn} className="text-xs font-mono bg-muted rounded px-2 py-1 break-all">
+                    {fn}
+                  </li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="credenciais" className="mt-4">
+        <TabsContent value="secrets" className="mt-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Credenciais do projeto atual</CardTitle>
-              <CardDescription>Somente valores públicos, protegidos por RLS.</CardDescription>
+            <CardHeader className="flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle>Secrets</CardTitle>
+                <CardDescription>
+                  Somente nomes e origem do valor. Copie os valores na interface autenticada de Secrets.
+                </CardDescription>
+              </div>
+              <CopyButton value={SECRETS.map((s) => s.name).join('\n')} label="Copiar nomes" />
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-1">
-                <div className="text-xs uppercase text-muted-foreground">URL do projeto</div>
-                <div className="flex items-center gap-2">
-                  <code className="text-xs bg-muted px-2 py-1 rounded break-all flex-1">{PROJECT_URL}</code>
-                  <CopyButton value={PROJECT_URL} label="Copiar" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs uppercase text-muted-foreground">Project ID</div>
-                <div className="flex items-center gap-2">
-                  <code className="text-xs bg-muted px-2 py-1 rounded break-all flex-1">{PROJECT_ID}</code>
-                  <CopyButton value={PROJECT_ID} label="Copiar" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-xs uppercase text-muted-foreground">Chave pública (anon)</div>
-                <div className="flex items-center gap-2">
-                  <code className="text-xs bg-muted px-2 py-1 rounded break-all flex-1">{PUBLISHABLE_KEY}</code>
-                  <CopyButton value={PUBLISHABLE_KEY} label="Copiar" />
-                </div>
-              </div>
-              <Alert variant="destructive">
+            <CardContent className="space-y-3">
+              <ul className="divide-y">
+                {SECRETS.map((s) => (
+                  <li key={s.name} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <code className="text-xs font-mono">{s.name}</code>
+                    <span className="text-xs text-muted-foreground">{s.origin}</span>
+                  </li>
+                ))}
+              </ul>
+              <Alert>
                 <ShieldAlert className="h-4 w-4" />
-                <AlertTitle>Service role key não é exibida aqui</AlertTitle>
+                <AlertTitle>Valores não são exibidos</AlertTitle>
                 <AlertDescription>
-                  A service role key ignora RLS e dá controle total do banco, por isso nunca é enviada ao navegador.
-                  Ela também não é recuperável no painel do backend gerenciado. Para o projeto de destino, gere uma nova
-                  chave no próprio provedor e cadastre-a apenas como secret do servidor.
+                  Após migrar, reaponte os webhooks de terceiros (Meta, UaZapi, Asaas, Mercado Pago, InfinityPay,
+                  api4com, 3cplus, Wavoip, ZapSign) para as novas URLs de função.
                 </AlertDescription>
               </Alert>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="tabelas" className="mt-4">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between">
-              <div>
-                <CardTitle>Inventário de tabelas</CardTitle>
-                <CardDescription>Colunas, RLS e políticas — com itens sinalizados para revisão.</CardDescription>
-              </div>
-              <CopyButton value={inventarioMd} label="Copiar" />
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{inventarioMd}</ReactMarkdown>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
