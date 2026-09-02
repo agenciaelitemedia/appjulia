@@ -5,15 +5,21 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 
-export const DEFAULT_MAX_CONCURRENT = 20;
-
+/**
+ * Não existe teto padrão: o atendente só tem limite quando a distribuição
+ * automática do escritório está ativada E existe registro ativo em
+ * chat_agent_capacity com máximo definido (> 0).
+ */
 export interface CapacityInfo {
   identifier: string;
   name: string | null;
   load: number;
-  max_concurrent: number;
+  /** null = sem limite configurado. */
+  max_concurrent: number | null;
   blocked: boolean;
-  slots: number;
+  /** null = sem limite configurado. */
+  slots: number | null;
+  enforced: boolean;
 }
 
 export class CapacityBlockedError extends Error {
@@ -27,6 +33,9 @@ export class CapacityBlockedError extends Error {
 
 export function capacityBlockedMessage(info: CapacityInfo): string {
   const who = info.name || 'Este atendente';
+  if (!info.enforced || info.max_concurrent == null) {
+    return `${who} não possui limite de atendimentos configurado.`;
+  }
   return `${who} está com ${info.load}/${info.max_concurrent} atendimentos — encerre atendimentos antes de receber novos.`;
 }
 
@@ -55,17 +64,19 @@ export async function fetchCapacity(
   if (error) throw error;
   const raw = data as unknown;
   const row = (Array.isArray(raw) ? raw[0] : raw) as
-    | { agent_name: string | null; load: number; max_concurrent: number }
+    | { agent_name: string | null; load: number; max_concurrent: number | null; enforced?: boolean }
     | null;
   const load = Number(row?.load) || 0;
-  const max = Number(row?.max_concurrent) || DEFAULT_MAX_CONCURRENT;
+  const enforced = row?.enforced === true && Number(row?.max_concurrent) > 0;
+  const max = enforced ? Number(row?.max_concurrent) : null;
   return {
     identifier: id,
     name: row?.agent_name ?? null,
     load,
     max_concurrent: max,
-    blocked: load >= max,
-    slots: Math.max(0, max - load),
+    blocked: max != null && load >= max,
+    slots: max == null ? null : Math.max(0, max - load),
+    enforced,
   };
 }
 
@@ -86,7 +97,7 @@ export async function assertCapacity(
     return;
   }
   if (!info) return;
-  if (info.blocked) {
+  if (info.enforced && info.blocked) {
     throw new CapacityBlockedError({ ...info, name: info.name || fallbackName || null });
   }
 }

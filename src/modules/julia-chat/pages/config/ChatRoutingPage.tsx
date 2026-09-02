@@ -128,11 +128,20 @@ export function ChatRoutingContent() {
       </TabsContent>
 
       <TabsContent value="capacity" className="space-y-3 mt-4">
+        <Card className="p-3 bg-muted/40">
+          <p className="text-xs text-muted-foreground">
+            O limite de atendimentos simultâneos vale <strong>somente</strong> para os atendentes
+            listados aqui (registro ativo e limite maior que zero) e <strong>somente</strong> enquanto
+            a distribuição automática estiver ativada. Atendente sem registro nesta lista fica
+            <strong> sem limite</strong> — não existe padrão para todos.
+          </p>
+        </Card>
         <div className="flex justify-end">
           <Button onClick={() => setEditingCap({ agent_identifier: '', max_concurrent: 5, status: 'online', is_active: true })}>
             <Plus className="h-4 w-4 mr-2" /> Adicionar atendente
           </Button>
         </div>
+
         <div className="grid gap-2 md:grid-cols-2">
           {(capacities.data || []).map((c) => {
             const sc = STATUS.find((s) => s.value === c.status)!;
