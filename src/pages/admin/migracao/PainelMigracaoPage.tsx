@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert, Copy, Check, Database, Code2, ListChecks, Info } from 'lucide-react';
+import { ShieldAlert, Copy, Check, Database, Code2, ListChecks, Info, Key } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
 import checklistMd from './content/checklist.md?raw';
 import inventarioMd from './content/inventario.md?raw';
@@ -30,6 +30,10 @@ function CopyButton({ value, label }: { value: string; label: string }) {
     </Button>
   );
 }
+
+const PROJECT_URL = import.meta.env.VITE_SUPABASE_URL ?? 'não configurado';
+const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID ?? 'não configurado';
+const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? 'não configurado';
 
 const STEPS = [
   'Criar o novo projeto de backend e anotar apenas a URL e a chave pública (anon).',
@@ -86,6 +90,10 @@ export default function PainelMigracaoPage() {
             <Code2 className="h-4 w-4 mr-2" />
             Checklist
           </TabsTrigger>
+          <TabsTrigger value="credenciais">
+            <Key className="h-4 w-4 mr-2" />
+            Credenciais
+          </TabsTrigger>
           <TabsTrigger value="tabelas">
             <Database className="h-4 w-4 mr-2" />
             Tabelas
@@ -122,6 +130,47 @@ export default function PainelMigracaoPage() {
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <ReactMarkdown>{checklistMd}</ReactMarkdown>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="credenciais" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Credenciais do projeto atual</CardTitle>
+              <CardDescription>Somente valores públicos, protegidos por RLS.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <div className="text-xs uppercase text-muted-foreground">URL do projeto</div>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs bg-muted px-2 py-1 rounded break-all flex-1">{PROJECT_URL}</code>
+                  <CopyButton value={PROJECT_URL} label="Copiar" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs uppercase text-muted-foreground">Project ID</div>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs bg-muted px-2 py-1 rounded break-all flex-1">{PROJECT_ID}</code>
+                  <CopyButton value={PROJECT_ID} label="Copiar" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs uppercase text-muted-foreground">Chave pública (anon)</div>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs bg-muted px-2 py-1 rounded break-all flex-1">{PUBLISHABLE_KEY}</code>
+                  <CopyButton value={PUBLISHABLE_KEY} label="Copiar" />
+                </div>
+              </div>
+              <Alert variant="destructive">
+                <ShieldAlert className="h-4 w-4" />
+                <AlertTitle>Service role key não é exibida aqui</AlertTitle>
+                <AlertDescription>
+                  A service role key ignora RLS e dá controle total do banco, por isso nunca é enviada ao navegador.
+                  Ela também não é recuperável no painel do backend gerenciado. Para o projeto de destino, gere uma nova
+                  chave no próprio provedor e cadastre-a apenas como secret do servidor.
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
         </TabsContent>
