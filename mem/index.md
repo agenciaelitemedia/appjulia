@@ -17,3 +17,4 @@
 - [Legacy Timestamps](mem://technical/database/legacy-naive-timestamps) — Datas das tabelas legadas são naive em BRT; gravar com nowDbTimestamp()
 - [Call ↔ Contato](mem://technical/telephony/call-contact-linking) — Vínculo de ligações VoIP/ZAP com chat_contacts gravado na origem
 - [Snooze Auto-Cancel](mem://features/chat/snooze-auto-cancel) — Mensagem do cliente cancela o retorno agendado (trigger no banco) e busca nunca esconde adiadas
+- [Tramitação Inteligente Integration](mem://features/tramitacao-inteligente-integration) — Integração Planilha: processos, clientes, webhooks HMAC, envio de leads (plano aprovado em 2026-09-02)
