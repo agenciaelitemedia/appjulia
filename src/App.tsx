@@ -137,6 +137,7 @@ const SupportAssistantPage = lazy(() => import("./pages/suporte-assistente/Suppo
 const QuickMessagesPage = lazy(() => import("./pages/mensagens-rapidas/QuickMessagesPage"));
 const FilasPage = lazy(() => import("./pages/agente/filas/FilasPage"));
 const ConfiguracoesPage = lazy(() => import("./pages/configuracoes/ConfiguracoesPage"));
+const PainelMigracaoPage = lazy(() => import("./pages/admin/migracao/PainelMigracaoPage"));
 const HumanSupportPage = lazy(() => import("./pages/atendimento-humano/HumanSupportPage"));
 const PushNotificationsPage = lazy(() => import("./pages/admin/push-notifications/PushNotificationsPage"));
 const ContatosPage = lazy(() => import("./pages/contatos/ContatosPage"));
@@ -212,6 +213,7 @@ const App = () => (
                   <Route path="/agente/meus-agentes/:codAgent/editar" element={<ProtectedRoute module="agent_management"><MyAgentEditPage /></ProtectedRoute>} />
                   <Route path="/agente/filas" element={<ProtectedRoute module="filas"><FilasPage /></ProtectedRoute>} />
                   <Route path="/configuracoes" element={<ProtectedRoute module="configuracoes"><ConfiguracoesPage /></ProtectedRoute>} />
+                  <Route path="/painel-migracao" element={<ProtectedRoute><PainelMigracaoPage /></ProtectedRoute>} />
                   <Route path="/agente/followup" element={<ProtectedRoute module="followup"><FollowupPage /></ProtectedRoute>} />
                   <Route path="/video/queue" element={<VideoQueuePage />} />
                   {/* Chat oficial — JulIA Chat */}
