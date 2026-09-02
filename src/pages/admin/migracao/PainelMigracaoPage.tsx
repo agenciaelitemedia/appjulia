@@ -177,7 +177,40 @@ const SECRETS: { name: string; origin: string }[] = [
   { name: 'ZAPSIGN_API_TOKEN', origin: 'painel ZapSign' },
 ];
 
+/** Código-fonte das Edge Functions embutido no build (sem chamadas de rede). */
+const FUNCTION_SOURCES = import.meta.glob('/supabase/functions/*/index.ts', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+function downloadFile(name: string, content: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildEdgeFunctionsFile() {
+  const entries = Object.entries(FUNCTION_SOURCES).sort(([a], [b]) => a.localeCompare(b));
+  const body = entries
+    .map(([path, src]) => {
+      const fn = path.split('/').slice(-2)[0];
+      return `// ═══ ${fn} ═══\n${src}`;
+    })
+    .join('\n\n');
+  return { count: entries.length, content: body };
+}
+
+function buildSecretsFile() {
+  const lines = SECRETS.map((s) => `  ${s.name}: '', // ${s.origin}`).join('\n');
+  return `// Nomes dos secrets a recadastrar no novo projeto.\n// Os valores NÃO são exportados: copie-os na interface autenticada de Secrets.\nexport const SECRETS = {\n${lines}\n} as const;\n\nexport type SecretKey = keyof typeof SECRETS;\n`;
+}
+
 function CopyButton({ value, label }: { value: string; label: string }) {
+
   const [copied, setCopied] = useState(false);
   return (
     <Button
