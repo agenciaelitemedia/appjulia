@@ -12389,6 +12389,7 @@ export type Database = {
           agent_identifier: string
           agent_name: string
           blocked: boolean
+          enforced: boolean
           load: number
           max_concurrent: number
         }[]
