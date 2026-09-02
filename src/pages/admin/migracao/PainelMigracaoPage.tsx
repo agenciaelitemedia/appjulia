@@ -4,8 +4,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert, Copy, Check, Code2, KeyRound } from 'lucide-react';
+import { ShieldAlert, Copy, Check, Code2, KeyRound, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { usePermission } from '@/hooks/usePermission';
+
 
 const EDGE_FUNCTIONS: string[] = [
   'advbox-integration',
@@ -177,7 +179,40 @@ const SECRETS: { name: string; origin: string }[] = [
   { name: 'ZAPSIGN_API_TOKEN', origin: 'painel ZapSign' },
 ];
 
+/** Código-fonte das Edge Functions embutido no build (sem chamadas de rede). */
+const FUNCTION_SOURCES = import.meta.glob('/supabase/functions/*/index.ts', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+function downloadFile(name: string, content: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildEdgeFunctionsFile() {
+  const entries = Object.entries(FUNCTION_SOURCES).sort(([a], [b]) => a.localeCompare(b));
+  const body = entries
+    .map(([path, src]) => {
+      const fn = path.split('/').slice(-2)[0];
+      return `// ═══ ${fn} ═══\n${src}`;
+    })
+    .join('\n\n');
+  return { count: entries.length, content: body };
+}
+
+function buildSecretsFile() {
+  const lines = SECRETS.map((s) => `  ${s.name}: '', // ${s.origin}`).join('\n');
+  return `// Nomes dos secrets a recadastrar no novo projeto.\n// Os valores NÃO são exportados: copie-os na interface autenticada de Secrets.\nexport const SECRETS = {\n${lines}\n} as const;\n\nexport type SecretKey = keyof typeof SECRETS;\n`;
+}
+
 function CopyButton({ value, label }: { value: string; label: string }) {
+
   const [copied, setCopied] = useState(false);
   return (
     <Button
@@ -244,7 +279,22 @@ export default function PainelMigracaoPage() {
                   Publique cada função no novo projeto a partir de <code>supabase/functions/</code>.
                 </CardDescription>
               </div>
-              <CopyButton value={EDGE_FUNCTIONS.join('\n')} label="Copiar lista" />
+              <div className="flex gap-2">
+                <CopyButton value={EDGE_FUNCTIONS.join('\n')} label="Copiar lista" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const { count, content } = buildEdgeFunctionsFile();
+                    downloadFile('edge-functions.ts', content);
+                    toast.success(`${count} Edge Functions exportadas`);
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar edge-functions.ts
+                </Button>
+              </div>
+
             </CardHeader>
             <CardContent>
               <ul className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -267,7 +317,14 @@ export default function PainelMigracaoPage() {
                   Somente nomes e origem do valor. Copie os valores na interface autenticada de Secrets.
                 </CardDescription>
               </div>
-              <CopyButton value={SECRETS.map((s) => s.name).join('\n')} label="Copiar nomes" />
+              <div className="flex gap-2">
+                <CopyButton value={SECRETS.map((s) => s.name).join('\n')} label="Copiar nomes" />
+                <Button variant="outline" size="sm" onClick={() => downloadFile('secrets.ts', buildSecretsFile())}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar secrets.ts
+                </Button>
+              </div>
+
             </CardHeader>
             <CardContent className="space-y-3">
               <ul className="divide-y">
