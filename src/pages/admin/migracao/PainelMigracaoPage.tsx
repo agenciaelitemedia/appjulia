@@ -300,7 +300,14 @@ export default function PainelMigracaoPage() {
                   Somente nomes e origem do valor. Copie os valores na interface autenticada de Secrets.
                 </CardDescription>
               </div>
-              <CopyButton value={SECRETS.map((s) => s.name).join('\n')} label="Copiar nomes" />
+              <div className="flex gap-2">
+                <CopyButton value={SECRETS.map((s) => s.name).join('\n')} label="Copiar nomes" />
+                <Button variant="outline" size="sm" onClick={() => downloadFile('secrets.ts', buildSecretsFile())}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar secrets.ts
+                </Button>
+              </div>
+
             </CardHeader>
             <CardContent className="space-y-3">
               <ul className="divide-y">
