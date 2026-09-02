@@ -4,8 +4,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert, Copy, Check, Code2, KeyRound } from 'lucide-react';
+import { ShieldAlert, Copy, Check, Code2, KeyRound, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { usePermission } from '@/hooks/usePermission';
+
 
 const EDGE_FUNCTIONS: string[] = [
   'advbox-integration',
