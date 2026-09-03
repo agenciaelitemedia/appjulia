@@ -350,17 +350,32 @@ export interface AgentLoad {
   max_concurrent: number;
 }
 
+/**
+ * Carga por atendente. O valor exibido é a carga REAL (mesma regra da lista de
+ * conversas: `open`, sem snooze, só filas visíveis) — a coluna espelho
+ * `current_load` ignora filas e por isso não é usada na UI.
+ */
 export function useAgentLoads() {
+  const { user } = useAuth();
+  const clientId = user?.client_id ? String(user.client_id) : '';
   return useQuery<AgentLoad[]>({
-    queryKey: ['tv-agent-loads'],
+    queryKey: ['tv-agent-loads', clientId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('chat_agent_capacity' as never)
-        .select('agent_identifier, agent_name, status, current_load, max_concurrent, is_active')
-        .eq('is_active', true)
-        .order('current_load', { ascending: false })
-        .limit(10) as any;
-      return (data ?? []) as AgentLoad[];
+      const [{ data }, loads] = await Promise.all([
+        supabase
+          .from('chat_agent_capacity' as never)
+          .select('agent_identifier, agent_name, status, current_load, max_concurrent, is_active')
+          .eq('is_active', true)
+          .limit(50) as any,
+        clientId ? fetchLiveLoadsDetailed(clientId).catch(() => ({})) : Promise.resolve({}),
+      ]);
+      return ((data ?? []) as AgentLoad[])
+        .map((a) => ({
+          ...a,
+          current_load: (loads as Record<string, { load: number }>)[String(a.agent_identifier)]?.load ?? 0,
+        }))
+        .sort((a, b) => b.current_load - a.current_load)
+        .slice(0, 10);
     },
     refetchInterval: 30 * 1000,
   });
