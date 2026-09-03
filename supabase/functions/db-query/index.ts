@@ -3262,7 +3262,37 @@ serve(async (req) => {
         break;
       }
 
+      case 'list_client_queue_access': {
+        // Allowlist de filas de TODOS os usuários do escritório.
+        // Usado pelo cálculo de capacidade para contar apenas conversas em
+        // filas que o atendente realmente enxerga na lista do chat.
+        const clientId = String(data.client_id || '');
+        if (!clientId) throw new Error('client_id obrigatório');
+        const users = await sql.unsafe(`
+          SELECT id, COALESCE(queue_access, 'all') AS queue_access
+          FROM users
+          WHERE client_id = $1
+        `, [clientId]);
+        const specific = users.filter((u: any) => u.queue_access === 'specific').map((u: any) => Number(u.id));
+        let members: any[] = [];
+        if (specific.length > 0) {
+          members = await sql.unsafe(
+            `SELECT user_id, queue_id FROM queue_members WHERE user_id = ANY($1::int[])`,
+            [specific],
+          );
+        }
+        result = users.map((u: any) => ({
+          user_id: Number(u.id),
+          queue_access: u.queue_access,
+          queue_ids: u.queue_access === 'specific'
+            ? members.filter((m: any) => Number(m.user_id) === Number(u.id)).map((m: any) => String(m.queue_id))
+            : [],
+        }));
+        break;
+      }
+
       case 'list_users_for_queue': {
+
         // Usado pelo backend de roteamento: quem pode receber conversas desta fila
         const clientId = String(data.client_id || '');
         const queueId = String(data.queue_id || '');
