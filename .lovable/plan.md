@@ -31,17 +31,21 @@ Acima do teto: Charles Vianna 121/20, Stherffany 113/20, Tell Moitas 34/10. As c
 
 ## Correção proposta
 
-### A. Carga passa a contar só atendimento vivo e visível
+### A. Carga passa a usar a MESMA regra da lista de conversas
 
-`chat_agent_live_load` continua contando `status = 'open'` com responsável, mas deixa de contar:
+Em vez de manter uma segunda regra de contagem, a capacidade passa a derivar da consulta unificada que já alimenta a lista do chat (`chat_list_feed`), que hoje já recebe filas permitidas (`p_queue_ids`), status (`p_status`), responsável (`p_owner`) e ocultar adiadas (`p_hide_snoozed`). Isso garante, por definição, que "o número da capacidade" e "o que o atendente vê no chat" nunca mais divirjam.
 
-- conversas em filas que o atendente não tem permissão de ver (respeitando o allowlist de filas: `all` continua contando tudo);
-- conversas em snooze ativo (`snoozed_until > now()`);
-- conversas paradas: sem mensagem do cliente há mais de N dias (fallback em `opened_at`).
+Implementação: extrair o predicado do `chat_list_feed` para uma função de contagem `chat_agent_live_load` reescrita sobre o mesmo filtro, contando por atendente com:
+
+- filas permitidas do atendente (quem não tem vínculo continua contando tudo);
+- `status = 'open'` (em atendimento);
+- snooze ativo não conta;
+- conversas paradas há mais de N dias não contam.
 
 N fica configurável por escritório em `chat_client_settings.settings.capacity_idle_days`, padrão 7 dias.
 
 Como todos os consumidores derivam dessa função, o ajuste propaga para bloqueio de atribuição manual, distribuição automática, automações, API pública, transferência em massa, espelho `chat_agent_capacity.current_load` e badges na UI.
+
 
 ### B. Encerramento automático de conversas paradas
 
