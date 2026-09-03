@@ -356,7 +356,15 @@ export function TeamMemberSelect({
                               ? 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30'
                               : 'bg-muted text-muted-foreground border-border',
                           )}
-                          title={isFull ? 'Limite de atendimentos atingido' : 'Carga atual / limite'}
+                          title={[
+                            `${cap.load} em atendimento · limite ${cap.max_concurrent}`,
+                            cap.outOfScope > 0
+                              ? `${cap.outOfScope} em filas que este atendente não enxerga (não contam)`
+                              : null,
+                            'Conversas adiadas (snooze) não contam',
+                            isFull ? 'Limite de atendimentos atingido' : null,
+                          ].filter(Boolean).join('\n')}
+
                         >
                           {cap.load}/{cap.max_concurrent}
                         </Badge>
