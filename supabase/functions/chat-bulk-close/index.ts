@@ -89,10 +89,16 @@ function applyFilters(query: any, body: Body) {
     .gte('opened_at', body.start)
     .lte('opened_at', body.end);
   if (body.queue_id) query = query.eq('queue_id', body.queue_id);
+  const idle = Number(body.idle_days) || 0;
+  if (idle > 0) {
+    const cutoff = new Date(Date.now() - idle * 86400000).toISOString();
+    query = query.or(`last_customer_message_at.is.null,last_customer_message_at.lte.${cutoff}`);
+  }
   if (body.scope === 'julia') query = query.is('assigned_to', null);
   if (body.scope === 'human') query = query.not('assigned_to', 'is', null);
   return query;
 }
+
 
 async function runPreview(supabase: any, body: Body) {
   // Fetch lightweight rows in pages (up to 5000) just to aggregate.
