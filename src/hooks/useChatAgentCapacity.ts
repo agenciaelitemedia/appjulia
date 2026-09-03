@@ -32,7 +32,8 @@ export function useChatAgentCapacity(enabled = true) {
     refetchInterval: 30_000,
     queryFn: async () => {
       const [loads, capsRes, settingsRes] = await Promise.all([
-        fetchLiveLoads(clientId),
+        fetchLiveLoadsDetailed(clientId),
+
         supabase
           .from('chat_agent_capacity')
           .select('agent_identifier, max_concurrent, is_active')
