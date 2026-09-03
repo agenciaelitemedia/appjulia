@@ -9,10 +9,13 @@ export interface BulkCloseFilters {
   end: string;
   scope: BulkCloseScope;
   queue_id?: string | null;
+  /** Só conversas sem mensagem do cliente há N dias (0 = sem filtro). */
+  idle_days?: number | null;
   actor_identifier?: string | null;
   actor_name?: string | null;
   actor_user_id?: number | null;
 }
+
 
 export interface BulkClosePreview {
   total: number;
