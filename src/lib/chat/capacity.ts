@@ -1,7 +1,8 @@
 /**
  * Capacidade de atendentes (front) — usa a MESMA regra do servidor, via RPC
  * no banco (`chat_capacity_check` / `chat_agent_live_load`). A UI nunca
- * recalcula limite localmente.
+ * recalcula limite localmente. A carga considera apenas conversas em
+ * atendimento (status = 'open'), não as que estão aguardando.
  */
 import { supabase } from '@/integrations/supabase/client';
 
