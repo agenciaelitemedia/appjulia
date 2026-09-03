@@ -9,14 +9,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchLiveLoads } from '@/lib/chat/capacity';
+import { fetchLiveLoadsDetailed } from '@/lib/chat/capacity';
 
 export interface AgentCapacityRow {
   load: number;
+  /** Conversas atribuídas em filas que o atendente não enxerga (não contam). */
+  outOfScope: number;
   max_concurrent: number;
   is_active: boolean;
   full: boolean;
 }
+
 
 export function useChatAgentCapacity(enabled = true) {
   const { user } = useAuth();
