@@ -41,17 +41,76 @@ export function agentIdentifier(
   return null;
 }
 
-/** Carga real por identificador de atendente. */
-// deno-lint-ignore no-explicit-any
-export async function loadLiveLoads(supabase: any, clientId: string): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  const { data, error } = await supabase.rpc('chat_agent_live_load', { p_client_id: String(clientId) });
-  if (error) throw error;
-  for (const row of (data ?? [])) {
-    map.set(String(row.agent_identifier), Number(row.load) || 0);
+export interface QueueAccess {
+  queue_access: 'all' | 'specific';
+  queue_ids: string[];
+}
+
+/**
+ * Allowlist de filas por atendente (fonte: banco legado, mesma usada pela
+ * lista do chat). Falha => mapa vazio (todos veem tudo), fail-open.
+ */
+export async function loadQueueAccessMap(clientId: string): Promise<Map<string, QueueAccess>> {
+  const map = new Map<string, QueueAccess>();
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceKey) return map;
+  try {
+    const resp = await fetch(`${supabaseUrl}/functions/v1/db-query`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+      },
+      body: JSON.stringify({
+        action: 'list_client_queue_access',
+        data: { client_id: String(clientId) },
+      }),
+    });
+    if (!resp.ok) return map;
+    const out = await resp.json();
+    for (const row of (Array.isArray(out?.data) ? out.data : [])) {
+      map.set(String(row.user_id), {
+        queue_access: row.queue_access === 'specific' ? 'specific' : 'all',
+        queue_ids: Array.isArray(row.queue_ids) ? row.queue_ids.map(String) : [],
+      });
+    }
+  } catch (_err) {
+    return map;
   }
   return map;
 }
+
+/** Filas permitidas de um atendente, ou null quando vê todas. */
+export function allowedQueuesFor(
+  access: Map<string, QueueAccess>,
+  identifier: string,
+): string[] | null {
+  const a = access.get(String(identifier));
+  if (!a || a.queue_access === 'all') return null;
+  return a.queue_ids;
+}
+
+/** Carga real por identificador de atendente (mesma regra da lista do chat). */
+// deno-lint-ignore no-explicit-any
+export async function loadLiveLoads(supabase: any, clientId: string): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const [{ data, error }, access] = await Promise.all([
+    supabase.rpc('chat_agent_load_by_queue', { p_client_id: String(clientId) }),
+    loadQueueAccessMap(clientId),
+  ]);
+  if (error) throw error;
+  for (const row of (data ?? [])) {
+    const id = String(row.agent_identifier);
+    const allowed = allowedQueuesFor(access, id);
+    const qid = row.queue_id ? String(row.queue_id) : null;
+    if (allowed && qid && !allowed.includes(qid)) continue;
+    map.set(id, (map.get(id) ?? 0) + (Number(row.load) || 0));
+  }
+  return map;
+}
+
 
 /** Tetos configurados por identificador (somente registros ativos). */
 // deno-lint-ignore no-explicit-any
