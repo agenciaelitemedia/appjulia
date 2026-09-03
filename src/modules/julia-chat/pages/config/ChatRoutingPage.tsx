@@ -179,6 +179,11 @@ export function ChatRoutingContent() {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
+                {outOfScope > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {outOfScope} atribuída(s) em filas que ele não enxerga (não contam)
+                  </p>
+                )}
               </Card>
             );
           })}
