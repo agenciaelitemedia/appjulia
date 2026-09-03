@@ -1,10 +1,13 @@
 /**
  * Capacidade de atendentes (front) — usa a MESMA regra do servidor, via RPC
- * no banco (`chat_capacity_check` / `chat_agent_live_load`). A UI nunca
- * recalcula limite localmente. A carga considera apenas conversas em
- * atendimento (status = 'open'), não as que estão aguardando.
+ * no banco (`chat_capacity_check` / `chat_agent_load_by_queue`). A UI nunca
+ * recalcula limite localmente. A carga segue a mesma regra da lista de
+ * conversas: apenas conversas em atendimento (`open`), não adiadas (snooze) e
+ * nas filas que o atendente enxerga. Conversas antigas sem resposta contam.
  */
 import { supabase } from '@/integrations/supabase/client';
+import { externalDb } from '@/lib/externalDb';
+
 
 /**
  * Não existe teto padrão: o atendente só tem limite quando a distribuição
