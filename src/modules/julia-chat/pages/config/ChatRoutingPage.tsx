@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, Users, GitFork, Activity, Circle, Ban, Wifi } from 'lucide-react';
 import { useChatRouting, type RoutingRule, type AgentCapacity, type RoutingCondition } from '@/hooks/useChatRouting';
 import { useTeamByClient, type TeamMemberByClient } from '@/hooks/useTeamByClient';
+import { useChatLiveLoads } from '@/hooks/useChatLiveLoads';
 import { cn } from '@/lib/utils';
 
 const STRATEGIES = [
