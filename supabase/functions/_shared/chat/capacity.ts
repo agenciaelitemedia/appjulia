@@ -1,9 +1,10 @@
 // ============================================
 // Capacidade de atendentes (chat) — regra única, server-side.
 //
-// A carga real é calculada no banco (`chat_agent_live_load`), contando
-// conversas open/pending por atendente, resolvendo tanto os registros que
-// guardam o nome em `assigned_to` quanto os que guardam o user_id.
+// A carga real é calculada no banco (`chat_agent_live_load`), contando apenas
+// conversas EM ATENDIMENTO (status = 'open') por atendente — conversas
+// aguardando (`pending`), resolvidas ou fechadas não contam. Resolve tanto os
+// registros que guardam o nome em `assigned_to` quanto os que guardam o user_id.
 // `chat_agent_capacity.current_load` é apenas espelho (trigger) e não é
 // usado como verdade aqui.
 // ============================================
