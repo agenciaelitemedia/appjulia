@@ -162,8 +162,9 @@ export async function loadAllCapacity(supabase: any, clientId: string): Promise<
 }
 
 /**
- * Capacidade de um atendente. Sem registro em chat_agent_capacity o teto
- * padrão (20) é aplicado — não há atendente ilimitado.
+ * Capacidade de um atendente. Só existe limite quando a distribuição
+ * automática está ativa E há registro ativo com max_concurrent > 0.
+ * A carga considera apenas as filas que o atendente enxerga.
  */
 // deno-lint-ignore no-explicit-any
 export async function checkCapacity(
@@ -175,11 +176,14 @@ export async function checkCapacity(
   if (!id) {
     return { identifier: '', name: null, load: 0, max_concurrent: null, blocked: false, slots: null, enforced: false };
   }
+  const access = await loadQueueAccessMap(clientId);
   const { data, error } = await supabase.rpc('chat_capacity_check', {
     p_client_id: String(clientId),
     p_agent_identifier: id,
+    p_allowed_queues: allowedQueuesFor(access, id),
   });
   if (error) throw error;
+
   const row = Array.isArray(data) ? data[0] : data;
   const load = Number(row?.load) || 0;
   const enforced = row?.enforced === true && Number(row?.max_concurrent) > 0;
