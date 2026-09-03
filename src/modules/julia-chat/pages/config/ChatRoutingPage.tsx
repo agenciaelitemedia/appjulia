@@ -59,6 +59,7 @@ export default function ChatRoutingPage() {
 export function ChatRoutingContent() {
   const { rules, capacities, upsertRule, removeRule, upsertCapacity, removeCapacity } = useChatRouting();
   const { data: team = [] } = useTeamByClient();
+  const { data: liveLoads = {} } = useChatLiveLoads();
   const [editing, setEditing] = useState<Partial<RoutingRule> | null>(null);
   const [editingCap, setEditingCap] = useState<Partial<AgentCapacity> | null>(null);
 
