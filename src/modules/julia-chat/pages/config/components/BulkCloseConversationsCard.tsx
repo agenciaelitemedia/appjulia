@@ -48,6 +48,8 @@ export function BulkCloseConversationsCard() {
   const [end, setEnd] = useState<Date | undefined>();
   const [scope, setScope] = useState<BulkCloseScope>('all');
   const [queueId, setQueueId] = useState<string>('all');
+  const [idleDays, setIdleDays] = useState<string>('0');
+
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmStep, setConfirmStep] = useState<1 | 2>(1);
