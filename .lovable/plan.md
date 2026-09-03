@@ -7,6 +7,11 @@
 - O trigger `chat_conversations_sync_agent_load` → `chat_sync_agent_load` apenas espelha esse mesmo valor em `chat_agent_capacity.current_load`.
 - Portanto, hoje conversas na aba "Aguardando" (`pending`) que já tenham responsável entram na conta e consomem vaga (hoje há 123 conversas `pending` com responsável no banco).
 
+## Caso Letícia - Atendimento (id 415, escritório 300) — confirmado
+
+Consulta no banco: 9 conversas `open` + 19 conversas `pending` atribuídas a ela = 28. O espelho `chat_agent_capacity.current_load` está em 28 com `max_concurrent = 20`, exatamente o "28/20" exibido. As 19 `pending` são conversas com responsável definido mas ainda aguardando atendimento — é isso que infla o número. Com a correção abaixo ela passa a mostrar 9/20.
+
+
 ## Correção proposta
 
 Uma única mudança na origem do cálculo: `chat_agent_live_load` passa a contar somente `status = 'open'` (em atendimento com o lead), ignorando `pending`, `resolved` e `closed`.
