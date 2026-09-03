@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { fetchLiveLoadsDetailed } from '@/lib/chat/capacity';
 
 export interface AttendanceKpis {
   tme_seconds: number | null;        // tempo médio 1ª resposta
