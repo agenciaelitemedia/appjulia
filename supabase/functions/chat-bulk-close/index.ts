@@ -21,10 +21,13 @@ interface Body {
   end: string;   // ISO
   scope: Scope;
   queue_id?: string | null;
+  /** Só considera conversas sem mensagem do cliente há N dias (0 = desligado). */
+  idle_days?: number | null;
   actor_identifier?: string | null;
   actor_name?: string | null;
   actor_user_id?: number | null;
 }
+
 
 const BATCH_SIZE = 200;
 
