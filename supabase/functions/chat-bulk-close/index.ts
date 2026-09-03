@@ -21,10 +21,13 @@ interface Body {
   end: string;   // ISO
   scope: Scope;
   queue_id?: string | null;
+  /** Só considera conversas sem mensagem do cliente há N dias (0 = desligado). */
+  idle_days?: number | null;
   actor_identifier?: string | null;
   actor_name?: string | null;
   actor_user_id?: number | null;
 }
+
 
 const BATCH_SIZE = 200;
 
@@ -86,10 +89,16 @@ function applyFilters(query: any, body: Body) {
     .gte('opened_at', body.start)
     .lte('opened_at', body.end);
   if (body.queue_id) query = query.eq('queue_id', body.queue_id);
+  const idle = Number(body.idle_days) || 0;
+  if (idle > 0) {
+    const cutoff = new Date(Date.now() - idle * 86400000).toISOString();
+    query = query.or(`last_customer_message_at.is.null,last_customer_message_at.lte.${cutoff}`);
+  }
   if (body.scope === 'julia') query = query.is('assigned_to', null);
   if (body.scope === 'human') query = query.not('assigned_to', 'is', null);
   return query;
 }
+
 
 async function runPreview(supabase: any, body: Body) {
   // Fetch lightweight rows in pages (up to 5000) just to aggregate.
@@ -149,7 +158,9 @@ async function runCommit(supabase: any, body: Body) {
     end: body.end,
     scope: body.scope,
     queue_id: body.queue_id ?? null,
+    idle_days: Number(body.idle_days) || 0,
   };
+
 
   let closed = 0;
   let skipped = 0;

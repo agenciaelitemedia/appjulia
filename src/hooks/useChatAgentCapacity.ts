@@ -9,14 +9,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchLiveLoads } from '@/lib/chat/capacity';
+import { fetchLiveLoadsDetailed } from '@/lib/chat/capacity';
 
 export interface AgentCapacityRow {
   load: number;
+  /** Conversas atribuídas em filas que o atendente não enxerga (não contam). */
+  outOfScope: number;
   max_concurrent: number;
   is_active: boolean;
   full: boolean;
 }
+
 
 export function useChatAgentCapacity(enabled = true) {
   const { user } = useAuth();
@@ -29,7 +32,8 @@ export function useChatAgentCapacity(enabled = true) {
     refetchInterval: 30_000,
     queryFn: async () => {
       const [loads, capsRes, settingsRes] = await Promise.all([
-        fetchLiveLoads(clientId),
+        fetchLiveLoadsDetailed(clientId),
+
         supabase
           .from('chat_agent_capacity')
           .select('agent_identifier, max_concurrent, is_active')
@@ -60,8 +64,16 @@ export function useChatAgentCapacity(enabled = true) {
         // Sem registro ativo com teto definido => atendente sem limite.
         if (!active || max <= 0) continue;
         const id = String(c.agent_identifier);
-        const load = loads[id] ?? 0;
-        out[id] = { load, max_concurrent: max, is_active: true, full: load >= max };
+        const detail = loads[id] ?? { load: 0, outOfScope: 0 };
+        const load = detail.load;
+        out[id] = {
+          load,
+          outOfScope: detail.outOfScope,
+          max_concurrent: max,
+          is_active: true,
+          full: load >= max,
+        };
+
       }
       return out;
     },

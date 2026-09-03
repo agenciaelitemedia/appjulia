@@ -48,6 +48,8 @@ export function BulkCloseConversationsCard() {
   const [end, setEnd] = useState<Date | undefined>();
   const [scope, setScope] = useState<BulkCloseScope>('all');
   const [queueId, setQueueId] = useState<string>('all');
+  const [idleDays, setIdleDays] = useState<string>('0');
+
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmStep, setConfirmStep] = useState<1 | 2>(1);
@@ -85,11 +87,13 @@ export function BulkCloseConversationsCard() {
       end: endOfDayISO(end),
       scope,
       queue_id: queueId === 'all' ? null : queueId,
+      idle_days: Number(idleDays) || 0,
       actor_identifier: user?.cod_agent ? String(user.cod_agent) : (user?.email ?? null),
       actor_name: user?.name ?? 'Operador',
      actor_user_id: user?.id ? Number(user.id) : null,
     };
-  }, [clientId, start, end, scope, queueId, user]);
+  }, [clientId, start, end, scope, queueId, idleDays, user]);
+
 
   const canAnalyze = !!filters && !previewMutation.isPending;
 
@@ -176,6 +180,29 @@ export function BulkCloseConversationsCard() {
             </SelectContent>
           </Select>
         </div>
+
+        {/* Inatividade */}
+        <div className="space-y-2">
+          <Label className="text-[12px] font-medium uppercase tracking-wide text-foreground/80">
+            Sem resposta do cliente há
+          </Label>
+          <Select value={idleDays} onValueChange={setIdleDays}>
+            <SelectTrigger className="h-9 text-[13px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">Qualquer tempo (sem filtro)</SelectItem>
+              <SelectItem value="3">Mais de 3 dias</SelectItem>
+              <SelectItem value="7">Mais de 7 dias</SelectItem>
+              <SelectItem value="15">Mais de 15 dias</SelectItem>
+              <SelectItem value="30">Mais de 30 dias</SelectItem>
+              <SelectItem value="60">Mais de 60 dias</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Útil para limpar atendimentos pendurados. A limpeza é sempre manual — nada é encerrado automaticamente.
+          </p>
+        </div>
+
+
 
         {/* Preview */}
         {preview && (
