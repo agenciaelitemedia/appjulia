@@ -39,17 +39,15 @@ Implementação: extrair o predicado do `chat_list_feed` para uma função de co
 
 - filas permitidas do atendente (quem não tem vínculo continua contando tudo);
 - `status = 'open'` (em atendimento);
-- snooze ativo não conta;
-- conversas paradas há mais de N dias não contam.
+- snooze ativo não conta (a conversa está adiada e sai da lista).
 
-N fica configurável por escritório em `chat_client_settings.settings.capacity_idle_days`, padrão 7 dias.
+Conversas antigas sem resposta continuam contando normalmente: são atendimento pendurado na lista do atendente e ocupam vaga de verdade.
 
 Como todos os consumidores derivam dessa função, o ajuste propaga para bloqueio de atribuição manual, distribuição automática, automações, API pública, transferência em massa, espelho `chat_agent_capacity.current_load` e badges na UI.
 
+### B. Limpeza do acervo parado (manual, sob comando)
 
-### B. Encerramento automático de conversas paradas
-
-Rotina diária (pg_cron) que resolve conversas `open` sem interação do cliente há mais de N dias, com `close_reason = 'auto_idle'` e registro em `chat_conversation_history`. Limpa o acervo de verdade em vez de só escondê-lo. Snooze ativo e conversas recentes nunca são tocadas.
+Nada é encerrado automaticamente. O que já existe de encerramento/transferência em lote ganha um filtro de "sem resposta do cliente há X dias", para o gestor limpar o acervo quando quiser e liberar vagas de forma consciente.
 
 ### C. Higienizar as atribuições órfãs
 
@@ -57,13 +55,13 @@ Relatório (e ação de correção em lote, com confirmação) das conversas atr
 
 ### D. Transparência na UI
 
-No badge/tooltip de capacidade, mostrar a composição: "14 em atendimento · 6 fora das suas filas · 25 paradas (não contam)". Sem isso o número muda e ninguém entende por quê.
+No badge/tooltip de capacidade, mostrar a composição: "14 em atendimento · 6 fora das suas filas · 1 adiada (não contam)". Sem isso o número muda e ninguém entende por quê.
+
 
 ## Detalhes técnicos
 
-- Migração com `CREATE OR REPLACE FUNCTION public.chat_agent_live_load(text)` reescrita sobre o predicado compartilhado com `chat_list_feed` (mesmos filtros de fila, status, snooze e inatividade), extraído para uma CTE/função auxiliar reutilizada pelos dois — uma fonte só de verdade. Assinatura e retorno inalterados; colunas de composição vão em função nova para não quebrar chamadores.
+- Migração com `CREATE OR REPLACE FUNCTION public.chat_agent_live_load(text)` reescrita sobre o predicado compartilhado com `chat_list_feed` (mesmos filtros de fila, status e snooze), extraído para uma CTE/função auxiliar reutilizada pelos dois — uma fonte só de verdade. Assinatura e retorno inalterados; colunas de composição vão em função nova para não quebrar chamadores.
 - O allowlist de filas hoje vive no Postgres legado (`externalDb.getUserQueueAccess`). Como a função de carga roda no Supabase, o filtro usará `queue_agent_links` + `queues` do Supabase; se o atendente não tiver nenhum vínculo, o comportamento é "vê todas" (igual ao default atual do hook), para não zerar carga de quem nunca foi vinculado.
-- Nova função `public.chat_resolve_idle_conversations(p_client_id text default null)` marcando `status='resolved'`, `resolved_at=now()`, `close_reason='auto_idle'`, agendada uma vez ao dia por `cron.schedule`.
 - Ressincronizar `chat_agent_capacity.current_load` a partir de `chat_agent_live_load` após a migração.
-- Índice de apoio em `chat_conversations (client_id, status, last_customer_message_at)`.
+- Índice de apoio em `chat_conversations (client_id, status, queue_id, assigned_user_id)`.
 - Atualizar comentários de regra em `supabase/functions/_shared/chat/capacity.ts` e `src/lib/chat/capacity.ts`; `useChatAgentCapacity.ts` passa a expor a composição para o tooltip.
