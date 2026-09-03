@@ -146,7 +146,10 @@ export function ChatRoutingContent() {
         <div className="grid gap-2 md:grid-cols-2">
           {(capacities.data || []).map((c) => {
             const sc = STATUS.find((s) => s.value === c.status)!;
-            const pct = Math.min(100, Math.round((c.current_load / Math.max(1, c.max_concurrent)) * 100));
+            const live = liveLoads[String(c.agent_identifier)];
+            const load = live?.load ?? 0;
+            const outOfScope = live?.outOfScope ?? 0;
+            const pct = Math.min(100, Math.round((load / Math.max(1, c.max_concurrent)) * 100));
             const displayName = c.agent_name || teamById.get(String(c.agent_identifier))?.name || c.agent_identifier;
             return (
               <Card key={c.id} className="p-4 space-y-2">
