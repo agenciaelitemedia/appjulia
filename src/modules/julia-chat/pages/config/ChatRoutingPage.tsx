@@ -170,7 +170,7 @@ export function ChatRoutingContent() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{c.current_load} / {c.max_concurrent} conversas</span>
+                  <span>{load} / {c.max_concurrent} conversas</span>
                   <span>{sc.label}</span>
                 </div>
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
