@@ -175,5 +175,3 @@ export async function fetchLiveLoads(
   for (const [id, v] of Object.entries(detailed)) out[id] = v.load;
   return out;
 }
-
-}
