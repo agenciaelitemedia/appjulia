@@ -158,7 +158,9 @@ async function runCommit(supabase: any, body: Body) {
     end: body.end,
     scope: body.scope,
     queue_id: body.queue_id ?? null,
+    idle_days: Number(body.idle_days) || 0,
   };
+
 
   let closed = 0;
   let skipped = 0;
