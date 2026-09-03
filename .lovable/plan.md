@@ -60,9 +60,8 @@ No badge/tooltip de capacidade, mostrar a composição: "14 em atendimento · 6 
 
 ## Detalhes técnicos
 
-- Migração com `CREATE OR REPLACE FUNCTION public.chat_agent_live_load(text)` reescrita sobre o predicado compartilhado com `chat_list_feed` (mesmos filtros de fila, status, snooze e inatividade), extraído para uma CTE/função auxiliar reutilizada pelos dois — uma fonte só de verdade. Assinatura e retorno inalterados; colunas de composição vão em função nova para não quebrar chamadores.
+- Migração com `CREATE OR REPLACE FUNCTION public.chat_agent_live_load(text)` reescrita sobre o predicado compartilhado com `chat_list_feed` (mesmos filtros de fila, status e snooze), extraído para uma CTE/função auxiliar reutilizada pelos dois — uma fonte só de verdade. Assinatura e retorno inalterados; colunas de composição vão em função nova para não quebrar chamadores.
 - O allowlist de filas hoje vive no Postgres legado (`externalDb.getUserQueueAccess`). Como a função de carga roda no Supabase, o filtro usará `queue_agent_links` + `queues` do Supabase; se o atendente não tiver nenhum vínculo, o comportamento é "vê todas" (igual ao default atual do hook), para não zerar carga de quem nunca foi vinculado.
-- Nova função `public.chat_resolve_idle_conversations(p_client_id text default null)` marcando `status='resolved'`, `resolved_at=now()`, `close_reason='auto_idle'`, agendada uma vez ao dia por `cron.schedule`.
 - Ressincronizar `chat_agent_capacity.current_load` a partir de `chat_agent_live_load` após a migração.
-- Índice de apoio em `chat_conversations (client_id, status, last_customer_message_at)`.
+- Índice de apoio em `chat_conversations (client_id, status, queue_id, assigned_user_id)`.
 - Atualizar comentários de regra em `supabase/functions/_shared/chat/capacity.ts` e `src/lib/chat/capacity.ts`; `useChatAgentCapacity.ts` passa a expor a composição para o tooltip.
