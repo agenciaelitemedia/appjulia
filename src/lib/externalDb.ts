@@ -581,6 +581,14 @@ class ExternalDatabase {
     return r[0] || { queue_access: 'all', queue_ids: [] };
   }
 
+  /** Allowlist de filas de todos os usuários do escritório (usado na capacidade). */
+  async listClientQueueAccess(clientId: string | number): Promise<Array<{
+    user_id: number; queue_access: 'all' | 'specific'; queue_ids: string[];
+  }>> {
+    return this.invoke({ action: 'list_client_queue_access', data: { client_id: String(clientId) } });
+  }
+
+
   async listQueueMembers(queueId: string): Promise<Array<{
     user_id: number; role: string; name: string; email: string; user_role: string;
   }>> {
