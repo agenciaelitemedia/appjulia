@@ -64,8 +64,16 @@ export function useChatAgentCapacity(enabled = true) {
         // Sem registro ativo com teto definido => atendente sem limite.
         if (!active || max <= 0) continue;
         const id = String(c.agent_identifier);
-        const load = loads[id] ?? 0;
-        out[id] = { load, max_concurrent: max, is_active: true, full: load >= max };
+        const detail = loads[id] ?? { load: 0, outOfScope: 0 };
+        const load = detail.load;
+        out[id] = {
+          load,
+          outOfScope: detail.outOfScope,
+          max_concurrent: max,
+          is_active: true,
+          full: load >= max,
+        };
+
       }
       return out;
     },
