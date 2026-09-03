@@ -85,11 +85,13 @@ export function BulkCloseConversationsCard() {
       end: endOfDayISO(end),
       scope,
       queue_id: queueId === 'all' ? null : queueId,
+      idle_days: Number(idleDays) || 0,
       actor_identifier: user?.cod_agent ? String(user.cod_agent) : (user?.email ?? null),
       actor_name: user?.name ?? 'Operador',
      actor_user_id: user?.id ? Number(user.id) : null,
     };
-  }, [clientId, start, end, scope, queueId, user]);
+  }, [clientId, start, end, scope, queueId, idleDays, user]);
+
 
   const canAnalyze = !!filters && !previewMutation.isPending;
 
