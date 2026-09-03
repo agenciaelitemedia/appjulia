@@ -181,6 +181,29 @@ export function BulkCloseConversationsCard() {
           </Select>
         </div>
 
+        {/* Inatividade */}
+        <div className="space-y-2">
+          <Label className="text-[12px] font-medium uppercase tracking-wide text-foreground/80">
+            Sem resposta do cliente há
+          </Label>
+          <Select value={idleDays} onValueChange={setIdleDays}>
+            <SelectTrigger className="h-9 text-[13px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">Qualquer tempo (sem filtro)</SelectItem>
+              <SelectItem value="3">Mais de 3 dias</SelectItem>
+              <SelectItem value="7">Mais de 7 dias</SelectItem>
+              <SelectItem value="15">Mais de 15 dias</SelectItem>
+              <SelectItem value="30">Mais de 30 dias</SelectItem>
+              <SelectItem value="60">Mais de 60 dias</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Útil para limpar atendimentos pendurados. A limpeza é sempre manual — nada é encerrado automaticamente.
+          </p>
+        </div>
+
+
+
         {/* Preview */}
         {preview && (
           <div className="rounded-md border bg-muted/30 p-4 space-y-3">
