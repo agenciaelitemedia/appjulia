@@ -12383,17 +12383,41 @@ export type Database = {
           load: number
         }[]
       }
-      chat_capacity_check: {
-        Args: { p_agent_identifier: string; p_client_id: string }
+      chat_agent_load_by_queue: {
+        Args: { p_client_id: string }
         Returns: {
           agent_identifier: string
-          agent_name: string
-          blocked: boolean
-          enforced: boolean
           load: number
-          max_concurrent: number
+          queue_id: string
         }[]
       }
+      chat_capacity_check:
+        | {
+            Args: { p_agent_identifier: string; p_client_id: string }
+            Returns: {
+              agent_identifier: string
+              agent_name: string
+              blocked: boolean
+              enforced: boolean
+              load: number
+              max_concurrent: number
+            }[]
+          }
+        | {
+            Args: {
+              p_agent_identifier: string
+              p_allowed_queues: string[]
+              p_client_id: string
+            }
+            Returns: {
+              agent_identifier: string
+              agent_name: string
+              blocked: boolean
+              enforced: boolean
+              load: number
+              max_concurrent: number
+            }[]
+          }
       chat_legacy_cache_cleanup: { Args: never; Returns: number }
       chat_list_feed: {
         Args: {
