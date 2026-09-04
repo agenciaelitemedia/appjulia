@@ -53,14 +53,11 @@ export function useTeamDashboardMetrics(members: TeamMemberRef[]) {
         map[id] = { open_chats: 0, open_crm_deals: 0, open_tasks: 0 };
       }
 
-      const chatsP = names.length > 0
-        ? supabase
-            .from('chat_conversations')
-            .select('assigned_to, assigned_user_id')
-            .eq('client_id', clientId)
-            .in('status', ['open', 'pending'])
-            .or(`assigned_user_id.in.(${idsAsText.join(',') || '0'}),assigned_to.in.(${names.map((n) => `"${n.replace(/"/g, '\\"')}"`).join(',')})`)
-        : Promise.resolve({ data: [] as any[] });
+      // Carga de chat: mesma fonte usada pelo chat e pela capacidade.
+      const chatsP = fetchLiveLoadsDetailed(clientId).catch((err) => {
+        console.warn('[team-metrics] carga de chat indisponível:', err);
+        return {} as Record<string, { load: number; outOfScope: number }>;
+      });
 
       const dealsP = names.length > 0
         ? supabase
