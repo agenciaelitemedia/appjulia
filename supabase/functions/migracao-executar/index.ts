@@ -273,7 +273,6 @@ async function doDataChunk(
     const { data: rows, error } = await source
       .from(tableName)
       .select("*")
-      .order("id", { ascending: true })
       .range(offset, offset + limit - 1);
 
     if (error) throw new Error(`read ${tableName} offset ${offset}: ${error.message}`);
