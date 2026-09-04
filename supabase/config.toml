@@ -136,3 +136,6 @@ verify_jwt = false
 
 [functions.lidia-copilot]
 verify_jwt = false
+
+[functions.migracao-executar]
+verify_jwt = false
