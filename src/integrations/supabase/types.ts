@@ -6625,6 +6625,104 @@ export type Database = {
         }
         Relationships: []
       }
+      migration_runs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          rows_copied: number | null
+          started_at: string
+          status: string
+          tables_done: number | null
+          tables_total: number | null
+          target_project_id: string | null
+          target_url: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_copied?: number | null
+          started_at?: string
+          status?: string
+          tables_done?: number | null
+          tables_total?: number | null
+          target_project_id?: string | null
+          target_url: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_copied?: number | null
+          started_at?: string
+          status?: string
+          tables_done?: number | null
+          tables_total?: number | null
+          target_project_id?: string | null
+          target_url?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      migration_steps: {
+        Row: {
+          created_at: string
+          detail: Json | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          message: string | null
+          progress: number | null
+          run_id: string
+          started_at: string | null
+          status: string
+          step_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          progress?: number | null
+          run_id: string
+          started_at?: string | null
+          status?: string
+          step_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          progress?: number | null
+          run_id?: string
+          started_at?: string | null
+          status?: string
+          step_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "migration_steps_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "migration_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       module_embeds: {
         Row: {
           allowed_origins: string[] | null
