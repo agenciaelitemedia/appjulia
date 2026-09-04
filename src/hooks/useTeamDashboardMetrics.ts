@@ -17,7 +17,9 @@ export interface TeamMemberRef {
 
 /**
  * Conta por usuário (id):
- *  - chats abertos (status open|pending) — `assigned_to` armazena NOME
+ *  - chats em atendimento — MESMA regra do chat/capacidade: apenas `open`,
+ *    sem adiadas (snooze) e somente nas filas que o atendente enxerga
+ *    (via fetchLiveLoadsDetailed → RPC chat_agent_load_by_queue).
  *  - cards CRM abertos (≠ won/lost)      — `assigned_to` armazena NOME
  *  - tarefas abertas (pending|in_progress) — `assigned_to` armazena ID
  */
