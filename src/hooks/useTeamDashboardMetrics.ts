@@ -84,8 +84,8 @@ export function useTeamDashboardMetrics(members: TeamMemberRef[]) {
         return key ? (nameToIds[key] || []) : [];
       };
 
-      for (const row of ((chats as any).data ?? []) as Array<any>) {
-        for (const id of resolveIds(row)) map[id].open_chats++;
+      for (const [id, detail] of Object.entries(chats as Record<string, { load: number }>)) {
+        if (map[id]) map[id].open_chats = Number(detail?.load) || 0;
       }
       for (const row of ((deals as any).data ?? []) as Array<any>) {
         const s = (row.status || '').toLowerCase();
