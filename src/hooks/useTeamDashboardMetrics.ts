@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchLiveLoadsDetailed } from '@/lib/chat/capacity';
 
 export interface TeamUserMetrics {
   open_chats: number;
@@ -16,7 +17,9 @@ export interface TeamMemberRef {
 
 /**
  * Conta por usuário (id):
- *  - chats abertos (status open|pending) — `assigned_to` armazena NOME
+ *  - chats em atendimento — MESMA regra do chat/capacidade: apenas `open`,
+ *    sem adiadas (snooze) e somente nas filas que o atendente enxerga
+ *    (via fetchLiveLoadsDetailed → RPC chat_agent_load_by_queue).
  *  - cards CRM abertos (≠ won/lost)      — `assigned_to` armazena NOME
  *  - tarefas abertas (pending|in_progress) — `assigned_to` armazena ID
  */
@@ -50,14 +53,11 @@ export function useTeamDashboardMetrics(members: TeamMemberRef[]) {
         map[id] = { open_chats: 0, open_crm_deals: 0, open_tasks: 0 };
       }
 
-      const chatsP = names.length > 0
-        ? supabase
-            .from('chat_conversations')
-            .select('assigned_to, assigned_user_id')
-            .eq('client_id', clientId)
-            .in('status', ['open', 'pending'])
-            .or(`assigned_user_id.in.(${idsAsText.join(',') || '0'}),assigned_to.in.(${names.map((n) => `"${n.replace(/"/g, '\\"')}"`).join(',')})`)
-        : Promise.resolve({ data: [] as any[] });
+      // Carga de chat: mesma fonte usada pelo chat e pela capacidade.
+      const chatsP = fetchLiveLoadsDetailed(clientId).catch((err) => {
+        console.warn('[team-metrics] carga de chat indisponível:', err);
+        return {} as Record<string, { load: number; outOfScope: number }>;
+      });
 
       const dealsP = names.length > 0
         ? supabase
@@ -84,8 +84,8 @@ export function useTeamDashboardMetrics(members: TeamMemberRef[]) {
         return key ? (nameToIds[key] || []) : [];
       };
 
-      for (const row of ((chats as any).data ?? []) as Array<any>) {
-        for (const id of resolveIds(row)) map[id].open_chats++;
+      for (const [id, detail] of Object.entries(chats as Record<string, { load: number }>)) {
+        if (map[id]) map[id].open_chats = Number(detail?.load) || 0;
       }
       for (const row of ((deals as any).data ?? []) as Array<any>) {
         const s = (row.status || '').toLowerCase();
