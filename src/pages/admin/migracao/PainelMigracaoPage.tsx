@@ -210,7 +210,7 @@ export default function PainelMigracaoPage() {
   }
 
   async function loadTables() {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('information_schema.tables')
       .select('table_name')
       .eq('table_schema', 'public')
