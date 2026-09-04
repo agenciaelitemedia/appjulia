@@ -1,87 +1,115 @@
-# Migração Lovable Cloud → Supabase Externo: viabilidade, tela de migração e janela de parada
+# Migração Lovable Cloud → Supabase Externo: tela de migração, URLs e janela ≤ 2h
 
-## Resposta direta ao que foi pedido
+## Resposta direta
 
-| Item pedido | Automatizável por uma tela dentro do app? |
-| --- | --- |
-| Criar as 237 tabelas, 127 funções, 117 triggers, 262 policies, 677 índices, 4 matviews, extensões | **Sim** — SQL gerado por introspecção e executado no destino |
-| Criar os 6 buckets + policies de storage | **Sim** |
-| Copiar os arquivos dos buckets | **Sim**, em lotes (leva tempo, roda em background) |
-| Copiar os ~11,2 GB de dados das tabelas | **Parcialmente** — tabelas pequenas/médias sim; `chat_messages` (5,4 GB) e `uazapi_history_items` (2,3 GB) via tela é lento e frágil. Melhor caminho: cópia direta banco→banco pela sua máquina (`pg_dump \| psql`) |
-| Migrar as secrets **com os valores** | **Não** — na Lovable Cloud os valores das secrets não são legíveis por código nem por mim. A tela lista os 23 nomes e você cola cada valor no destino (ou usa `supabase secrets set` com os valores que você tem) |
-| Migrar as ~141 Edge Functions | **Não** por dentro do app — deploy exige um Personal Access Token do Supabase e a CLI. A tela gera o script `supabase functions deploy` pronto, você executa no terminal |
+**Sim, dá para fechar tudo em até 2h de parada** — mas só com a estratégia de *pré-cópia + delta* (Fase A no ar, Fase B curta) e com a cópia dos dados grandes feita **direto banco→banco** (`pg_dump | psql` pela sua máquina), não por HTTP. Se tudo for feito de uma vez, dentro da janela, são 5 a 8 horas. O resultado é **cópia fiel**: mesmo DDL, mesmos dados, mesmas policies, índices, triggers, sequences e arquivos.
 
-Sobre `uazapi_history_items`: a tabela **precisa continuar existindo** (é a fila do backfill de histórico da UaZapi), mas os 261 mil registros já processados (200.158 `skipped`, 58.362 `ok`, 2.482 `error`) são descartáveis — migrar vazia poupa 2,3 GB e ~25 min de janela.
+Duas coisas **não** são automatizáveis por dentro do app: os **valores das secrets** (não são legíveis por código na Lovable Cloud — a tela lista os 23 nomes e você cola os valores no destino) e o **deploy das ~141 Edge Functions** (exige Personal Access Token + Supabase CLI; a tela gera o script pronto).
 
-## Tela `/migracao` (o que vou construir)
+## URLs de ENTRADA de dados (webhooks que terceiros chamam)
 
-Rota protegida (admin, mesmo padrão do painel atual), com um passo a passo em etapas e log ao vivo:
+Base atual: `https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/<função>`
+
+| Origem | Função (endpoint) | Onde reapontar |
+| --- | --- | --- |
+| Meta / WhatsApp Cloud API | `meta-webhook` | Meta App → Webhooks (+ verify token) |
+| UaZapi (por fila) | `uazapi-chat-webhook?queue_id=<id>&t=<token>` | Painel UaZapi de cada instância |
+| Suporte (grupos WhatsApp) | `support-assistant-webhook` | UaZapi da instância de suporte |
+| Wavoip / ZAP Call | `wavoip-call-webhook` | Painel Wavoip |
+| api4com (SIP) | `api4com-webhook` | Painel api4com |
+| 3C Plus | `threecplus-webhook` | Painel 3C Plus |
+| Vellip (CDR de campanha) | `vellip-webhook` | Painel Vellip |
+| Mercado Pago | `mercadopago-webhook` | Painel MP (registro automático via código) |
+| Asaas | `asaas-webhook` (registro por `asaas-configure-webhook`) | Painel Asaas |
+| InfinityPay | `infinitypay-webhook` | Painel InfinityPay |
+| ZapSign | webhook de assinatura | Painel ZapSign |
+| n8n (hub) | `n8n_execute-*` | Fluxos n8n |
+| Crons internos | `x-julia-tick`, `contract-notifications-cron`, `internal-notification-scheduler`, `uazapi-history-dispatcher*`, `assigned-user-id-backfill-cron` | pg_cron do destino |
+
+## URLs de SAÍDA (o sistema chama)
+
+- **WhatsApp/Meta:** `graph.facebook.com`
+- **UaZapi:** base em secret `UAZAPI_BASE_URL`
+- **Telefonia:** `api.wavoip.com`, `devices.wavoip.com`, `storage.wavoip.com`, `app.3c.fluxoti.com`, `assessoria.3c.fluxoti.com`, api4com
+- **IA:** `ai.gateway.lovable.dev`, `openrouter.ai`, `generativelanguage.googleapis.com`, `api.openai.com`, `api.anthropic.com`, `api.x.ai`, `api.deepseek.com`, `api.llmapi.ai`
+- **Voz:** `api.elevenlabs.io`, `developer.voicemaker.in`
+- **Contratos:** `api.zapsign.com.br`, `app.zapsign.com.br`
+- **Pagamentos:** `api.mercadopago.com`, `api.asaas.com` / `sandbox.asaas.com`, `api.infinitepay.io`
+- **Jurídico/dados:** `api-publica.datajud.cnj.jus.br`, `brasilapi.com.br`, `receitaws.com.br`, Advbox, Tramitação Inteligente
+- **Vídeo:** `api.daily.co`
+- **Infra própria:** `webhook.atendejulia.com.br`, `mcp.atendejulia.com.br`, `acesso.atendejulia.com.br`, `appjulia.lovable.app`
+- **Postgres legado externo:** host em `EXTERNAL_DB_HOST` (não muda na migração)
+
+## URLs do Supabase usadas como externas (precisam ser trocadas)
+
+1. `https://zenizgyrwlonmufxnjqt.supabase.co` → REST/Realtime/Functions (`.env`: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PROJECT_ID`, `VITE_SUPABASE_PUBLISHABLE_KEY`).
+2. `…/functions/v1/*` → todos os webhooks da tabela acima.
+3. `…/storage/v1/object/public/<bucket>/…` → **URLs gravadas em dados**: `chat_messages` (mídia), avatares, mídias de ticket, gravações Wavoip, criativos de disparo. Exige script de reescrita das URLs no destino.
+4. `…/functions/v1/image-proxy`, `uazapi-proxy` → usados pelo frontend.
+5. `mcp.atendejulia.com.br` (Cloudflare Worker) aponta para `copiloto-mcp`/`copiloto-oauth` → atualizar `wrangler.toml`.
+
+## Tela `/migracao`
+
+Rota protegida (admin), passo a passo com log ao vivo e retomada:
 
 ```text
-1. Destino          URL do projeto destino + service_role key do destino
-                    (gravadas como secrets do backend, nunca no bundle)
-2. Pré-checagem     testa conexão, versão do Postgres, extensões disponíveis
-3. Estrutura        extensões → tabelas → sequences → funções
-4. Dados            fila de 237 tabelas, ordem por dependência, lotes de 5k linhas,
-                    barra de progresso por tabela, retomável (checkpoint por tabela)
-5. Pós-estrutura    constraints/FK → índices → triggers → matviews
-6. Segurança        GRANTs + ENABLE RLS + 262 policies
-7. Storage          cria buckets e copia arquivos objeto a objeto (retomável)
-8. Manual           secrets (nomes + campo para colar valor) e script de deploy
-                    das Edge Functions para rodar no terminal
-9. Verificação      contagem de linhas origem × destino, tabela por tabela
+1. Destino        URL + service_role key do destino (guardadas como secret do backend)
+2. Pré-checagem   conexão, versão do Postgres, extensões disponíveis
+3. Estrutura      extensões → tabelas → sequences → funções
+4. Dados          fila das 237 tabelas em paralelo (8 workers), lotes de 5k linhas,
+                  progresso por tabela, checkpoint retomável
+5. Pós-estrutura  constraints/FK → índices (CONCURRENTLY off) → triggers → matviews
+6. Segurança      GRANTs + ENABLE RLS + 262 policies
+7. Storage        cria os 6 buckets e copia arquivos (8 workers, retomável)
+8. Manual         nomes das 23 secrets + script de deploy das 141 functions
+9. Verificação    contagem de linhas e checksum por tabela: origem × destino
+10. Cutover       checklist das URLs de webhook acima, marcando uma a uma
 ```
 
-Backend: uma Edge Function `migracao-executar` (service role) com ações
+Backend: Edge Function `migracao-executar` (service role) com ações
 `precheck | schema | data_chunk | postschema | security | storage_chunk | verify`,
-gravando estado em `migration_runs` / `migration_steps` para permitir pausar e retomar.
-A tela chama a função em loop, mostrando progresso.
+estado em `migration_runs` / `migration_steps` (só `service_role`).
 
-## Viabilidade honesta dos 11,2 GB pela tela
+## Estratégias para caber em ≤ 2h (mantendo cópia fiel)
 
-A cópia via Edge Function passa por HTTP e tem limite de tempo por chamada.
-Em lotes de 5k linhas dá cerca de **1,5 a 3 GB/hora** → 4 a 7 horas só para dados.
-O caminho recomendado é híbrido:
+1. **Pré-cópia (Fase A, sistema no ar):** estrutura + 95% dos dados históricos + arquivos + functions + secrets copiados antes, sem parada.
+2. **Cópia direta banco→banco** para as 5 maiores tabelas: `pg_dump -Fc -t chat_messages … | pg_restore` — ~5–10× mais rápido que HTTP.
+3. **`uazapi_history_items` vazia** (a tabela fica, os 261k registros já processados não): −2,3 GB, −25 min.
+4. **Tabelas de log só como estrutura:** `chat_dropped_messages` (319 MB), `webhook_logs`, `webhook_queue`, `user_presence_heartbeats*`, `ai_usage_logs`, `chat_legacy_cache`: −450 MB.
+5. **Índices e FKs só depois dos dados** (`maintenance_work_mem` alto, `max_parallel_maintenance_workers`): reduz a criação dos 677 índices de ~50 para ~20 min.
+6. **Paralelismo:** `pg_dump -j` / `pg_restore -j 4..8` e 8 workers na tela.
+7. **Delta por timestamp** na janela: só linhas com `created_at/updated_at > T0` das tabelas quentes (chat, CRM, tickets, presença).
+8. **Compute do destino temporariamente maior** (mais CPU/IO) durante a carga, reduzido depois.
+9. **Matviews:** criar e dar `REFRESH` depois do cutover (fora da janela).
+10. **Storage por último e incremental:** só objetos novos na janela.
 
-- **Estrutura, segurança, storage, verificação e retomada:** pela tela.
-- **Dados das 5 tabelas gigantes** (`chat_messages`, `chat_dropped_messages`, `chat_contacts`, `chat_conversations`, `chat_conversation_history`): comando único da sua máquina, direto banco→banco. Isso derruba as horas de cópia para **~40–70 minutos**.
+## Janela de parada — cronograma alvo
 
-## Plano de janela de parada (downtime)
+**Fase A (sem parada, 1 dia antes):** estrutura 10 min · dados históricos 60–90 min · arquivos 30–90 min · deploy das functions + secrets 40 min.
 
-Estratégia em duas fases, para parar o sistema o mínimo possível.
-
-**Fase A — com o sistema no ar (sem parada, 1 dia antes):**
-- Criar estrutura completa no destino (~10 min).
-- Copiar dados históricos: `chat_messages` até D-1, `uazapi_history_runs`, logs, tabelas de configuração (~60–90 min).
-- Copiar arquivos dos buckets (~30–90 min, depende do volume; roda em paralelo).
-- Deploy das 141 Edge Functions no destino e cadastro das 23 secrets (~40 min).
-
-**Fase B — janela de parada real:**
-
-| Passo | Tempo |
+| Fase B (parada) | Tempo |
 | --- | --- |
-| Congelar webhooks (UaZapi/Meta/pagamentos) e avisar equipe | 5 min |
-| Copiar o delta (últimas 24 h de mensagens/conversas/CRM) | 10–20 min |
-| Constraints/FK, índices, triggers, matviews, RLS/policies | 20–35 min |
-| Sequences (`setval`) e cron jobs | 5 min |
-| Verificação de contagens e smoke test (login, enviar/receber mensagem, CRM, chamada) | 15–20 min |
-| Repontar `.env`/domínios e reativar webhooks no destino | 10 min |
+| Congelar webhooks e avisar equipe | 5 min |
+| Delta das tabelas quentes | 10–20 min |
+| FKs, índices, triggers, sequences (`setval`) | 20–35 min |
+| RLS/policies + cron jobs | 10 min |
+| Verificação de contagens + smoke test (login, mensagem, CRM, chamada) | 15–20 min |
+| Reescrita das URLs de storage + `.env`/domínios + reativar webhooks | 15 min |
+| **Total** | **1h15 – 1h45** |
 
-**Janela estimada: 1h15 a 1h45.** Sem a Fase A (tudo de uma vez), a janela vira **5 a 8 horas**.
-Plano de rollback: manter a origem intacta e apenas reverter as URLs de webhook e o `.env` — reversão em ~10 min enquanto não houver escrita nova no destino.
+Rollback: origem intacta; basta reverter `.env` e as URLs de webhook (~10 min), válido enquanto não houver escrita nova no destino.
 
 ## Segurança
 
-- A `service_role key` do destino é gravada como secret do backend e usada só dentro da Edge Function; nunca aparece no frontend nem em log.
-- A tela não executa SQL arbitrário digitado pelo usuário: só os scripts gerados por introspecção.
-- Não é possível exibir/copiar os valores das secrets atuais — só os nomes.
-- Rota restrita a administrador e removível depois da migração.
+- `service_role` do destino fica em secret do backend, usada só dentro da Edge Function; nunca no frontend nem em log.
+- A tela não executa SQL digitado pelo usuário — só os scripts gerados por introspecção.
+- Valores das secrets atuais não são exibidos (não são acessíveis); só os nomes.
+- Rota restrita a administrador e removível após a migração.
 
 ## Detalhes técnicos
 
-- DDL gerado por introspecção do banco vivo (`pg_get_functiondef`, `pg_indexes`, `pg_policies`, `information_schema`) — não por replay das 369 migrations, para refletir o estado real.
-- Dados importados **antes** de FKs e índices (ganho grande de velocidade); `session_replication_role` não é necessário nessa ordem.
-- Tabelas migradas apenas como estrutura: `uazapi_history_items`, `chat_dropped_messages`, `webhook_logs`, `webhook_queue`, `user_presence_heartbeats*`, `ai_usage_logs`, `chat_legacy_cache`.
-- Storage: caminhos preservados; se o project ref mudar, script SQL de reescrita das URLs gravadas (`chat_messages.media_url`, `ticket_*`, `wavoip_call_logs`).
-- Schemas gerenciados (`auth`, `storage`, `realtime`, `vault`) não são recriados; só as policies de `storage.objects`. O projeto não usa Supabase Auth, então não há `auth.users` a migrar.
-- Novas tabelas de controle: `migration_runs`, `migration_steps` (só service_role).
+- DDL por introspecção do banco vivo (`pg_get_functiondef`, `pg_indexes`, `pg_policies`, `information_schema`) — reflete o estado real, não o replay das 369 migrations.
+- Extensões no destino: `plpgsql`, `pg_stat_statements`, `uuid-ossp`, `pgcrypto`, `supabase_vault`, `pg_trgm`, `pg_cron`, `pg_net`.
+- Buckets recriados com a mesma visibilidade/limite: `avatars`, `chat-media`, `creatives` (50 MB) públicos; `ticket-media`, `wavoip-recordings`, `database_export_03_09_26` privados. Caminhos preservados.
+- Schemas gerenciados (`auth`, `storage`, `realtime`, `vault`) não são recriados; só policies de `storage.objects`. O projeto não usa Supabase Auth, logo não há `auth.users` a migrar.
+- Novas tabelas de controle: `migration_runs`, `migration_steps`.
