@@ -104,27 +104,27 @@ Base atual: `https://zenizgyrwlonmufxnjqt.supabase.co/functions/v1/<função>`
 
 ---
 
-## 6. Tela `/migracao`
+## 6. Tela `/painel-migracao` (implementada)
 
 Rota protegida para administrador, com passo a passo e log ao vivo:
 
 ```text
-1. Destino        URL + service_role key do destino (secret do backend)
-2. Pré-checagem   conexão, versão do Postgres, extensões disponíveis
-3. Estrutura      extensões → tabelas → sequences → funções
-4. Dados          fila das 237 tabelas em paralelo (8 workers), lotes de 5k,
-                  progresso por tabela, checkpoint retomável
-5. Pós-estrutura  constraints/FK → índices → triggers → matviews
-6. Segurança      GRANTs + ENABLE RLS + 262 policies
-7. Storage        cria os 6 buckets e copia arquivos (8 workers, retomável)
-8. Manual         nomes das 23 secrets + script de deploy das ~141 functions
-9. Verificação    contagem de linhas origem × destino
-10. Cutover       checklist das URLs de webhook
+1. Destino        URL + service_role key do destino (fica em state local, não persistido)
+2. Instruções     roadmap e limitações
+3. Pré-checagem   conexão, versão do Postgres, existência de exec_sql no destino
+4. Schema         SQL de bootstrap + DDL gerado por introspecção (preview/aplicar)
+5. Dados          lista de tabelas; cópia em lotes por tabela (HTTP)
+6. Storage        cria buckets e copia objetos (bucket a bucket)
+7. Verificação    contagem de linhas origem × destino
+8. Manual         nomes das 23 secrets + lista das ~141 functions
+9. Log            migration_runs / migration_steps atualizados em tempo real
 ```
 
 Backend: Edge Function `migracao-executar` (service role) com ações
-`precheck | schema | data_chunk | postschema | security | storage_chunk | verify`,
+`precheck | schema | data_chunk | storage_chunk | verify`,
 estado em `migration_runs` / `migration_steps`.
+
+> **Aviso:** DDL completo (functions, triggers, indexes, constraints, policies, matviews) é complexo para gerar por introspecção via HTTP. Para migração real, use `pg_dump`/`pg_restore` ou aplique scripts manuais após a carga de dados.
 
 ---
 
