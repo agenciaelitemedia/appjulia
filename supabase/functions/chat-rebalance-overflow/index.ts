@@ -97,13 +97,24 @@ async function computeOverflows(supabase: any, body: Body): Promise<Overflow[]> 
 
 /** Conversas candidatas do atendente, das mais paradas para as mais recentes. */
 // deno-lint-ignore no-explicit-any
-async function pickCandidates(supabase: any, body: Body, agentId: string, limit: number) {
+async function pickCandidates(
+  supabase: any,
+  body: Body,
+  agentId: string,
+  limit: number,
+  agentName?: string | null,
+) {
+  // A carga conta também conversas gravadas só com o NOME do responsável
+  // (assigned_user_id nulo). Sem incluí-las, o excedente nunca é encontrado.
+  const orParts = [`assigned_user_id.eq.${agentId}`, `assigned_to.eq.${agentId}`];
+  const nm = (agentName ?? '').trim();
+  if (nm && !/^\d+$/.test(nm)) orParts.push(`assigned_to.eq."${nm.replace(/"/g, '')}"`);
   let q = supabase
     .from('chat_conversations')
     .select('id, assigned_to, assigned_user_id, queue_id, last_customer_message_at, opened_at, status')
     .eq('client_id', body.client_id)
     .in('status', ACTIVE_STATUSES)
-    .or(`assigned_user_id.eq.${agentId},assigned_to.eq.${agentId}`)
+    .or(orParts.join(','))
     .order('last_customer_message_at', { ascending: true, nullsFirst: true })
     .order('opened_at', { ascending: true })
     .limit(limit);
@@ -126,7 +137,7 @@ async function run(supabase: any, body: Body) {
   let totalReturned = 0;
 
   for (const ov of overflows) {
-    const candidates = await pickCandidates(supabase, body, ov.agent_identifier, ov.overflow);
+    const candidates = await pickCandidates(supabase, body, ov.agent_identifier, ov.overflow, ov.agent_name);
     let returned = 0;
 
     if (body.action === 'commit' && candidates.length > 0) {
