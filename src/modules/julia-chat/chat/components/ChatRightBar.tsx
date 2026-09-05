@@ -150,7 +150,11 @@ export function ChatRightBar({
             </div>
           )
         ) : rightBarTab === 'lidia' ? (
-          conversationId && clientId ? (
+          !isLidiaAllowed(user?.email) ? (
+            <div className="flex items-center justify-center h-full px-6 text-center text-sm text-muted-foreground">
+              A LÍDIA ainda não está disponível para a sua conta.
+            </div>
+          ) : conversationId && clientId ? (
             <LidiaPanel
               conversationId={conversationId}
               clientId={clientId}

@@ -136,6 +136,16 @@ export function BulkTransferConversationsCard() {
     if (!filters) return;
     commitMutation.mutate(filters, {
       onSuccess: (res) => {
+        if (res.blocked || res.transferred === 0) {
+          toast.warning('Nenhuma conversa foi transferida', {
+            description:
+              res.capacity_message ??
+              'O atendente de destino está sem vagas disponíveis no limite de atendimentos.',
+          });
+          setConfirmOpen(false);
+          previewMutation.reset();
+          return;
+        }
         toast.success(
           targetType === 'assign'
             ? `${res.transferred} conversa(s) transferida(s)`
@@ -280,11 +290,19 @@ export function BulkTransferConversationsCard() {
               {preview.capped && <Badge variant="outline" className="text-[10px]">Limite de 20.000 atingido</Badge>}
             </div>
             <div className="text-3xl font-bold tabular-nums">
-              {preview.total.toLocaleString('pt-BR')}
+              {(preview.will_transfer ?? preview.total).toLocaleString('pt-BR')}
               <span className="text-[12px] font-normal text-muted-foreground ml-2">
                 conversa(s) seriam {actionLabel}
               </span>
             </div>
+
+            {targetType === 'assign' && preview.capacity && (preview.overflow ?? 0) > 0 && (
+              <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-400">
+                {preview.capacity_message ??
+                  `O atendente de destino tem ${preview.capacity.slots ?? 0} vaga(s) livre(s) (${preview.capacity.load}/${preview.capacity.max_concurrent}). ` +
+                    `${(preview.overflow ?? 0).toLocaleString('pt-BR')} de ${preview.total.toLocaleString('pt-BR')} conversa(s) ficarão de fora.`}
+              </div>
+            )}
 
             {preview.total > 0 && (
               <div className="grid grid-cols-2 gap-2 text-[12px]">
@@ -341,7 +359,7 @@ export function BulkTransferConversationsCard() {
           </Button>
           <Button
             size="sm"
-            disabled={!preview || preview.total === 0 || commitMutation.isPending}
+            disabled={!preview || (preview.will_transfer ?? preview.total) === 0 || commitMutation.isPending}
             onClick={() => { setConfirmStep(1); setUnderstood(false); setConfirmOpen(true); }}
           >
             {targetType === 'assign' ? 'Transferir conversas' : 'Devolver para a fila'}

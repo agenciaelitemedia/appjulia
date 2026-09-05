@@ -29,12 +29,19 @@ export interface BulkTransferPreview {
   byAssignee: Record<string, number>;
   oldest: string | null;
   newest: string | null;
+  capacity?: { load: number; max_concurrent: number | null; slots: number | null; blocked: boolean } | null;
+  will_transfer?: number;
+  overflow?: number;
+  capacity_message?: string | null;
 }
 
 export interface BulkTransferCommitResult {
   batch_id: string;
   transferred: number;
   skipped: number;
+  blocked?: boolean;
+  capacity_message?: string | null;
+  capacity?: { load: number; max_concurrent: number | null; slots: number | null } | null;
 }
 
 async function invoke<T>(payload: Record<string, unknown>): Promise<T> {

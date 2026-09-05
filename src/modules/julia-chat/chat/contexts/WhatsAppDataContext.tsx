@@ -431,9 +431,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     return window.innerWidth >= 1024;
   });
   const [rightBarTab, setRightBarTabState] = useState<'contact' | 'crm' | 'lead' | 'phone' | 'lidia'>(() => {
-    if (typeof window === 'undefined') return 'lidia';
+    if (typeof window === 'undefined') return 'contact';
     const stored = window.localStorage.getItem('chat_rightbar_tab');
-    return stored === 'lidia' || stored === 'contact' || stored === 'crm' || stored === 'lead' || stored === 'phone' ? stored : 'lidia';
+    return stored === 'lidia' || stored === 'contact' || stored === 'crm' || stored === 'lead' || stored === 'phone' ? stored : 'contact';
   });
 
   const setShowDetailPanel = useCallback((show: boolean) => {
