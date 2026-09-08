@@ -319,6 +319,37 @@ async function ensureEffectiveClientFn(sql: any): Promise<boolean> {
   return effectiveClientFnReady;
 }
 
+const VW_EQUIPE_SQL = `
+  CREATE OR REPLACE VIEW vw_equipe AS
+  SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.role,
+    u.user_id          AS parent_user_id,
+    public.fn_effective_client_id(u.id) AS client_id,
+    c.photo,
+    c.business_name    AS client_business_name
+  FROM users u
+  LEFT JOIN clients c ON c.id = public.fn_effective_client_id(u.id)
+  WHERE u.role IN ('admin','user','colaborador','time','advogado','comercial')
+`;
+
+let vwEquipeReady = false;
+async function ensureVwEquipe(sql: any, force = false): Promise<boolean> {
+  if (vwEquipeReady && !force) return true;
+  if (!(await ensureEffectiveClientFn(sql))) return false;
+  try {
+    await sql.unsafe(VW_EQUIPE_SQL);
+    vwEquipeReady = true;
+  } catch (error) {
+    console.warn('[db-query] vw_equipe refresh failed:', (error as Error)?.message);
+  }
+  return vwEquipeReady;
+}
+
+
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
