@@ -1213,29 +1213,62 @@ Deno.serve(async (req) => {
       if (targets.length > 0) {
         const N8N_BASE_URL = Deno.env.get('N8N_HUB_WEBHOOK_URL') || 'https://webhook.atendejulia.com.br/webhook/julia_MQv8.2_start';
         const rawBody = JSON.stringify(payload);
-        // 10s timeout per agent — prevents a slow N8N instance from
-        // blocking the whole fan-out when running in EdgeRuntime.waitUntil().
-        const N8N_TIMEOUT_MS = 10_000;
-        const promises = targets.map((link) => {
-          const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
+        // Timeout por tentativa + retentativas com backoff: o n8n costuma passar
+        // de 10s sob carga, e antes a entrega era simplesmente descartada.
+        const N8N_TIMEOUT_MS = Number(Deno.env.get('N8N_TIMEOUT_MS') || 30_000);
+        const N8N_MAX_ATTEMPTS = Number(Deno.env.get('N8N_MAX_ATTEMPTS') || 3);
+        const postOnce = async (url: string) => {
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), N8N_TIMEOUT_MS);
-          console.log(`[fan-out] POST n8n agent=${link.cod_agent}`);
-          return fetch(n8nUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: rawBody,
-            signal: controller.signal,
-          })
-            .then((r) => { clearTimeout(timer); console.log(`[fan-out] agent=${link.cod_agent} status=${r.status}`); })
-            .catch((err: Error) => {
-              clearTimeout(timer);
-              const reason = controller.signal.aborted ? `timeout after ${N8N_TIMEOUT_MS}ms` : err.message;
-              console.warn(`[fan-out] error agent=${link.cod_agent}: ${reason}`);
+          try {
+            const r = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: rawBody,
+              signal: controller.signal,
             });
+            return r;
+          } catch (err) {
+            if (controller.signal.aborted) throw new Error(`timeout after ${N8N_TIMEOUT_MS}ms`);
+            throw err;
+          } finally {
+            clearTimeout(timer);
+          }
+        };
+        const promises = targets.map(async (link) => {
+          const n8nUrl = `${N8N_BASE_URL}?app=uazapi&c=${link.cod_agent}`;
+          let lastReason = 'unknown';
+          for (let attempt = 1; attempt <= N8N_MAX_ATTEMPTS; attempt++) {
+            console.log(`[fan-out] POST n8n agent=${link.cod_agent} attempt=${attempt}`);
+            try {
+              const r = await postOnce(n8nUrl);
+              console.log(`[fan-out] agent=${link.cod_agent} status=${r.status} attempt=${attempt}`);
+              if (r.status < 500) return; // 2xx/4xx: entrega concluída (4xx não se resolve com retry)
+              lastReason = `HTTP ${r.status}`;
+            } catch (err: any) {
+              lastReason = err?.message || String(err);
+            }
+            if (attempt < N8N_MAX_ATTEMPTS) {
+              const delay = 1_000 * Math.pow(2, attempt - 1);
+              console.warn(`[fan-out] retry agent=${link.cod_agent} in ${delay}ms: ${lastReason}`);
+              await new Promise((res) => setTimeout(res, delay));
+            }
+          }
+          console.error(`[fan-out] error agent=${link.cod_agent}: ${lastReason} (after ${N8N_MAX_ATTEMPTS} attempts)`);
+          try {
+            await supabase.from('webhook_queue').insert({
+              status: 'pending',
+              retries: N8N_MAX_ATTEMPTS,
+              error_message: `n8n fan-out failed: ${lastReason}`,
+              payload,
+            } as any);
+          } catch (e: any) {
+            console.warn(`[fan-out] dead-letter insert failed agent=${link.cod_agent}: ${e?.message || e}`);
+          }
         });
         n8nFanOutPromise = Promise.allSettled(promises).then(() => undefined);
       }
+
     }
 
     let processed = 0;
