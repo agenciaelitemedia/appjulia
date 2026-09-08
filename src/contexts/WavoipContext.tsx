@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
+
 
 type WavoipApi = any;
 
@@ -84,7 +86,19 @@ function pruneSdkDeviceCache(allowed: string[]) {
 
 export function WavoipProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const clientId = user?.client_id ?? null;
+  // Escritório efetivo: membros de equipe herdam o client_id do titular.
+  const [clientId, setClientId] = useState<number | null>(user?.client_id ?? null);
+  useEffect(() => {
+    let cancelled = false;
+    if (user?.client_id) { setClientId(Number(user.client_id)); return; }
+    if (!user?.id) { setClientId(null); return; }
+    (async () => {
+      const resolved = await resolveEffectiveClientId(user as any, 'WavoipContext');
+      if (!cancelled) setClientId(resolved ? Number(resolved) : null);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.client_id, user?.id]);
+
   const [hasActivePlan, setHasActivePlan] = useState(false);
   const [devicesCount, setDevicesCount] = useState(0);
   const [ready, setReady] = useState(false);
@@ -106,8 +120,12 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       setHasActivePlan(false);
       setDevicesCount(0);
       setConnectedNumbers([]);
+      setDevices([]);
+      userDevicesRef.current = [];
+      allowedTokensRef.current = [];
       return { active: false, tokens: [] };
     }
+
     const { data: plans } = await (supabase as any)
       .from('wavoip_user_plans')
       .select('id,is_active,status')
@@ -118,8 +136,12 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     if (!active) {
       setDevicesCount(0);
       setConnectedNumbers([]);
+      setDevices([]);
+      userDevicesRef.current = [];
+      allowedTokensRef.current = [];
       return { active: false, tokens: [] };
     }
+
     // Dispositivos: próprios + compartilhados via wavoip_device_members
     const { data: memberRows } = await (supabase as any)
       .from('wavoip_device_members')
@@ -222,7 +244,10 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
             // conta Wavoip (compartilhada entre clientes). A gestão de
             // dispositivos vinculados ao client_id fica em /wavoip.
             showAddDevices: false,
-            showEnableDevicesButton: true,
+            // Também desabilitado: habilitar por aqui ignora nossa tabela de
+            // permissão e faria a chamada tocar para quem não tem acesso.
+            showEnableDevicesButton: false,
+
             showRemoveDevicesButton: false,
           },
         },
@@ -389,52 +414,65 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
   }, [clientId, user?.id]);
 
-  // Mount webphone when plan is active
+  /**
+   * Lista de permitidos é a ÚNICA verdade: habilita o que pode e
+   * desabilita/remove tudo o que o SDK tiver em cache e não esteja liberado
+   * para este escritório + usuário (evita tocar em quem não deve).
+   */
+  const syncSdkDevices = useCallback(async (tokens: string[]) => {
+    try { pruneSdkDeviceCache(tokens); } catch {}
+    const wp: any = apiRef.current ?? (window as any).wavoip;
+    if (!wp?.device?.get) return;
+    let current: string[] = [];
+    try { current = (wp.device.get() ?? []).map((d: any) => d?.token).filter(Boolean); } catch { return; }
+    for (const t of current) {
+      if (!tokens.includes(t)) {
+        try { wp.device.disable?.(t); } catch {}
+        try { wp.device.remove?.(t); } catch {}
+      }
+    }
+    for (const t of tokens) {
+      if (!current.includes(t)) {
+        try { wp.device.add?.(t, true); } catch {}
+      }
+      try { wp.device.enable?.(t); } catch {}
+      try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
+    }
+  }, []);
+
+  // Monta o webphone e sincroniza a lista permitida. Sem plano ativo,
+  // sincroniza com lista vazia (remove tudo) — inclusive tokens herdados de
+  // outro usuário/escritório na mesma aba.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const { active, tokens } = await loadPlanAndDevices();
-      if (cancelled || !active) return;
-      const wp = await ensureWebphone();
-      if (!wp) return;
-      // Saneamento inicial: remove qualquer token que o SDK tenha carregado
-      // do cache/conta Wavoip e não pertença ao client_id + app_user_id atual.
-      try {
-        const existing = (wp?.device?.get?.() ?? []).map((d: any) => d?.token).filter(Boolean);
-        for (const t of existing) {
-          if (!tokens.includes(t)) {
-            try { wp.device.disable?.(t); } catch {}
-            try { wp.device.remove?.(t); } catch {}
-          }
-        }
-      } catch {}
-      for (const t of tokens) {
-        try { wp?.device?.add?.(t, true); } catch {}
-        try { wp?.device?.enable?.(t); } catch {}
-        try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
-      }
+      if (cancelled) return;
+      const allowed = active ? tokens : [];
+      const wp = active ? await ensureWebphone() : (apiRef.current ?? (window as any).wavoip);
+      if (cancelled || !wp) { if (!active) { try { pruneSdkDeviceCache([]); } catch {} } return; }
+      await syncSdkDevices(allowed);
     })();
     return () => { cancelled = true; };
-  }, [clientId, ensureWebphone, loadPlanAndDevices]);
+  }, [clientId, user?.id, ensureWebphone, loadPlanAndDevices, syncSdkDevices]);
 
   const refreshDevices = useCallback(async () => {
-    const { tokens } = await loadPlanAndDevices();
-    const wp: any = await ensureWebphone();
-    if (!wp) return;
-    const current = (wp?.device?.get?.() ?? []).map((d: any) => d.token);
-    for (const t of tokens) {
-      if (!current.includes(t)) {
-        try { wp.device.add(t, true); } catch {}
-      }
-      try { wp.device.enable(t); } catch {}
-      try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
-    }
-    for (const t of current) {
-      if (!tokens.includes(t)) {
-        try { wp.device.remove(t); } catch {}
-      }
-    }
-  }, [ensureWebphone, loadPlanAndDevices]);
+    const { active, tokens } = await loadPlanAndDevices();
+    if (active) await ensureWebphone();
+    await syncSdkDevices(active ? tokens : []);
+  }, [ensureWebphone, loadPlanAndDevices, syncSdkDevices]);
+
+  // Mudanças de permissão (dono do aparelho / compartilhamento) refletem na hora.
+  useEffect(() => {
+    if (!clientId || !user?.id) return;
+    const channel = (supabase as any)
+      .channel(`wavoip-access-${clientId}-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wavoip_devices', filter: `client_id=eq.${clientId}` }, () => { void refreshDevices(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wavoip_device_members', filter: `app_user_id=eq.${Number(user.id)}` }, () => { void refreshDevices(); })
+      .subscribe();
+    return () => { try { (supabase as any).removeChannel(channel); } catch {} };
+  }, [clientId, user?.id, refreshDevices]);
+
 
   // ============================================================
   // Reconciliação contínua: status real do SDK -> DB e UI.
@@ -459,6 +497,19 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       if (!wp?.device?.get) return;
       let entries: any[] = [];
       try { entries = wp.device.get() ?? []; } catch { return; }
+
+      // Rede de segurança: se algum token não permitido apareceu no SDK
+      // (cache antigo, outro usuário na mesma aba, painel da Wavoip),
+      // desliga na hora para não tocar para quem não tem acesso.
+      const allowed = allowedTokensRef.current;
+      for (const e of entries) {
+        const t = e?.token;
+        if (t && !allowed.includes(t)) {
+          try { wp.device.disable?.(t); } catch {}
+          try { wp.device.remove?.(t); } catch {}
+        }
+      }
+
 
       const nextLive: Record<string, string> = {};
       const known = userDevicesRef.current;
