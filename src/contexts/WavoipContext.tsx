@@ -120,8 +120,12 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       setHasActivePlan(false);
       setDevicesCount(0);
       setConnectedNumbers([]);
+      setDevices([]);
+      userDevicesRef.current = [];
+      allowedTokensRef.current = [];
       return { active: false, tokens: [] };
     }
+
     const { data: plans } = await (supabase as any)
       .from('wavoip_user_plans')
       .select('id,is_active,status')
