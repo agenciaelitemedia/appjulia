@@ -56,22 +56,57 @@ async function getProviderToken(supabaseUrl: string, serviceKey: string, provide
   return out;
 }
 
-async function fetchDeviceCalls(apiBase: string, jwt: string, wavoipDeviceId: string, limit: number): Promise<{ list: any[]; status: number; error?: string }> {
-  const url = `${apiBase}/v2/devices/${encodeURIComponent(wavoipDeviceId)}/calls?limit=${limit}`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' } });
-  const json: any = await res.json().catch(() => null);
-  if (!res.ok) {
-    return { list: [], status: res.status, error: JSON.stringify(json ?? '').slice(0, 300) };
-  }
-  const list = Array.isArray(json) ? json
+function extractList(json: any): any[] {
+  return Array.isArray(json) ? json
     : Array.isArray(json?.result) ? json.result
     : Array.isArray(json?.data) ? json.data
     : Array.isArray(json?.data?.calls) ? json.data.calls
+    : Array.isArray(json?.data?.result) ? json.data.result
     : Array.isArray(json?.calls) ? json.calls
     : Array.isArray(json?.items) ? json.items
     : [];
-  if (!list.length && json) console.log('[wavoip-sync-history] unexpected shape keys=', Object.keys(json));
-  return { list, status: res.status };
+}
+
+/**
+ * A Wavoip expõe o histórico do dispositivo em mais de um formato (V2 com JWT do
+ * provedor, painel com id ou token do dispositivo). Tentamos as variantes conhecidas
+ * até obter 2xx, registrando qual funcionou.
+ */
+async function fetchDeviceCalls(
+  apiBase: string, jwt: string, wavoipDeviceId: string, deviceToken: string | null, limit: number,
+): Promise<{ list: any[]; status: number; error?: string; variant?: string }> {
+  const id = encodeURIComponent(wavoipDeviceId);
+  const tok = deviceToken ? encodeURIComponent(deviceToken) : null;
+  const variants: Array<{ name: string; url: string; headers: Record<string, string> }> = [
+    { name: 'v2_id_jwt', url: `${apiBase}/v2/devices/${id}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${jwt}` } },
+    { name: 'panel_id_jwt', url: `${apiBase}/devices/${id}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${jwt}` } },
+  ];
+  if (tok) {
+    variants.push(
+      { name: 'v2_token_jwt', url: `${apiBase}/v2/devices/${tok}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${jwt}` } },
+      { name: 'v2_id_devtoken', url: `${apiBase}/v2/devices/${id}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${deviceToken}` } },
+      { name: 'v2_token_devtoken', url: `${apiBase}/v2/devices/${tok}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${deviceToken}` } },
+      { name: 'panel_token_header', url: `${apiBase}/devices/${id}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${jwt}`, token: deviceToken! } },
+    );
+  }
+  let last: { status: number; error: string } = { status: 0, error: 'no_variant' };
+  for (const v of variants) {
+    try {
+      const res = await fetch(v.url, { headers: { ...v.headers, Accept: 'application/json' } });
+      const json: any = await res.json().catch(() => null);
+      if (res.ok) {
+        const list = extractList(json);
+        if (!list.length && json) console.log(`[wavoip-sync-history] ${v.name} ok but unexpected shape keys=`, Object.keys(json));
+        return { list, status: res.status, variant: v.name };
+      }
+      last = { status: res.status, error: JSON.stringify(json ?? '').slice(0, 300) };
+      // 404/401/403: tenta a próxima variante; outros erros (5xx) param aqui.
+      if (![401, 403, 404].includes(res.status)) break;
+    } catch (e) {
+      last = { status: 0, error: String((e as Error)?.message ?? e) };
+    }
+  }
+  return { list: [], ...last };
 }
 
 async function triggerFetchRecording(supabaseUrl: string, serviceKey: string, whatsapp_call_id: string) {
