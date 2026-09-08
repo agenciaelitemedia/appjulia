@@ -311,6 +311,17 @@ let effectiveClientFnReady = false;
 async function ensureEffectiveClientFn(sql: any): Promise<boolean> {
   if (effectiveClientFnReady) return true;
   try {
+    // Se já existe, não emite DDL (DDL pode ficar preso em lock e estourar o timeout).
+    const exists = await sql.unsafe(
+      `SELECT 1 FROM pg_proc p
+         JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public' AND p.proname = 'fn_effective_client_id' LIMIT 1`
+    );
+    if (exists?.length) {
+      effectiveClientFnReady = true;
+      return true;
+    }
+    await sql.unsafe(`SET LOCAL lock_timeout = '3s'; SET LOCAL statement_timeout = '10s';`);
     await sql.unsafe(EFFECTIVE_CLIENT_FN_SQL);
     effectiveClientFnReady = true;
   } catch (error) {
@@ -327,17 +338,17 @@ const VW_EQUIPE_SQL = `
     u.email,
     u.role,
     u.user_id          AS parent_user_id,
-    public.fn_effective_client_id(u.id) AS client_id,
+    eff.client_id      AS client_id,
     c.photo,
     c.business_name    AS client_business_name,
     CASE
-      WHEN public.fn_effective_client_id(u.id) IS NULL THEN 'outros'::text
+      WHEN eff.client_id IS NULL THEN 'outros'::text
       WHEN u.role::text = ANY (ARRAY['admin'::text, 'colaborador'::text, 'user'::text]) THEN 'dono'::text
       ELSE 'equipe'::text
     END AS user_funcao
   FROM users u
-  LEFT JOIN users p ON p.id = u.user_id
-  LEFT JOIN clients c ON c.id = public.fn_effective_client_id(u.id)
+  LEFT JOIN LATERAL (SELECT public.fn_effective_client_id(u.id) AS client_id) eff ON true
+  LEFT JOIN clients c ON c.id = eff.client_id
 `;
 
 let vwEquipeReady = false;
@@ -345,6 +356,16 @@ async function ensureVwEquipe(sql: any, force = false): Promise<boolean> {
   if (vwEquipeReady && !force) return true;
   if (!(await ensureEffectiveClientFn(sql))) return false;
   try {
+    if (!force) {
+      const exists = await sql.unsafe(
+        `SELECT 1 FROM pg_views WHERE schemaname = 'public' AND viewname = 'vw_equipe' LIMIT 1`
+      );
+      if (exists?.length) {
+        vwEquipeReady = true;
+        return true;
+      }
+    }
+    await sql.unsafe(`SET LOCAL lock_timeout = '3s'; SET LOCAL statement_timeout = '15s';`);
     await sql.unsafe(VW_EQUIPE_SQL);
     vwEquipeReady = true;
   } catch (error) {
@@ -352,6 +373,7 @@ async function ensureVwEquipe(sql: any, force = false): Promise<boolean> {
   }
   return vwEquipeReady;
 }
+
 
 
 
@@ -1410,13 +1432,17 @@ serve(async (req) => {
         // geraria um usuário órfão (fora da equipe de qualquer client_id).
         if (isAdmin) {
           result = await sql.unsafe(
-            `SELECT id, name, email, role, ${clientExpr}::text AS client_id
-             FROM users
-             WHERE role IN ('admin', 'user')
-               AND ${clientExpr} IS NOT NULL
-             ORDER BY name`
+            `SELECT id, name, email, role, client_id::text AS client_id
+               FROM (
+                 SELECT u.id, u.name, u.email, u.role, ${clientExpr === 'client_id' ? 'u.client_id' : 'public.fn_effective_client_id(u.id)'} AS client_id
+                   FROM users u
+                  WHERE u.role IN ('admin', 'user')
+               ) t
+              WHERE client_id IS NOT NULL
+              ORDER BY name`
           );
         } else {
+
           result = await sql.unsafe(
             `SELECT id, name, email, role, ${clientExpr}::text AS client_id
              FROM users
