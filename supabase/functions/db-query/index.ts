@@ -645,24 +645,27 @@ serve(async (req) => {
       case 'get_user_agents_leads': {
         const { userId } = data;
         result = await sql.unsafe(
-          `SELECT
-             ua.cod_agent::text AS cod_agent,
-             COUNT(DISTINCT s.id) AS leads_received
-           FROM user_agents ua
-           LEFT JOIN LATERAL (
-             SELECT ag.id
-             FROM agents ag
-             WHERE (ua.agent_id IS NOT NULL AND ag.id = ua.agent_id)
-                OR (ua.agent_id IS NULL AND ag.cod_agent::text = ua.cod_agent::text)
-             LIMIT 1
-           ) a ON true
-           JOIN sessions s ON s.agent_id = a.id
-           WHERE ua.user_id = $1
-             AND EXISTS (
-               SELECT 1 FROM log_messages lm
-               WHERE lm.session_id = s.id
-                 AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-             )
+          `WITH ag AS (
+             SELECT ua.cod_agent::text AS cod_agent, a.id AS agent_id
+             FROM user_agents ua
+             LEFT JOIN LATERAL (
+               SELECT ag2.id
+               FROM agents ag2
+               WHERE (ua.agent_id IS NOT NULL AND ag2.id = ua.agent_id)
+                  OR (ua.agent_id IS NULL AND ag2.cod_agent::text = ua.cod_agent::text)
+               LIMIT 1
+             ) a ON true
+             WHERE ua.user_id = $1
+           ), month_sessions AS (
+             SELECT DISTINCT lm.session_id
+             FROM log_messages lm
+             WHERE lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+           )
+           SELECT ag.cod_agent,
+                  COUNT(*) AS leads_received
+           FROM ag
+           JOIN sessions s ON s.agent_id = ag.agent_id
+           JOIN month_sessions ms ON ms.session_id = s.id
            GROUP BY 1`,
           [userId]
         );
