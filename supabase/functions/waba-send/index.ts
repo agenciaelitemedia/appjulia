@@ -139,7 +139,8 @@ async function persistOutbound(args: {
           contact_id: contactId,
           queue_id: args.queueId,
           channel: "whatsapp_waba",
-          status: "open",
+          // Sem responsável definido, o atendimento nasce aguardando na fila.
+          status: "pending",
           protocol: "",
         })
         .select("id")
