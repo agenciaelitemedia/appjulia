@@ -3,3 +3,4 @@
  */
 export { useAuth } from '@/contexts/AuthContext';
 export { isOwnerUser } from '@/lib/auth/isOwner';
+export { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';

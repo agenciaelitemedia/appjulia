@@ -12,6 +12,7 @@ import {
 } from '../extend/crm';
 import { ALERT_TRIGGERS } from '../module';
 import { useAlertCrmCards } from '../hooks/useAlertCrmCards';
+import { useAlertsClientId } from '../hooks/useAlertsClientId';
 import { useAlertCrmRealtime } from '../hooks/useAlertCrmRealtime';
 import { AlertCrmLeadCard } from './AlertCrmLeadCard';
 import { AlertCrmCardDetailsDialog } from './AlertCrmCardDetailsDialog';
@@ -52,11 +53,21 @@ export function CrmNotificacoesTab({ codEtapas }: CrmNotificacoesTabProps = {}) 
     dateTo: today(),
   });
 
-  const { data: cards = [], isLoading } = useAlertCrmCards({
+  const { clientId, loading: clientLoading, isGlobalAdmin } = useAlertsClientId();
+  const allowedAgentCodes = useMemo(
+    () => agents.map((a: any) => String(a.cod_agent)).filter(Boolean),
+    [agents],
+  );
+
+  const { data: cards = [], isLoading: cardsLoading } = useAlertCrmCards({
     agentCodes: filters.agentCodes,
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
+    clientId,
+    allowedAgentCodes,
+    isGlobalAdmin,
   });
+  const isLoading = cardsLoading || clientLoading;
 
   const [selected, setSelected] = useState<AlertCrmCard | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
