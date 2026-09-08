@@ -14,8 +14,6 @@ export interface PrincipalUser {
   name: string;
   email: string;
   role: string;
-  /** Escritório resolvido em cadeia; titulares sem escritório não são listados. */
-  client_id?: string | null;
 }
 
 export interface PrincipalUserAgent {

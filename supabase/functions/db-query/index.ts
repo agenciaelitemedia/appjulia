@@ -276,107 +276,6 @@ function getPool(caCerts: string[]) {
   return pool;
 }
 
-/**
- * Resolução do escritório (client_id) em CADEIA: sobe pelos titulares
- * (users.user_id) até encontrar um client_id definido. Necessário porque um
- * membro de equipe pode ser vinculado a outro membro (2+ níveis), caso em que
- * a antiga resolução de um único nível (COALESCE(u.client_id, p.client_id))
- * devolvia NULL e o membro ficava fora da equipe do escritório.
- */
-const EFFECTIVE_CLIENT_FN_SQL = `
-  CREATE OR REPLACE FUNCTION public.fn_effective_client_id(p_user_id bigint)
-  RETURNS bigint
-  LANGUAGE sql
-  STABLE
-  AS $fn$
-    WITH RECURSIVE chain AS (
-      SELECT u.id, u.user_id, u.client_id, 1 AS depth
-        FROM users u
-       WHERE u.id = p_user_id
-      UNION ALL
-      SELECT p.id, p.user_id, p.client_id, c.depth + 1
-        FROM users p
-        JOIN chain c ON p.id = c.user_id
-       WHERE c.client_id IS NULL AND c.depth < 10
-    )
-    SELECT client_id
-      FROM chain
-     WHERE client_id IS NOT NULL
-     ORDER BY depth
-     LIMIT 1
-  $fn$;
-`;
-
-let effectiveClientFnReady = false;
-async function ensureEffectiveClientFn(sql: any): Promise<boolean> {
-  if (effectiveClientFnReady) return true;
-  try {
-    // Se já existe, não emite DDL (DDL pode ficar preso em lock e estourar o timeout).
-    const exists = await sql.unsafe(
-      `SELECT 1 FROM pg_proc p
-         JOIN pg_namespace n ON n.oid = p.pronamespace
-        WHERE n.nspname = 'public' AND p.proname = 'fn_effective_client_id' LIMIT 1`
-    );
-    if (exists?.length) {
-      effectiveClientFnReady = true;
-      return true;
-    }
-    await sql.unsafe(`SET LOCAL lock_timeout = '3s'; SET LOCAL statement_timeout = '10s';`);
-    await sql.unsafe(EFFECTIVE_CLIENT_FN_SQL);
-    effectiveClientFnReady = true;
-  } catch (error) {
-    console.warn('[db-query] fn_effective_client_id creation failed:', (error as Error)?.message);
-  }
-  return effectiveClientFnReady;
-}
-
-const VW_EQUIPE_SQL = `
-  CREATE OR REPLACE VIEW vw_equipe AS
-  SELECT
-    u.id,
-    u.name,
-    u.email,
-    u.role,
-    u.user_id          AS parent_user_id,
-    eff.client_id      AS client_id,
-    c.photo,
-    c.business_name    AS client_business_name,
-    CASE
-      WHEN eff.client_id IS NULL THEN 'outros'::text
-      WHEN u.role::text = ANY (ARRAY['admin'::text, 'colaborador'::text, 'user'::text]) THEN 'dono'::text
-      ELSE 'equipe'::text
-    END AS user_funcao
-  FROM users u
-  LEFT JOIN LATERAL (SELECT public.fn_effective_client_id(u.id) AS client_id) eff ON true
-  LEFT JOIN clients c ON c.id = eff.client_id
-`;
-
-let vwEquipeReady = false;
-async function ensureVwEquipe(sql: any, force = false): Promise<boolean> {
-  if (vwEquipeReady && !force) return true;
-  if (!(await ensureEffectiveClientFn(sql))) return false;
-  try {
-    if (!force) {
-      const exists = await sql.unsafe(
-        `SELECT 1 FROM pg_views WHERE schemaname = 'public' AND viewname = 'vw_equipe' LIMIT 1`
-      );
-      if (exists?.length) {
-        vwEquipeReady = true;
-        return true;
-      }
-    }
-    await sql.unsafe(`SET LOCAL lock_timeout = '3s'; SET LOCAL statement_timeout = '15s';`);
-    await sql.unsafe(VW_EQUIPE_SQL);
-    vwEquipeReady = true;
-  } catch (error) {
-    console.warn('[db-query] vw_equipe refresh failed:', (error as Error)?.message);
-  }
-  return vwEquipeReady;
-}
-
-
-
-
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -545,23 +444,17 @@ serve(async (req) => {
         const { email, password } = data;
         
         // Fetch user by email only (including client_id and photo from clients table)
-        // O escritório é herdado em CADEIA pelos titulares (users.user_id),
-        // não apenas do titular direto.
-        const loginHasFn = await ensureEffectiveClientFn(sql);
-        const loginClientExpr = loginHasFn
-          ? 'public.fn_effective_client_id(u.id)'
-          : 'COALESCE(u.client_id, parent.client_id)';
+        // If user is linked (user_id set) and has no own client_id, inherit from parent user
         const users = await sql.unsafe(
           `SELECT u.id, u.name, u.email, u.role, u.cod_agent,
-                  ${loginClientExpr} as client_id,
+                  COALESCE(u.client_id, parent.client_id) as client_id,
                   u.user_id,
                   u.evo_url, u.evo_instance, u.evo_apikey, u.data_mask, u.hub, u.created_at, u.password, u.is_active,
-                  COALESCE(c.photo, pc.photo, ec.photo) as avatar
+                  COALESCE(c.photo, pc.photo) as avatar
            FROM users u
            LEFT JOIN users parent ON parent.id = u.user_id
            LEFT JOIN clients c ON c.id = u.client_id
            LEFT JOIN clients pc ON pc.id = parent.client_id
-           LEFT JOIN clients ec ON ec.id = ${loginClientExpr}
            WHERE u.email = $1
            LIMIT 1`,
           [email]
@@ -753,10 +646,10 @@ serve(async (req) => {
 
       case 'get_effective_client_id': {
         const { userId } = data;
-        const hasFn = await ensureEffectiveClientFn(sql);
         result = await sql.unsafe(
           `SELECT COALESCE(
-              ${hasFn ? 'public.fn_effective_client_id(u.id)' : 'COALESCE(u.client_id, parent.client_id)'},
+              u.client_id,
+              parent.client_id,
               (SELECT a.client_id FROM user_agents ua JOIN agents a ON a.id = ua.agent_id WHERE ua.user_id = u.id AND a.client_id IS NOT NULL LIMIT 1)
             )::text AS client_id
              FROM users u
@@ -769,19 +662,30 @@ serve(async (req) => {
       }
 
       case 'create_vw_equipe': {
-        const ok = await ensureVwEquipe(sql, true);
-        result = [{ success: ok, message: ok ? 'vw_equipe created/updated' : 'vw_equipe refresh failed' }];
+        await sql.unsafe(`
+          CREATE OR REPLACE VIEW vw_equipe AS
+          SELECT
+            u.id,
+            u.name,
+            u.email,
+            u.role,
+            u.user_id          AS parent_user_id,
+            COALESCE(u.client_id, p.client_id) AS client_id,
+            c.photo,
+            c.business_name    AS client_business_name
+          FROM users u
+          LEFT JOIN users   p ON p.id = u.user_id
+          LEFT JOIN clients c ON c.id = COALESCE(u.client_id, p.client_id)
+          WHERE u.role IN ('admin','user','colaborador','time','advogado','comercial')
+        `);
+        result = [{ success: true, message: 'vw_equipe created/updated' }];
         break;
       }
 
       case 'get_team_by_client': {
         const { userId, role } = data;
-        const hasFn = await ensureVwEquipe(sql);
-        const meExpr = hasFn
-          ? 'public.fn_effective_client_id(u.id)'
-          : 'COALESCE(u.client_id, p.client_id)';
         const me = await sql.unsafe(
-          `SELECT ${meExpr} AS client_id
+          `SELECT COALESCE(u.client_id, p.client_id) AS client_id
              FROM users u LEFT JOIN users p ON p.id = u.user_id
             WHERE u.id = $1 LIMIT 1`,
           [userId]
@@ -1424,27 +1328,18 @@ serve(async (req) => {
 
       case 'get_principal_users': {
         const { userId, isAdmin } = data;
-        const hasFn = await ensureEffectiveClientFn(sql);
-        const clientExpr = hasFn ? 'public.fn_effective_client_id(id)' : 'client_id';
         // For admin: all users with role != 'time'
         // For user: only themselves
-        // Titulares sem escritório resolvido são omitidos: criar membro sob eles
-        // geraria um usuário órfão (fora da equipe de qualquer client_id).
         if (isAdmin) {
           result = await sql.unsafe(
-            `SELECT id, name, email, role, client_id::text AS client_id
-               FROM (
-                 SELECT u.id, u.name, u.email, u.role, ${clientExpr === 'client_id' ? 'u.client_id' : 'public.fn_effective_client_id(u.id)'} AS client_id
-                   FROM users u
-                  WHERE u.role IN ('admin', 'user')
-               ) t
-              WHERE client_id IS NOT NULL
-              ORDER BY name`
+            `SELECT id, name, email, role
+             FROM users
+             WHERE role IN ('admin', 'user')
+             ORDER BY name`
           );
         } else {
-
           result = await sql.unsafe(
-            `SELECT id, name, email, role, ${clientExpr}::text AS client_id
+            `SELECT id, name, email, role
              FROM users
              WHERE id = $1
              ORDER BY name`,
@@ -1490,25 +1385,13 @@ serve(async (req) => {
       case 'insert_team_member': {
         const { name, email, hashedPassword, rawPassword, principalUserId, clientId, agentIds, modulePermissions, role } = data;
         const memberRole = role || 'time';
-
-        // Escritório do membro: sempre resolvido em cadeia a partir do titular
-        // escolhido (que pode ele mesmo ser um membro de equipe). Sem isso o
-        // membro nasce sem client_id e fica fora da equipe do escritório.
-        let effectiveClientId = clientId ?? null;
-        if (principalUserId && (await ensureEffectiveClientFn(sql))) {
-          const chain = await sql.unsafe(
-            `SELECT public.fn_effective_client_id($1) AS client_id`,
-            [principalUserId]
-          );
-          effectiveClientId = (chain[0] as any)?.client_id ?? effectiveClientId;
-        }
-
+        
         // Insert user with dynamic role, user_id pointing to principal, and use_custom_permissions = true
         const userRows = await sql.unsafe(
           `INSERT INTO users (name, email, password, remember_token, role, user_id, client_id, use_custom_permissions, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, now(), now())
            RETURNING id, name, email`,
-          [name, email, hashedPassword, rawPassword, memberRole, principalUserId, effectiveClientId]
+          [name, email, hashedPassword, rawPassword, memberRole, principalUserId, clientId]
         );
         
         const newUserId = userRows[0].id;
@@ -1552,17 +1435,6 @@ serve(async (req) => {
           `UPDATE users SET name = $1, user_id = $2, role = $3, use_custom_permissions = TRUE, updated_at = now() WHERE id = $4`,
           [name, principalUserId, memberRole, memberId]
         );
-
-        // Reaplica o escritório resolvido em cadeia (titular pode ter mudado).
-        if (principalUserId && (await ensureEffectiveClientFn(sql))) {
-          await sql.unsafe(
-            `UPDATE users
-                SET client_id = COALESCE(public.fn_effective_client_id($1), client_id),
-                    updated_at = now()
-              WHERE id = $2`,
-            [principalUserId, memberId]
-          );
-        }
         
         // Sync user_agents: delete existing, insert new
         await sql.unsafe(
