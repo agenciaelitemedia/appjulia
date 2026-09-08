@@ -106,6 +106,31 @@ export function CallHistoryTab() {
     }
   }, [calls, planAllowsTranscription, autoDispatched]);
 
+  const [syncing, setSyncing] = useState(false);
+  const syncWithWavoip = async () => {
+    if (!clientId) return;
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('wavoip-sync-history', { body: { client_id: clientId } });
+      if (error) throw error;
+      const devs: any[] = data?.devices ?? [];
+      const upserts = devs.reduce((a, d) => a + (d.upserts || 0), 0);
+      const failed = devs.filter((d) => d.error || d.skipped);
+      if (failed.length && upserts === 0) {
+        toast.error(`Não foi possível sincronizar: ${failed[0].error ?? failed[0].skipped}`);
+      } else {
+        toast.success(`${upserts} chamada(s) sincronizada(s)${data?.stuck_queued ? ` · ${data.stuck_queued} em atualização` : ''}`);
+      }
+      // A fila de reconciliação roda a cada 1 min; processa já para fechar as chamadas presas.
+      if (data?.stuck_queued) {
+        await supabase.functions.invoke('wavoip-reconcile-runner', { body: { client_id: clientId, force: true } }).catch(() => {});
+      }
+      await refetch();
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao sincronizar');
+    } finally { setSyncing(false); }
+  };
+
   const processQueue = async () => {
     setProcessing(true);
     try {
