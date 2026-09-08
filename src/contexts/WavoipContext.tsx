@@ -236,7 +236,10 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
             // conta Wavoip (compartilhada entre clientes). A gestão de
             // dispositivos vinculados ao client_id fica em /wavoip.
             showAddDevices: false,
-            showEnableDevicesButton: true,
+            // Também desabilitado: habilitar por aqui ignora nossa tabela de
+            // permissão e faria a chamada tocar para quem não tem acesso.
+            showEnableDevicesButton: false,
+
             showRemoveDevicesButton: false,
           },
         },
