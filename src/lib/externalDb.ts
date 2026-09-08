@@ -345,6 +345,14 @@ class ExternalDatabase {
     });
   }
 
+  async getUserAgentsLeads<T = any>(userId: number): Promise<T[]> {
+    return this.invoke({
+      action: 'get_user_agents_leads',
+      data: { userId },
+    });
+  }
+
+
   async getEffectiveClientId(userId: number): Promise<string | null> {
     try {
       const result = await this.invoke({
