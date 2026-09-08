@@ -86,19 +86,38 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Chamada presa em status não terminal há mais de 15 min e que a Wavoip não conhece:
+    // fecha como não atendida para não ficar eternamente em "CHAMANDO".
+    const closeStale = async (reason: string) => {
+      const ageMs = Date.now() - new Date(log.started_at ?? 0).getTime();
+      const nonTerminal = !log.ended_at;
+      if (!nonTerminal || !(ageMs > 15 * 60_000)) return false;
+      const meta = (log.metadata as any) ?? {};
+      meta.reconciled_at = new Date().toISOString();
+      meta.auto_closed_reason = reason;
+      await admin.from('wavoip_call_logs').update({
+        status: 'not_answered', end_reason: 'NOT_ANSWERED',
+        ended_at: log.started_at ?? new Date().toISOString(),
+        recording_status: 'none', metadata: meta,
+      }).eq('id', log.id);
+      return true;
+    };
+
     const res = await fetch(`${apiBase}/calls/whatsapp/${encodeURIComponent(callId)}`, {
       headers: { 'Authorization': `Bearer ${jwt}`, Accept: 'application/json' },
     });
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
-      return new Response(JSON.stringify({ ok: false, error: `wavoip_http_${res.status}`, body: txt.slice(0, 300) }), {
+      const closed = res.status === 404 ? await closeStale(`wavoip_http_${res.status}`) : false;
+      return new Response(JSON.stringify({ ok: false, error: `wavoip_http_${res.status}`, body: txt.slice(0, 300), auto_closed: closed }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     const json = await res.json().catch(() => null) as any;
     const item = json?.result?.[0];
     if (!item) {
-      return new Response(JSON.stringify({ ok: false, error: 'empty_result' }), {
+      const closed = await closeStale('empty_result');
+      return new Response(JSON.stringify({ ok: false, error: 'empty_result', auto_closed: closed }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
