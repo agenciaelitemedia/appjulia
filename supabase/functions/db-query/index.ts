@@ -1448,13 +1448,25 @@ serve(async (req) => {
       case 'insert_team_member': {
         const { name, email, hashedPassword, rawPassword, principalUserId, clientId, agentIds, modulePermissions, role } = data;
         const memberRole = role || 'time';
-        
+
+        // Escritório do membro: sempre resolvido em cadeia a partir do titular
+        // escolhido (que pode ele mesmo ser um membro de equipe). Sem isso o
+        // membro nasce sem client_id e fica fora da equipe do escritório.
+        let effectiveClientId = clientId ?? null;
+        if (principalUserId && (await ensureEffectiveClientFn(sql))) {
+          const chain = await sql.unsafe(
+            `SELECT public.fn_effective_client_id($1) AS client_id`,
+            [principalUserId]
+          );
+          effectiveClientId = (chain[0] as any)?.client_id ?? effectiveClientId;
+        }
+
         // Insert user with dynamic role, user_id pointing to principal, and use_custom_permissions = true
         const userRows = await sql.unsafe(
           `INSERT INTO users (name, email, password, remember_token, role, user_id, client_id, use_custom_permissions, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, now(), now())
            RETURNING id, name, email`,
-          [name, email, hashedPassword, rawPassword, memberRole, principalUserId, clientId]
+          [name, email, hashedPassword, rawPassword, memberRole, principalUserId, effectiveClientId]
         );
         
         const newUserId = userRows[0].id;
