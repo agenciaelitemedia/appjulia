@@ -1432,13 +1432,17 @@ serve(async (req) => {
         // geraria um usuário órfão (fora da equipe de qualquer client_id).
         if (isAdmin) {
           result = await sql.unsafe(
-            `SELECT id, name, email, role, ${clientExpr}::text AS client_id
-             FROM users
-             WHERE role IN ('admin', 'user')
-               AND ${clientExpr} IS NOT NULL
-             ORDER BY name`
+            `SELECT id, name, email, role, client_id::text AS client_id
+               FROM (
+                 SELECT u.id, u.name, u.email, u.role, ${clientExpr === 'client_id' ? 'u.client_id' : 'public.fn_effective_client_id(u.id)'} AS client_id
+                   FROM users u
+                  WHERE u.role IN ('admin', 'user')
+               ) t
+              WHERE client_id IS NOT NULL
+              ORDER BY name`
           );
         } else {
+
           result = await sql.unsafe(
             `SELECT id, name, email, role, ${clientExpr}::text AS client_id
              FROM users
