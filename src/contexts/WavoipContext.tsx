@@ -136,8 +136,12 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     if (!active) {
       setDevicesCount(0);
       setConnectedNumbers([]);
+      setDevices([]);
+      userDevicesRef.current = [];
+      allowedTokensRef.current = [];
       return { active: false, tokens: [] };
     }
+
     // Dispositivos: próprios + compartilhados via wavoip_device_members
     const { data: memberRows } = await (supabase as any)
       .from('wavoip_device_members')
