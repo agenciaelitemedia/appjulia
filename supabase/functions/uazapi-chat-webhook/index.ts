@@ -1257,7 +1257,8 @@ Deno.serve(async (req) => {
           console.error(`[fan-out] error agent=${link.cod_agent}: ${lastReason} (after ${N8N_MAX_ATTEMPTS} attempts)`);
           try {
             await supabase.from('webhook_queue').insert({
-              status: 'pending',
+              status: 'failed',
+              message_type: 'uazapi_fanout',
               retries: N8N_MAX_ATTEMPTS,
               error_message: `n8n fan-out failed: ${lastReason}`,
               payload,
