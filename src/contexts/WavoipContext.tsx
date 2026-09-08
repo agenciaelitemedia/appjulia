@@ -403,52 +403,65 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
     }
   }, [clientId, user?.id]);
 
-  // Mount webphone when plan is active
+  /**
+   * Lista de permitidos é a ÚNICA verdade: habilita o que pode e
+   * desabilita/remove tudo o que o SDK tiver em cache e não esteja liberado
+   * para este escritório + usuário (evita tocar em quem não deve).
+   */
+  const syncSdkDevices = useCallback(async (tokens: string[]) => {
+    try { pruneSdkDeviceCache(tokens); } catch {}
+    const wp: any = apiRef.current ?? (window as any).wavoip;
+    if (!wp?.device?.get) return;
+    let current: string[] = [];
+    try { current = (wp.device.get() ?? []).map((d: any) => d?.token).filter(Boolean); } catch { return; }
+    for (const t of current) {
+      if (!tokens.includes(t)) {
+        try { wp.device.disable?.(t); } catch {}
+        try { wp.device.remove?.(t); } catch {}
+      }
+    }
+    for (const t of tokens) {
+      if (!current.includes(t)) {
+        try { wp.device.add?.(t, true); } catch {}
+      }
+      try { wp.device.enable?.(t); } catch {}
+      try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
+    }
+  }, []);
+
+  // Monta o webphone e sincroniza a lista permitida. Sem plano ativo,
+  // sincroniza com lista vazia (remove tudo) — inclusive tokens herdados de
+  // outro usuário/escritório na mesma aba.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const { active, tokens } = await loadPlanAndDevices();
-      if (cancelled || !active) return;
-      const wp = await ensureWebphone();
-      if (!wp) return;
-      // Saneamento inicial: remove qualquer token que o SDK tenha carregado
-      // do cache/conta Wavoip e não pertença ao client_id + app_user_id atual.
-      try {
-        const existing = (wp?.device?.get?.() ?? []).map((d: any) => d?.token).filter(Boolean);
-        for (const t of existing) {
-          if (!tokens.includes(t)) {
-            try { wp.device.disable?.(t); } catch {}
-            try { wp.device.remove?.(t); } catch {}
-          }
-        }
-      } catch {}
-      for (const t of tokens) {
-        try { wp?.device?.add?.(t, true); } catch {}
-        try { wp?.device?.enable?.(t); } catch {}
-        try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
-      }
+      if (cancelled) return;
+      const allowed = active ? tokens : [];
+      const wp = active ? await ensureWebphone() : (apiRef.current ?? (window as any).wavoip);
+      if (cancelled || !wp) { if (!active) { try { pruneSdkDeviceCache([]); } catch {} } return; }
+      await syncSdkDevices(allowed);
     })();
     return () => { cancelled = true; };
-  }, [clientId, ensureWebphone, loadPlanAndDevices]);
+  }, [clientId, user?.id, ensureWebphone, loadPlanAndDevices, syncSdkDevices]);
 
   const refreshDevices = useCallback(async () => {
-    const { tokens } = await loadPlanAndDevices();
-    const wp: any = await ensureWebphone();
-    if (!wp) return;
-    const current = (wp?.device?.get?.() ?? []).map((d: any) => d.token);
-    for (const t of tokens) {
-      if (!current.includes(t)) {
-        try { wp.device.add(t, true); } catch {}
-      }
-      try { wp.device.enable(t); } catch {}
-      try { supabase.functions.invoke('wavoip-configure-webhook', { body: { device_token: t } }); } catch {}
-    }
-    for (const t of current) {
-      if (!tokens.includes(t)) {
-        try { wp.device.remove(t); } catch {}
-      }
-    }
-  }, [ensureWebphone, loadPlanAndDevices]);
+    const { active, tokens } = await loadPlanAndDevices();
+    if (active) await ensureWebphone();
+    await syncSdkDevices(active ? tokens : []);
+  }, [ensureWebphone, loadPlanAndDevices, syncSdkDevices]);
+
+  // Mudanças de permissão (dono do aparelho / compartilhamento) refletem na hora.
+  useEffect(() => {
+    if (!clientId || !user?.id) return;
+    const channel = (supabase as any)
+      .channel(`wavoip-access-${clientId}-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wavoip_devices', filter: `client_id=eq.${clientId}` }, () => { void refreshDevices(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wavoip_device_members', filter: `app_user_id=eq.${Number(user.id)}` }, () => { void refreshDevices(); })
+      .subscribe();
+    return () => { try { (supabase as any).removeChannel(channel); } catch {} };
+  }, [clientId, user?.id, refreshDevices]);
+
 
   // ============================================================
   // Reconciliação contínua: status real do SDK -> DB e UI.
