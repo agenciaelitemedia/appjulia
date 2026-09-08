@@ -211,8 +211,9 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">Leads do mês</span>
               <span className="font-medium">
-                {agent.leads_received}/{agent.plan_limit}
+                {leadsLoading && !leadsMap ? '…' : leadsReceived}/{agent.plan_limit}
               </span>
+
             </div>
             <Progress value={leadsPercentage} className="h-2" />
           </div>
