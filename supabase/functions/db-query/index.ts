@@ -736,23 +736,8 @@ serve(async (req) => {
       }
 
       case 'create_vw_equipe': {
-        await ensureEffectiveClientFn(sql);
-        await sql.unsafe(`
-          CREATE OR REPLACE VIEW vw_equipe AS
-          SELECT
-            u.id,
-            u.name,
-            u.email,
-            u.role,
-            u.user_id          AS parent_user_id,
-            public.fn_effective_client_id(u.id) AS client_id,
-            c.photo,
-            c.business_name    AS client_business_name
-          FROM users u
-          LEFT JOIN clients c ON c.id = public.fn_effective_client_id(u.id)
-          WHERE u.role IN ('admin','user','colaborador','time','advogado','comercial')
-        `);
-        result = [{ success: true, message: 'vw_equipe created/updated' }];
+        const ok = await ensureVwEquipe(sql, true);
+        result = [{ success: ok, message: ok ? 'vw_equipe created/updated' : 'vw_equipe refresh failed' }];
         break;
       }
 
