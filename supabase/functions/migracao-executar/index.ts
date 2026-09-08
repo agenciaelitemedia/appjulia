@@ -184,12 +184,7 @@ GRANT EXECUTE ON FUNCTION public.exec_sql TO anon;`;
   }
 
   // Tables
-  const { data: tables, error: tablesErr } = await source
-    .from("information_schema.tables")
-    .select("table_name")
-    .eq("table_schema", "public")
-    .eq("table_type", "BASE TABLE")
-    .order("table_name");
+  const { data: tables, error: tablesErr } = await source.rpc("migration_list_tables");
 
   if (tablesErr) throw new Error(`list tables: ${tablesErr.message}`);
 
@@ -309,12 +304,8 @@ async function doDataChunk(
 // 4. VERIFY
 // ─────────────────────────────────────────────────────────────────────────────
 async function doVerify(source: SupabaseClient, target: SupabaseClient) {
-  const { data: tables } = await source
-    .from("information_schema.tables")
-    .select("table_name")
-    .eq("table_schema", "public")
-    .eq("table_type", "BASE TABLE")
-    .order("table_name");
+  const { data: tables, error: tablesErr } = await source.rpc("migration_list_tables");
+  if (tablesErr) throw new Error(`list tables: ${tablesErr.message}`);
 
   const result: any[] = [];
   for (const t of tables || []) {
