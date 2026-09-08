@@ -743,7 +743,7 @@ serve(async (req) => {
 
       case 'get_team_by_client': {
         const { userId, role } = data;
-        const hasFn = await ensureEffectiveClientFn(sql);
+        const hasFn = await ensureVwEquipe(sql);
         const meExpr = hasFn
           ? 'public.fn_effective_client_id(u.id)'
           : 'COALESCE(u.client_id, p.client_id)';
