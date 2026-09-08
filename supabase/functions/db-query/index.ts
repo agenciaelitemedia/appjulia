@@ -1510,6 +1510,17 @@ serve(async (req) => {
           `UPDATE users SET name = $1, user_id = $2, role = $3, use_custom_permissions = TRUE, updated_at = now() WHERE id = $4`,
           [name, principalUserId, memberRole, memberId]
         );
+
+        // Reaplica o escritório resolvido em cadeia (titular pode ter mudado).
+        if (principalUserId && (await ensureEffectiveClientFn(sql))) {
+          await sql.unsafe(
+            `UPDATE users
+                SET client_id = COALESCE(public.fn_effective_client_id($1), client_id),
+                    updated_at = now()
+              WHERE id = $2`,
+            [principalUserId, memberId]
+          );
+        }
         
         // Sync user_agents: delete existing, insert new
         await sql.unsafe(
