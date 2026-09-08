@@ -689,10 +689,10 @@ serve(async (req) => {
 
       case 'get_effective_client_id': {
         const { userId } = data;
+        const hasFn = await ensureEffectiveClientFn(sql);
         result = await sql.unsafe(
           `SELECT COALESCE(
-              u.client_id,
-              parent.client_id,
+              ${hasFn ? 'public.fn_effective_client_id(u.id)' : 'COALESCE(u.client_id, parent.client_id)'},
               (SELECT a.client_id FROM user_agents ua JOIN agents a ON a.id = ua.agent_id WHERE ua.user_id = u.id AND a.client_id IS NOT NULL LIMIT 1)
             )::text AS client_id
              FROM users u
@@ -705,6 +705,7 @@ serve(async (req) => {
       }
 
       case 'create_vw_equipe': {
+        await ensureEffectiveClientFn(sql);
         await sql.unsafe(`
           CREATE OR REPLACE VIEW vw_equipe AS
           SELECT
@@ -713,12 +714,11 @@ serve(async (req) => {
             u.email,
             u.role,
             u.user_id          AS parent_user_id,
-            COALESCE(u.client_id, p.client_id) AS client_id,
+            public.fn_effective_client_id(u.id) AS client_id,
             c.photo,
             c.business_name    AS client_business_name
           FROM users u
-          LEFT JOIN users   p ON p.id = u.user_id
-          LEFT JOIN clients c ON c.id = COALESCE(u.client_id, p.client_id)
+          LEFT JOIN clients c ON c.id = public.fn_effective_client_id(u.id)
           WHERE u.role IN ('admin','user','colaborador','time','advogado','comercial')
         `);
         result = [{ success: true, message: 'vw_equipe created/updated' }];
@@ -727,8 +727,12 @@ serve(async (req) => {
 
       case 'get_team_by_client': {
         const { userId, role } = data;
+        const hasFn = await ensureEffectiveClientFn(sql);
+        const meExpr = hasFn
+          ? 'public.fn_effective_client_id(u.id)'
+          : 'COALESCE(u.client_id, p.client_id)';
         const me = await sql.unsafe(
-          `SELECT COALESCE(u.client_id, p.client_id) AS client_id
+          `SELECT ${meExpr} AS client_id
              FROM users u LEFT JOIN users p ON p.id = u.user_id
             WHERE u.id = $1 LIMIT 1`,
           [userId]
