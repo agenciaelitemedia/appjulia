@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
     const body = await req.json().catch(() => ({} as any));
 
-    let q = admin.from('wavoip_devices').select('id,device_token,client_id,connection_status,webhook_last_received_at,connected_at');
+    let q = admin.from('wavoip_devices').select('id,device_token,client_id,connection_status,webhook_last_received_at,connected_at,webhook_status,webhook_last_error');
     if (body?.device_token) q = q.eq('device_token', String(body.device_token));
     else if (body?.client_id) q = q.eq('client_id', Number(body.client_id));
     else q = q.eq('connection_status', 'connected');
@@ -47,19 +47,29 @@ Deno.serve(async (req) => {
         }
       }
 
-      let status: 'ok' | 'stale' | 'never';
+      let status: 'ok' | 'stale' | 'never' | 'registered';
       if (!lastReceived) status = 'never';
       else if (new Date(lastReceived).getTime() < cutoff) status = 'stale';
       else status = 'ok';
+
+      // Webhook já registrado via API (wavoip-configure-webhook) mas ainda sem evento:
+      // mantém o estado/erro gravados pelo registro em vez de pedir configuração manual.
+      const prevStatus = (d as any).webhook_status as string | null;
+      const prevErr = (d as any).webhook_last_error as string | null;
+      const registeredNoEvents = status === 'never' && (prevStatus === 'registered' || (prevErr ?? '').startsWith('Falha ao registrar'));
+      if (registeredNoEvents && prevStatus === 'registered') status = 'registered';
 
       await admin.from('wavoip_devices').update({
         webhook_status: status,
         webhook_url: expected,
         webhook_checked_at: nowIso,
         webhook_last_received_at: lastReceived,
-        webhook_last_error: status === 'ok' ? null : (status === 'never'
-          ? 'Nenhum evento recebido. Configure o webhook no painel Wavoip → Dispositivo → Integrações → Webhook.'
-          : `Sem eventos há mais de ${STALE_DAYS} dias. Reabra o painel Wavoip e confirme a URL.`),
+        webhook_last_error: status === 'ok' ? null
+          : status === 'registered' ? 'Webhook registrado na Wavoip; aguardando o primeiro evento.'
+          : registeredNoEvents ? prevErr
+          : (status === 'never'
+            ? 'Nenhum evento recebido. Configure o webhook no painel Wavoip → Dispositivo → Integrações → Webhook.'
+            : `Sem eventos há mais de ${STALE_DAYS} dias. Reabra o painel Wavoip e confirme a URL.`),
       }).eq('id', d.id);
 
       results.push({ device_id: d.id, status, expected, lastReceived });

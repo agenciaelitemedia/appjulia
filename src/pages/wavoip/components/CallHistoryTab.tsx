@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, PhoneIncoming, PhoneOutgoing, Smartphone, User } from 'lucide-react';
+import { RefreshCw, PhoneIncoming, PhoneOutgoing, Smartphone, User, CloudDownload } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,6 +32,15 @@ function durationLabel(s: number) {
   const m = Math.floor(sec / 60);
   const r = sec % 60;
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
+}
+
+function sourceLabel(c: WavoipCall): string {
+  const src = String((c as any).metadata?.source ?? '').toLowerCase();
+  if (src === 'webhook') return 'Webhook';
+  if (src === 'sync-history') return 'Sincronização';
+  if (src === 'fetch-call-details' || src === 'reconcile') return 'API';
+  if (src.startsWith('webphone')) return 'Discador';
+  return 'ZAP Call';
 }
 
 function statusInfo(c: WavoipCall): { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' } {
@@ -106,6 +115,31 @@ export function CallHistoryTab() {
     }
   }, [calls, planAllowsTranscription, autoDispatched]);
 
+  const [syncing, setSyncing] = useState(false);
+  const syncWithWavoip = async () => {
+    if (!clientId) return;
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('wavoip-sync-history', { body: { client_id: clientId } });
+      if (error) throw error;
+      const devs: any[] = data?.devices ?? [];
+      const upserts = devs.reduce((a, d) => a + (d.upserts || 0), 0);
+      const failed = devs.filter((d) => d.error || d.skipped);
+      if (failed.length && upserts === 0) {
+        toast.error(`Não foi possível sincronizar: ${failed[0].error ?? failed[0].skipped}`);
+      } else {
+        toast.success(`${upserts} chamada(s) sincronizada(s)${data?.stuck_queued ? ` · ${data.stuck_queued} em atualização` : ''}`);
+      }
+      // A fila de reconciliação roda a cada 1 min; processa já para fechar as chamadas presas.
+      if (data?.stuck_queued) {
+        await supabase.functions.invoke('wavoip-reconcile-runner', { body: { client_id: clientId, force: true } }).catch(() => {});
+      }
+      await refetch();
+    } catch (e: any) {
+      toast.error(e?.message || 'Falha ao sincronizar');
+    } finally { setSyncing(false); }
+  };
+
   const processQueue = async () => {
     setProcessing(true);
     try {
@@ -147,6 +181,15 @@ export function CallHistoryTab() {
           <CardTitle>Histórico de Chamadas</CardTitle>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{filtered.length} de {calls.length} registro(s)</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={syncWithWavoip}
+              disabled={syncing || isLoading}
+              title="Busca o histórico oficial na ZAP Call (Wavoip) e atualiza chamadas presas em CHAMANDO"
+            >
+              <CloudDownload className={`h-4 w-4 mr-1 ${syncing ? 'animate-pulse' : ''}`} /> Sincronizar com ZAP Call
+            </Button>
             {hasPending && (
               <Button
                 variant="default"
@@ -220,7 +263,7 @@ export function CallHistoryTab() {
                 const deviceLabel = c.device_id ? (deviceNames[c.device_id] ?? 'Dispositivo') : '-';
                 return (
                   <TableRow key={c.id}>
-                    <TableCell><Badge variant="outline">Wavoip</Badge></TableCell>
+                    <TableCell><Badge variant="outline" title={`Origem do registro: ${sourceLabel(c)}`}>{sourceLabel(c)}</Badge></TableCell>
                     <TableCell className="text-xs">
                       <span className="inline-flex items-center gap-1">
                         <Smartphone className="h-3 w-3 text-muted-foreground" />
