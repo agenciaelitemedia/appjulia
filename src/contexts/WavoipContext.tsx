@@ -84,7 +84,19 @@ function pruneSdkDeviceCache(allowed: string[]) {
 
 export function WavoipProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const clientId = user?.client_id ?? null;
+  // Escritório efetivo: membros de equipe herdam o client_id do titular.
+  const [clientId, setClientId] = useState<number | null>(user?.client_id ?? null);
+  useEffect(() => {
+    let cancelled = false;
+    if (user?.client_id) { setClientId(Number(user.client_id)); return; }
+    if (!user?.id) { setClientId(null); return; }
+    (async () => {
+      const resolved = await resolveEffectiveClientId(user as any, 'WavoipContext');
+      if (!cancelled) setClientId(resolved ? Number(resolved) : null);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.client_id, user?.id]);
+
   const [hasActivePlan, setHasActivePlan] = useState(false);
   const [devicesCount, setDevicesCount] = useState(0);
   const [ready, setReady] = useState(false);
