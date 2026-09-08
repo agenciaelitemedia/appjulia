@@ -152,7 +152,9 @@ Deno.serve(async (req) => {
       from_number: item.caller ?? log.from_number,
       to_number: item.receiver ?? log.to_number,
       started_at: log.started_at ?? (item.created_date ? new Date(item.created_date).toISOString() : null),
-      ended_at: log.ended_at ?? (item.last_updated_date ? new Date(item.last_updated_date).toISOString() : null),
+      ended_at: log.ended_at
+        ?? (item.last_updated_date ? new Date(item.last_updated_date).toISOString() : null)
+        ?? (['ended', 'cancelled', 'rejected', 'not_answered', 'failed', 'handled_remotely', 'missed'].includes(canonical) ? (log.started_at ?? new Date().toISOString()) : null),
       answered_at: log.answered_at ?? (durationSec > 0 && item.created_date ? new Date(item.created_date).toISOString() : null),
       recording_status: newRecStatus,
       metadata: meta,
