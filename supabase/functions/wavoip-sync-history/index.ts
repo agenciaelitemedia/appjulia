@@ -131,6 +131,20 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({} as any));
     const limit = Math.min(Number(body?.limit) || 100, 500);
 
+    // Diagnóstico: testa endpoints da Wavoip e devolve só status HTTP + chaves (nunca tokens).
+    if (body?.probe && body?.provider_id) {
+      const { jwt, apiBase } = await getProviderToken(supabaseUrl, serviceKey, String(body.provider_id));
+      const paths: string[] = body.paths ?? ['/v2/devices/me', '/v2/customer/me', '/user/me', '/devices'];
+      const out: any[] = [];
+      for (const p of paths) {
+        const res = await fetch(`${apiBase}${p}`, { headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' } });
+        const j: any = await res.json().catch(() => null);
+        const first = extractList(j)[0];
+        out.push({ path: p, status: res.status, keys: j && typeof j === 'object' ? Object.keys(j).slice(0, 15) : null, firstKeys: first ? Object.keys(first).slice(0, 40) : null, msg: res.ok ? undefined : JSON.stringify(j ?? '').slice(0, 200) });
+      }
+      return new Response(JSON.stringify({ ok: true, probe: out }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // Seleciona dispositivos: filtro explícito, ou conectados + com atividade nos últimos 30 dias.
     let dq = admin.from('wavoip_devices').select('id,device_token,client_id,user_id,app_user_id,connection_status,provider_id,wavoip_device_id,device_name');
     if (body?.device_token) dq = dq.eq('device_token', String(body.device_token));
