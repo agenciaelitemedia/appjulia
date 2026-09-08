@@ -147,6 +147,15 @@ export function CallHistoryTab() {
           <CardTitle>Histórico de Chamadas</CardTitle>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{filtered.length} de {calls.length} registro(s)</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={syncWithWavoip}
+              disabled={syncing || isLoading}
+              title="Busca o histórico oficial na ZAP Call (Wavoip) e atualiza chamadas presas em CHAMANDO"
+            >
+              <CloudDownload className={`h-4 w-4 mr-1 ${syncing ? 'animate-pulse' : ''}`} /> Sincronizar com ZAP Call
+            </Button>
             {hasPending && (
               <Button
                 variant="default"
