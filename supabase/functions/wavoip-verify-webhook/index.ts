@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
     const body = await req.json().catch(() => ({} as any));
 
-    let q = admin.from('wavoip_devices').select('id,device_token,client_id,connection_status,webhook_last_received_at,connected_at');
+    let q = admin.from('wavoip_devices').select('id,device_token,client_id,connection_status,webhook_last_received_at,connected_at,webhook_status,webhook_last_error');
     if (body?.device_token) q = q.eq('device_token', String(body.device_token));
     else if (body?.client_id) q = q.eq('client_id', Number(body.client_id));
     else q = q.eq('connection_status', 'connected');
