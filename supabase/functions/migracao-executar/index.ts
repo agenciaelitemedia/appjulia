@@ -184,12 +184,7 @@ GRANT EXECUTE ON FUNCTION public.exec_sql TO anon;`;
   }
 
   // Tables
-  const { data: tables, error: tablesErr } = await source
-    .from("information_schema.tables")
-    .select("table_name")
-    .eq("table_schema", "public")
-    .eq("table_type", "BASE TABLE")
-    .order("table_name");
+  const { data: tables, error: tablesErr } = await source.rpc("migration_list_tables");
 
   if (tablesErr) throw new Error(`list tables: ${tablesErr.message}`);
 
@@ -200,12 +195,7 @@ GRANT EXECUTE ON FUNCTION public.exec_sql TO anon;`;
     const table = t.table_name as string;
     if (table.startsWith("migration_")) continue;
 
-    const { data: cols } = await source
-      .from("information_schema.columns")
-      .select("column_name,data_type,character_maximum_length,numeric_precision,numeric_scale,udt_name,column_default,is_nullable")
-      .eq("table_schema", "public")
-      .eq("table_name", table)
-      .order("ordinal_position");
+    const { data: cols } = await source.rpc("migration_list_columns", { p_table: table });
 
     if (!cols || cols.length === 0) continue;
 
@@ -309,12 +299,8 @@ async function doDataChunk(
 // 4. VERIFY
 // ─────────────────────────────────────────────────────────────────────────────
 async function doVerify(source: SupabaseClient, target: SupabaseClient) {
-  const { data: tables } = await source
-    .from("information_schema.tables")
-    .select("table_name")
-    .eq("table_schema", "public")
-    .eq("table_type", "BASE TABLE")
-    .order("table_name");
+  const { data: tables, error: tablesErr } = await source.rpc("migration_list_tables");
+  if (tablesErr) throw new Error(`list tables: ${tablesErr.message}`);
 
   const result: any[] = [];
   for (const t of tables || []) {

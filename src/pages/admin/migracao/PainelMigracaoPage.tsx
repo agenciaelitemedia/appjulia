@@ -209,21 +209,17 @@ export default function PainelMigracaoPage() {
     }
   }
 
-  async function loadTables() {
-    const { data, error } = await (supabase as any)
-      .from('information_schema.tables')
-      .select('table_name')
-      .eq('table_schema', 'public')
-      .eq('table_type', 'BASE TABLE')
-      .order('table_name');
+  async function loadTables(): Promise<string[]> {
+    const { data, error } = await (supabase as any).rpc('migration_list_tables');
     if (error) {
       toast.error(error.message);
-      return;
+      return [];
     }
     const names = (data || [])
-      .map((t: any) => t.table_name as string)
+      .map((t: any) => (typeof t === 'string' ? t : t.table_name) as string)
       .filter((n: string) => !n.startsWith('migration_') && !SKIP_DATA_DEFAULT.has(n));
     setTables(names);
+    return names;
   }
 
   async function copyTable(table: string) {
@@ -250,9 +246,19 @@ export default function PainelMigracaoPage() {
   }
 
   async function copyAllTables() {
-    if (!tables.length) await loadTables();
-    for (const t of tables.length ? tables : []) {
-      await copyTable(t);
+    setLoading((l) => ({ ...l, copyAll: true }));
+    try {
+      const list = tables.length ? tables : await loadTables();
+      if (!list.length) {
+        toast.error('Nenhuma tabela para copiar.');
+        return;
+      }
+      for (const t of list) {
+        await copyTable(t);
+      }
+      toast.success(`${list.length} tabelas processadas`);
+    } finally {
+      setLoading((l) => ({ ...l, copyAll: false }));
     }
   }
 
@@ -476,7 +482,7 @@ export default function PainelMigracaoPage() {
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={loadTables} disabled={loading['loadTables']}>Listar tabelas</Button>
-                <Button onClick={copyAllTables} disabled={loading['copyAll'] || !targetUrl || !targetKey || !tables.length}>
+                <Button onClick={copyAllTables} disabled={loading['copyAll'] || !targetUrl || !targetKey}>
                   {loading['copyAll'] ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
                   Copiar todas
                 </Button>

@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.migration_list_tables() TO anon;
