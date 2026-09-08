@@ -34,6 +34,15 @@ function durationLabel(s: number) {
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`;
 }
 
+function sourceLabel(c: WavoipCall): string {
+  const src = String((c as any).metadata?.source ?? '').toLowerCase();
+  if (src === 'webhook') return 'Webhook';
+  if (src === 'sync-history') return 'Sincronização';
+  if (src === 'fetch-call-details' || src === 'reconcile') return 'API';
+  if (src.startsWith('webphone')) return 'Discador';
+  return 'ZAP Call';
+}
+
 function statusInfo(c: WavoipCall): { label: string; variant: 'default' | 'destructive' | 'secondary' | 'outline' } {
   const s = (c.status || '').toLowerCase();
   if (s === 'ended') return { label: 'ENCERRADA', variant: 'default' };
