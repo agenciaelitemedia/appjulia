@@ -656,17 +656,16 @@ serve(async (req) => {
                LIMIT 1
              ) a ON true
              WHERE ua.user_id = $1
-           ), sess AS (
-             SELECT ag.cod_agent, s.id AS session_id
-             FROM ag
-             JOIN sessions s ON s.agent_id = ag.agent_id
+           ), month_sessions AS (
+             SELECT DISTINCT lm.session_id
+             FROM log_messages lm
+             WHERE lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
            )
-           SELECT sess.cod_agent,
-                  COUNT(DISTINCT lm.session_id) AS leads_received
-           FROM sess
-           JOIN log_messages lm
-             ON lm.session_id = sess.session_id
-            AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+           SELECT ag.cod_agent,
+                  COUNT(*) AS leads_received
+           FROM ag
+           JOIN sessions s ON s.agent_id = ag.agent_id
+           JOIN month_sessions ms ON ms.session_id = s.id
            GROUP BY 1`,
           [userId]
         );
