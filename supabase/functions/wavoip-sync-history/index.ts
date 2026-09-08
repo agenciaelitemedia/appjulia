@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
     }
 
     // Seleciona dispositivos: filtro explícito, ou conectados + com atividade nos últimos 30 dias.
-    let dq = admin.from('wavoip_devices').select('id,device_token,client_id,user_id,app_user_id,connection_status,provider_id,wavoip_device_id,device_name');
+    let dq = admin.from('wavoip_devices').select('id,device_token,client_id,user_id,app_user_id,connection_status,provider_id,wavoip_device_id,device_name,wavoip_raw');
     if (body?.device_token) dq = dq.eq('device_token', String(body.device_token));
     else if (body?.client_id) dq = dq.eq('client_id', Number(body.client_id));
     const { data: allDevices, error: devErr } = await dq;
