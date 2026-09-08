@@ -171,30 +171,66 @@ Deno.serve(async (req) => {
 
     const summary: any[] = [];
     const wait = (globalThis as any)?.EdgeRuntime?.waitUntil ?? ((p: Promise<unknown>) => p);
+    const digits = (v: any) => String(v ?? '').replace(/\D/g, '');
+    const last8 = (v: any) => digits(v).slice(-8);
 
+    // A Wavoip só expõe o histórico por CONTA (GET /v2/calls, paginado por cursor);
+    // o endpoint por dispositivo devolve 401. Agrupamos por provedor e atribuímos
+    // cada chamada a um dispositivo nosso por: log existente → id_session → telefone.
+    const byProvider = new Map<string, any[]>();
     for (const dev of devices) {
-      if (!dev.provider_id || !dev.wavoip_device_id) {
-        summary.push({ device: dev.device_name, skipped: 'sem provider_id/wavoip_device_id' });
-        continue;
-      }
-      let calls: any[] = [];
+      if (!dev.provider_id) { summary.push({ device: dev.device_name, skipped: 'sem provider_id' }); continue; }
+      byProvider.set(dev.provider_id, [...(byProvider.get(dev.provider_id) ?? []), dev]);
+    }
+
+    for (const [providerId, provDevices] of byProvider) {
+      let jwt: string, apiBase: string;
+      try { ({ jwt, apiBase } = await getProviderToken(supabaseUrl, serviceKey, providerId)); }
+      catch (e) { for (const d of provDevices) summary.push({ device: d.device_name, error: String((e as Error)?.message ?? e) }); continue; }
+
+      // Mapa token → { id, phone } do painel Wavoip, para casar com nossos dispositivos.
+      const meById = new Map<number, any>();
+      const meByToken = new Map<string, any>();
       try {
-        const { jwt, apiBase } = await getProviderToken(supabaseUrl, serviceKey, dev.provider_id);
-        const r = await fetchDeviceCalls(apiBase, jwt, String(dev.wavoip_device_id), dev.device_token ?? null, limit);
-        if (r.error) {
-          console.warn(`[wavoip-sync-history] device=${dev.device_name} http=${r.status} ${r.error}`);
-          summary.push({ device: dev.device_name, error: `http_${r.status}`, body: r.error });
-          continue;
-        }
-        console.log(`[wavoip-sync-history] device=${dev.device_name} variant=${r.variant} calls=${r.list.length}`);
-        calls = r.list;
-      } catch (e) {
-        console.warn(`[wavoip-sync-history] device=${dev.device_name} err`, e);
-        summary.push({ device: dev.device_name, error: String((e as Error)?.message ?? e) });
+        const r = await fetch(`${apiBase}/v2/devices/me`, { headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' } });
+        for (const d of extractList(await r.json().catch(() => null))) { meById.set(Number(d.id), d); if (d.token) meByToken.set(String(d.token), d); }
+      } catch (e) { console.warn('[wavoip-sync-history] devices/me failed', e); }
+
+      const devByWavoipId = new Map<number, any>();
+      const devByPhone8 = new Map<string, any>();
+      for (const d of provDevices) {
+        const me = d.device_token ? meByToken.get(String(d.device_token)) : null;
+        if (d.wavoip_device_id) devByWavoipId.set(Number(d.wavoip_device_id), d);
+        if (me?.id) devByWavoipId.set(Number(me.id), d);
+        const phone = me?.phone ?? (d as any).wavoip_raw?.phone;
+        if (phone && last8(phone)) devByPhone8.set(last8(phone), d);
+      }
+
+      // Busca paginada do histórico da conta.
+      const calls: any[] = [];
+      let cursor: string | null = null;
+      let pages = 0;
+      let fetchErr: string | null = null;
+      do {
+        const url = `${apiBase}/v2/calls?limit=${Math.min(limit, 100)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' } });
+        const json: any = await res.json().catch(() => null);
+        if (!res.ok) { fetchErr = `http_${res.status} ${JSON.stringify(json ?? '').slice(0, 200)}`; break; }
+        const page = extractList(json);
+        calls.push(...page);
+        cursor = page.length && json?.nextCursor ? String(json.nextCursor) : null;
+        pages++;
+      } while (cursor && calls.length < limit && pages < 10);
+      if (fetchErr) {
+        console.warn(`[wavoip-sync-history] provider=${providerId} ${fetchErr}`);
+        for (const d of provDevices) summary.push({ device: d.device_name, error: fetchErr });
         continue;
       }
 
-      let upserts = 0, triggered = 0, errors = 0;
+      const perDevice = new Map<string, { device: string; fetched: number; upserts: number; errors: number; recording_triggers: number }>();
+      for (const d of provDevices) perDevice.set(d.id, { device: d.device_name, fetched: 0, upserts: 0, errors: 0, recording_triggers: 0 });
+      let unmatched = 0;
+
       for (const c of calls) {
         const wid = pickStr(c?.whatsapp_call_id, c?.call_id, c?.id_whatsapp, c?.id);
         if (!wid) continue;
@@ -205,21 +241,34 @@ Deno.serve(async (req) => {
         const durationSec = Math.round(pickNum(c?.duration, c?.duration_seconds));
         const startedAt = toIso(c?.created_date ?? c?.started_at ?? c?.start_at);
         const endedAt = toIso(c?.last_updated_date ?? c?.ended_at ?? c?.end_at);
+        const fromNumber = pickStr(c?.caller, c?.from, c?.from_number);
+        const toNumber = pickStr(c?.receiver, c?.to, c?.to_number);
 
         const { data: existing } = await admin.from('wavoip_call_logs')
           .select('id,device_id,client_id,app_user_id,user_id,recording_status,recording_url,answered_at,metadata')
           .eq('whatsapp_call_id', wid).maybeSingle();
 
+        // Atribuição ao dispositivo.
+        let dev: any = existing?.device_id ? provDevices.find((d: any) => d.id === existing.device_id) : null;
+        if (!dev && c?.id_session != null) dev = devByWavoipId.get(Number(c.id_session)) ?? null;
+        if (!dev) {
+          const ours = direction === 'inbound' ? toNumber : fromNumber;
+          dev = devByPhone8.get(last8(ours)) ?? null;
+        }
+        if (!dev && !existing) { unmatched++; continue; }
+        const stat = dev ? perDevice.get(dev.id)! : null;
+        if (stat) stat.fetched++;
+
         const row: any = {
           whatsapp_call_id: wid,
-          device_id: existing?.device_id ?? dev.id,
-          client_id: existing?.client_id ?? dev.client_id,
-          app_user_id: existing?.app_user_id ?? dev.app_user_id,
-          user_id: existing?.user_id ?? dev.user_id,
+          device_id: existing?.device_id ?? dev?.id ?? null,
+          client_id: existing?.client_id ?? dev?.client_id ?? null,
+          app_user_id: existing?.app_user_id ?? dev?.app_user_id ?? null,
+          user_id: existing?.user_id ?? dev?.user_id ?? null,
           direction,
           status,
-          from_number: pickStr(c?.caller, c?.from, c?.from_number),
-          to_number: pickStr(c?.receiver, c?.to, c?.to_number),
+          from_number: fromNumber,
+          to_number: toNumber,
           whatsapp_jid: pickStr(c?.jid, c?.whatsapp_jid) ?? undefined,
           started_at: startedAt,
           answered_at: existing?.answered_at ?? (durationSec > 0 ? startedAt : null),
@@ -228,6 +277,7 @@ Deno.serve(async (req) => {
           end_reason: rawStatus,
           metadata: { ...((existing?.metadata as any) ?? {}), source: 'sync-history', payload: c, synced_at: new Date().toISOString() },
         };
+        if (!row.client_id) { unmatched++; continue; }
         if (existing?.recording_status) row.recording_status = existing.recording_status;
         if (existing?.recording_url) row.recording_url = existing.recording_url;
 
@@ -246,16 +296,17 @@ Deno.serve(async (req) => {
           .upsert(row, { onConflict: 'whatsapp_call_id' })
           .select('id,recording_status,ended_at')
           .single();
-        if (upErr) { errors++; console.warn('[wavoip-sync-history] upsert err', upErr.message); continue; }
-        upserts++;
+        if (upErr) { if (stat) stat.errors++; console.warn('[wavoip-sync-history] upsert err', upErr.message); continue; }
+        if (stat) stat.upserts++;
         const recReady = String(c?.record_status ?? '').toUpperCase() === 'READY';
         if (TERMINAL.has(status) && durationSec > 0 && recReady && upRow?.recording_status !== 'available') {
           wait(triggerFetchRecording(supabaseUrl, serviceKey, wid));
-          triggered++;
+          if (stat) stat.recording_triggers++;
         }
       }
-      console.log(`[wavoip-sync-history] device=${dev.device_name} fetched=${calls.length} upserts=${upserts} errors=${errors}`);
-      summary.push({ device: dev.device_name, fetched: calls.length, upserts, errors, recording_triggers: triggered });
+      console.log(`[wavoip-sync-history] provider=${providerId} fetched=${calls.length} pages=${pages} unmatched=${unmatched}`);
+      for (const s of perDevice.values()) summary.push(s);
+      summary.push({ provider: providerId, fetched_total: calls.length, unmatched });
     }
 
     // Registros presos em status não terminal há mais de 15 min → fila de reconciliação.
