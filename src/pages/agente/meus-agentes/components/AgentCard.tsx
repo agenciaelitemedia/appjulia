@@ -14,7 +14,9 @@ import { ConnectionStatusBadge } from './ConnectionStatusBadge';
 import { ConnectionControlButtons } from './ConnectionControlButtons';
 import { useAgentAliases, getDefaultAlias } from '@/hooks/useAgentAliases';
 import { useAgentQueues } from '@/pages/agente/filas/hooks/useAgentQueues';
+import { useAgentsLeadsCount } from '../hooks/useAgentsLeadsCount';
 import { toast } from 'sonner';
+
 
 interface AgentCardProps {
   agent: UserAgent;
@@ -46,11 +48,14 @@ export function AgentCard({ agent, isMonitored = false }: AgentCardProps) {
   );
 
   const { data: agentQueues } = useAgentQueues(agent.cod_agent);
+  const { data: leadsMap, isLoading: leadsLoading } = useAgentsLeadsCount();
   const alias = getAlias(agent.cod_agent, agent.business_name);
 
+  const leadsReceived = leadsMap?.get(agent.cod_agent) ?? Number(agent.leads_received) ?? 0;
   const leadsPercentage = agent.plan_limit 
-    ? Math.min((agent.leads_received / agent.plan_limit) * 100, 100)
+    ? Math.min((leadsReceived / agent.plan_limit) * 100, 100)
     : 0;
+
 
   const canEdit = !isMonitored && (agent.can_edit_config || agent.can_edit_prompt);
 
