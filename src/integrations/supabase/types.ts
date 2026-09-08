@@ -12772,6 +12772,19 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: number
       }
+      migration_list_columns: {
+        Args: { p_table: string }
+        Returns: {
+          character_maximum_length: number
+          column_default: string
+          column_name: string
+          data_type: string
+          is_nullable: string
+          numeric_precision: number
+          numeric_scale: number
+          udt_name: string
+        }[]
+      }
       migration_list_tables: {
         Args: never
         Returns: {
