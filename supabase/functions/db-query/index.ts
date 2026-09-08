@@ -329,10 +329,15 @@ const VW_EQUIPE_SQL = `
     u.user_id          AS parent_user_id,
     public.fn_effective_client_id(u.id) AS client_id,
     c.photo,
-    c.business_name    AS client_business_name
+    c.business_name    AS client_business_name,
+    CASE
+      WHEN public.fn_effective_client_id(u.id) IS NULL THEN 'outros'::text
+      WHEN u.role::text = ANY (ARRAY['admin'::text, 'colaborador'::text, 'user'::text]) THEN 'dono'::text
+      ELSE 'equipe'::text
+    END AS user_funcao
   FROM users u
+  LEFT JOIN users p ON p.id = u.user_id
   LEFT JOIN clients c ON c.id = public.fn_effective_client_id(u.id)
-  WHERE u.role IN ('admin','user','colaborador','time','advogado','comercial')
 `;
 
 let vwEquipeReady = false;
