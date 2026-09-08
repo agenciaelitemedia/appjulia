@@ -9,13 +9,24 @@ export interface AlertCrmCardsFilters {
   agentCodes: string[];
   dateFrom: string;
   dateTo: string;
+  /** Escritório do usuário logado — null apenas para admin global. */
+  clientId?: string | null;
+  /** Rede de segurança: agentes visíveis ao usuário (cards antigos sem client_id). */
+  allowedAgentCodes?: string[];
+  /** Admin global vê todos os escritórios. */
+  isGlobalAdmin?: boolean;
+  enabled?: boolean;
 }
 
 /** Cards do CRM de Notificações no período/agentes selecionados (todos os status). */
 export function useAlertCrmCards(filters: AlertCrmCardsFilters) {
+  const enabled =
+    filters.enabled !== false && (filters.isGlobalAdmin === true || !!filters.clientId);
+
   return useQuery({
     queryKey: ['alerts', 'crm-cards', filters],
     staleTime: 30_000,
+    enabled,
     queryFn: async () => {
       let query = (supabase as any)
         .from(CARDS)
@@ -23,7 +34,14 @@ export function useAlertCrmCards(filters: AlertCrmCardsFilters) {
         .order('updated_at', { ascending: false })
         .limit(2000);
 
-      if (filters.agentCodes.length > 0) query = query.in('cod_agent', filters.agentCodes);
+      if (!filters.isGlobalAdmin && filters.clientId) {
+        query = query.eq('client_id', String(filters.clientId));
+      }
+      if (filters.agentCodes.length > 0) {
+        query = query.in('cod_agent', filters.agentCodes);
+      } else if (!filters.isGlobalAdmin && filters.allowedAgentCodes?.length) {
+        query = query.in('cod_agent', filters.allowedAgentCodes);
+      }
       if (filters.dateFrom) query = query.gte('created_at', `${filters.dateFrom}T00:00:00`);
       if (filters.dateTo) query = query.lte('created_at', `${filters.dateTo}T23:59:59`);
 
