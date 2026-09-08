@@ -624,25 +624,52 @@ serve(async (req) => {
             COALESCE(ua.can_edit_prompt, false) as can_edit_prompt,
             COALESCE(ua.can_edit_config, true) as can_edit_config,
             a.settings,
-            COALESCE(ua.can_edit_config, true) as can_edit_config,
-            COALESCE(ls.leads_received, 0) as leads_received
+            0 as leads_received
           FROM user_agents ua
-          LEFT JOIN agents a ON a.id = ua.agent_id OR a.cod_agent::text = ua.cod_agent::text
+          LEFT JOIN LATERAL (
+            SELECT ag.*
+            FROM agents ag
+            WHERE (ua.agent_id IS NOT NULL AND ag.id = ua.agent_id)
+               OR (ua.agent_id IS NULL AND ag.cod_agent::text = ua.cod_agent::text)
+            LIMIT 1
+          ) a ON true
           LEFT JOIN clients c ON c.id = a.client_id
           LEFT JOIN agents_plan ap ON ap.id = a.agent_plan_id
-          LEFT JOIN LATERAL (
-            SELECT COUNT(DISTINCT s.id) as leads_received
-            FROM sessions s
-            JOIN log_messages lm ON lm.session_id = s.id
-            WHERE s.agent_id = a.id
-              AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
-          ) ls ON true
           WHERE ua.user_id = $1
           ORDER BY c.business_name`,
           [userId]
         );
         break;
       }
+
+      case 'get_user_agents_leads': {
+        const { userId } = data;
+        result = await sql.unsafe(
+          `SELECT
+             ua.cod_agent::text AS cod_agent,
+             COUNT(DISTINCT s.id) AS leads_received
+           FROM user_agents ua
+           LEFT JOIN LATERAL (
+             SELECT ag.id
+             FROM agents ag
+             WHERE (ua.agent_id IS NOT NULL AND ag.id = ua.agent_id)
+                OR (ua.agent_id IS NULL AND ag.cod_agent::text = ua.cod_agent::text)
+             LIMIT 1
+           ) a ON true
+           JOIN sessions s ON s.agent_id = a.id
+           WHERE ua.user_id = $1
+             AND EXISTS (
+               SELECT 1 FROM log_messages lm
+               WHERE lm.session_id = s.id
+                 AND lm.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+             )
+           GROUP BY 1`,
+          [userId]
+        );
+        break;
+      }
+
+
 
       case 'get_effective_client_id': {
         const { userId } = data;
