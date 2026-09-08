@@ -276,6 +276,49 @@ function getPool(caCerts: string[]) {
   return pool;
 }
 
+/**
+ * Resolução do escritório (client_id) em CADEIA: sobe pelos titulares
+ * (users.user_id) até encontrar um client_id definido. Necessário porque um
+ * membro de equipe pode ser vinculado a outro membro (2+ níveis), caso em que
+ * a antiga resolução de um único nível (COALESCE(u.client_id, p.client_id))
+ * devolvia NULL e o membro ficava fora da equipe do escritório.
+ */
+const EFFECTIVE_CLIENT_FN_SQL = `
+  CREATE OR REPLACE FUNCTION public.fn_effective_client_id(p_user_id bigint)
+  RETURNS bigint
+  LANGUAGE sql
+  STABLE
+  AS $fn$
+    WITH RECURSIVE chain AS (
+      SELECT u.id, u.user_id, u.client_id, 1 AS depth
+        FROM users u
+       WHERE u.id = p_user_id
+      UNION ALL
+      SELECT p.id, p.user_id, p.client_id, c.depth + 1
+        FROM users p
+        JOIN chain c ON p.id = c.user_id
+       WHERE c.client_id IS NULL AND c.depth < 10
+    )
+    SELECT client_id
+      FROM chain
+     WHERE client_id IS NOT NULL
+     ORDER BY depth
+     LIMIT 1
+  $fn$;
+`;
+
+let effectiveClientFnReady = false;
+async function ensureEffectiveClientFn(sql: any): Promise<boolean> {
+  if (effectiveClientFnReady) return true;
+  try {
+    await sql.unsafe(EFFECTIVE_CLIENT_FN_SQL);
+    effectiveClientFnReady = true;
+  } catch (error) {
+    console.warn('[db-query] fn_effective_client_id creation failed:', (error as Error)?.message);
+  }
+  return effectiveClientFnReady;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
