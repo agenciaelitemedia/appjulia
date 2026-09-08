@@ -155,12 +155,13 @@ Deno.serve(async (req) => {
       let calls: any[] = [];
       try {
         const { jwt, apiBase } = await getProviderToken(supabaseUrl, serviceKey, dev.provider_id);
-        const r = await fetchDeviceCalls(apiBase, jwt, String(dev.wavoip_device_id), limit);
+        const r = await fetchDeviceCalls(apiBase, jwt, String(dev.wavoip_device_id), dev.device_token ?? null, limit);
         if (r.error) {
           console.warn(`[wavoip-sync-history] device=${dev.device_name} http=${r.status} ${r.error}`);
           summary.push({ device: dev.device_name, error: `http_${r.status}`, body: r.error });
           continue;
         }
+        console.log(`[wavoip-sync-history] device=${dev.device_name} variant=${r.variant} calls=${r.list.length}`);
         calls = r.list;
       } catch (e) {
         console.warn(`[wavoip-sync-history] device=${dev.device_name} err`, e);
