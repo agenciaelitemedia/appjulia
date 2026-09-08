@@ -50,7 +50,13 @@ Deno.serve(async (req) => {
     if (openIds.length) {
       const { error } = await supabase
         .from('chat_conversations')
-        .update({ assigned_to: null, updated_at: nowIso })
+        .update({
+          assigned_to: null,
+          assigned_user_id: null,
+          assigned_at: null,
+          status: 'pending',
+          updated_at: nowIso,
+        })
         .in('id', openIds);
       if (error) throw error;
     }
