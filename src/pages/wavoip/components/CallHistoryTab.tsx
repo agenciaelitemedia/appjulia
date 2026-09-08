@@ -220,7 +220,7 @@ export function CallHistoryTab() {
                 const deviceLabel = c.device_id ? (deviceNames[c.device_id] ?? 'Dispositivo') : '-';
                 return (
                   <TableRow key={c.id}>
-                    <TableCell><Badge variant="outline">Wavoip</Badge></TableCell>
+                    <TableCell><Badge variant="outline" title={`Origem do registro: ${sourceLabel(c)}`}>{sourceLabel(c)}</Badge></TableCell>
                     <TableCell className="text-xs">
                       <span className="inline-flex items-center gap-1">
                         <Smartphone className="h-3 w-3 text-muted-foreground" />
