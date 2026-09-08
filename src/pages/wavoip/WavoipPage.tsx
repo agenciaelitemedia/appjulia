@@ -572,11 +572,11 @@ export default function WavoipPage() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Badge
-                                    variant={d.webhook_status === 'ok' ? 'outline' : 'destructive'}
+                                    variant={d.webhook_status === 'ok' ? 'outline' : d.webhook_status === 'registered' ? 'secondary' : 'destructive'}
                                     className="gap-1 cursor-help"
                                   >
-                                    {d.webhook_status === 'ok' ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
-                                    Webhook {d.webhook_status === 'ok' ? 'OK' : d.webhook_status === 'stale' ? 'inativo' : 'não verificado'}
+                                    {d.webhook_status === 'ok' || d.webhook_status === 'registered' ? <ShieldCheck className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+                                    Webhook {d.webhook_status === 'ok' ? 'OK' : d.webhook_status === 'registered' ? 'registrado' : d.webhook_status === 'stale' ? 'inativo' : 'não verificado'}
                                   </Badge>
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-sm text-xs">
