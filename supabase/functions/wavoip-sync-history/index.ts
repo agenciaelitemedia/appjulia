@@ -140,6 +140,15 @@ Deno.serve(async (req) => {
         const res = await fetch(`${apiBase}${p}`, { headers: { Authorization: `Bearer ${jwt}`, Accept: 'application/json' } });
         const j: any = await res.json().catch(() => null);
         const first = extractList(j)[0];
+        if (first && body?.sample) {
+          const sample: any = {};
+          for (const k of Object.keys(first)) {
+            const v = first[k];
+            sample[k] = typeof v === 'string' ? v.replace(/\d(?=\d{4})/g, '*').slice(0, 60) : v;
+          }
+          out.push({ path: p, sample, total: extractList(j).length });
+          continue;
+        }
         out.push({ path: p, status: res.status, keys: j && typeof j === 'object' ? Object.keys(j).slice(0, 15) : null, firstKeys: first ? Object.keys(first).slice(0, 40) : null, msg: res.ok ? undefined : JSON.stringify(j ?? '').slice(0, 200) });
       }
       return new Response(JSON.stringify({ ok: true, probe: out }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
