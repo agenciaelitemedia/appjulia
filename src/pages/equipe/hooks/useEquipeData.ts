@@ -84,9 +84,18 @@ export function useCreateTeamMember() {
       const rawPassword = generatePassword();
       const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
-      // Get client_id from principal user
+      // Escritório (client_id) do titular resolvido em CADEIA: o titular
+      // escolhido pode ele mesmo ser um membro vinculado a outro titular.
       const principalUser = await externalDb.raw<{ client_id: number }>({
-        query: "SELECT client_id FROM users WHERE id = $1 LIMIT 1",
+        query: `WITH RECURSIVE chain AS (
+                  SELECT id, user_id, client_id, 1 AS depth FROM users WHERE id = $1
+                  UNION ALL
+                  SELECT p.id, p.user_id, p.client_id, c.depth + 1
+                    FROM users p JOIN chain c ON p.id = c.user_id
+                   WHERE c.client_id IS NULL AND c.depth < 10
+                )
+                SELECT client_id FROM chain
+                 WHERE client_id IS NOT NULL ORDER BY depth LIMIT 1`,
         params: [data.principalUserId],
       });
 
