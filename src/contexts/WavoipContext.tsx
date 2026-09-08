@@ -487,6 +487,19 @@ export function WavoipProvider({ children }: { children: ReactNode }) {
       let entries: any[] = [];
       try { entries = wp.device.get() ?? []; } catch { return; }
 
+      // Rede de segurança: se algum token não permitido apareceu no SDK
+      // (cache antigo, outro usuário na mesma aba, painel da Wavoip),
+      // desliga na hora para não tocar para quem não tem acesso.
+      const allowed = allowedTokensRef.current;
+      for (const e of entries) {
+        const t = e?.token;
+        if (t && !allowed.includes(t)) {
+          try { wp.device.disable?.(t); } catch {}
+          try { wp.device.remove?.(t); } catch {}
+        }
+      }
+
+
       const nextLive: Record<string, string> = {};
       const known = userDevicesRef.current;
       let dirty = false;
