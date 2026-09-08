@@ -83,10 +83,11 @@ async function fetchDeviceCalls(
   ];
   if (tok) {
     variants.push(
-      { name: 'v2_token_jwt', url: `${apiBase}/v2/devices/${tok}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${jwt}` } },
       { name: 'v2_id_devtoken', url: `${apiBase}/v2/devices/${id}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${deviceToken}` } },
+      { name: 'panel_id_devtoken', url: `${apiBase}/devices/${id}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${deviceToken}` } },
+      { name: 'v2_id_jwt_tokenhdr', url: `${apiBase}/v2/devices/${id}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${jwt}`, token: deviceToken! } },
       { name: 'v2_token_devtoken', url: `${apiBase}/v2/devices/${tok}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${deviceToken}` } },
-      { name: 'panel_token_header', url: `${apiBase}/devices/${id}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${jwt}`, token: deviceToken! } },
+      { name: 'v2_token_jwt', url: `${apiBase}/v2/devices/${tok}/calls?limit=${limit}`, headers: { Authorization: `Bearer ${jwt}` } },
     );
   }
   let last: { status: number; error: string } = { status: 0, error: 'no_variant' };
@@ -99,9 +100,10 @@ async function fetchDeviceCalls(
         if (!list.length && json) console.log(`[wavoip-sync-history] ${v.name} ok but unexpected shape keys=`, Object.keys(json));
         return { list, status: res.status, variant: v.name };
       }
+      console.log(`[wavoip-sync-history] variant=${v.name} http=${res.status}`);
       last = { status: res.status, error: JSON.stringify(json ?? '').slice(0, 300) };
-      // 404/401/403: tenta a próxima variante; outros erros (5xx) param aqui.
-      if (![401, 403, 404].includes(res.status)) break;
+      // Erros de cliente (4xx): tenta a próxima variante; 5xx para aqui.
+      if (res.status >= 500) break;
     } catch (e) {
       last = { status: 0, error: String((e as Error)?.message ?? e) };
     }
