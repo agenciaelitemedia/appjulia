@@ -195,12 +195,7 @@ GRANT EXECUTE ON FUNCTION public.exec_sql TO anon;`;
     const table = t.table_name as string;
     if (table.startsWith("migration_")) continue;
 
-    const { data: cols } = await source
-      .from("information_schema.columns")
-      .select("column_name,data_type,character_maximum_length,numeric_precision,numeric_scale,udt_name,column_default,is_nullable")
-      .eq("table_schema", "public")
-      .eq("table_name", table)
-      .order("ordinal_position");
+    const { data: cols } = await source.rpc("migration_list_columns", { p_table: table });
 
     if (!cols || cols.length === 0) continue;
 
