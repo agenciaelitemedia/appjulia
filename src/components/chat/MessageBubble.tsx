@@ -708,8 +708,20 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
 
               {/* Text content */}
               {message.text && message.type === 'text' && (
-                <ExpandableMessageText text={message.text} formatter={formatWhatsAppText} />
+                message.text.startsWith('🔒') ? (
+                  <p className="text-xs italic text-amber-600 dark:text-amber-400">{message.text}</p>
+                ) : (
+                  <ExpandableMessageText text={message.text} formatter={formatWhatsAppText} />
+                )
               )}
+
+              {/* Mensagem recebida sem conteúdo legível (falha de criptografia do WhatsApp) */}
+              {!message.text && message.type === 'text' && (
+                <p className="text-xs italic text-amber-600 dark:text-amber-400">
+                  🔒 Mensagem não pôde ser descriptografada. Peça ao cliente para reenviar.
+                </p>
+              )}
+
 
               {/* Link preview (WhatsApp-style OG card) */}
               {message.type === 'text' && (() => {

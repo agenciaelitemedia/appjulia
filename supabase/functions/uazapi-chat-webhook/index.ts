@@ -266,6 +266,26 @@ function toSafeString(v: unknown): string {
   return '';
 }
 
+/** True only for values that really are JSON blobs (not legitimate texts starting with "["). */
+function looksLikeJsonBlob(s: string): boolean {
+  if (!s.startsWith('{') && !s.startsWith('[')) return false;
+  try {
+    const parsed = JSON.parse(s);
+    return typeof parsed === 'object' && parsed !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** WhatsApp/UaZapi undecryptable notice — keep it visible instead of dropping the text. */
+const UNDECRYPTABLE_TEXT = '🔒 Mensagem não pôde ser descriptografada. Peça ao cliente para reenviar.';
+function isUndecryptable(msg: any, text?: string | null): boolean {
+  const t = (text || '').trim().toLowerCase();
+  const mt = String(msg?.messageType || msg?.type || '').toLowerCase();
+  return t.startsWith('[undecryptable]') || t.includes('não foi possível descriptografar') ||
+    (mt === 'error' && !!t);
+}
+
 function extractMessageText(msg: any): string | undefined {
   // msg.text/content can be string OR object ({body|text|caption: "..."}) depending on UaZapi version/media
   const candidates = [
@@ -282,11 +302,14 @@ function extractMessageText(msg: any): string | undefined {
   ];
   for (const c of candidates) {
     const s = toSafeString(c).trim();
-    // Reject JSON-looking blobs (defensive — UaZapi sometimes dumps full media payload into text)
-    if (s && !s.startsWith('{') && !s.startsWith('[') && s !== '[object Object]') return s;
+    // Reject only real JSON blobs (UaZapi sometimes dumps full media payload into text)
+    if (s && !looksLikeJsonBlob(s) && s !== '[object Object]') {
+      return isUndecryptable(msg, s) ? UNDECRYPTABLE_TEXT : s;
+    }
   }
   return undefined;
 }
+
 
 /** Build a safe, human-friendly preview for `last_message_text`.
  *  Never persist raw JSON payloads or `[object Object]`. */
@@ -303,9 +326,9 @@ function buildLastMessagePreview(text: unknown, type: string, fileName?: string)
     revoked: '🚫 Mensagem apagada',
   };
   const t = toSafeString(text).trim();
-  const looksLikeJson = t.startsWith('{') || t.startsWith('[');
   const isObjectStr = t === '[object Object]';
-  const safeText = looksLikeJson || isObjectStr ? '' : t;
+  const safeText = looksLikeJsonBlob(t) || isObjectStr ? '' : t;
+
 
   if (type === 'document') return `📎 ${fileName || 'Documento'}`;
   if (TYPE_LABELS[type]) {
