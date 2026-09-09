@@ -162,6 +162,7 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
                       <Badge variant={approvalVariant(c.approval_status)}>
                         {APPROVAL_STATUS_LABEL[c.approval_status] ?? c.approval_status}
                       </Badge>
+                      {crmLabel(c) && <Badge variant="secondary">{crmLabel(c)}</Badge>}
                     </div>
                     {waitLabel && (
                       <p className="flex items-center gap-1 text-xs text-amber-600">
