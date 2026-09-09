@@ -12,7 +12,7 @@ import {
   isPermanentError,
   isDisconnectionError,
   insideWindow,
-  buildOutboundPayload,
+  buildOutboundSteps,
   phoneVariants,
   isUazapi,
   type ChannelCandidate,
