@@ -464,11 +464,92 @@ export type DspOutbound =
   | { provider: 'meta_cloud'; action: string; body: Record<string, unknown> }
   | { provider: 'unsupported'; reason: string };
 
+/** Tipos de mídia aceitos como cabeçalho de botões pela Baileys 7 (via UaZapi: imageButton). */
+const MENU_HEADER_MEDIA_TYPES = new Set(['image']);
+
 /**
- * Monta o payload de envio conforme o provedor da fila.
- * - UaZapi: /send/text, /send/media, /send/menu (quando há botões)
+ * Monta o(s) payload(s) de envio conforme o provedor da fila.
+ * - UaZapi (Baileys 7): /send/text, /send/media, /send/menu (botões).
+ *   Com imagem + botões vai numa única mensagem interativa (`imageButton`).
+ *   Vídeo/documento/áudio + botões não têm cabeçalho suportado: dois passos.
  * - API Oficial: send_template (quando a campanha tem template Meta), senão
  *   send_text / send_media_url. Botões livres não existem na API Oficial.
+ */
+export function buildOutboundSteps(
+  queue: { channel_type?: string | null; hub?: string | null; id?: string },
+  variant: DspVariantPayload | null | undefined,
+  vars: Record<string, unknown>,
+  campaign: {
+    name?: string | null;
+    waba_template_name?: string | null;
+    waba_template_language?: string | null;
+  },
+  options?: { forceSplitMedia?: boolean },
+): DspOutbound[] {
+  const single = buildOutboundPayload(queue, variant, vars, campaign);
+
+  if (!isUazapi(queue)) return [single];
+
+  const buttons = normalizeButtons(variant?.buttons);
+  const mediaUrl = variant?.media_url || null;
+  if (buttons.length === 0 || !mediaUrl) return [single];
+
+  const mediaType = (variant?.media_type || 'image').toLowerCase();
+  const headerSupported = MENU_HEADER_MEDIA_TYPES.has(mediaType) && !options?.forceSplitMedia;
+  if (headerSupported) return [single];
+
+  // Dois passos: mídia primeiro (com legenda), botões depois.
+  const text = variant?.message_text ? renderTemplate(variant.message_text, vars) : '';
+  const footer = variant?.footer ? renderTemplate(variant.footer, vars) : '';
+  const mediaStep: DspOutbound = {
+    provider: 'uazapi',
+    endpoint: '/send/media',
+    body: {
+      number: '',
+      type: mediaType,
+      file: mediaUrl,
+      text: mediaType === 'audio' || mediaType === 'ptt' ? undefined : text,
+      docName: variant?.file_name ?? undefined,
+    },
+  };
+  const menuStep = buildMenuPayload({
+    text: mediaType === 'audio' || mediaType === 'ptt' ? text || 'Escolha uma opção:' : 'Escolha uma opção:',
+    footer,
+    buttons,
+    imageUrl: null,
+  });
+  return [mediaStep, menuStep];
+}
+
+function buildMenuPayload(input: {
+  text: string;
+  footer: string;
+  buttons: DspButton[];
+  imageUrl: string | null;
+}): DspOutbound {
+  return {
+    provider: 'uazapi',
+    endpoint: '/send/menu',
+    body: {
+      number: '',
+      // UaZapi aceita `type`; o campo `menuType` é o nome usado em integrações
+      // recentes — enviamos ambos para compatibilidade.
+      type: 'button',
+      menuType: 'button',
+      text: input.text,
+      footerText: input.footer || undefined,
+      choices: input.buttons.map((b) =>
+        b.type === 'url' ? `${b.text}|url|${b.url}`
+          : b.type === 'phone' ? `${b.text}|call|${b.phone}`
+            : b.text,
+      ),
+      ...(input.imageUrl ? { imageButton: input.imageUrl } : {}),
+    },
+  };
+}
+
+/**
+ * Monta o payload de envio conforme o provedor da fila (primeiro passo).
  */
 export function buildOutboundPayload(
   queue: { channel_type?: string | null; hub?: string | null; id?: string },
@@ -484,26 +565,17 @@ export function buildOutboundPayload(
   const footer = variant?.footer ? renderTemplate(variant.footer, vars) : '';
   const buttons = normalizeButtons(variant?.buttons);
   const mediaUrl = variant?.media_url || null;
-  const mediaType = variant?.media_type || 'image';
+  const mediaType = (variant?.media_type || 'image').toLowerCase();
 
   if (isUazapi(queue)) {
     if (buttons.length > 0) {
-      return {
-        provider: 'uazapi',
-        endpoint: '/send/menu',
-        body: {
-          number: '',
-          type: 'button',
-          text,
-          footerText: footer || undefined,
-          choices: buttons.map((b) =>
-            b.type === 'url' ? `${b.text}|url|${b.url}`
-              : b.type === 'phone' ? `${b.text}|call|${b.phone}`
-                : b.text,
-          ),
-          ...(mediaUrl ? { file: mediaUrl, docName: variant?.file_name ?? undefined } : {}),
-        },
-      };
+      const canHeader = !!mediaUrl && MENU_HEADER_MEDIA_TYPES.has(mediaType);
+      return buildMenuPayload({
+        text,
+        footer,
+        buttons,
+        imageUrl: canHeader ? mediaUrl : null,
+      });
     }
     if (mediaUrl) {
       const caption = footer ? `${text}\n\n${footer}`.trim() : text;
@@ -525,6 +597,7 @@ export function buildOutboundPayload(
       body: { number: '', text: footer ? `${text}\n\n${footer}`.trim() : text },
     };
   }
+
 
   // API Oficial (Meta Cloud)
   if (campaign?.waba_template_name) {
