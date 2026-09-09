@@ -182,7 +182,7 @@ async function runCommit(supabase: any, body: Body) {
       ? Number(body.actor_user_id)
       : null;
   const isAssign = body.target.type === 'assign';
-  const targetName = isAssign ? String(body.target.assigned_to) : null;
+  const targetName = isAssign ? String(body.target.assigned_to).trim() : null;
   const targetUserId =
     isAssign && body.target.assigned_user_id != null && Number.isFinite(Number(body.target.assigned_user_id))
       ? Number(body.target.assigned_user_id)
