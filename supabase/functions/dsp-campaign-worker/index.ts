@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
               recipient_id: recipient.id,
               provider: isUazapi(candidate.queue) ? "uazapi" : "meta_cloud",
               event_key: `crm_push:${recipient.id}`,
-              event_type: push.ok ? "crm_card_created" : "crm_card_error",
+              event_type: push.ok ? (push.created ? "crm_card_created" : push.moved ? "crm_card_moved" : "crm_card_touched") : "crm_card_error",
               payload: push,
             });
           } catch (e) {
