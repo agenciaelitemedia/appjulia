@@ -198,6 +198,7 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
       <div className="grid gap-4 md:grid-cols-3">
         {filteredPlans.map((plan) => {
           const price = getPriceByPeriod(plan);
+          const setupFee = getSetupFeeByPeriod(plan);
           const isSelected = selected >= 0 && plans[selected]?.id === plan.id;
           return (
             <div
@@ -223,6 +224,12 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
               <div className="mt-2 mb-4">
                 <span className="text-3xl font-extrabold text-[#1a1a2e]">{formatPrice(price)}</span>
                 <span className="text-gray-400 text-sm">{periodLabels[billingPeriod].suffix}</span>
+                {setupFee > 0 && (
+                  <p className="text-sm text-[#6C3AED] font-medium mt-1">
+                    + {formatPrice(setupFee)} de taxa de implantação
+                    <span className="block text-xs text-gray-400 font-normal">cobrança única, no primeiro pagamento</span>
+                  </p>
+                )}
               </div>
 
               <ul className="space-y-2">
