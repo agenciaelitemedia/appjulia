@@ -55,6 +55,9 @@ const emptyForm: FormState = {
   display_monthly: '',
   display_semiannual: '',
   display_annual: '',
+  setup_monthly: '',
+  setup_semiannual: '',
+  setup_annual: '',
   icon: 'zap',
   color: 'from-blue-500 to-blue-600',
   features: [],
@@ -100,7 +103,7 @@ const PlanosPage = () => {
 
   const fetchPlans = async () => {
     const { data } = await supabase.from('julia_plans').select('*').order('position');
-    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: p.price_monthly ?? 0, price_semiannual: p.price_semiannual ?? 0, price_annual: p.price_annual ?? 0 })));
+    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: p.price_monthly ?? 0, price_semiannual: p.price_semiannual ?? 0, price_annual: p.price_annual ?? 0, setup_fee_monthly: (p as any).setup_fee_monthly ?? 0, setup_fee_semiannual: (p as any).setup_fee_semiannual ?? 0, setup_fee_annual: (p as any).setup_fee_annual ?? 0 })));
     setLoading(false);
   };
 
@@ -138,6 +141,9 @@ const PlanosPage = () => {
       display_monthly: centsToDisplay(plan.price_monthly),
       display_semiannual: centsToDisplay(plan.price_semiannual),
       display_annual: centsToDisplay(plan.price_annual),
+      setup_monthly: centsToDisplay(plan.setup_fee_monthly),
+      setup_semiannual: centsToDisplay(plan.setup_fee_semiannual),
+      setup_annual: centsToDisplay(plan.setup_fee_annual),
       icon: plan.icon,
       color: plan.color,
       features: plan.features,
@@ -180,6 +186,9 @@ const PlanosPage = () => {
         price_semiannual: priceSemiannual,
         price_annual: priceAnnual,
         price_display: minPrice > 0 ? `R$ ${(minPrice / 100).toFixed(0)}` : '',
+        setup_fee_monthly: parseToCents(form.setup_monthly),
+        setup_fee_semiannual: parseToCents(form.setup_semiannual),
+        setup_fee_annual: parseToCents(form.setup_annual),
         icon: form.icon,
         color: form.color,
         features: form.features as any,
