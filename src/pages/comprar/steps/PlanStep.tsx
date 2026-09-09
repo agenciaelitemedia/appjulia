@@ -13,6 +13,9 @@ interface PlanFromDB {
   price_monthly: number;
   price_semiannual: number;
   price_annual: number;
+  setup_fee_monthly: number;
+  setup_fee_semiannual: number;
+  setup_fee_annual: number;
   icon: string;
   color: string;
   features: string[];
@@ -72,6 +75,9 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
           price_monthly: p.price_monthly ?? 0,
           price_semiannual: p.price_semiannual ?? 0,
           price_annual: p.price_annual ?? 0,
+          setup_fee_monthly: (p as any).setup_fee_monthly ?? 0,
+          setup_fee_semiannual: (p as any).setup_fee_semiannual ?? 0,
+          setup_fee_annual: (p as any).setup_fee_annual ?? 0,
         }));
         setPlans(mapped);
         if (orderData.plan_name) {
