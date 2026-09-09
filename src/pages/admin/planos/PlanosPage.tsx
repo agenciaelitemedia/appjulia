@@ -23,6 +23,9 @@ interface Plan {
   price_semiannual: number;
   price_annual: number;
   price_display: string;
+  setup_fee_monthly: number;
+  setup_fee_semiannual: number;
+  setup_fee_annual: number;
   icon: string;
   color: string;
   features: string[];
@@ -36,6 +39,9 @@ interface FormState {
   display_monthly: string;
   display_semiannual: string;
   display_annual: string;
+  setup_monthly: string;
+  setup_semiannual: string;
+  setup_annual: string;
   icon: string;
   color: string;
   features: string[];
