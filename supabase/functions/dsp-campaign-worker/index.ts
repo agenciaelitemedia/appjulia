@@ -12,7 +12,7 @@ import {
   isPermanentError,
   isDisconnectionError,
   insideWindow,
-  buildOutboundPayload,
+  buildOutboundSteps,
   phoneVariants,
   isUazapi,
   type ChannelCandidate,
@@ -52,16 +52,22 @@ async function invokeFunction(name: string, body: unknown) {
   return { ok: resp.ok, status: resp.status, data };
 }
 
-/** Envia pela fila escolhida. Devolve o id da mensagem no provedor. */
-async function sendMessage(
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Erro do provedor indicando que o campo de cabeçalho de mídia não foi aceito. */
+function isUnsupportedHeaderError(err: string): boolean {
+  const e = err.toLowerCase();
+  return /imagebutton|invalid.*(field|param)|unknown field|unsupported|bad request|400/.test(e);
+}
+
+/** Executa um único passo de envio. */
+async function sendStep(
   candidate: ChannelCandidate,
   phone: string,
-  variant: any,
-  vars: Record<string, unknown>,
+  outbound: any,
   campaign: any,
 ): Promise<{ ok: boolean; providerId?: string; error?: string; permanent?: boolean }> {
   const queue = candidate.queue;
-  const outbound = buildOutboundPayload(queue, variant, vars, campaign);
 
   if (outbound.provider === "unsupported") {
     return { ok: false, error: `unsupported_payload:${outbound.reason}`, permanent: true };
@@ -76,10 +82,14 @@ async function sendMessage(
       baseUrl: queue.evo_url,
       body: { ...outbound.body, number: phone },
     });
-    if (!res.ok) {
-      return { ok: false, error: JSON.stringify(res.data ?? {}).slice(0, 500) };
+    const payload = res.data as any;
+    const upstreamStatus = typeof payload?.status === "number" ? payload.status : null;
+    const upstreamFailed = upstreamStatus !== null && (upstreamStatus < 200 || upstreamStatus >= 300);
+    if (!res.ok || upstreamFailed || payload?.error) {
+      return { ok: false, error: JSON.stringify(payload ?? {}).slice(0, 500) };
     }
-    const providerId = (res.data as any)?.id ?? (res.data as any)?.messageid ?? (res.data as any)?.key?.id;
+    const body = payload?.data ?? payload;
+    const providerId = body?.id ?? body?.messageid ?? body?.key?.id;
     return { ok: true, providerId };
   }
 
@@ -95,6 +105,51 @@ async function sendMessage(
     return { ok: false, error: JSON.stringify((res.data as any)?.error ?? res.data ?? {}).slice(0, 500) };
   }
   return { ok: true, providerId: (res.data as any)?.messages?.[0]?.id };
+}
+
+/**
+ * Envia pela fila escolhida. Pode gerar mais de uma mensagem física
+ * (mídia + botões quando o cabeçalho não é suportado). Devolve o id da
+ * primeira mensagem no provedor.
+ */
+async function sendMessage(
+  candidate: ChannelCandidate,
+  phone: string,
+  variant: any,
+  vars: Record<string, unknown>,
+  campaign: any,
+): Promise<{ ok: boolean; providerId?: string; error?: string; permanent?: boolean; messages?: number }> {
+  const steps = buildOutboundSteps(candidate.queue, variant, vars, campaign);
+
+  let firstId: string | undefined;
+  let sentCount = 0;
+
+  for (let i = 0; i < steps.length; i++) {
+    if (i > 0) await sleep(1500 + Math.floor(Math.random() * 2500));
+    const res = await sendStep(candidate, phone, steps[i], campaign);
+
+    if (!res.ok && i === 0 && steps.length === 1 && isUnsupportedHeaderError(res.error ?? "")) {
+      // Provedor recusou o cabeçalho de mídia nos botões: refaz em dois passos.
+      const fallback = buildOutboundSteps(candidate.queue, variant, vars, campaign, { forceSplitMedia: true });
+      if (fallback.length > 1) {
+        console.warn("[dsp-worker] menu com mídia recusado; usando envio em 2 partes", res.error);
+        for (let j = 0; j < fallback.length; j++) {
+          if (j > 0) await sleep(1500 + Math.floor(Math.random() * 2500));
+          const fb = await sendStep(candidate, phone, fallback[j], campaign);
+          if (!fb.ok) return { ...fb, messages: sentCount };
+          sentCount++;
+          if (j === 0) firstId = fb.providerId;
+        }
+        return { ok: true, providerId: firstId, messages: sentCount };
+      }
+    }
+
+    if (!res.ok) return { ...res, messages: sentCount };
+    sentCount++;
+    if (i === 0) firstId = res.providerId;
+  }
+
+  return { ok: true, providerId: firstId, messages: sentCount };
 }
 
 async function pauseCampaign(campaignId: string, clientId: string, reason: string) {
@@ -235,7 +290,7 @@ Deno.serve(async (req) => {
       const send = await sendMessage(candidate, recipient.phone_e164, variant, recipient.variables ?? {}, campaign);
 
       if (send.ok) {
-        await commitSend(admin, candidate);
+        await commitSend(admin, candidate, new Date(), send.messages ?? 1);
         // Atualiza o candidato em memória para o próximo item do lote
         const idx = candidates.findIndex((c) => c.queue.id === candidate.queue.id);
         if (idx >= 0) candidates[idx] = await loadChannel(admin, candidate.queue);
