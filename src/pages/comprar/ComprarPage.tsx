@@ -98,9 +98,16 @@ const ComprarPage = () => {
       const planPrice = plan.price_monthly || plan.price_semiannual || plan.price_annual || plan.price;
       const billingPeriod = plan.price_monthly > 0 ? 'monthly' : plan.price_semiannual > 0 ? 'semiannual' : 'annual';
 
+      const setupFee = billingPeriod === 'annual'
+        ? ((plan as any).setup_fee_annual ?? 0)
+        : billingPeriod === 'semiannual'
+          ? ((plan as any).setup_fee_semiannual ?? 0)
+          : ((plan as any).setup_fee_monthly ?? 0);
+
       const updatedOrder: Partial<OrderData> = {
         plan_name: plan.name,
         plan_price: planPrice,
+        setup_fee: setupFee,
         billing_period: billingPeriod as OrderData['billing_period'],
       };
 
