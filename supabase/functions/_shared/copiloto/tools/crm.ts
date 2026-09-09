@@ -2,6 +2,8 @@
  * Domínio: CRM de Leads clássico (Postgres legado) + CRM Builder (Supabase).
  * Legado sempre escopado pelos cod_agent do escritório do token.
  */
+import { assertBoardMcpAccess, listMcpAllowedBoardIds } from "../board-access.ts";
+import { CopilotoError } from "../envelope.ts";
 import { agentCodes, legacyRaw } from "../legacy.ts";
 import { fmtDate, MAX_ROWS, num, str, type CopilotoTool } from "../types.ts";
 
@@ -184,10 +186,15 @@ export const crmTools: CopilotoTool[] = [
       "Quadros (boards) e pipelines do CRM Builder do escritório, com as etapas de cada quadro e a quantidade de negócios por etapa.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     run: async (ctx) => {
+      const allowed = await listMcpAllowedBoardIds(ctx);
+      if (!allowed.length) {
+        return "Nenhum quadro do CRM Builder liberado para o MCP. Libere em CRM Builder → Configurações → Permissões → Acesso do MCP (opção Listar).";
+      }
       const { data: boards, error } = await ctx.supabase
         .from("crm_boards")
-        .select("id, name, description, is_active")
+        .select("id, name, description, is_archived")
         .eq("client_id", ctx.clientId)
+        .in("id", allowed)
         .order("name");
       if (error) throw new Error(error.message);
       if (!boards?.length) return "Nenhum quadro do CRM Builder neste escritório.";
@@ -208,7 +215,7 @@ export const crmTools: CopilotoTool[] = [
             .eq("pipeline_id", p.id);
           lines.push(`  - ${p.position}. ${p.name} — ${count ?? 0} negócios (pipeline_id: ${p.id})`);
         }
-        out.push(`### ${b.name}${b.is_active ? "" : " (inativo)"} (board_id: ${b.id})\n${lines.join("\n") || "  (sem etapas)"}`);
+        out.push(`### ${b.name}${b.is_archived ? " (arquivado)" : ""} (board_id: ${b.id})\n${lines.join("\n") || "  (sem etapas)"}`);
       }
       return out.join("\n\n");
     },
@@ -228,14 +235,27 @@ export const crmTools: CopilotoTool[] = [
       additionalProperties: false,
     },
     run: async (ctx, args) => {
+      const allowed = await listMcpAllowedBoardIds(ctx);
+      if (!allowed.length) {
+        return "Nenhum quadro do CRM Builder liberado para o MCP. Libere em CRM Builder → Configurações → Permissões → Acesso do MCP (opção Listar).";
+      }
+      const boardId = str(args.board_id);
+      if (boardId && !allowed.includes(boardId)) {
+        throw new CopilotoError(
+          "PERMISSION_DENIED",
+          "O MCP não tem permissão para listar este quadro. Libere a opção Listar em CRM Builder → Configurações → Permissões → Acesso do MCP.",
+          { details: { board_id: boardId } },
+        );
+      }
+
       let query = ctx.supabase
         .from("crm_deals")
         .select("id, title, contact_name, contact_phone, value, status, pipeline_id, assigned_to, created_at, updated_at, stage_entered_at")
         .eq("client_id", ctx.clientId)
+        .in("board_id", boardId ? [boardId] : allowed)
         .order("updated_at", { ascending: false })
         .limit(num(args.limite, 30, MAX_ROWS));
 
-      if (str(args.board_id)) query = query.eq("board_id", str(args.board_id));
       if (str(args.pipeline_id)) query = query.eq("pipeline_id", str(args.pipeline_id));
       const busca = str(args.busca);
       if (busca) {
@@ -284,6 +304,8 @@ export const crmTools: CopilotoTool[] = [
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!d) throw new Error("Negócio não encontrado neste escritório.");
+      if (d.board_id) await assertBoardMcpAccess(ctx, String(d.board_id), "list");
+
 
       const [{ data: pipe }, { data: hist }, { data: checklists }] = await Promise.all([
         d.pipeline_id ? ctx.supabase.from("crm_pipelines").select("name").eq("id", d.pipeline_id).maybeSingle() : Promise.resolve({ data: null }),

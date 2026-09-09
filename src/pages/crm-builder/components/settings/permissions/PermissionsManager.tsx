@@ -6,7 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { ShieldAlert, Users, UserCog, ShieldOff } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { ShieldAlert, Users, UserCog, ShieldOff, Bot, Copy } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTeamMembers } from '@/pages/equipe/hooks/useEquipeData';
 import {
@@ -32,6 +35,14 @@ const PERM_COLS: { key: PermKey; label: string }[] = [
   { key: 'can_delete', label: 'Remover' },
 ];
 
+type McpKey = 'list' | 'create' | 'edit' | 'move';
+const MCP_ACTIONS: { key: McpKey; label: string; hint: string }[] = [
+  { key: 'list', label: 'Listar', hint: 'Ver o quadro e os cards pelo MCP' },
+  { key: 'create', label: 'Criar', hint: 'Criar novos cards neste quadro' },
+  { key: 'edit', label: 'Editar', hint: 'Alterar dados dos cards' },
+  { key: 'move', label: 'Mover', hint: 'Mudar a etapa ou o status dos cards' },
+];
+
 interface Props {
   board: CRMBoard;
   clientId: string;
@@ -49,6 +60,15 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
     [isAdmin]
   );
   const permissionMode = getBoardPermissionMode(board.settings);
+  const mcpAccess = useMemo<Record<McpKey, boolean>>(() => {
+    const raw = (board.settings as Record<string, unknown> | null)?.mcp as Record<string, unknown> | undefined;
+    return {
+      list: raw?.list === true,
+      create: raw?.create === true,
+      edit: raw?.edit === true,
+      move: raw?.move === true,
+    };
+  }, [board.settings]);
   const { rules, loading, upsert, remove } = useBoardPermissions(boardId);
   const { data: teamMembers = [], isLoading: loadingUsers } = useTeamMembers();
 
@@ -110,6 +130,40 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
       { clientId, createdBy: user?.name ?? null }
     );
     if (success) queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
+  };
+
+  const handleMcpToggle = async (key: McpKey, checked: boolean) => {
+    const nextMcp: Record<McpKey, boolean> = { ...mcpAccess, [key]: checked };
+    if (key === 'list' && !checked) {
+      nextMcp.create = false;
+      nextMcp.edit = false;
+      nextMcp.move = false;
+    }
+    if (key !== 'list' && checked) nextMcp.list = true;
+
+    const nextSettings = { ...(board.settings ?? {}), mcp: nextMcp };
+    const { data, error } = await supabase
+      .from('crm_boards')
+      .update({ settings: nextSettings })
+      .eq('id', boardId)
+      .select('*')
+      .single();
+    if (error) {
+      toast.error('Erro ao salvar acesso do MCP: ' + error.message);
+      return;
+    }
+    if (data) onBoardUpdated(data as CRMBoard);
+    queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
+    toast.success('Acesso do MCP atualizado');
+  };
+
+  const handleCopyBoardId = async () => {
+    try {
+      await navigator.clipboard.writeText(boardId);
+      toast.success('ID do painel copiado');
+    } catch {
+      toast.error('Não foi possível copiar. Selecione o texto e copie manualmente.');
+    }
   };
 
   const handleModeChange = async (value: string) => {
@@ -176,6 +230,48 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Bot className="h-4 w-4" /> Acesso do MCP (Copiloto)
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Escolha o que o MCP pode fazer neste quadro. Tudo começa desligado.
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {MCP_ACTIONS.map((a) => (
+            <label
+              key={a.key}
+              className="flex items-start justify-between gap-3 rounded-md border bg-background p-3 cursor-pointer"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{a.label}</span>
+                <span className="block text-[11px] text-muted-foreground">{a.hint}</span>
+              </span>
+              <Switch
+                checked={Boolean(mcpAccess[a.key])}
+                onCheckedChange={(v) => handleMcpToggle(a.key, v)}
+                aria-label={`MCP - ${a.label}`}
+              />
+            </label>
+          ))}
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+            ID do painel (para filtrar no MCP)
+          </p>
+          <div className="flex items-center gap-2">
+            <Input readOnly value={boardId} className="h-8 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+            <Button type="button" variant="outline" size="sm" onClick={handleCopyBoardId} className="shrink-0">
+              <Copy className="h-3.5 w-3.5 mr-1" /> Copiar
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
