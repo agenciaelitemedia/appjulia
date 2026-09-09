@@ -24,6 +24,9 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
   };
 
+  const setupFee = orderData.setup_fee || 0;
+  const totalAmount = (orderData.plan_price || 0) + setupFee;
+
   // Poll for payment confirmation
   useEffect(() => {
     if (!checkoutUrl || !orderData.id) return;

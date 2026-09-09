@@ -36,7 +36,14 @@ export const generateContractBody = async (orderData: OrderData): Promise<string
 
   if (!data?.body_markdown) return '';
 
+  const setupFee = orderData.setup_fee || 0;
+  const planPriceText = setupFee > 0
+    ? `${formatPrice(orderData.plan_price)} + taxa de ${formatPrice(setupFee)} de implantação`
+    : formatPrice(orderData.plan_price);
+
   return data.body_markdown
+    .replace(/\{\{setup_fee\}\}/g, setupFee > 0 ? formatPrice(setupFee) : '—')
+    .replace(/\{\{total_first_payment\}\}/g, formatPrice((orderData.plan_price || 0) + setupFee))
     .replace(/\{\{customer_name\}\}/g, orderData.customer_name || '—')
     .replace(/\{\{customer_document\}\}/g, orderData.customer_document || '—')
     .replace(/\{\{customer_email\}\}/g, orderData.customer_email || '—')
