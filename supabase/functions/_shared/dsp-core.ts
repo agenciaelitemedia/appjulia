@@ -425,3 +425,151 @@ export function pickVariant<T extends { id: string; weight?: number; is_active?:
   }
   return active[active.length - 1];
 }
+
+// ============================================================
+// Montagem do payload de envio por provedor
+// ============================================================
+
+export interface DspButton {
+  type: 'quick_reply' | 'url' | 'phone';
+  text: string;
+  url?: string | null;
+  phone?: string | null;
+}
+
+export interface DspVariantPayload {
+  message_text?: string | null;
+  media_url?: string | null;
+  media_type?: string | null;
+  file_name?: string | null;
+  footer?: string | null;
+  buttons?: DspButton[] | null;
+  template_params?: unknown;
+}
+
+export function normalizeButtons(raw: unknown): DspButton[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((b: any) => ({
+      type: (b?.type === 'url' || b?.type === 'phone') ? b.type : 'quick_reply',
+      text: String(b?.text ?? '').trim(),
+      url: b?.url ? String(b.url) : null,
+      phone: b?.phone ? String(b.phone) : null,
+    }))
+    .filter((b) => b.text.length > 0 && (b.type !== 'url' || !!b.url) && (b.type !== 'phone' || !!b.phone)) as DspButton[];
+}
+
+export type DspOutbound =
+  | { provider: 'uazapi'; endpoint: string; body: Record<string, unknown> }
+  | { provider: 'meta_cloud'; action: string; body: Record<string, unknown> }
+  | { provider: 'unsupported'; reason: string };
+
+/**
+ * Monta o payload de envio conforme o provedor da fila.
+ * - UaZapi: /send/text, /send/media, /send/menu (quando há botões)
+ * - API Oficial: send_template (quando a campanha tem template Meta), senão
+ *   send_text / send_media_url. Botões livres não existem na API Oficial.
+ */
+export function buildOutboundPayload(
+  queue: { channel_type?: string | null; hub?: string | null; id?: string },
+  variant: DspVariantPayload | null | undefined,
+  vars: Record<string, unknown>,
+  campaign: {
+    name?: string | null;
+    waba_template_name?: string | null;
+    waba_template_language?: string | null;
+  },
+): DspOutbound {
+  const text = variant?.message_text ? renderTemplate(variant.message_text, vars) : '';
+  const footer = variant?.footer ? renderTemplate(variant.footer, vars) : '';
+  const buttons = normalizeButtons(variant?.buttons);
+  const mediaUrl = variant?.media_url || null;
+  const mediaType = variant?.media_type || 'image';
+
+  if (isUazapi(queue)) {
+    if (buttons.length > 0) {
+      return {
+        provider: 'uazapi',
+        endpoint: '/send/menu',
+        body: {
+          number: '',
+          type: 'button',
+          text,
+          footerText: footer || undefined,
+          choices: buttons.map((b) =>
+            b.type === 'url' ? `${b.text}|url|${b.url}`
+              : b.type === 'phone' ? `${b.text}|call|${b.phone}`
+                : b.text,
+          ),
+          ...(mediaUrl ? { file: mediaUrl, docName: variant?.file_name ?? undefined } : {}),
+        },
+      };
+    }
+    if (mediaUrl) {
+      const caption = footer ? `${text}\n\n${footer}`.trim() : text;
+      return {
+        provider: 'uazapi',
+        endpoint: '/send/media',
+        body: {
+          number: '',
+          type: mediaType,
+          file: mediaUrl,
+          text: mediaType === 'audio' ? undefined : caption,
+          docName: variant?.file_name ?? undefined,
+        },
+      };
+    }
+    return {
+      provider: 'uazapi',
+      endpoint: '/send/text',
+      body: { number: '', text: footer ? `${text}\n\n${footer}`.trim() : text },
+    };
+  }
+
+  // API Oficial (Meta Cloud)
+  if (campaign?.waba_template_name) {
+    return {
+      provider: 'meta_cloud',
+      action: 'send_template',
+      body: {
+        template_name: campaign.waba_template_name,
+        language: campaign.waba_template_language || 'pt_BR',
+        components: variant?.template_params ?? undefined,
+        preview_text: text || undefined,
+      },
+    };
+  }
+
+  if (buttons.length > 0) {
+    return {
+      provider: 'unsupported',
+      reason: 'buttons_require_official_template',
+    };
+  }
+
+  if (mediaUrl) {
+    if (mediaType === 'audio') {
+      return {
+        provider: 'meta_cloud',
+        action: 'send_media_url',
+        body: { media_url: mediaUrl, media_type: 'audio' },
+      };
+    }
+    return {
+      provider: 'meta_cloud',
+      action: 'send_media_url',
+      body: {
+        media_url: mediaUrl,
+        media_type: mediaType,
+        caption: footer ? `${text}\n\n${footer}`.trim() : text,
+        file_name: variant?.file_name ?? undefined,
+      },
+    };
+  }
+
+  return {
+    provider: 'meta_cloud',
+    action: 'send_text',
+    body: { text: footer ? `${text}\n\n${footer}`.trim() : text },
+  };
+}

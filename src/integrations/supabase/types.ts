@@ -4866,10 +4866,12 @@ export type Database = {
       }
       dsp_campaign_variants: {
         Row: {
+          buttons: Json
           campaign_id: string
           client_id: string
           created_at: string
           file_name: string | null
+          footer: string | null
           id: string
           is_active: boolean
           label: string | null
@@ -4882,10 +4884,12 @@ export type Database = {
           weight: number
         }
         Insert: {
+          buttons?: Json
           campaign_id: string
           client_id: string
           created_at?: string
           file_name?: string | null
+          footer?: string | null
           id?: string
           is_active?: boolean
           label?: string | null
@@ -4898,10 +4902,12 @@ export type Database = {
           weight?: number
         }
         Update: {
+          buttons?: Json
           campaign_id?: string
           client_id?: string
           created_at?: string
           file_name?: string | null
+          footer?: string | null
           id?: string
           is_active?: boolean
           label?: string | null
@@ -5325,10 +5331,13 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           body: string
+          buttons: Json
           category: string
           client_id: string
           created_at: string
           created_by: string | null
+          file_name: string | null
+          footer: string | null
           id: string
           is_active: boolean
           media_type: string | null
@@ -5345,10 +5354,13 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           body: string
+          buttons?: Json
           category?: string
           client_id: string
           created_at?: string
           created_by?: string | null
+          file_name?: string | null
+          footer?: string | null
           id?: string
           is_active?: boolean
           media_type?: string | null
@@ -5365,10 +5377,13 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           body?: string
+          buttons?: Json
           category?: string
           client_id?: string
           created_at?: string
           created_by?: string | null
+          file_name?: string | null
+          footer?: string | null
           id?: string
           is_active?: boolean
           media_type?: string | null

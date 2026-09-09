@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '../extend/db';
-import type { DspTemplate } from '../types';
+import type { DspTemplate, DspTemplateButton } from '../types';
 
 const TABLE = 'dsp_message_templates';
 
@@ -31,6 +31,9 @@ export interface SaveTemplateInput {
   body: string;
   media_url?: string | null;
   media_type?: string | null;
+  file_name?: string | null;
+  footer?: string | null;
+  buttons?: DspTemplateButton[];
   created_by?: string | null;
 }
 
@@ -49,6 +52,7 @@ export function useSaveDspTemplate() {
         ...input,
         body: input.body.trim(),
         variables: extractVariables(input.body),
+        buttons: input.buttons ?? [],
       };
       if (input.id) {
         // Editar um template já aprovado o devolve para rascunho: exige nova aprovação.

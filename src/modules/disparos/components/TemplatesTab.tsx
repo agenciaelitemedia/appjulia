@@ -14,13 +14,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, Loader2, Pencil, Plus, Search, Send, Trash2, X } from 'lucide-react';
 import { OfficialTemplatesPanel } from './OfficialTemplatesPanel';
+import { TemplatePreview } from './TemplatePreview';
+import { TemplateButtonsEditor } from './TemplateButtonsEditor';
 
 import { APPROVAL_STATUS_LABEL } from '../module';
 import { useAuth } from '../extend/auth';
 import {
   extractVariables, useDeleteDspTemplate, useDspTemplateReview, useDspTemplates, useSaveDspTemplate,
 } from '../hooks/useDspTemplates';
-import type { DspTemplate } from '../types';
+import type { DspTemplate, DspTemplateButton } from '../types';
 
 const badgeVariant = (s: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
   if (s === 'approved') return 'default';
@@ -45,6 +47,9 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
   const [body, setBody] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaType, setMediaType] = useState('image');
+  const [fileName, setFileName] = useState('');
+  const [footer, setFooter] = useState('');
+  const [buttons, setButtons] = useState<DspTemplateButton[]>([]);
   const [rejectTarget, setRejectTarget] = useState<DspTemplate | null>(null);
   const [rejectNotes, setRejectNotes] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DspTemplate | null>(null);
@@ -61,6 +66,9 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
     setBody('');
     setMediaUrl('');
     setMediaType('image');
+    setFileName('');
+    setFooter('');
+    setButtons([]);
     setOpen(true);
   };
 
@@ -71,6 +79,9 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
     setBody(t.body);
     setMediaUrl(t.media_url ?? '');
     setMediaType(t.media_type ?? 'image');
+    setFileName(t.file_name ?? '');
+    setFooter(t.footer ?? '');
+    setButtons(Array.isArray(t.buttons) ? t.buttons : []);
     setOpen(true);
   };
 
@@ -85,6 +96,9 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
       body,
       media_url: url || null,
       media_type: url ? mediaType : null,
+      file_name: fileName.trim() || null,
+      footer: footer.trim() || null,
+      buttons: buttons.filter((b) => b.text.trim()),
       created_by: actor,
     });
     setOpen(false);
@@ -219,10 +233,11 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar template' : 'Novo template'}</DialogTitle>
           </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-[1fr_320px]">
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label>Nome</Label>
@@ -267,9 +282,36 @@ export function TemplatesTab({ clientId, canEdit }: { clientId: string | null; c
                 </Select>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Com mídia, a mensagem acima é enviada como legenda (áudio é enviado sem legenda).
-            </p>
+            {mediaUrl.trim() && mediaType === 'document' && (
+              <div className="space-y-1.5">
+                <Label>Nome do arquivo</Label>
+                <Input value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="contrato.pdf" />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label>Rodapé (opcional)</Label>
+              <Input value={footer} onChange={(e) => setFooter(e.target.value)} placeholder="Responda SAIR para não receber mais" />
+            </div>
+
+            <TemplateButtonsEditor value={buttons} onChange={setButtons} />
+
+            <div className="rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground space-y-1">
+              <p>Com mídia, a mensagem acima é enviada como legenda (áudio é enviado sem legenda).</p>
+              <p><b>API não oficial:</b> mídia livre e botões funcionam direto.</p>
+              <p><b>API Oficial:</b> botões e cabeçalho de mídia só saem por template aprovado pela Meta; áudio não é aceito em template oficial.</p>
+            </div>
+          </div>
+
+          <div className="md:sticky md:top-0 md:self-start">
+            <TemplatePreview
+              body={body}
+              footer={footer}
+              mediaUrl={mediaUrl.trim() || null}
+              mediaType={mediaType}
+              fileName={fileName}
+              buttons={buttons}
+            />
+          </div>
           </div>
 
           <DialogFooter>

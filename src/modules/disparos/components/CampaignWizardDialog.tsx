@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useDspAudiences } from '../hooks/useDspAudiences';
 import { Card, CardContent } from '@/components/ui/card';
+import { TemplatePreview } from './TemplatePreview';
 import { Plus, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../extend/auth';
 import { useDspQueues, isUnofficialQueue } from '../extend/queues';
@@ -76,7 +77,17 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
   const { data: audiences = [] } = useDspAudiences(clientId);
   const [onlyWithConversation, setOnlyWithConversation] = useState(false);
 
-  const [variants, setVariants] = useState<{ label: string; message_text: string; weight: number; template_id?: string | null }[]>([
+  const [variants, setVariants] = useState<{
+    label: string;
+    message_text: string;
+    weight: number;
+    template_id?: string | null;
+    media_url?: string | null;
+    media_type?: string | null;
+    file_name?: string | null;
+    footer?: string | null;
+    buttons?: any[];
+  }[]>([
     { label: 'Variante A', message_text: '', weight: 1 },
   ]);
   const [selectedQueues, setSelectedQueues] = useState<string[]>([]);
@@ -357,7 +368,17 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
                       if (!t) return;
                       setVariants((prev) => [
                         ...prev.filter((v) => v.message_text.trim()),
-                        { label: t.name, message_text: t.body, weight: 1, template_id: t.id },
+                        {
+                          label: t.name,
+                          message_text: t.body,
+                          weight: 1,
+                          template_id: t.id,
+                          media_url: t.media_url ?? null,
+                          media_type: t.media_type ?? null,
+                          file_name: t.file_name ?? null,
+                          footer: t.footer ?? null,
+                          buttons: Array.isArray(t.buttons) ? t.buttons : [],
+                        },
                       ]);
                     }}
                   >
@@ -402,6 +423,20 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
                       value={v.message_text}
                       onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, message_text: e.target.value } : x))}
                     />
+                    {(v.media_url || (v.buttons?.length ?? 0) > 0) && (
+                      <p className="text-xs text-muted-foreground">
+                        {v.media_url ? `Mídia anexada (${v.media_type || 'image'}). ` : ''}
+                        {(v.buttons?.length ?? 0) > 0 ? `${v.buttons!.length} botão(ões).` : ''}
+                      </p>
+                    )}
+                    <TemplatePreview
+                      body={v.message_text}
+                      footer={v.footer}
+                      mediaUrl={v.media_url}
+                      mediaType={v.media_type}
+                      fileName={v.file_name}
+                      buttons={(v.buttons ?? []) as any}
+                    />
                   </CardContent>
                 </Card>
               ))}
@@ -409,6 +444,12 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
                 Variáveis: <code>{'{{nome}}'}</code>, <code>{'{{primeiro_nome}}'}</code>, <code>{'{{telefone}}'}</code>.
                 Duas ou mais variantes reduzem o risco de bloqueio.
               </p>
+              {variants.some((v) => (v.buttons?.length ?? 0) > 0 || v.media_url) && (
+                <p className="rounded-md border bg-muted/30 p-2 text-xs text-muted-foreground">
+                  Em filas da <b>API Oficial</b>, mídia e botões só são entregues por template aprovado pela Meta
+                  (informe o template oficial na campanha). Em filas não oficiais tudo é enviado direto.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

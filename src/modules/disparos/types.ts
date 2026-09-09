@@ -53,6 +53,13 @@ export interface DspAudienceFilters {
   limit?: number | null;
 }
 
+export interface DspTemplateButton {
+  type: 'quick_reply' | 'url' | 'phone';
+  text: string;
+  url?: string | null;
+  phone?: string | null;
+}
+
 export interface DspVariant {
   id: string;
   campaign_id: string;
@@ -64,6 +71,10 @@ export interface DspVariant {
   weight: number;
   is_active: boolean;
   template_id?: string | null;
+  file_name?: string | null;
+  footer?: string | null;
+  buttons?: DspTemplateButton[];
+  template_params?: any;
 }
 
 export interface DspTemplate {
@@ -74,6 +85,9 @@ export interface DspTemplate {
   body: string;
   media_url: string | null;
   media_type: string | null;
+  file_name?: string | null;
+  footer?: string | null;
+  buttons?: DspTemplateButton[];
   variables: string[];
   status: 'draft' | 'pending' | 'approved' | 'rejected' | string;
   submitted_at: string | null;
