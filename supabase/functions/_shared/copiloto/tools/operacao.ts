@@ -1,7 +1,7 @@
 /**
  * Domínio: filas, equipe/permissões, campanhas, telefonia e tickets (leitura).
  */
-import { agentCodes, legacyRaw } from "../legacy.ts";
+import { agentCodes, legacyRaw, officeLabel } from "../legacy.ts";
 import { fmtDate, MAX_ROWS, num, str, type CopilotoTool } from "../types.ts";
 
 export const operacaoTools: CopilotoTool[] = [
