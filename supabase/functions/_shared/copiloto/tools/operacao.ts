@@ -194,29 +194,71 @@ export const operacaoTools: CopilotoTool[] = [
     },
   },
   {
+    name: "julia_sessao_atual",
+    description:
+      "Identifica a conexão em uso: e-mail autenticado no token, escritório efetivo (client_id e nome), escopos concedidos e validade do token. Use quando houver dúvida sobre qual escritório está sendo consultado.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    run: async (ctx) => {
+      const office = await officeLabel(ctx);
+      let expires: string | null = null;
+      let clientName: string | null = null;
+      if (ctx.tokenId) {
+        const { data } = await ctx.supabase
+          .from("cop_oauth_tokens")
+          .select("expires_at, client_name")
+          .eq("id", ctx.tokenId)
+          .maybeSingle();
+        expires = data?.expires_at ?? null;
+        clientName = data?.client_name ?? null;
+      }
+      return [
+        "# Conexão em uso",
+        `Usuário do token: ${ctx.userEmail || "—"}`,
+        `Escritório: ${office || "(nome não resolvido)"} · client_id ${ctx.clientId}`,
+        `Aplicativo conectado: ${clientName || "—"}`,
+        `Escopos: ${(ctx.scopes || []).join(", ") || "—"}`,
+        `Token válido até: ${fmtDate(expires)}`,
+        "",
+        "Todos os dados retornados pelas outras ferramentas pertencem exclusivamente a este escritório.",
+      ].join("\n");
+    },
+  },
+  {
     name: "julia_agentes_listar",
     description:
-      "Agentes de IA (Julia) do escritório: cod_agent, nome do titular, empresa e telefone vinculado — base do escopo do CRM clássico e dos contratos.",
+      "Agentes de IA (Julia) do escritório: cod_agent, titular (usuário vinculado), status e plano — base do escopo do CRM clássico e dos contratos.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     run: async (ctx) => {
       const rows = await legacyRaw(
         ctx,
-        `SELECT cod_agent::text AS cod_agent, owner_name, business_name, whatsapp, is_active
-           FROM agents WHERE client_id = $1::bigint ORDER BY owner_name LIMIT 200`,
+        `SELECT a.cod_agent::text AS cod_agent,
+                a.status,
+                a.user_id::text AS user_id,
+                u.name  AS owner_name,
+                u.email AS owner_email,
+                a.agent_plan_id::text AS agent_plan_id,
+                a.due_date,
+                a.last_used
+           FROM agents a
+           LEFT JOIN users u ON u.id = a.user_id
+          WHERE a.client_id = $1::bigint
+          ORDER BY u.name NULLS LAST, a.cod_agent
+          LIMIT 200`,
         [ctx.clientId],
       );
       if (!rows.length) return "Nenhum agente vinculado a este escritório.";
+      const office = await officeLabel(ctx);
       // deno-lint-ignore no-explicit-any
-      return rows
-        .map(
-          (a: any) =>
-            `- cod_agent ${a.cod_agent} · ${a.owner_name || "—"} · ${a.business_name || "—"} · ${a.whatsapp || "—"} · ${
-              a.is_active === false ? "inativo" : "ativo"
-            }`,
-        )
-        .join("\n");
+      const lines = (rows as any[]).map(
+        (a) =>
+          `- cod_agent ${a.cod_agent} · titular ${a.owner_name || "—"} (${a.owner_email || "sem e-mail"}) · ${
+            a.status === false ? "inativo" : "ativo"
+          }\n  plano: ${a.agent_plan_id || "—"} · vencimento: ${fmtDate(a.due_date)} · último uso: ${fmtDate(a.last_used)}`,
+      );
+      return `Escritório: ${office || "—"} (client_id ${ctx.clientId})\n\n${lines.join("\n")}`;
     },
   },
+
   {
     name: "julia_campanhas_listar",
     description:
