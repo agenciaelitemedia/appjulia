@@ -235,14 +235,27 @@ export const crmTools: CopilotoTool[] = [
       additionalProperties: false,
     },
     run: async (ctx, args) => {
+      const allowed = await listMcpAllowedBoardIds(ctx);
+      if (!allowed.length) {
+        return "Nenhum quadro do CRM Builder liberado para o MCP. Libere em CRM Builder → Configurações → Permissões → Acesso do MCP (opção Listar).";
+      }
+      const boardId = str(args.board_id);
+      if (boardId && !allowed.includes(boardId)) {
+        throw new CopilotoError(
+          "PERMISSION_DENIED",
+          "O MCP não tem permissão para listar este quadro. Libere a opção Listar em CRM Builder → Configurações → Permissões → Acesso do MCP.",
+          { details: { board_id: boardId } },
+        );
+      }
+
       let query = ctx.supabase
         .from("crm_deals")
         .select("id, title, contact_name, contact_phone, value, status, pipeline_id, assigned_to, created_at, updated_at, stage_entered_at")
         .eq("client_id", ctx.clientId)
+        .in("board_id", boardId ? [boardId] : allowed)
         .order("updated_at", { ascending: false })
         .limit(num(args.limite, 30, MAX_ROWS));
 
-      if (str(args.board_id)) query = query.eq("board_id", str(args.board_id));
       if (str(args.pipeline_id)) query = query.eq("pipeline_id", str(args.pipeline_id));
       const busca = str(args.busca);
       if (busca) {
