@@ -9,6 +9,7 @@
  *  - allowlist de campos e de transições;
  *  - auditoria completa em `cop_write_audit`.
  */
+import { assertBoardMcpAccess } from "../board-access.ts";
 import { CopilotoError, nowIso, ok, safeDbError, type ToolOutput } from "../envelope.ts";
 import { SCOPE_WRITE_CRM, SCOPE_WRITE_MESSAGES, str, type CopilotoContext, type CopilotoTool, type ToolArgs } from "../types.ts";
 
