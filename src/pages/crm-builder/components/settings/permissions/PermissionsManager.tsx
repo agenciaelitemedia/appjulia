@@ -35,6 +35,14 @@ const PERM_COLS: { key: PermKey; label: string }[] = [
   { key: 'can_delete', label: 'Remover' },
 ];
 
+type McpKey = 'list' | 'create' | 'edit' | 'move';
+const MCP_ACTIONS: { key: McpKey; label: string; hint: string }[] = [
+  { key: 'list', label: 'Listar', hint: 'Ver o quadro e os cards pelo MCP' },
+  { key: 'create', label: 'Criar', hint: 'Criar novos cards neste quadro' },
+  { key: 'edit', label: 'Editar', hint: 'Alterar dados dos cards' },
+  { key: 'move', label: 'Mover', hint: 'Mudar a etapa ou o status dos cards' },
+];
+
 interface Props {
   board: CRMBoard;
   clientId: string;
