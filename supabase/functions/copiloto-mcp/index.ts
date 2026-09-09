@@ -8,6 +8,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { dispatchCopilotoTool, getToolCatalogMarkdown, getToolDefinitions, TOOL_DOMAINS } from "../_shared/copiloto/tools/index.ts";
+import { officeLabel } from "../_shared/copiloto/legacy.ts";
 import {
   ANALYSIS_ATENDIMENTO,
   ANALYSIS_CONTRATO,
