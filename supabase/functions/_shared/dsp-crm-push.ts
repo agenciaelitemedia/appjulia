@@ -205,7 +205,7 @@ export async function pushRecipientToCrm(
       return { ok: true, created: false, moved: true, deal_id: deal.id, contact_id: contactId, reason: 'deal_moved' };
     }
 
-    await admin.from('crm_deals').update({ custom_fields: mergedCustomFields }).eq('id', deal.id);
+    await admin.from('crm_deals').update({ custom_fields: mergedCustomFields, ...nameFix }).eq('id', deal.id);
 
     await admin.from('crm_deal_history').insert({
       deal_id: deal.id,
