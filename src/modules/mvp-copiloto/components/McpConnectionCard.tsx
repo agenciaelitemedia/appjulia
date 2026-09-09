@@ -114,7 +114,34 @@ export function McpConnectionCard() {
 
         </div>
 
-
+        <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+          <div className="font-medium">Cards do CRM Builder pelo conector</div>
+          <ul className="space-y-1 text-xs text-muted-foreground">
+            <li>
+              <strong>Listar:</strong> <code>julia_builder_listar_quadros</code>,{' '}
+              <code>julia_builder_listar_negocios</code>, <code>julia_builder_obter_negocio</code>
+            </li>
+            <li>
+              <strong>Criar card:</strong> <code>julia_card_criar</code>
+            </li>
+            <li>
+              <strong>Editar card:</strong> <code>julia_lead_atualizar</code>
+            </li>
+            <li>
+              <strong>Mover etapa/status:</strong> <code>julia_lead_alterar_estagio</code>
+            </li>
+            <li>
+              <strong>Contatos:</strong> <code>julia_contatos_buscar</code>,{' '}
+              <code>julia_contato_criar</code>, <code>julia_contato_atualizar</code>
+            </li>
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            Cada quadro só é acessado se a ação estiver ligada em <strong>CRM Builder → Configurações →
+            Permissões → Acesso do MCP</strong> (tudo desligado por padrão). O ID do quadro fica nesse
+            mesmo bloco, para copiar e filtrar um quadro específico. Toda alteração simula primeiro e só
+            grava com aprovação.
+          </p>
+        </div>
 
         <div className="space-y-2">
           <div className="flex items-center gap-2 font-medium">
