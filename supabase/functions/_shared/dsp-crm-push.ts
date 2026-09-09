@@ -47,28 +47,46 @@ export async function pushRecipientToCrm(
   const phone = String(recipient?.phone_e164 ?? '').replace(/\D/g, '');
   if (!phone) return { ok: false, reason: 'phone_missing' };
   const variants = phoneVariants(phone);
-  const leadName = String(recipient?.name ?? '').trim() || phone;
+  const recipientName = String(recipient?.name ?? '').trim();
 
-  // 2) Contato: reaproveita se já existir no escritório
+  const isJustPhone = (v: unknown) => {
+    const s = String(v ?? '').trim();
+    if (!s) return true;
+    const d = s.replace(/\D/g, '');
+    return d === s && variants.includes(d);
+  };
+
+  // 2) Contato: reaproveita se já existir no escritório (aceita número com e sem o 9)
   let contactId: string | null = recipient?.contact_id ?? null;
+  let contactName = '';
   if (contactId) {
     const { data: existing } = await admin
       .from('chat_contacts')
-      .select('id')
+      .select('id, name')
       .eq('client_id', clientId)
       .eq('id', contactId)
       .maybeSingle();
     if (!existing) contactId = null;
+    else contactName = String(existing.name ?? '').trim();
   }
   if (!contactId) {
     const { data: found } = await admin
       .from('chat_contacts')
-      .select('id, phone')
+      .select('id, name, phone, updated_at')
       .eq('client_id', clientId)
-      .eq('is_group', false)
+      .or('is_group.is.null,is_group.eq.false')
       .in('phone', variants)
-      .limit(1);
-    if (found && found.length > 0) contactId = found[0].id;
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(20);
+    const rows = (found ?? []) as Array<{ id: string; name: string | null; phone: string | null }>;
+    // Prefere o registro idêntico ao número enviado; senão o mais recente com nome; senão o mais recente.
+    const exact = rows.find((r) => String(r.phone ?? '').replace(/\D/g, '') === phone);
+    const named = rows.find((r) => !isJustPhone(r.name));
+    const pick = exact ?? named ?? rows[0];
+    if (pick) {
+      contactId = pick.id;
+      contactName = String(pick.name ?? '').trim();
+    }
   }
   if (!contactId) {
     const { data: created, error } = await admin
@@ -76,7 +94,7 @@ export async function pushRecipientToCrm(
       .insert({
         client_id: clientId,
         phone,
-        name: leadName,
+        name: recipientName || phone,
         channel_type: 'whatsapp',
         cod_agent: board.cod_agent ?? null,
         is_group: false,
@@ -85,7 +103,16 @@ export async function pushRecipientToCrm(
       .maybeSingle();
     if (error) return { ok: false, reason: `contact_insert:${error.message}` };
     contactId = created?.id ?? null;
+    contactName = recipientName;
+  } else if (recipientName && isJustPhone(contactName)) {
+    // Contato existente sem nome real → completa com o nome vindo da campanha
+    await admin.from('chat_contacts').update({ name: recipientName }).eq('id', contactId).eq('client_id', clientId);
+    contactName = recipientName;
   }
+
+  // Nome exibido: contato existente → nome da campanha → telefone
+  const leadName = (!isJustPhone(contactName) ? contactName : '') || recipientName || phone;
+
 
   // 2.1) Conversa mais recente do contato (para o vínculo padrão chat↔CRM)
   let conversationId: string | null = null;
