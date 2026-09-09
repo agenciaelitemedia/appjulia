@@ -70,8 +70,11 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
   const restrictOpenTo = useMemo<string[] | null>(() => {
     const privileged = isAdmin || isOwnerUser(user);
     if (privileged) return null;
-    return [String(user?.id ?? ''), String((user as any)?.name ?? '')].filter(Boolean);
+    // O responsável é comparado por código do usuário e, como reserva, pelo nome
+    // (sem espaços sobrando — o banco normaliza maiúsculas/minúsculas).
+    return [String(user?.id ?? '').trim(), String((user as any)?.name ?? '').trim()].filter(Boolean);
   }, [isAdmin, user]);
+
 
   const scopedFilters = useMemo<JuliaChatFilters>(() => ({
     ...debounced,
