@@ -1,72 +1,42 @@
-# Levar o banco do Lovable para um Supabase próprio (cópia fiel)
+# Disparos: mídia, botões e prévia nos templates
 
-Objetivo: reproduzir no seu Supabase tudo que existe hoje aqui — dados, views, materialized views, funções, triggers, políticas, storage, realtime, agendamentos e as Edge Functions — e depois virar o sistema para ele.
+## Problemas encontrados hoje
 
-## O que existe hoje (medido agora)
+- Ao escolher um template com mídia no assistente de campanha, **a mídia é descartada**: o wizard copia só o texto para a variante (`{ label, message_text, weight, template_id }`), então o envio sai como texto puro.
+- O envio pela **API Oficial nunca usa template**: o worker chama a ação `send_template` na função `waba-send`, e essa ação **não existe** lá (só `send_text`, `send_media`, `log_outbound`, `download_media`, `mark_read`). Campanhas oficiais com template falham silenciosamente ou caem para texto.
+- A ação `send_media` oficial só aceita arquivo em base64; o disparo guarda **URL** de mídia — falta o passo de baixar e subir para a Meta.
+- Templates do modo Julia (não oficial) não têm **botões**, nem rodapé, nem prévia de como a mensagem vai ficar.
 
-| Item | Quantidade |
-| --- | --- |
-| Tabelas em `public` | 233 |
-| Views | 5 |
-| Materialized views | 4 |
-| Funções | 131 |
-| Tabelas com realtime ligado | 44 |
-| Agendamentos (cron) | 31 |
-| Buckets de arquivos | 6 |
-| Edge Functions | 143 |
-| Secrets | 23 |
+## O que muda para o usuário
 
-Também já existe no projeto o material de apoio: `docs/Plano-Migracao-Supabase.md`, a tela `/painel-migracao` e a função `migracao-executar`.
+1. **Criação de template (modo Julia)** ganha:
+   - mídia (imagem, vídeo, áudio, documento) com URL e nome de arquivo;
+   - rodapé opcional;
+   - botões: resposta rápida (até 3) ou link/telefone (até 2), com aviso de limites;
+   - **prévia ao vivo em estilo WhatsApp**, atualizando conforme se digita, com as variáveis exibidas como exemplo.
+2. **Aviso de compatibilidade por canal** dentro do editor: o que funciona na API não oficial (mídia livre + botões) e o que exige template aprovado na API Oficial (botões e cabeçalho de mídia só via template Meta; áudio não é suportado em template oficial).
+3. **Assistente de campanha**: ao escolher um template, mídia, rodapé e botões passam a ser levados para a variante e realmente enviados. A prévia da variante também aparece no passo de mensagem.
+4. **Campanhas na API Oficial** passam a enviar templates aprovados de verdade (com parâmetros do corpo e cabeçalho de mídia), em vez de falhar.
 
-## Ponto importante sobre acesso
+## Detalhes técnicos
 
-A senha do banco e a chave de serviço **deste** projeto não são liberadas pela plataforma — nem para mim. Então a cópia não pode ser um `pg_dump` apontado para cá. O caminho é: a plataforma exporta o banco (Cloud → Configurações avançadas → Exportar dados), e o restante (estrutura fina, arquivos, funções, realtime) é reproduzido pelos passos abaixo, com a chave de serviço **do destino** — essa sim você fornece.
+**Migração**
+- `dsp_message_templates`: `footer text null`, `buttons jsonb not null default '[]'::jsonb`, `file_name text null`.
+- `dsp_campaign_variants`: `footer text null`, `buttons jsonb not null default '[]'::jsonb`, `file_name text null`, `template_params jsonb` (se ainda não existir).
+- Nenhuma tabela nova; GRANTs/RLS existentes preservados.
 
-## Etapas
+**Backend**
+- `supabase/functions/waba-send/index.ts`: nova ação `send_template` (POST `/{phone_number_id}/messages` com `type: "template"`, `template.name`, `template.language.policy=deterministic`, `components` recebidos), reaproveitando resolução de credenciais, `fetchWithRetry` e o log de saída já usados por `send_text`. Nova ação `send_media_url`: baixa a URL, faz upload em `/media` e reutiliza o fluxo de `send_media` existente (sem alterar o comportamento atual de `send_media`).
+- `supabase/functions/_shared/dsp-core.ts`: helper `buildOutboundPayload(queue, variant, vars)` que devolve o payload por provedor — uazapi: `/send/text`, `/send/media`, `/send/menu` (quando há botões, com `choices` no formato do provedor); oficial: `send_template` quando a campanha tem template Meta, senão `send_text`/`send_media_url`.
+- `supabase/functions/dsp-campaign-worker/index.ts`: `sendMessage` passa a usar esse helper (mantendo contadores, cooldown, retry e classificação de erro intactos). Áudio + canal oficial dentro de campanha com template: marca falha permanente com motivo claro em vez de tentar.
+- Redeploy de `waba-send` e `dsp-campaign-worker`.
 
-### 1. Preparar o destino
-- Criar o projeto Supabase, escolher região próxima e aumentar o compute temporariamente durante a carga.
-- Habilitar extensões: `pgcrypto`, `uuid-ossp`, `pg_trgm`, `pg_cron`, `pg_net`, `pg_stat_statements`, `supabase_vault`.
+**Frontend (isolado no módulo)**
+- Novo `src/modules/disparos/components/TemplatePreview.tsx` — bolha estilo WhatsApp (cabeçalho de mídia, corpo com variáveis substituídas por exemplo, rodapé, botões), reutilizada no editor de template e no passo de mensagem do wizard.
+- Novo `src/modules/disparos/components/TemplateButtonsEditor.tsx` — edição dos botões com validação de tipo/limites.
+- `TemplatesTab.tsx`: editor em duas colunas (formulário + prévia), campos de rodapé/botões/nome de arquivo.
+- `useDspTemplates.ts` / `useDspCampaigns.ts` / `types.ts`: novos campos persistidos e propagados.
+- `CampaignWizardDialog.tsx`: ao selecionar template, copia `media_url`, `media_type`, `file_name`, `footer`, `buttons`; mostra a prévia e o aviso de compatibilidade conforme os canais escolhidos.
 
-### 2. Estrutura (o que garante não perder nada)
-Gerar, a partir do banco vivo, um único script de estrutura em blocos, nesta ordem:
-1. Tabelas e sequences.
-2. Funções e triggers.
-3. **Views e materialized views** (as 5 + 4 — hoje o painel não cobre isso; será incluído).
-4. Índices, constraints e chaves estrangeiras (aplicados **depois** dos dados).
-5. Grants + RLS + políticas.
-6. **Realtime**: `ALTER PUBLICATION supabase_realtime ADD TABLE …` para as 44 tabelas + `REPLICA IDENTITY FULL` onde já está assim.
-7. **Agendamentos**: recriar os 31 jobs de `cron.job`, trocando as URLs de função para o domínio do destino.
-
-### 3. Dados
-- Tabelas de log/efêmeras vão **só com estrutura**: `chat_dropped_messages`, `webhook_logs`, `webhook_queue`, `user_presence_heartbeats*`, `ai_usage_logs`, `chat_legacy_cache`, `uazapi_history_items`.
-- Restante com dados; as maiores (ex.: `chat_messages`) via arquivo de exportação, não por HTTP.
-- Depois da carga: `setval` em todas as sequences e `REFRESH MATERIALIZED VIEW`.
-
-### 4. Arquivos (Storage)
-- Recriar os 6 buckets com a mesma visibilidade e limite (públicos: `avatars`, `chat-media`, `creatives`; privados: `ticket-media`, `wavoip-recordings`, `database_export_03_09_26`).
-- Copiar objetos bucket a bucket e, por fim, reescrever no banco as URLs de arquivo que apontam para o domínio antigo.
-
-### 5. Edge Functions
-- As 143 funções já estão no repositório, com o `config.toml`. Deploy no destino via CLI (`supabase link` + `supabase functions deploy`), gerando o script pronto no painel.
-- Recadastrar as 23 secrets manualmente (os valores não são legíveis por código).
-
-### 6. Virada
-- Reapontar os webhooks de terceiros (Meta, UaZapi por fila, Wavoip, api4com, 3C Plus, Vellip, Mercado Pago, Asaas, InfinityPay, ZapSign, n8n) para o novo domínio de funções.
-- Trocar as variáveis do app (URL e chave pública) e o Worker do Cloudflare (`mcp.atendejulia.com.br`).
-- Rodar delta das tabelas quentes por `created_at/updated_at`, checar contagens origem × destino e fazer teste de fumaça: login, envio de mensagem, CRM, ligação.
-
-### 7. n8n (sua pergunta anterior)
-O n8n grava no Postgres **externo legado**, que não faz parte desta migração e continua no lugar — nada muda nos fluxos. Só precisam ser ajustados os fluxos que chamam Edge Functions (`n8n_execute-*`), trocando a URL base.
-
-## Ajustes de código previstos
-
-- `supabase/functions/migracao-executar/index.ts`: incluir no gerador de estrutura os blocos de views, materialized views, publicação de realtime, `REPLICA IDENTITY` e jobs de cron; separar “índices/FKs depois dos dados”; adicionar ação de `setval` das sequences e de reescrita das URLs de storage.
-- `src/pages/.../painel-migracao`: novos passos “Views & Realtime”, “Cron”, “Sequences” e “Reescrever URLs”, além do gerador do script de deploy das funções e da lista de secrets.
-- `docs/Plano-Migracao-Supabase.md`: atualizar números (233 tabelas, 5 views, 44 tabelas em realtime, 31 crons, 143 funções) e incluir as etapas novas.
-
-## Janela estimada
-
-Fase A sem parada (estrutura + histórico + arquivos + deploy das funções): 2–4 h.
-Fase B com parada (delta, índices/FKs, realtime, cron, verificação, virada de URLs): 1 h 15 – 1 h 45.
-Rollback: origem intacta; basta reverter as variáveis e os webhooks.
+**Compatibilidade**
+- Todos os campos novos têm padrão vazio: templates e campanhas existentes continuam funcionando exatamente como hoje.
