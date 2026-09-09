@@ -132,6 +132,40 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
     if (success) queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
   };
 
+  const handleMcpToggle = async (key: McpKey, checked: boolean) => {
+    const nextMcp: Record<McpKey, boolean> = { ...mcpAccess, [key]: checked };
+    if (key === 'list' && !checked) {
+      nextMcp.create = false;
+      nextMcp.edit = false;
+      nextMcp.move = false;
+    }
+    if (key !== 'list' && checked) nextMcp.list = true;
+
+    const nextSettings = { ...(board.settings ?? {}), mcp: nextMcp };
+    const { data, error } = await supabase
+      .from('crm_boards')
+      .update({ settings: nextSettings })
+      .eq('id', boardId)
+      .select('*')
+      .single();
+    if (error) {
+      toast.error('Erro ao salvar acesso do MCP: ' + error.message);
+      return;
+    }
+    if (data) onBoardUpdated(data as CRMBoard);
+    queryClient.invalidateQueries({ queryKey: ['crm-boards', clientId] });
+    toast.success('Acesso do MCP atualizado');
+  };
+
+  const handleCopyBoardId = async () => {
+    try {
+      await navigator.clipboard.writeText(boardId);
+      toast.success('ID do painel copiado');
+    } catch {
+      toast.error('Não foi possível copiar. Selecione o texto e copie manualmente.');
+    }
+  };
+
   const handleModeChange = async (value: string) => {
     if (value !== 'disabled' && value !== 'role' && value !== 'user') return;
     const nextMode = value as BoardPermissionMode;
