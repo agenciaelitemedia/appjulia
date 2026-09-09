@@ -185,6 +185,8 @@ export async function pushRecipientToCrm(
         position: destPosition,
         updated_by: `dsp:${campaign.id}`,
         custom_fields: mergedCustomFields,
+        ...nameFix,
+
       };
       if (campaign?.crm_assigned_to) patch.assigned_to = campaign.crm_assigned_to;
 
