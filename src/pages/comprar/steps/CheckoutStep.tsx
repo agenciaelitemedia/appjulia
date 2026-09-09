@@ -89,6 +89,8 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
         .update({
           plan_name: orderData.plan_name,
           plan_price: orderData.plan_price,
+          setup_fee: setupFee,
+          total_amount: totalAmount,
           billing_period: orderData.billing_period || 'monthly',
           payment_gateway: orderData.payment_gateway || 'infinitypay',
           contract_body: orderData.contract_body || null,
