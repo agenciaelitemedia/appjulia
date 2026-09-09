@@ -282,17 +282,20 @@ Deno.serve(async (req) => {
         } else if (uri === "julia://politicas/uso") {
           text = POLICY;
         } else if (uri === "julia://escritorio/perfil") {
-          const [{ count: queues }, { count: convs }] = await Promise.all([
+          const [{ count: queues }, { count: convs }, office] = await Promise.all([
             supabase.from("queues").select("id", { count: "exact", head: true }).eq("client_id", ctx.clientId),
             supabase.from("chat_conversations").select("id", { count: "exact", head: true }).eq("client_id", ctx.clientId),
+            officeLabel(ctx),
           ]);
           text = [
             "# Escritório autenticado",
+            `Escritório: ${office || "(nome não resolvido)"} · client_id ${ctx.clientId}`,
             `Usuário do token: ${ctx.userEmail || "—"}`,
             `Filas cadastradas: ${queues ?? 0}`,
             `Atendimentos registrados: ${convs ?? 0}`,
             `Escopo do token: ${token.scope}`,
           ].join("\n");
+
         } else {
           return rpcError(id, -32602, `Recurso desconhecido: ${uri}`);
         }
