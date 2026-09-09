@@ -8,6 +8,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { dispatchCopilotoTool, getToolCatalogMarkdown, getToolDefinitions, TOOL_DOMAINS } from "../_shared/copiloto/tools/index.ts";
+import { officeLabel } from "../_shared/copiloto/legacy.ts";
 import {
   ANALYSIS_ATENDIMENTO,
   ANALYSIS_CONTRATO,
@@ -230,18 +231,27 @@ Deno.serve(async (req) => {
 
   try {
     switch (method) {
-      case "initialize":
+      case "initialize": {
+        // Identificar a conexão evita confusão quando o cliente MCP tem mais de
+        // um servidor Julia configurado (ferramentas com os mesmos nomes).
+        const office = await officeLabel(ctx);
+        const scopeLabel = `${office || "escritório " + ctx.clientId} (client_id ${ctx.clientId})`;
         return rpc(id, {
           protocolVersion: "2025-06-18",
           capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} },
-          serverInfo: { name: "julia-copiloto", version: "3.0.0" },
+          serverInfo: { name: `julia-copiloto · ${scopeLabel}`, version: "3.1.0" },
           instructions:
-            "Conector de leitura do sistema Julia do escritório. Fluxo recomendado: julia_contatos_buscar → julia_contatos_obter_perfil → julia_chat_ler_mensagens. " +
+            `Conector de leitura do sistema Julia. Esta conexão está autenticada como ${
+              ctx.userEmail || "usuário não identificado"
+            } e devolve APENAS dados de ${scopeLabel}. Se o usuário esperava outro escritório, ele deve reconectar com o e-mail correto (ou use julia_sessao_atual para confirmar). ` +
+            "Fluxo recomendado: julia_contatos_buscar → julia_contatos_obter_perfil → julia_chat_ler_mensagens. " +
             "Para pareceres, use as ferramentas julia_analise_* : elas devolvem o dossiê + o comando de análise, e VOCÊ escreve a análise. " +
             "Domínios disponíveis: " +
             TOOL_DOMAINS.map((d) => d.label).join("; ") +
             ". Todo acesso é somente leitura e restrito ao escritório autenticado.",
         });
+      }
+
 
       case "notifications/initialized":
         return new Response(null, { status: 202, headers: cors });
@@ -273,17 +283,20 @@ Deno.serve(async (req) => {
         } else if (uri === "julia://politicas/uso") {
           text = POLICY;
         } else if (uri === "julia://escritorio/perfil") {
-          const [{ count: queues }, { count: convs }] = await Promise.all([
+          const [{ count: queues }, { count: convs }, office] = await Promise.all([
             supabase.from("queues").select("id", { count: "exact", head: true }).eq("client_id", ctx.clientId),
             supabase.from("chat_conversations").select("id", { count: "exact", head: true }).eq("client_id", ctx.clientId),
+            officeLabel(ctx),
           ]);
           text = [
             "# Escritório autenticado",
+            `Escritório: ${office || "(nome não resolvido)"} · client_id ${ctx.clientId}`,
             `Usuário do token: ${ctx.userEmail || "—"}`,
             `Filas cadastradas: ${queues ?? 0}`,
             `Atendimentos registrados: ${convs ?? 0}`,
             `Escopo do token: ${token.scope}`,
           ].join("\n");
+
         } else {
           return rpcError(id, -32602, `Recurso desconhecido: ${uri}`);
         }

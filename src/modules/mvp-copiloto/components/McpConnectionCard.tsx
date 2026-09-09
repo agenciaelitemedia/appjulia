@@ -23,6 +23,8 @@ interface TokenRow {
   kind: string;
   last_used_at: string | null;
   created_at: string;
+  julia_user_email: string | null;
+  julia_client_id: string | null;
 }
 
 export function McpConnectionCard() {
@@ -40,7 +42,7 @@ export function McpConnectionCard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('cop_oauth_tokens')
-        .select('id, client_name, scope, kind, last_used_at, created_at')
+        .select('id, client_name, scope, kind, last_used_at, created_at, julia_user_email, julia_client_id')
         .eq('julia_client_id', clientId)
         .eq('kind', 'connector')
         .is('revoked_at', null)
@@ -49,6 +51,7 @@ export function McpConnectionCard() {
       return (data || []) as TokenRow[];
     },
   });
+
 
   const copy = (value: string, label: string) => {
     navigator.clipboard.writeText(value);
@@ -133,11 +136,15 @@ export function McpConnectionCard() {
                 <div key={t.id} className="flex items-center justify-between rounded-md border p-2">
                   <div className="min-w-0">
                     <div className="font-medium truncate">{t.client_name || 'Aplicativo MCP'}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      conta: {t.julia_user_email || '—'} · escritório {t.julia_client_id || '—'}
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       criado {new Date(t.created_at).toLocaleString('pt-BR')} · último uso{' '}
                       {t.last_used_at ? new Date(t.last_used_at).toLocaleString('pt-BR') : 'nunca'}
                     </div>
                   </div>
+
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">{t.scope}</Badge>
                     <Button
