@@ -533,6 +533,12 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
                   (informe o template oficial na campanha). Em filas não oficiais tudo é enviado direto.
                 </p>
               )}
+              {variants.some((v) => (v.buttons?.length ?? 0) > 0 && v.media_url && (v.media_type || 'image') !== 'image') && (
+                <p className="rounded-md border bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+                  Vídeo, documento e áudio não podem ficar acima dos botões no WhatsApp: nesses casos a mensagem
+                  chega em <b>duas partes</b> (primeiro o arquivo, depois os botões). Com imagem vai tudo junto.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

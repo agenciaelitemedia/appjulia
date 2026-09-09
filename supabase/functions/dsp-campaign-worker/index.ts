@@ -290,7 +290,7 @@ Deno.serve(async (req) => {
       const send = await sendMessage(candidate, recipient.phone_e164, variant, recipient.variables ?? {}, campaign);
 
       if (send.ok) {
-        await commitSend(admin, candidate);
+        await commitSend(admin, candidate, new Date(), send.messages ?? 1);
         // Atualiza o candidato em memória para o próximo item do lote
         const idx = candidates.findIndex((c) => c.queue.id === candidate.queue.id);
         if (idx >= 0) candidates[idx] = await loadChannel(admin, candidate.queue);
