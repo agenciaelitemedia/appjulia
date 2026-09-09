@@ -255,6 +255,25 @@ Deno.serve(async (req) => {
 
         await admin.from("dsp_campaigns").update({ total_sent: (campaign.total_sent ?? 0) + 1 }).eq("id", campaignId);
         campaign.total_sent = (campaign.total_sent ?? 0) + 1;
+
+        // Criação de card no CRM Builder (opcional). Nunca derruba o envio.
+        if (campaign.crm_push_enabled) {
+          try {
+            const push = await pushRecipientToCrm(admin, campaign, recipient);
+            await admin.from("dsp_message_events").insert({
+              client_id: String(campaign.client_id),
+              campaign_id: campaignId,
+              recipient_id: recipient.id,
+              provider: isUazapi(candidate.queue) ? "uazapi" : "meta_cloud",
+              event_key: `crm_push:${recipient.id}`,
+              event_type: push.ok ? "crm_card_created" : "crm_card_error",
+              payload: push,
+            });
+          } catch (e) {
+            console.error("[crm-push] error", recipient.id, String(e));
+          }
+        }
+
         result.sent++;
         continue;
       }
