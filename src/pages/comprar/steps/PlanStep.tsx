@@ -13,6 +13,9 @@ interface PlanFromDB {
   price_monthly: number;
   price_semiannual: number;
   price_annual: number;
+  setup_fee_monthly: number;
+  setup_fee_semiannual: number;
+  setup_fee_annual: number;
   icon: string;
   color: string;
   features: string[];
@@ -72,6 +75,9 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
           price_monthly: p.price_monthly ?? 0,
           price_semiannual: p.price_semiannual ?? 0,
           price_annual: p.price_annual ?? 0,
+          setup_fee_monthly: (p as any).setup_fee_monthly ?? 0,
+          setup_fee_semiannual: (p as any).setup_fee_semiannual ?? 0,
+          setup_fee_annual: (p as any).setup_fee_annual ?? 0,
         }));
         setPlans(mapped);
         if (orderData.plan_name) {
@@ -106,6 +112,12 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
     return plan.price_monthly;
   };
 
+  const getSetupFeeByPeriod = (plan: PlanFromDB, period: BillingPeriod = billingPeriod): number => {
+    if (period === 'annual') return plan.setup_fee_annual || 0;
+    if (period === 'semiannual') return plan.setup_fee_semiannual || 0;
+    return plan.setup_fee_monthly || 0;
+  };
+
   // Filter plans that have price > 0 for selected period
   const filteredPlans = useMemo(() => {
     return channelFilteredPlans.filter(p => getPriceByPeriod(p) > 0);
@@ -122,6 +134,7 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
     updateOrder({
       plan_name: plan.name,
       plan_price: getPriceByPeriod(plan),
+      setup_fee: getSetupFeeByPeriod(plan),
       billing_period: billingPeriod,
     });
   };
@@ -133,10 +146,10 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
       const plan = plans[selected];
       const price = period === 'annual' ? plan.price_annual : period === 'semiannual' ? plan.price_semiannual : plan.price_monthly;
       if (price > 0) {
-        updateOrder({ plan_price: price, billing_period: period });
+        updateOrder({ plan_price: price, setup_fee: getSetupFeeByPeriod(plan, period), billing_period: period });
       } else {
         setSelected(-1);
-        updateOrder({ plan_name: '', plan_price: 0, billing_period: period });
+        updateOrder({ plan_name: '', plan_price: 0, setup_fee: 0, billing_period: period });
       }
     }
   };
@@ -185,6 +198,7 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
       <div className="grid gap-4 md:grid-cols-3">
         {filteredPlans.map((plan) => {
           const price = getPriceByPeriod(plan);
+          const setupFee = getSetupFeeByPeriod(plan);
           const isSelected = selected >= 0 && plans[selected]?.id === plan.id;
           return (
             <div
@@ -210,6 +224,12 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
               <div className="mt-2 mb-4">
                 <span className="text-3xl font-extrabold text-[#1a1a2e]">{formatPrice(price)}</span>
                 <span className="text-gray-400 text-sm">{periodLabels[billingPeriod].suffix}</span>
+                {setupFee > 0 && (
+                  <p className="text-sm text-[#6C3AED] font-medium mt-1">
+                    + {formatPrice(setupFee)} de taxa de implantação
+                    <span className="block text-xs text-gray-400 font-normal">cobrança única, no primeiro pagamento</span>
+                  </p>
+                )}
               </div>
 
               <ul className="space-y-2">

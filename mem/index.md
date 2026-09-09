@@ -21,3 +21,4 @@
 - [Tramitação Inteligente Integration](mem://features/tramitacao-inteligente-integration) — Integração Planilha: processos, clientes, webhooks HMAC, envio de leads (plano aprovado em 2026-09-02)
 - [Supabase Migration Plan](mem://features/migracao-supabase/kit-migracao) — Plano de migração do Lovable Cloud para Supabase externo: janela, 237 tabelas, Edge Functions, secrets, storage (fase de controle + execução)
 - [MCP Cards/Contatos](mem://features/mcp/gestao-cards-contatos) — Tools de escrita do MCP: criar card, criar/atualizar contato, dry-run + auditoria
+- [Taxa de Implantação](mem://features/purchase/setup-fee-julia-plans) — Taxa por período nos planos Julia: checkout separado (mensalidade x taxa) e contrato

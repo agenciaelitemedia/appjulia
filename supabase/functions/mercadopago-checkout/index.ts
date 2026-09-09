@@ -81,16 +81,29 @@ Deno.serve(async (req) => {
 
     const webhookUrl = `${supabaseUrl}/functions/v1/mercadopago-webhook`
 
+    // Setup fee (taxa de implantação) — one-time, charged with the first payment
+    const setupFeeCents = Number(order.setup_fee ?? 0) > 0 ? Number(order.setup_fee) : 0
+
+    const mpItems = [
+      {
+        title: `${order.plan_name} ${periodSuffix}`.trim(),
+        quantity: 1,
+        unit_price: unitPrice,
+        currency_id: 'BRL',
+      },
+    ]
+    if (setupFeeCents > 0) {
+      mpItems.push({
+        title: 'Taxa de implantação (cobrança única)',
+        quantity: 1,
+        unit_price: setupFeeCents / 100,
+        currency_id: 'BRL',
+      })
+    }
+
     // Build preference
     const preference = {
-      items: [
-        {
-          title: `${order.plan_name} ${periodSuffix}`.trim(),
-          quantity: 1,
-          unit_price: unitPrice,
-          currency_id: 'BRL',
-        },
-      ],
+      items: mpItems,
       payer: {
         name: order.customer_name,
         email: order.customer_email || undefined,

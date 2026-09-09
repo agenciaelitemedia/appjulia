@@ -23,6 +23,9 @@ interface Plan {
   price_semiannual: number;
   price_annual: number;
   price_display: string;
+  setup_fee_monthly: number;
+  setup_fee_semiannual: number;
+  setup_fee_annual: number;
   icon: string;
   color: string;
   features: string[];
@@ -36,6 +39,9 @@ interface FormState {
   display_monthly: string;
   display_semiannual: string;
   display_annual: string;
+  setup_monthly: string;
+  setup_semiannual: string;
+  setup_annual: string;
   icon: string;
   color: string;
   features: string[];
@@ -49,6 +55,9 @@ const emptyForm: FormState = {
   display_monthly: '',
   display_semiannual: '',
   display_annual: '',
+  setup_monthly: '',
+  setup_semiannual: '',
+  setup_annual: '',
   icon: 'zap',
   color: 'from-blue-500 to-blue-600',
   features: [],
@@ -94,7 +103,7 @@ const PlanosPage = () => {
 
   const fetchPlans = async () => {
     const { data } = await supabase.from('julia_plans').select('*').order('position');
-    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: p.price_monthly ?? 0, price_semiannual: p.price_semiannual ?? 0, price_annual: p.price_annual ?? 0 })));
+    if (data) setPlans(data.map(p => ({ ...p, features: (p.features as any) || [], price_monthly: p.price_monthly ?? 0, price_semiannual: p.price_semiannual ?? 0, price_annual: p.price_annual ?? 0, setup_fee_monthly: (p as any).setup_fee_monthly ?? 0, setup_fee_semiannual: (p as any).setup_fee_semiannual ?? 0, setup_fee_annual: (p as any).setup_fee_annual ?? 0 })));
     setLoading(false);
   };
 
@@ -132,6 +141,9 @@ const PlanosPage = () => {
       display_monthly: centsToDisplay(plan.price_monthly),
       display_semiannual: centsToDisplay(plan.price_semiannual),
       display_annual: centsToDisplay(plan.price_annual),
+      setup_monthly: centsToDisplay(plan.setup_fee_monthly),
+      setup_semiannual: centsToDisplay(plan.setup_fee_semiannual),
+      setup_annual: centsToDisplay(plan.setup_fee_annual),
       icon: plan.icon,
       color: plan.color,
       features: plan.features,
@@ -174,6 +186,9 @@ const PlanosPage = () => {
         price_semiannual: priceSemiannual,
         price_annual: priceAnnual,
         price_display: minPrice > 0 ? `R$ ${(minPrice / 100).toFixed(0)}` : '',
+        setup_fee_monthly: parseToCents(form.setup_monthly),
+        setup_fee_semiannual: parseToCents(form.setup_semiannual),
+        setup_fee_annual: parseToCents(form.setup_annual),
         icon: form.icon,
         color: form.color,
         features: form.features as any,
@@ -263,9 +278,24 @@ const PlanosPage = () => {
                       {plan.is_popular && <Badge variant="secondary" className="text-xs">Popular</Badge>}
                     </div>
                   </td>
-                  <td className="py-3 text-sm">{formatBRL(plan.price_monthly)}</td>
-                  <td className="py-3 text-sm">{formatBRL(plan.price_semiannual)}</td>
-                  <td className="py-3 text-sm">{formatBRL(plan.price_annual)}</td>
+                  <td className="py-3 text-sm">
+                    {formatBRL(plan.price_monthly)}
+                    {plan.setup_fee_monthly > 0 && (
+                      <span className="block text-xs text-muted-foreground">+ {formatBRL(plan.setup_fee_monthly)} impl.</span>
+                    )}
+                  </td>
+                  <td className="py-3 text-sm">
+                    {formatBRL(plan.price_semiannual)}
+                    {plan.setup_fee_semiannual > 0 && (
+                      <span className="block text-xs text-muted-foreground">+ {formatBRL(plan.setup_fee_semiannual)} impl.</span>
+                    )}
+                  </td>
+                  <td className="py-3 text-sm">
+                    {formatBRL(plan.price_annual)}
+                    {plan.setup_fee_annual > 0 && (
+                      <span className="block text-xs text-muted-foreground">+ {formatBRL(plan.setup_fee_annual)} impl.</span>
+                    )}
+                  </td>
                   <td className="py-3 text-muted-foreground text-xs">{plan.features.length} items</td>
                   <td className="py-3">
                     <Badge variant={plan.is_active ? 'default' : 'outline'}>
@@ -343,6 +373,47 @@ const PlanosPage = () => {
                 )}
               </div>
             </div>
+            <div>
+              <Label className="text-sm">Taxa de implantação (R$) — opcional, cobrança única</Label>
+              <div className="grid grid-cols-3 gap-3 mt-1">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Mensal</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.setup_monthly}
+                    onChange={e => setForm(f => ({ ...f, setup_monthly: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Semestral</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.setup_semiannual}
+                    onChange={e => setForm(f => ({ ...f, setup_semiannual: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Anual</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.setup_annual}
+                    onChange={e => setForm(f => ({ ...f, setup_annual: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Deixe vazio ou 0 para não cobrar taxa de implantação.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Ícone</Label>
@@ -411,7 +482,7 @@ const PlanosPage = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Placeholders: {'{{customer_name}}'}, {'{{customer_document}}'}, {'{{customer_email}}'}, {'{{customer_whatsapp}}'}, {'{{customer_address}}'}, {'{{plan_name}}'}, {'{{plan_price}}'}, {'{{billing_period}}'}
+                Placeholders: {'{{customer_name}}'}, {'{{customer_document}}'}, {'{{customer_email}}'}, {'{{customer_whatsapp}}'}, {'{{customer_address}}'}, {'{{plan_name}}'}, {'{{plan_price}}'}, {'{{billing_period}}'}, {'{{setup_fee}}'}, {'{{total_first_payment}}'}
               </p>
               <div className="flex gap-2">
                 <Button
