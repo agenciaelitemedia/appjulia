@@ -326,9 +326,9 @@ function buildLastMessagePreview(text: unknown, type: string, fileName?: string)
     revoked: '🚫 Mensagem apagada',
   };
   const t = toSafeString(text).trim();
-  const looksLikeJson = t.startsWith('{') || t.startsWith('[');
   const isObjectStr = t === '[object Object]';
-  const safeText = looksLikeJson || isObjectStr ? '' : t;
+  const safeText = looksLikeJsonBlob(t) || isObjectStr ? '' : t;
+
 
   if (type === 'document') return `📎 ${fileName || 'Documento'}`;
   if (TYPE_LABELS[type]) {
