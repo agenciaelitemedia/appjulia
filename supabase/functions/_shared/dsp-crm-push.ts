@@ -139,7 +139,7 @@ export async function pushRecipientToCrm(
   //    Arquivado / ganho / perdido NÃO conta: um card novo é criado.
   const { data: active } = await admin
     .from('crm_deals')
-    .select('id, pipeline_id, custom_fields')
+    .select('id, pipeline_id, custom_fields, title, contact_name')
     .eq('client_id', clientId)
     .eq('board_id', board.id)
     .in('contact_phone', variants)
