@@ -605,4 +605,348 @@ export const escritaTools: CopilotoTool[] = [
       );
     },
   },
+  {
+    name: "julia_card_criar",
+    version: "1.0.0",
+    mode: "write",
+    requiredScope: SCOPE_WRITE_CRM,
+    description:
+      "Cria um card (negócio) em um quadro do CRM Builder do escritório, na etapa indicada. Recusa quadro/etapa de outro escritório e etapa de outro quadro. Simula por padrão; execução real exige approved_by.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        board_id: { type: "string", description: "UUID do quadro." },
+        pipeline_id: { type: "string", description: "UUID da etapa destino (do mesmo quadro)." },
+        title: { type: "string", description: "Título do card." },
+        contato_id: { type: "string", description: "ID do contato da Julia a vincular (opcional)." },
+        telefone: { type: "string", description: "Telefone do contato (opcional, usado se não houver contato_id)." },
+        contact_name: { type: "string", description: "Nome do contato." },
+        contact_email: { type: "string", description: "E-mail do contato." },
+        description: { type: "string", description: "Descrição/resumo do caso." },
+        value: { type: "number", description: "Valor estimado." },
+        priority: { type: "string", enum: [...DEAL_PRIORITY], description: "Prioridade do card." },
+        assigned_to: { type: "string", description: "Nome do responsável." },
+        ...COMMON_PROPS,
+      },
+      required: ["board_id", "pipeline_id", "title", "idempotency_key"],
+      additionalProperties: false,
+    },
+    run: async (ctx, args): Promise<ToolOutput> => {
+      const env = writeEnv(args);
+      const boardId = str(args.board_id);
+      const pipelineId = str(args.pipeline_id);
+      const title = str(args.title);
+      if (!title) throw new CopilotoError("INVALID_INPUT", "Informe o título do card.");
+      const priority = str(args.priority);
+      if (priority && !DEAL_PRIORITY.includes(priority as typeof DEAL_PRIORITY[number])) {
+        throw new CopilotoError("INVALID_INPUT", `Prioridade inválida. Use: ${DEAL_PRIORITY.join(", ")}.`);
+      }
+
+      const replay = await findReplay(ctx, "card_criar", env.key);
+      if (replay) {
+        return result(
+          ctx,
+          "julia_card_criar",
+          { applied: true, dry_run: false, before: null, after: replay.after_data, audit_id: replay.id, replay: true },
+          `Card já criado com esta idempotency_key (audit_id ${replay.id}). Nada foi duplicado.`,
+        );
+      }
+
+      const { data: board, error: boardError } = await ctx.supabase
+        .from("crm_boards")
+        .select("id, name, cod_agent, is_archived")
+        .eq("client_id", ctx.clientId)
+        .eq("id", boardId)
+        .maybeSingle();
+      if (boardError) throw safeDbError("database", boardError);
+      if (!board) throw new CopilotoError("NOT_FOUND", "Quadro não encontrado neste escritório.");
+      if (board.is_archived) throw new CopilotoError("INVALID_INPUT", "Quadro arquivado: não aceita novos cards.");
+
+      const { data: pipeline, error: pipeError } = await ctx.supabase
+        .from("crm_pipelines")
+        .select("id, name, board_id, is_active")
+        .eq("id", pipelineId)
+        .maybeSingle();
+      if (pipeError) throw safeDbError("database", pipeError);
+      if (!pipeline) throw new CopilotoError("NOT_FOUND", "Etapa destino não encontrada.");
+      if (String(pipeline.board_id) !== String(board.id)) {
+        throw new CopilotoError("INVALID_INPUT", "A etapa informada pertence a outro quadro.");
+      }
+      if (pipeline.is_active === false) throw new CopilotoError("INVALID_INPUT", "Etapa inativa: escolha outra etapa.");
+
+      // Contato: aceita ID (validado no escritório) ou telefone informado.
+      let contactPhone = str(args.telefone).replace(/\D/g, "");
+      let contactName = str(args.contact_name);
+      const contatoId = str(args.contato_id);
+      if (contatoId) {
+        const { data: contact, error: contactError } = await ctx.supabase
+          .from("chat_contacts")
+          .select("id, name, phone, lead_email")
+          .eq("client_id", ctx.clientId)
+          .eq("id", contatoId)
+          .maybeSingle();
+        if (contactError) throw safeDbError("database", contactError);
+        if (!contact) throw new CopilotoError("NOT_FOUND", "Contato não encontrado neste escritório.");
+        contactPhone = String(contact.phone || "").replace(/\D/g, "") || contactPhone;
+        contactName = contactName || String(contact.name || "");
+      }
+
+      // Nova posição: fim da coluna da etapa.
+      const { data: last } = await ctx.supabase
+        .from("crm_deals")
+        .select("position")
+        .eq("client_id", ctx.clientId)
+        .eq("pipeline_id", pipelineId)
+        .order("position", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const row = {
+        board_id: board.id,
+        pipeline_id: pipeline.id,
+        client_id: ctx.clientId,
+        cod_agent: board.cod_agent,
+        title,
+        description: str(args.description) || null,
+        value: Number.isFinite(Number(args.value)) ? Number(args.value) : null,
+        priority: priority || "medium",
+        status: "open",
+        position: Number(last?.position ?? -1) + 1,
+        contact_name: contactName || null,
+        contact_phone: contactPhone || null,
+        contact_email: str(args.contact_email) || null,
+        assigned_to: str(args.assigned_to) || null,
+        stage_entered_at: nowIso(),
+        created_by: ctx.userEmail ?? "mcp",
+      };
+
+      let applied = false;
+      // deno-lint-ignore no-explicit-any
+      let created: any = null;
+      if (!env.dryRun) {
+        const { data, error } = await ctx.supabase.from("crm_deals").insert(row).select("*").maybeSingle();
+        if (error) throw safeDbError("database", error);
+        created = data;
+        applied = true;
+        if (created?.id) {
+          await ctx.supabase.from("crm_deal_history").insert({
+            deal_id: created.id,
+            action: "created",
+            to_pipeline_id: pipeline.id,
+            changed_by: ctx.userEmail ?? "mcp",
+            notes: `Card criado via conector MCP · ${env.reason}`,
+          });
+        }
+      }
+
+      const auditId = await audit(ctx, {
+        action: "card_criar",
+        target_table: "crm_deals",
+        target_id: created?.id ?? null,
+        env,
+        before: null,
+        after: created ?? row,
+        applied,
+        result: applied ? "applied" : "dry_run",
+      });
+
+      return result(
+        ctx,
+        "julia_card_criar",
+        { applied, dry_run: env.dryRun, before: null, after: created ?? row, audit_id: auditId },
+        `${applied ? "Card criado" : "Simulação (dry_run)"}: "${title}" no quadro ${board.name}, etapa ${pipeline.name}. audit_id ${auditId}.`,
+      );
+    },
+  },
+  {
+    name: "julia_contato_criar",
+    version: "1.0.0",
+    mode: "write",
+    requiredScope: SCOPE_WRITE_CRM,
+    description:
+      "Cria um contato/lead no escritório. Antes de criar, verifica duplicidade pelos últimos 8 dígitos do telefone: se já existir, devolve o contato encontrado (DUPLICATE) sem criar outro. Simula por padrão.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        telefone: { type: "string", description: "Telefone do contato (com DDI/DDD, apenas dígitos são considerados)." },
+        nome: { type: "string", description: "Nome do contato." },
+        email: { type: "string", description: "E-mail do lead." },
+        canal: { type: "string", enum: [...CONTACT_CHANNELS], description: "Canal de origem (padrão whatsapp_uazapi)." },
+        observacao: { type: "string", description: "Nome completo/registro complementar do lead." },
+        ...COMMON_PROPS,
+      },
+      required: ["telefone", "idempotency_key"],
+      additionalProperties: false,
+    },
+    run: async (ctx, args): Promise<ToolOutput> => {
+      const env = writeEnv(args);
+      const digits = str(args.telefone).replace(/\D/g, "");
+      if (digits.length < 10) throw new CopilotoError("INVALID_INPUT", "Telefone inválido: informe DDD e número (mín. 10 dígitos).");
+      const canal = str(args.canal) || "whatsapp_uazapi";
+      if (!CONTACT_CHANNELS.includes(canal as typeof CONTACT_CHANNELS[number])) {
+        throw new CopilotoError("INVALID_INPUT", `Canal inválido. Use: ${CONTACT_CHANNELS.join(", ")}.`);
+      }
+      const nome = str(args.nome);
+
+      const replay = await findReplay(ctx, "contato_criar", env.key);
+      if (replay) {
+        return result(
+          ctx,
+          "julia_contato_criar",
+          { applied: true, dry_run: false, before: null, after: replay.after_data, audit_id: replay.id, replay: true },
+          `Contato já criado com esta idempotency_key (audit_id ${replay.id}). Nada foi duplicado.`,
+        );
+      }
+
+      // Antiduplicidade: imune a DDI e ao 9º dígito.
+      const { data: dupes, error: dupError } = await ctx.supabase
+        .from("chat_contacts")
+        .select("id, name, phone, lead_email, channel_type, created_at")
+        .eq("client_id", ctx.clientId)
+        .eq("is_group", false)
+        .ilike("phone", `%${digits.slice(-8)}%`)
+        .limit(5);
+      if (dupError) throw safeDbError("database", dupError);
+      if (dupes?.length) {
+        return result(
+          ctx,
+          "julia_contato_criar",
+          { applied: false, dry_run: env.dryRun, duplicate: true, contatos: dupes },
+          `Já existe contato com este telefone: ${dupes
+            // deno-lint-ignore no-explicit-any
+            .map((c: any) => `${c.name || "(sem nome)"} · ${c.phone} · contato_id ${c.id}`)
+            .join(" | ")}. Nada foi criado — use julia_contato_atualizar se precisar corrigir os dados.`,
+        );
+      }
+
+      const row = {
+        client_id: ctx.clientId,
+        phone: digits,
+        name: nome || digits,
+        channel_type: canal,
+        is_group: false,
+        lead_email: str(args.email) || null,
+        lead_full_name: str(args.observacao) || (nome || null),
+        profile_source: "mcp",
+      };
+
+      let applied = false;
+      // deno-lint-ignore no-explicit-any
+      let created: any = null;
+      if (!env.dryRun) {
+        const { data, error } = await ctx.supabase.from("chat_contacts").insert(row).select("*").maybeSingle();
+        if (error) throw safeDbError("database", error);
+        created = data;
+        applied = true;
+      }
+
+      const auditId = await audit(ctx, {
+        action: "contato_criar",
+        target_table: "chat_contacts",
+        target_id: created?.id ?? null,
+        env,
+        before: null,
+        after: created ?? row,
+        applied,
+        result: applied ? "applied" : "dry_run",
+      });
+
+      return result(
+        ctx,
+        "julia_contato_criar",
+        { applied, dry_run: env.dryRun, before: null, after: created ?? row, audit_id: auditId },
+        `${applied ? "Contato criado" : "Simulação (dry_run)"}: ${row.name} · ${row.phone}${
+          created?.id ? ` · contato_id ${created.id}` : ""
+        }. audit_id ${auditId}.`,
+      );
+    },
+  },
+  {
+    name: "julia_contato_atualizar",
+    version: "1.0.0",
+    mode: "write",
+    requiredScope: SCOPE_WRITE_CRM,
+    description:
+      "Atualiza dados cadastrais de um contato do escritório (nome, e-mail, nome completo, documento). Não altera telefone-chave, escritório, canal nem contadores de atendimento. Simula por padrão.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        contato_id: { type: "string", description: "ID do contato na Julia." },
+        nome: { type: "string", description: "Nome de exibição." },
+        email: { type: "string", description: "E-mail do lead." },
+        nome_completo: { type: "string", description: "Nome completo informado pelo lead." },
+        documento: { type: "string", description: "CPF/CNPJ do lead." },
+        ...COMMON_PROPS,
+      },
+      required: ["contato_id", "idempotency_key"],
+      additionalProperties: false,
+    },
+    run: async (ctx, args): Promise<ToolOutput> => {
+      const env = writeEnv(args);
+      const contatoId = str(args.contato_id);
+
+      const replay = await findReplay(ctx, "contato_atualizar", env.key);
+      if (replay) {
+        return result(
+          ctx,
+          "julia_contato_atualizar",
+          { applied: true, dry_run: false, before: replay.before_data, after: replay.after_data, audit_id: replay.id, replay: true },
+          `Atualização já aplicada com esta idempotency_key (audit_id ${replay.id}).`,
+        );
+      }
+
+      const { data: before, error } = await ctx.supabase
+        .from("chat_contacts")
+        .select("id, name, phone, lead_email, lead_full_name, lead_personalid, channel_type, updated_at")
+        .eq("client_id", ctx.clientId)
+        .eq("id", contatoId)
+        .maybeSingle();
+      if (error) throw safeDbError("database", error);
+      if (!before) throw new CopilotoError("NOT_FOUND", "Contato não encontrado neste escritório.");
+      checkVersion(env, before.updated_at);
+
+      // deno-lint-ignore no-explicit-any
+      const patch: Record<string, any> = {};
+      if (str(args.nome)) patch.name = str(args.nome);
+      if (str(args.email)) patch.lead_email = str(args.email);
+      if (str(args.nome_completo)) patch.lead_full_name = str(args.nome_completo);
+      if (str(args.documento)) patch.lead_personalid = str(args.documento).replace(/\D/g, "");
+      if (Object.keys(patch).length === 0) {
+        throw new CopilotoError("INVALID_INPUT", "Informe pelo menos um campo permitido: nome, email, nome_completo ou documento.");
+      }
+      patch.updated_at = nowIso();
+      const after = { ...before, ...patch };
+
+      let applied = false;
+      if (!env.dryRun) {
+        const { error: updateError } = await ctx.supabase
+          .from("chat_contacts")
+          .update(patch)
+          .eq("client_id", ctx.clientId)
+          .eq("id", contatoId);
+        if (updateError) throw safeDbError("database", updateError);
+        applied = true;
+      }
+
+      const auditId = await audit(ctx, {
+        action: "contato_atualizar",
+        target_table: "chat_contacts",
+        target_id: contatoId,
+        env,
+        before,
+        after,
+        applied,
+        result: applied ? "applied" : "dry_run",
+      });
+
+      return result(
+        ctx,
+        "julia_contato_atualizar",
+        { applied, dry_run: env.dryRun, before, after, audit_id: auditId },
+        `${applied ? "Contato atualizado" : "Simulação (dry_run)"}: ${Object.keys(patch)
+          .filter((k) => k !== "updated_at")
+          .join(", ")} em ${before.name || before.phone}. audit_id ${auditId}.`,
+      );
+    },
+  },
 ];
