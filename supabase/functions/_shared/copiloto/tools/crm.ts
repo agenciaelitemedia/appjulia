@@ -2,6 +2,8 @@
  * Domínio: CRM de Leads clássico (Postgres legado) + CRM Builder (Supabase).
  * Legado sempre escopado pelos cod_agent do escritório do token.
  */
+import { assertBoardMcpAccess, listMcpAllowedBoardIds } from "../board-access.ts";
+import { CopilotoError } from "../envelope.ts";
 import { agentCodes, legacyRaw } from "../legacy.ts";
 import { fmtDate, MAX_ROWS, num, str, type CopilotoTool } from "../types.ts";
 
