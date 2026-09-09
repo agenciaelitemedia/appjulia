@@ -150,6 +150,7 @@ export async function pushRecipientToCrm(
         stage_entered_at: nowIso,
         position: destPosition,
         updated_by: `dsp:${campaign.id}`,
+        custom_fields: mergedCustomFields,
       };
       if (campaign?.crm_assigned_to) patch.assigned_to = campaign.crm_assigned_to;
 
@@ -167,6 +168,8 @@ export async function pushRecipientToCrm(
 
       return { ok: true, created: false, moved: true, deal_id: deal.id, contact_id: contactId, reason: 'deal_moved' };
     }
+
+    await admin.from('crm_deals').update({ custom_fields: mergedCustomFields }).eq('id', deal.id);
 
     await admin.from('crm_deal_history').insert({
       deal_id: deal.id,
