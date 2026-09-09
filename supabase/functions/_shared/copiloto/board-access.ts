@@ -58,7 +58,7 @@ export async function assertBoardMcpAccess(
   const access = await getBoardMcpAccess(ctx, boardId);
   if (!access[action]) {
     throw new CopilotoError(
-      "FORBIDDEN",
+      "PERMISSION_DENIED",
       `O MCP não tem permissão para ${ACTION_LABEL[action]} neste quadro. Libere a opção em CRM Builder → Configurações → Permissões → Acesso do MCP.`,
       { details: { board_id: boardId, action, access } },
     );
