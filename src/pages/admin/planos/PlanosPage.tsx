@@ -278,9 +278,24 @@ const PlanosPage = () => {
                       {plan.is_popular && <Badge variant="secondary" className="text-xs">Popular</Badge>}
                     </div>
                   </td>
-                  <td className="py-3 text-sm">{formatBRL(plan.price_monthly)}</td>
-                  <td className="py-3 text-sm">{formatBRL(plan.price_semiannual)}</td>
-                  <td className="py-3 text-sm">{formatBRL(plan.price_annual)}</td>
+                  <td className="py-3 text-sm">
+                    {formatBRL(plan.price_monthly)}
+                    {plan.setup_fee_monthly > 0 && (
+                      <span className="block text-xs text-muted-foreground">+ {formatBRL(plan.setup_fee_monthly)} impl.</span>
+                    )}
+                  </td>
+                  <td className="py-3 text-sm">
+                    {formatBRL(plan.price_semiannual)}
+                    {plan.setup_fee_semiannual > 0 && (
+                      <span className="block text-xs text-muted-foreground">+ {formatBRL(plan.setup_fee_semiannual)} impl.</span>
+                    )}
+                  </td>
+                  <td className="py-3 text-sm">
+                    {formatBRL(plan.price_annual)}
+                    {plan.setup_fee_annual > 0 && (
+                      <span className="block text-xs text-muted-foreground">+ {formatBRL(plan.setup_fee_annual)} impl.</span>
+                    )}
+                  </td>
                   <td className="py-3 text-muted-foreground text-xs">{plan.features.length} items</td>
                   <td className="py-3">
                     <Badge variant={plan.is_active ? 'default' : 'outline'}>
@@ -426,7 +441,7 @@ const PlanosPage = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Placeholders: {'{{customer_name}}'}, {'{{customer_document}}'}, {'{{customer_email}}'}, {'{{customer_whatsapp}}'}, {'{{customer_address}}'}, {'{{plan_name}}'}, {'{{plan_price}}'}, {'{{billing_period}}'}
+                Placeholders: {'{{customer_name}}'}, {'{{customer_document}}'}, {'{{customer_email}}'}, {'{{customer_whatsapp}}'}, {'{{customer_address}}'}, {'{{plan_name}}'}, {'{{plan_price}}'}, {'{{billing_period}}'}, {'{{setup_fee}}'}, {'{{total_first_payment}}'}
               </p>
               <div className="flex gap-2">
                 <Button
