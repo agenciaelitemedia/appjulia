@@ -17,6 +17,10 @@ export interface DspCampaign {
   schedule_start_at: string | null;
   schedule_end_at: string | null;
   auto_window_control: boolean;
+  crm_push_enabled?: boolean;
+  crm_board_id?: string | null;
+  crm_pipeline_id?: string | null;
+  crm_assigned_to?: string | null;
   approval_status: 'draft' | 'pending' | 'approved' | 'rejected' | string;
   submitted_at: string | null;
   submitted_by: string | null;

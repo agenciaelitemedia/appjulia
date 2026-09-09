@@ -19,6 +19,8 @@ import { useSaveDspCampaign, useDspCampaignVariants, useDspCampaignChannels } fr
 import { useDspSimulation } from '../hooks/useDspSimulation';
 import { EXCLUSION_REASON_LABEL, CHANNEL_REASON_LABEL, DISPAROS_TIMEZONES } from '../module';
 import { useDspTemplates } from '../hooks/useDspTemplates';
+import { useDspBoards, useDspPipelines } from '../hooks/useDspAudienceOptions';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
 import type { DspCampaign } from '../types';
 
 const WEEK_DAYS = [
@@ -93,6 +95,15 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
   const [selectedQueues, setSelectedQueues] = useState<string[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
 
+  // CRM Builder
+  const [crmPush, setCrmPush] = useState(false);
+  const [crmBoardId, setCrmBoardId] = useState('');
+  const [crmPipelineId, setCrmPipelineId] = useState('');
+  const [crmAssignedTo, setCrmAssignedTo] = useState('');
+  const { data: crmBoards = [] } = useDspBoards(crmPush ? clientId : null);
+  const { data: crmPipelines = [] } = useDspPipelines(crmPush ? clientId : null, crmBoardId ? [crmBoardId] : []);
+  const { data: teamMembers = [] } = useTeamByClient();
+
   useEffect(() => {
     if (!open) return;
     setStep(1);
@@ -119,6 +130,10 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
     setLastDays(f.last_interaction_days != null ? String(f.last_interaction_days) : '');
     setAudienceLimit(f.limit != null ? String(f.limit) : '');
     setOnlyWithConversation(!!f.only_with_conversation);
+    setCrmPush(!!campaign?.crm_push_enabled);
+    setCrmBoardId(campaign?.crm_board_id ?? '');
+    setCrmPipelineId(campaign?.crm_pipeline_id ?? '');
+    setCrmAssignedTo(campaign?.crm_assigned_to ?? '');
     simulate.reset();
   }, [open, campaign?.id]);
 
@@ -157,6 +172,10 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
     schedule_end_at: scheduleEndAt ? new Date(scheduleEndAt).toISOString() : null,
     timezone,
     auto_window_control: autoWindowControl,
+    crm_push_enabled: crmPush && !!crmBoardId && !!crmPipelineId,
+    crm_board_id: crmPush ? (crmBoardId || null) : null,
+    crm_pipeline_id: crmPush ? (crmPipelineId || null) : null,
+    crm_assigned_to: crmPush ? (crmAssignedTo || null) : null,
     created_by: user?.id != null ? String(user.id) : null,
     variants: variants.filter((v) => v.message_text.trim()),
     channels: selectedQueues.map((q) => ({ queue_id: q, weight: 1 })),
@@ -281,6 +300,70 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
                 </span>
               </span>
             </label>
+
+            <div className="rounded-lg border p-3 space-y-3">
+              <label className="flex items-start gap-2 text-sm">
+                <Checkbox checked={crmPush} onCheckedChange={(v) => setCrmPush(!!v)} />
+                <span>
+                  Criar card no CRM Builder
+                  <span className="block text-xs text-muted-foreground">
+                    Cada lead que receber a mensagem entra como card. Se o contato já existir, ele é reaproveitado.
+                  </span>
+                </span>
+              </label>
+
+              {crmPush && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Painel</Label>
+                    <Select
+                      value={crmBoardId}
+                      onValueChange={(v) => { setCrmBoardId(v); setCrmPipelineId(''); }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Escolha o painel" /></SelectTrigger>
+                      <SelectContent>
+                        {crmBoards.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Etapa</Label>
+                    <Select value={crmPipelineId} onValueChange={setCrmPipelineId} disabled={!crmBoardId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={crmBoardId ? 'Escolha a etapa' : 'Escolha o painel primeiro'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {crmPipelines.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Responsável do card (opcional)</Label>
+                    <Select value={crmAssignedTo || 'none'} onValueChange={(v) => setCrmAssignedTo(v === 'none' ? '' : v)}>
+                      <SelectTrigger><SelectValue placeholder="Sem responsável" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem responsável</SelectItem>
+                        {teamMembers.map((m) => (
+                          <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {(!crmBoardId || !crmPipelineId) && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Escolha painel e etapa para que os cards sejam criados.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

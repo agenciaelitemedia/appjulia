@@ -4952,6 +4952,10 @@ export type Database = {
           completed_at: string | null
           created_at: string
           created_by: string | null
+          crm_assigned_to: string | null
+          crm_board_id: string | null
+          crm_pipeline_id: string | null
+          crm_push_enabled: boolean
           goal: string | null
           id: string
           name: string
@@ -4997,6 +5001,10 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          crm_assigned_to?: string | null
+          crm_board_id?: string | null
+          crm_pipeline_id?: string | null
+          crm_push_enabled?: boolean
           goal?: string | null
           id?: string
           name: string
@@ -5042,6 +5050,10 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          crm_assigned_to?: string | null
+          crm_board_id?: string | null
+          crm_pipeline_id?: string | null
+          crm_push_enabled?: boolean
           goal?: string | null
           id?: string
           name?: string
