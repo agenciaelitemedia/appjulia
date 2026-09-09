@@ -60,6 +60,15 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
     [isAdmin]
   );
   const permissionMode = getBoardPermissionMode(board.settings);
+  const mcpAccess = useMemo<Record<McpKey, boolean>>(() => {
+    const raw = (board.settings as Record<string, unknown> | null)?.mcp as Record<string, unknown> | undefined;
+    return {
+      list: raw?.list === true,
+      create: raw?.create === true,
+      edit: raw?.edit === true,
+      move: raw?.move === true,
+    };
+  }, [board.settings]);
   const { rules, loading, upsert, remove } = useBoardPermissions(boardId);
   const { data: teamMembers = [], isLoading: loadingUsers } = useTeamMembers();
 
