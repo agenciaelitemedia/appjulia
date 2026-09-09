@@ -165,6 +165,7 @@ export const escritaTools: CopilotoTool[] = [
       }
 
       const before = await loadDeal(ctx, dealId);
+      if (before.board_id) await assertBoardMcpAccess(ctx, String(before.board_id), "edit");
       checkVersion(env, before.updated_at);
 
       const raw = (args.campos || {}) as Record<string, unknown>;
@@ -349,6 +350,7 @@ export const escritaTools: CopilotoTool[] = [
       }
 
       const before = await loadDeal(ctx, dealId);
+      if (before.board_id) await assertBoardMcpAccess(ctx, String(before.board_id), "move");
       checkVersion(env, before.updated_at);
 
       // deno-lint-ignore no-explicit-any
@@ -664,6 +666,7 @@ export const escritaTools: CopilotoTool[] = [
       if (boardError) throw safeDbError("database", boardError);
       if (!board) throw new CopilotoError("NOT_FOUND", "Quadro não encontrado neste escritório.");
       if (board.is_archived) throw new CopilotoError("INVALID_INPUT", "Quadro arquivado: não aceita novos cards.");
+      await assertBoardMcpAccess(ctx, String(board.id), "create");
 
       const { data: pipeline, error: pipeError } = await ctx.supabase
         .from("crm_pipelines")
