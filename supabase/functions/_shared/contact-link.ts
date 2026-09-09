@@ -81,7 +81,7 @@ export async function resolveContactLink(
         .from('chat_conversations')
         .select('id')
         .eq('contact_id', contactId)
-        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .order('updated_at', { ascending: false, nullsFirst: false })
         .limit(1);
       result.conversation_id = conv?.[0]?.id ?? null;
     }

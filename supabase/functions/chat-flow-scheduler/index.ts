@@ -108,7 +108,7 @@ async function processInactivityTriggers() {
 
     let query = supabase
       .from("chat_conversations")
-      .select("id, queue_id, contact_id, status, last_customer_message_at, last_message_at, last_message_from_me")
+      .select("id, queue_id, contact_id, status, last_customer_message_at, updated_at, last_message_from_me")
       .eq("client_id", flow.client_id)
       .in("status", ["open", "pending"])
       .limit(100);
@@ -118,7 +118,7 @@ async function processInactivityTriggers() {
     // Lead inativo: o último a falar fomos nós. Atendente inativo: o lead falou por último.
     query = query.eq("last_message_from_me", leadSide);
     query = leadSide
-      ? query.lte("last_message_at", cutoff)
+      ? query.lte("updated_at", cutoff)
       : query.lte("last_customer_message_at", cutoff);
 
     const { data: conversations, error: convError } = await query;
