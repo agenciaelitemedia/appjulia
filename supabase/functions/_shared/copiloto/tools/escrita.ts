@@ -129,6 +129,37 @@ async function loadDeal(ctx: CopilotoContext, dealId: string) {
   return data;
 }
 
+/**
+ * Registra o evento na linha do tempo do card (crm_deal_history).
+ * Best-effort: nunca quebra nem desfaz a operação já aplicada.
+ */
+async function logDealHistory(
+  ctx: CopilotoContext,
+  entry: {
+    dealId: string;
+    action: "created" | "moved" | "updated" | "note_added" | "won" | "lost" | "archived";
+    fromPipelineId?: string | null;
+    toPipelineId?: string | null;
+    // deno-lint-ignore no-explicit-any
+    changes?: Record<string, any>;
+    notes?: string;
+  },
+): Promise<void> {
+  try {
+    await ctx.supabase.from("crm_deal_history").insert({
+      deal_id: entry.dealId,
+      action: entry.action,
+      from_pipeline_id: entry.fromPipelineId ?? null,
+      to_pipeline_id: entry.toPipelineId ?? null,
+      changed_by: ctx.userEmail ?? "MCP",
+      changes: entry.changes ?? {},
+      notes: entry.notes ?? null,
+    });
+  } catch (_err) {
+    console.warn("[copiloto] falha ao registrar crm_deal_history", entry.dealId, entry.action);
+  }
+}
+
 export const escritaTools: CopilotoTool[] = [
   {
     name: "julia_lead_atualizar",
@@ -199,6 +230,23 @@ export const escritaTools: CopilotoTool[] = [
         applied,
         result: applied ? "applied" : "dry_run",
       });
+
+      if (applied) {
+        // deno-lint-ignore no-explicit-any
+        const changes: Record<string, any> = {};
+        for (const k of Object.keys(raw)) {
+          changes[k] = { from: (before as Record<string, unknown>)[k] ?? null, to: raw[k] ?? null };
+        }
+        await logDealHistory(ctx, {
+          dealId: dealId,
+          action: "updated",
+          toPipelineId: before.pipeline_id ?? null,
+          changes,
+          notes: `Alterado via conector MCP (${Object.keys(raw).join(", ")}) · motivo: ${env.reason} · audit ${auditId}`,
+        });
+      }
+
+
 
       return result(
         ctx,
@@ -303,6 +351,21 @@ export const escritaTools: CopilotoTool[] = [
         result: applied ? "applied" : "dry_run",
       });
 
+      if (applied && dealId) {
+        await logDealHistory(ctx, {
+          dealId,
+          action: "updated",
+          toPipelineId: before.deal?.pipeline_id ?? null,
+          changes: {
+            assigned_to: { from: before.deal?.assigned_to ?? null, to: nome },
+            ...(userId ? { assigned_user_id: { from: before.deal?.assigned_user_id ?? null, to: Number(userId) } } : {}),
+          },
+          notes: `Responsável definido via conector MCP: ${nome} · motivo: ${env.reason} · audit ${auditId}`,
+        });
+      }
+
+
+
       return result(
         ctx,
         "julia_lead_atribuir_responsavel",
@@ -393,6 +456,30 @@ export const escritaTools: CopilotoTool[] = [
         applied,
         result: applied ? "applied" : "dry_run",
       });
+
+      if (applied) {
+        if (pipelineId) {
+          await logDealHistory(ctx, {
+            dealId,
+            action: "moved",
+            fromPipelineId: before.pipeline_id ?? null,
+            toPipelineId: pipelineId,
+            changes: { pipeline_id: { from: before.pipeline_id ?? null, to: pipelineId } },
+            notes: `Movido via conector MCP para "${pipeline?.name ?? pipelineId}" · motivo: ${env.reason} · audit ${auditId}`,
+          });
+        }
+        if (status && status !== before.status) {
+          await logDealHistory(ctx, {
+            dealId,
+            action: status === "won" ? "won" : status === "lost" ? "lost" : "updated",
+            toPipelineId: pipelineId || before.pipeline_id || null,
+            changes: { status: { from: before.status ?? null, to: status } },
+            notes: `Status alterado via conector MCP: ${before.status ?? "—"} → ${status} · motivo: ${env.reason} · audit ${auditId}`,
+          });
+        }
+      }
+
+
 
       return result(
         ctx,
