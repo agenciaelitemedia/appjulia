@@ -130,6 +130,10 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
     setLastDays(f.last_interaction_days != null ? String(f.last_interaction_days) : '');
     setAudienceLimit(f.limit != null ? String(f.limit) : '');
     setOnlyWithConversation(!!f.only_with_conversation);
+    setCrmPush(!!campaign?.crm_push_enabled);
+    setCrmBoardId(campaign?.crm_board_id ?? '');
+    setCrmPipelineId(campaign?.crm_pipeline_id ?? '');
+    setCrmAssignedTo(campaign?.crm_assigned_to ?? '');
     simulate.reset();
   }, [open, campaign?.id]);
 
@@ -168,6 +172,10 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
     schedule_end_at: scheduleEndAt ? new Date(scheduleEndAt).toISOString() : null,
     timezone,
     auto_window_control: autoWindowControl,
+    crm_push_enabled: crmPush && !!crmBoardId && !!crmPipelineId,
+    crm_board_id: crmPush ? (crmBoardId || null) : null,
+    crm_pipeline_id: crmPush ? (crmPipelineId || null) : null,
+    crm_assigned_to: crmPush ? (crmAssignedTo || null) : null,
     created_by: user?.id != null ? String(user.id) : null,
     variants: variants.filter((v) => v.message_text.trim()),
     channels: selectedQueues.map((q) => ({ queue_id: q, weight: 1 })),
