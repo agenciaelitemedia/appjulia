@@ -331,12 +331,18 @@ export function pickChannel(
  * Grava o consumo após um envio: contadores, próximo horário permitido
  * (intervalo com jitter) e pausa entre blocos.
  */
-export async function commitSend(admin: any, c: ChannelCandidate, now = new Date()): Promise<void> {
+export async function commitSend(
+  admin: any,
+  c: ChannelCandidate,
+  now = new Date(),
+  messages = 1,
+): Promise<void> {
   const state = rollWindows(c.state, now);
   const limits = c.limits;
+  const n = Math.max(1, messages);
 
-  const sentInDay = state.sent_in_day + 1;
-  const blockCount = state.block_count + 1;
+  const sentInDay = state.sent_in_day + n;
+  const blockCount = state.block_count + n;
   const endOfBlock = limits.block_size > 0 && blockCount % limits.block_size === 0;
 
   const gap = endOfBlock
@@ -345,9 +351,9 @@ export async function commitSend(admin: any, c: ChannelCandidate, now = new Date
 
   await admin.from('dsp_channel_state').update({
     window_minute: state.window_minute,
-    sent_in_minute: state.sent_in_minute + 1,
+    sent_in_minute: state.sent_in_minute + n,
     window_hour: state.window_hour,
-    sent_in_hour: state.sent_in_hour + 1,
+    sent_in_hour: state.sent_in_hour + n,
     window_day: state.window_day,
     sent_in_day: sentInDay,
     unique_recipients_day: state.unique_recipients_day + 1,
