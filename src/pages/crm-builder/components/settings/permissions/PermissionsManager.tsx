@@ -6,7 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { ShieldAlert, Users, UserCog, ShieldOff } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { ShieldAlert, Users, UserCog, ShieldOff, Bot, Copy } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTeamMembers } from '@/pages/equipe/hooks/useEquipeData';
 import {
