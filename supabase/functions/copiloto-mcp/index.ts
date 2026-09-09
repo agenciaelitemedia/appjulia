@@ -69,9 +69,12 @@ const PROMPTS = [
 
 const POLICY = `# Políticas de uso — conector MCP da Julia
 
-- Acesso **somente leitura**. Nenhuma ferramenta cria, altera ou apaga dados.
-- Todo dado é filtrado pelo escritório (client_id) resolvido no token OAuth. Nenhuma ferramenta aceita client_id como argumento.
-- Escopo do token: leitura de leads, atendimentos, CRM, contratos, filas, campanhas, telefonia e tickets.
+- Leitura é o padrão. Escrita existe apenas em ferramentas específicas e só com o escopo \`julia:write.crm\` ou \`julia:write.messages\` no token. Nenhuma ferramenta apaga dados.
+- **Toda escrita simula primeiro**: \`dry_run\` é true por padrão. Para aplicar de verdade é obrigatório \`dry_run: false\`, \`approved_by\` (aprovação humana identificada) e \`idempotency_key\` (reenvio não duplica).
+- Criar card ou contato segue a mesma regra: rode em \`dry_run\`, mostre o resultado ao humano e só então aplique. Antes de criar contato, busque por telefone — duplicidade é recusada.
+- Todo dado é filtrado pelo escritório (client_id) resolvido no token OAuth. Nenhuma ferramenta aceita client_id, SQL ou nome de tabela como argumento.
+- Escopo do token: leitura de leads, atendimentos, CRM, contratos, filas, campanhas, telefonia e tickets; escrita controlada de cards, contatos, follow-up e mensagens.
+- Toda escrita fica registrada em auditoria (antes/depois, motivo, quem aprovou, request_id).
 - Os dados envolvem sigilo profissional e dados pessoais sensíveis (LGPD). Use apenas para apoiar o trabalho do escritório; não reproduza dados fora do contexto solicitado.
 - As análises são produzidas pelo modelo do cliente MCP: a Julia entrega o dossiê e a instrução, nunca o parecer.
 - O escritório pode revogar o token a qualquer momento na página do conector.`;

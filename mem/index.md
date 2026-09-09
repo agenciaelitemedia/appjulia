@@ -1,5 +1,6 @@
 # Project Memory
 
+
 ## Core
 - Comando `atualizar vX.YZ`: setar version em package.json + public/version.json e criar entrada no Changelog (ver memória abaixo).
 
@@ -19,3 +20,4 @@
 - [Snooze Auto-Cancel](mem://features/chat/snooze-auto-cancel) — Mensagem do cliente cancela o retorno agendado (trigger no banco) e busca nunca esconde adiadas
 - [Tramitação Inteligente Integration](mem://features/tramitacao-inteligente-integration) — Integração Planilha: processos, clientes, webhooks HMAC, envio de leads (plano aprovado em 2026-09-02)
 - [Supabase Migration Plan](mem://features/migracao-supabase/kit-migracao) — Plano de migração do Lovable Cloud para Supabase externo: janela, 237 tabelas, Edge Functions, secrets, storage (fase de controle + execução)
+- [MCP Cards/Contatos](mem://features/mcp/gestao-cards-contatos) — Tools de escrita do MCP: criar card, criar/atualizar contato, dry-run + auditoria
