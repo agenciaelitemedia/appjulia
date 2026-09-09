@@ -59,9 +59,12 @@ export async function juliaAssignConversation(params: {
   clientId?: string | number | null;
 }) {
   const {
-    conversationId, assignedTo, assignedUserId, actor,
+    conversationId, assignedTo: assignedToRaw, assignedUserId, actor,
     openConversation, currentStatus, contactPhone, queueId, clientId,
   } = params;
+
+  // Nome sem espaços sobrando: o filtro "meus atendimentos" compara esse texto.
+  const assignedTo = (assignedToRaw ?? '').trim();
 
   // Teto de atendimentos simultâneos — bloqueia inclusive admin.
   await assertCapacity(clientId, agentIdentifier(assignedUserId, assignedTo), assignedTo);

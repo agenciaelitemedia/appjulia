@@ -1279,8 +1279,10 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     }
   }, [user?.name, user?.client_id, clientId]);
 
-  const assignConversation = useCallback(async (conversationId: string, assignedTo: string, assignedUserId?: number | null) => {
+  const assignConversation = useCallback(async (conversationId: string, assignedToRaw: string, assignedUserId?: number | null) => {
     try {
+      // Nome sem espaços sobrando: o filtro "meus atendimentos" compara esse texto.
+      const assignedTo = (assignedToRaw ?? '').trim();
       const updates: Record<string, unknown> = { assigned_to: assignedTo };
       if (assignedUserId !== undefined) {
         updates.assigned_user_id = assignedUserId;
