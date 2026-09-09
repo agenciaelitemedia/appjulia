@@ -95,6 +95,15 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
   const [selectedQueues, setSelectedQueues] = useState<string[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
 
+  // CRM Builder
+  const [crmPush, setCrmPush] = useState(false);
+  const [crmBoardId, setCrmBoardId] = useState('');
+  const [crmPipelineId, setCrmPipelineId] = useState('');
+  const [crmAssignedTo, setCrmAssignedTo] = useState('');
+  const { data: crmBoards = [] } = useDspBoards(crmPush ? clientId : null);
+  const { data: crmPipelines = [] } = useDspPipelines(crmPush ? clientId : null, crmBoardId ? [crmBoardId] : []);
+  const { data: teamMembers = [] } = useTeamByClient();
+
   useEffect(() => {
     if (!open) return;
     setStep(1);
