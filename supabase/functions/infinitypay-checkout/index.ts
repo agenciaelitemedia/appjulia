@@ -64,16 +64,28 @@ Deno.serve(async (req) => {
     const phoneDigits = order.customer_whatsapp.replace(/\D/g, '')
     const phoneNumber = phoneDigits.startsWith('55') ? `+${phoneDigits}` : `+55${phoneDigits}`
 
+    // Setup fee (taxa de implantação) — one-time, charged with the first payment
+    const setupFee = Number(order.setup_fee ?? 0) > 0 ? Number(order.setup_fee) : 0
+
+    const items: Array<{ quantity: number; price: number; description: string }> = [
+      {
+        quantity: 1,
+        price: order.plan_price,
+        description: order.plan_name,
+      },
+    ]
+    if (setupFee > 0) {
+      items.push({
+        quantity: 1,
+        price: setupFee,
+        description: 'Taxa de implantação (cobrança única)',
+      })
+    }
+
     // Build InfinityPay payload
     const infinitypayPayload = {
       handle: ipHandle,
-      items: [
-        {
-          quantity: 1,
-          price: order.plan_price,
-          description: order.plan_name,
-        },
-      ],
+      items,
       webhook_url: `${supabaseUrl}/functions/v1/infinitypay-webhook`,
       customer: {
         name: order.customer_name,

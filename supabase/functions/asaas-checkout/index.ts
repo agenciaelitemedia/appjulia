@@ -106,7 +106,13 @@ Deno.serve(async (req) => {
       customerId = createData.id;
     }
 
-    const originalValue = order.plan_price / 100; // cents to BRL
+    // Setup fee (taxa de implantação) — one-time, charged with the first payment
+    const setupFeeCents = Number(order.setup_fee ?? 0) > 0 ? Number(order.setup_fee) : 0;
+    const totalCents = Number(order.total_amount ?? 0) > 0
+      ? Number(order.total_amount)
+      : Number(order.plan_price) + setupFeeCents;
+
+    const originalValue = totalCents / 100; // cents to BRL
     const maxInstallments = 12;
     const installmentValue = parseFloat((originalValue / maxInstallments).toFixed(2));
     const dueDate = new Date();
