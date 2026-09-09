@@ -201,14 +201,40 @@ export const CheckoutStep = ({ orderData, onBack }: Props) => {
           </div>
           <hr className="border-[#6C3AED]/10" />
           <div className="flex justify-between items-center">
-            <span className="text-lg font-bold text-[#1a1a2e]">Total</span>
-            <span className="text-2xl font-extrabold text-[#6C3AED]">
-              {formatPrice(orderData.plan_price)}
-              <span className="text-sm font-normal text-gray-400">
-                {orderData.billing_period === 'annual' ? '/ano' : orderData.billing_period === 'semiannual' ? '/semestre' : '/mês'}
+            <span className="text-gray-600">
+              {orderData.billing_period === 'annual' ? 'Valor anual' : orderData.billing_period === 'semiannual' ? 'Valor semestral' : 'Mensalidade'}
+            </span>
+            <span className="font-semibold text-[#1a1a2e]">{formatPrice(orderData.plan_price)}</span>
+          </div>
+          {setupFee > 0 && (
+            <div className="flex justify-between items-start">
+              <span className="text-gray-600">
+                Taxa de implantação
+                <span className="block text-xs text-gray-400">cobrança única</span>
               </span>
+              <span className="font-semibold text-[#1a1a2e]">{formatPrice(setupFee)}</span>
+            </div>
+          )}
+          <hr className="border-[#6C3AED]/10" />
+          <div className="flex justify-between items-center">
+            <span className="text-lg font-bold text-[#1a1a2e]">
+              {setupFee > 0 ? 'Total a pagar hoje' : 'Total'}
+            </span>
+            <span className="text-2xl font-extrabold text-[#6C3AED]">
+              {formatPrice(totalAmount)}
+              {setupFee === 0 && (
+                <span className="text-sm font-normal text-gray-400">
+                  {orderData.billing_period === 'annual' ? '/ano' : orderData.billing_period === 'semiannual' ? '/semestre' : '/mês'}
+                </span>
+              )}
             </span>
           </div>
+          {setupFee > 0 && (
+            <p className="text-xs text-gray-500">
+              Após o primeiro pagamento, as renovações são de {formatPrice(orderData.plan_price)}
+              {orderData.billing_period === 'annual' ? ' por ano' : orderData.billing_period === 'semiannual' ? ' por semestre' : ' por mês'}, sem a taxa de implantação.
+            </p>
+          )}
         </div>
 
         {error && (
