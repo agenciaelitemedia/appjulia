@@ -19,6 +19,8 @@ import { useSaveDspCampaign, useDspCampaignVariants, useDspCampaignChannels } fr
 import { useDspSimulation } from '../hooks/useDspSimulation';
 import { EXCLUSION_REASON_LABEL, CHANNEL_REASON_LABEL, DISPAROS_TIMEZONES } from '../module';
 import { useDspTemplates } from '../hooks/useDspTemplates';
+import { useDspBoards, useDspPipelines } from '../hooks/useDspAudienceOptions';
+import { useTeamByClient } from '@/hooks/useTeamByClient';
 import type { DspCampaign } from '../types';
 
 const WEEK_DAYS = [
