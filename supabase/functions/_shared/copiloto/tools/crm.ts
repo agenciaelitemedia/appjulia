@@ -186,10 +186,15 @@ export const crmTools: CopilotoTool[] = [
       "Quadros (boards) e pipelines do CRM Builder do escritório, com as etapas de cada quadro e a quantidade de negócios por etapa.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     run: async (ctx) => {
+      const allowed = await listMcpAllowedBoardIds(ctx);
+      if (!allowed.length) {
+        return "Nenhum quadro do CRM Builder liberado para o MCP. Libere em CRM Builder → Configurações → Permissões → Acesso do MCP (opção Listar).";
+      }
       const { data: boards, error } = await ctx.supabase
         .from("crm_boards")
-        .select("id, name, description, is_active")
+        .select("id, name, description, is_archived")
         .eq("client_id", ctx.clientId)
+        .in("id", allowed)
         .order("name");
       if (error) throw new Error(error.message);
       if (!boards?.length) return "Nenhum quadro do CRM Builder neste escritório.";
