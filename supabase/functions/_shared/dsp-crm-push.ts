@@ -87,6 +87,27 @@ export async function pushRecipientToCrm(
     contactId = created?.id ?? null;
   }
 
+  // 2.1) Conversa mais recente do contato (para o vínculo padrão chat↔CRM)
+  let conversationId: string | null = null;
+  if (contactId) {
+    const { data: conv } = await admin
+      .from('chat_conversations')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('contact_id', contactId)
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    conversationId = conv?.[0]?.id ?? null;
+  }
+
+  const chatLink: Record<string, unknown> = {
+    contact_id: contactId,
+    contact_phone: phone,
+    ...(conversationId ? { conversation_id: conversationId } : {}),
+    linked_by: `dsp:${campaign.id}`,
+    linked_at: new Date().toISOString(),
+  };
+
   // 3) Card ativo (status open) no mesmo painel → move para a etapa da campanha.
   //    Arquivado / ganho / perdido NÃO conta: um card novo é criado.
   const { data: active } = await admin
