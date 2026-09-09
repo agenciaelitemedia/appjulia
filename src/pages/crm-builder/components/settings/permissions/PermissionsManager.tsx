@@ -177,6 +177,48 @@ export function PermissionsManager({ board, clientId, onBoardUpdated }: Props) {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+        <div>
+          <p className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Bot className="h-4 w-4" /> Acesso do MCP (Copiloto)
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Escolha o que o MCP pode fazer neste quadro. Tudo começa desligado.
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {MCP_ACTIONS.map((a) => (
+            <label
+              key={a.key}
+              className="flex items-start justify-between gap-3 rounded-md border bg-background p-3 cursor-pointer"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{a.label}</span>
+                <span className="block text-[11px] text-muted-foreground">{a.hint}</span>
+              </span>
+              <Switch
+                checked={Boolean(mcpAccess[a.key])}
+                onCheckedChange={(v) => handleMcpToggle(a.key, v)}
+                aria-label={`MCP - ${a.label}`}
+              />
+            </label>
+          ))}
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+            ID do painel (para filtrar no MCP)
+          </p>
+          <div className="flex items-center gap-2">
+            <Input readOnly value={boardId} className="h-8 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+            <Button type="button" variant="outline" size="sm" onClick={handleCopyBoardId} className="shrink-0">
+              <Copy className="h-3.5 w-3.5 mr-1" /> Copiar
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-medium text-foreground">Permissão por</p>
