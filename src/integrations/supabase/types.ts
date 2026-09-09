@@ -6376,7 +6376,9 @@ export type Database = {
           plan_name: string
           plan_price: number
           receipt_url: string | null
+          setup_fee: number
           status: string
+          total_amount: number
           updated_at: string
           webhook_payload: Json | null
         }
@@ -6406,7 +6408,9 @@ export type Database = {
           plan_name?: string
           plan_price?: number
           receipt_url?: string | null
+          setup_fee?: number
           status?: string
+          total_amount?: number
           updated_at?: string
           webhook_payload?: Json | null
         }
@@ -6436,7 +6440,9 @@ export type Database = {
           plan_name?: string
           plan_price?: number
           receipt_url?: string | null
+          setup_fee?: number
           status?: string
+          total_amount?: number
           updated_at?: string
           webhook_payload?: Json | null
         }
@@ -6488,6 +6494,9 @@ export type Database = {
           price_display: string
           price_monthly: number
           price_semiannual: number
+          setup_fee_annual: number
+          setup_fee_monthly: number
+          setup_fee_semiannual: number
           updated_at: string
         }
         Insert: {
@@ -6505,6 +6514,9 @@ export type Database = {
           price_display?: string
           price_monthly?: number
           price_semiannual?: number
+          setup_fee_annual?: number
+          setup_fee_monthly?: number
+          setup_fee_semiannual?: number
           updated_at?: string
         }
         Update: {
@@ -6522,6 +6534,9 @@ export type Database = {
           price_display?: string
           price_monthly?: number
           price_semiannual?: number
+          setup_fee_annual?: number
+          setup_fee_monthly?: number
+          setup_fee_semiannual?: number
           updated_at?: string
         }
         Relationships: []
