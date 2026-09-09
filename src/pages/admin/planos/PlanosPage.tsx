@@ -373,6 +373,47 @@ const PlanosPage = () => {
                 )}
               </div>
             </div>
+            <div>
+              <Label className="text-sm">Taxa de implantação (R$) — opcional, cobrança única</Label>
+              <div className="grid grid-cols-3 gap-3 mt-1">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Mensal</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.setup_monthly}
+                    onChange={e => setForm(f => ({ ...f, setup_monthly: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Semestral</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.setup_semiannual}
+                    onChange={e => setForm(f => ({ ...f, setup_semiannual: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Anual</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.setup_annual}
+                    onChange={e => setForm(f => ({ ...f, setup_annual: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Deixe vazio ou 0 para não cobrar taxa de implantação.
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Ícone</Label>
