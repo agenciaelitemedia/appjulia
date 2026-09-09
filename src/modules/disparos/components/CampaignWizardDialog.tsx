@@ -300,6 +300,70 @@ export function CampaignWizardDialog({ open, onOpenChange, clientId, campaign }:
                 </span>
               </span>
             </label>
+
+            <div className="rounded-lg border p-3 space-y-3">
+              <label className="flex items-start gap-2 text-sm">
+                <Checkbox checked={crmPush} onCheckedChange={(v) => setCrmPush(!!v)} />
+                <span>
+                  Criar card no CRM Builder
+                  <span className="block text-xs text-muted-foreground">
+                    Cada lead que receber a mensagem entra como card. Se o contato já existir, ele é reaproveitado.
+                  </span>
+                </span>
+              </label>
+
+              {crmPush && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Painel</Label>
+                    <Select
+                      value={crmBoardId}
+                      onValueChange={(v) => { setCrmBoardId(v); setCrmPipelineId(''); }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Escolha o painel" /></SelectTrigger>
+                      <SelectContent>
+                        {crmBoards.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Etapa</Label>
+                    <Select value={crmPipelineId} onValueChange={setCrmPipelineId} disabled={!crmBoardId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={crmBoardId ? 'Escolha a etapa' : 'Escolha o painel primeiro'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {crmPipelines.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Responsável do card (opcional)</Label>
+                    <Select value={crmAssignedTo || 'none'} onValueChange={(v) => setCrmAssignedTo(v === 'none' ? '' : v)}>
+                      <SelectTrigger><SelectValue placeholder="Sem responsável" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem responsável</SelectItem>
+                        {teamMembers.map((m) => (
+                          <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {(!crmBoardId || !crmPipelineId) && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Escolha painel e etapa para que os cards sejam criados.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
