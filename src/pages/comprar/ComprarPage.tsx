@@ -20,6 +20,7 @@ export interface OrderData {
   customer_address: string;
   plan_name: string;
   plan_price: number;
+  setup_fee?: number;
   billing_period: 'monthly' | 'semiannual' | 'annual';
   checkout_url?: string;
   payment_gateway: 'mercadopago' | 'infinitypay' | 'asaas';
@@ -48,6 +49,7 @@ const ComprarPage = () => {
     customer_address: '',
     plan_name: '',
     plan_price: 0,
+    setup_fee: 0,
     billing_period: 'monthly',
     payment_gateway: paymentGateway,
   });
