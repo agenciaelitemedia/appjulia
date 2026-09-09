@@ -17,6 +17,7 @@ import { useDspCampaigns, useDspCampaignControl, useDeleteDspCampaign } from '..
 import { useDspWaitReasons } from '../hooks/useDspWaitReason';
 import { useDspProviderDefaults } from '../hooks/useDspProviderDefaults';
 import { CampaignWizardDialog } from './CampaignWizardDialog';
+import { useDspBoards, useDspPipelines } from '../hooks/useDspAudienceOptions';
 import type { DspCampaign } from '../types';
 
 /** Texto amigável do motivo de espera reportado pelo worker. */
@@ -75,6 +76,14 @@ export function CampaignsTab({ clientId, canEdit }: { clientId: string | null; c
   const remove = useDeleteDspCampaign();
   const { data: waitReasons = {} } = useDspWaitReasons(clientId);
   const { data: providerDefaults = [] } = useDspProviderDefaults(clientId);
+  const { data: crmBoards = [] } = useDspBoards(clientId);
+  const { data: crmPipelines = [] } = useDspPipelines(clientId, []);
+  const crmLabel = (c: DspCampaign) => {
+    if (!c.crm_push_enabled) return null;
+    const board = crmBoards.find((b) => b.id === c.crm_board_id)?.name ?? 'painel';
+    const stage = crmPipelines.find((p) => p.id === c.crm_pipeline_id)?.name ?? 'etapa';
+    return `CRM: ${board} / ${stage}`;
+  };
   const providerWindow = useMemo(() => {
     const uaz = providerDefaults.find((p: any) => p.provider === 'uazapi') ?? providerDefaults[0];
     return uaz ? { start: (uaz as any).send_window_start, end: (uaz as any).send_window_end } : null;
