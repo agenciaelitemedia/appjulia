@@ -87,11 +87,32 @@ export async function pushRecipientToCrm(
     contactId = created?.id ?? null;
   }
 
+  // 2.1) Conversa mais recente do contato (para o vínculo padrão chat↔CRM)
+  let conversationId: string | null = null;
+  if (contactId) {
+    const { data: conv } = await admin
+      .from('chat_conversations')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('contact_id', contactId)
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    conversationId = conv?.[0]?.id ?? null;
+  }
+
+  const chatLink: Record<string, unknown> = {
+    contact_id: contactId,
+    contact_phone: phone,
+    ...(conversationId ? { conversation_id: conversationId } : {}),
+    linked_by: `dsp:${campaign.id}`,
+    linked_at: new Date().toISOString(),
+  };
+
   // 3) Card ativo (status open) no mesmo painel → move para a etapa da campanha.
   //    Arquivado / ganho / perdido NÃO conta: um card novo é criado.
   const { data: active } = await admin
     .from('crm_deals')
-    .select('id, pipeline_id')
+    .select('id, pipeline_id, custom_fields')
     .eq('client_id', clientId)
     .eq('board_id', board.id)
     .in('contact_phone', variants)
@@ -102,6 +123,17 @@ export async function pushRecipientToCrm(
   if (active && active.length > 0) {
     const deal = active[0];
     const nowIso = new Date().toISOString();
+
+    // Garante o vínculo padrão chat↔CRM no card existente (sem sobrescrever o que já existe)
+    const existingCf = (deal.custom_fields ?? {}) as Record<string, any>;
+    const existingLinks = (existingCf.links ?? {}) as Record<string, any>;
+    const mergedCustomFields = {
+      ...existingCf,
+      dsp_campaign_id: campaign.id,
+      dsp_contact_id: contactId,
+      links: { ...existingLinks, chat: { ...chatLink, ...(existingLinks.chat ?? {}) } },
+    };
+
 
     if (deal.pipeline_id !== pipeline.id) {
       const { data: lastDest } = await admin
@@ -118,6 +150,7 @@ export async function pushRecipientToCrm(
         stage_entered_at: nowIso,
         position: destPosition,
         updated_by: `dsp:${campaign.id}`,
+        custom_fields: mergedCustomFields,
       };
       if (campaign?.crm_assigned_to) patch.assigned_to = campaign.crm_assigned_to;
 
@@ -135,6 +168,8 @@ export async function pushRecipientToCrm(
 
       return { ok: true, created: false, moved: true, deal_id: deal.id, contact_id: contactId, reason: 'deal_moved' };
     }
+
+    await admin.from('crm_deals').update({ custom_fields: mergedCustomFields }).eq('id', deal.id);
 
     await admin.from('crm_deal_history').insert({
       deal_id: deal.id,
@@ -171,7 +206,11 @@ export async function pushRecipientToCrm(
     stage_entered_at: now,
     assigned_to: campaign?.crm_assigned_to ?? null,
     created_by: `dsp:${campaign.id}`,
-    custom_fields: { dsp_campaign_id: campaign.id, dsp_contact_id: contactId },
+    custom_fields: {
+      dsp_campaign_id: campaign.id,
+      dsp_contact_id: contactId,
+      links: { chat: chatLink },
+    },
   };
 
   const { data: deal, error: dealError } = await admin

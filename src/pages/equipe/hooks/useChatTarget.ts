@@ -63,10 +63,10 @@ export function useChatTargetByPhone(phone: string | null, enabled: boolean) {
 
       const { data: convs, error: errV } = await supabase
         .from('chat_conversations')
-        .select('id, contact_id, queue_id, last_message_at, created_at')
+        .select('id, contact_id, queue_id, updated_at, created_at')
         .eq('client_id', clientIdText)
         .in('contact_id', contactIds)
-        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .order('updated_at', { ascending: false, nullsFirst: false })
         .limit(1);
       if (errV) throw errV;
       const conv = (convs || [])[0] as any;
