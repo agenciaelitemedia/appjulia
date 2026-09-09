@@ -1,5 +1,8 @@
 # Project Memory
 
+<!-- ref: [MCP cards/contatos](mem://features/mcp/gestao-cards-contatos) — tools de escrita do conector MCP (criar card, criar/atualizar contato, dry-run + auditoria) -->
+
+
 ## Core
 - Comando `atualizar vX.YZ`: setar version em package.json + public/version.json e criar entrada no Changelog (ver memória abaixo).
 
