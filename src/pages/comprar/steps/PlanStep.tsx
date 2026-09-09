@@ -112,6 +112,12 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
     return plan.price_monthly;
   };
 
+  const getSetupFeeByPeriod = (plan: PlanFromDB, period: BillingPeriod = billingPeriod): number => {
+    if (period === 'annual') return plan.setup_fee_annual || 0;
+    if (period === 'semiannual') return plan.setup_fee_semiannual || 0;
+    return plan.setup_fee_monthly || 0;
+  };
+
   // Filter plans that have price > 0 for selected period
   const filteredPlans = useMemo(() => {
     return channelFilteredPlans.filter(p => getPriceByPeriod(p) > 0);
@@ -128,6 +134,7 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
     updateOrder({
       plan_name: plan.name,
       plan_price: getPriceByPeriod(plan),
+      setup_fee: getSetupFeeByPeriod(plan),
       billing_period: billingPeriod,
     });
   };
@@ -139,10 +146,10 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
       const plan = plans[selected];
       const price = period === 'annual' ? plan.price_annual : period === 'semiannual' ? plan.price_semiannual : plan.price_monthly;
       if (price > 0) {
-        updateOrder({ plan_price: price, billing_period: period });
+        updateOrder({ plan_price: price, setup_fee: getSetupFeeByPeriod(plan, period), billing_period: period });
       } else {
         setSelected(-1);
-        updateOrder({ plan_name: '', plan_price: 0, billing_period: period });
+        updateOrder({ plan_name: '', plan_price: 0, setup_fee: 0, billing_period: period });
       }
     }
   };
