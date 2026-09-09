@@ -22,6 +22,8 @@ const COMMON_PROPS = {
 
 const LEAD_FIELDS = ["title", "description", "value", "priority", "contact_name", "contact_email", "expected_close_date", "due_date"] as const;
 const DEAL_STATUS = ["open", "won", "lost"] as const;
+const DEAL_PRIORITY = ["low", "medium", "high", "urgent"] as const;
+const CONTACT_CHANNELS = ["whatsapp_uazapi", "whatsapp_waba", "instagram", "webchat"] as const;
 
 interface WriteEnv {
   dryRun: boolean;
