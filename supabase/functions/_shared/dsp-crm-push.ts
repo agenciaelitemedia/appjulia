@@ -206,7 +206,11 @@ export async function pushRecipientToCrm(
     stage_entered_at: now,
     assigned_to: campaign?.crm_assigned_to ?? null,
     created_by: `dsp:${campaign.id}`,
-    custom_fields: { dsp_campaign_id: campaign.id, dsp_contact_id: contactId },
+    custom_fields: {
+      dsp_campaign_id: campaign.id,
+      dsp_contact_id: contactId,
+      links: { chat: chatLink },
+    },
   };
 
   const { data: deal, error: dealError } = await admin
