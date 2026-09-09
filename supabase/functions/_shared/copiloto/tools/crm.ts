@@ -304,6 +304,8 @@ export const crmTools: CopilotoTool[] = [
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!d) throw new Error("Negócio não encontrado neste escritório.");
+      if (d.board_id) await assertBoardMcpAccess(ctx, String(d.board_id), "list");
+
 
       const [{ data: pipe }, { data: hist }, { data: checklists }] = await Promise.all([
         d.pipeline_id ? ctx.supabase.from("crm_pipelines").select("name").eq("id", d.pipeline_id).maybeSingle() : Promise.resolve({ data: null }),
