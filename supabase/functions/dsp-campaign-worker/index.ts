@@ -17,6 +17,7 @@ import {
   isUazapi,
   type ChannelCandidate,
 } from "../_shared/dsp-core.ts";
+import { pushRecipientToCrm } from "../_shared/dsp-crm-push.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
