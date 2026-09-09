@@ -215,7 +215,7 @@ export const crmTools: CopilotoTool[] = [
             .eq("pipeline_id", p.id);
           lines.push(`  - ${p.position}. ${p.name} — ${count ?? 0} negócios (pipeline_id: ${p.id})`);
         }
-        out.push(`### ${b.name}${b.is_active ? "" : " (inativo)"} (board_id: ${b.id})\n${lines.join("\n") || "  (sem etapas)"}`);
+        out.push(`### ${b.name}${b.is_archived ? " (arquivado)" : ""} (board_id: ${b.id})\n${lines.join("\n") || "  (sem etapas)"}`);
       }
       return out.join("\n\n");
     },
