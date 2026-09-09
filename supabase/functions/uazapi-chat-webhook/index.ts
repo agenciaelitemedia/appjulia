@@ -278,7 +278,7 @@ function looksLikeJsonBlob(s: string): boolean {
 }
 
 /** WhatsApp/UaZapi undecryptable notice — keep it visible instead of dropping the text. */
-const UNDECRYPTABLE_TEXT = '🔒 Mensagem não pôde ser descriptografada. Peça ao cliente para reenviar.';
+const UNDECRYPTABLE_TEXT = '🕐 Aguardando esta mensagem. Isso pode demorar um pouco.';
 function isUndecryptable(msg: any, text?: string | null): boolean {
   const t = (text || '').trim().toLowerCase();
   const mt = String(msg?.messageType || msg?.type || '').toLowerCase();
