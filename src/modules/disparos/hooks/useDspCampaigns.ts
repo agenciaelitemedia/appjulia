@@ -68,7 +68,18 @@ export interface SaveCampaignInput {
   schedule_end_at: string | null;
   auto_window_control: boolean;
   created_by?: string | null;
-  variants: { id?: string; label: string; message_text: string; weight: number; template_id?: string | null }[];
+  variants: {
+    id?: string;
+    label: string;
+    message_text: string;
+    weight: number;
+    template_id?: string | null;
+    media_url?: string | null;
+    media_type?: string | null;
+    file_name?: string | null;
+    footer?: string | null;
+    buttons?: any[];
+  }[];
   channels: { queue_id: string; weight: number }[];
 }
 
@@ -106,6 +117,11 @@ export function useSaveDspCampaign() {
             label: v.label,
             message_text: v.message_text,
             template_id: v.template_id ?? null,
+            media_url: v.media_url ?? null,
+            media_type: v.media_url ? (v.media_type ?? 'image') : null,
+            file_name: v.file_name ?? null,
+            footer: v.footer ?? null,
+            buttons: v.buttons ?? [],
             weight: v.weight || 1,
             is_active: true,
           })),

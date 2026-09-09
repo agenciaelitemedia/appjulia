@@ -12,7 +12,7 @@ import {
   isPermanentError,
   isDisconnectionError,
   insideWindow,
-  renderTemplate,
+  buildOutboundPayload,
   phoneVariants,
   isUazapi,
   type ChannelCandidate,
@@ -58,23 +58,22 @@ async function sendMessage(
   variant: any,
   vars: Record<string, unknown>,
   campaign: any,
-): Promise<{ ok: boolean; providerId?: string; error?: string }> {
+): Promise<{ ok: boolean; providerId?: string; error?: string; permanent?: boolean }> {
   const queue = candidate.queue;
-  const text = variant?.message_text ? renderTemplate(variant.message_text, vars) : "";
+  const outbound = buildOutboundPayload(queue, variant, vars, campaign);
 
-  if (isUazapi(queue)) {
+  if (outbound.provider === "unsupported") {
+    return { ok: false, error: `unsupported_payload:${outbound.reason}`, permanent: true };
+  }
+
+  if (outbound.provider === "uazapi") {
     if (!queue.evo_url || !queue.evo_apikey) return { ok: false, error: "uazapi credentials missing" };
-    const endpoint = variant?.media_url ? "/send/media" : "/send/text";
-    const body: Record<string, unknown> = variant?.media_url
-      ? { number: phone, type: variant.media_type || "image", file: variant.media_url, text, docName: variant.file_name ?? undefined }
-      : { number: phone, text };
-
     const res = await invokeFunction("uazapi-proxy", {
       method: "POST",
-      endpoint,
+      endpoint: outbound.endpoint,
       token: queue.evo_apikey,
       baseUrl: queue.evo_url,
-      body,
+      body: { ...outbound.body, number: phone },
     });
     if (!res.ok) {
       return { ok: false, error: JSON.stringify(res.data ?? {}).slice(0, 500) };
@@ -83,29 +82,11 @@ async function sendMessage(
     return { ok: true, providerId };
   }
 
-  // API Oficial
-  if (campaign.waba_template_name) {
-    const res = await invokeFunction("waba-send", {
-      action: "send_template",
-      queue_id: queue.id,
-      to: phone,
-      template_name: campaign.waba_template_name,
-      language: campaign.waba_template_language || "pt_BR",
-      components: variant?.template_params ?? undefined,
-      sender_name: `Campanha:${campaign.name}`,
-      source: "dsp_campaign",
-    });
-    if (!res.ok || (res.data as any)?.error) {
-      return { ok: false, error: JSON.stringify((res.data as any)?.error ?? res.data ?? {}).slice(0, 500) };
-    }
-    return { ok: true, providerId: (res.data as any)?.messages?.[0]?.id };
-  }
-
   const res = await invokeFunction("waba-send", {
-    action: "send_text",
+    action: outbound.action,
     queue_id: queue.id,
     to: phone,
-    text,
+    ...outbound.body,
     sender_name: `Campanha:${campaign.name}`,
     source: "dsp_campaign",
   });
@@ -280,7 +261,7 @@ Deno.serve(async (req) => {
       // Falha
       const err = send.error ?? "unknown_error";
       const attempts = (item.attempts ?? 0) + 1;
-      const permanent = isPermanentError(err);
+      const permanent = send.permanent === true || isPermanentError(err);
       const disconnected = isDisconnectionError(err);
 
       const { tripped } = await registerFailure(admin, candidate, err, { hardStop: disconnected });

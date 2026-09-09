@@ -493,6 +493,119 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Envia um template aprovado da Meta (único caminho válido para
+      // mensagens fora da janela de 24h e para botões na API Oficial).
+      case "send_template": {
+        const to = params.to;
+        const templateName = params.template_name ?? params.name;
+        const language = params.language ?? "pt_BR";
+        const components = Array.isArray(params.components) ? params.components : undefined;
+        if (!to || !templateName) {
+          return new Response(
+            JSON.stringify({ error: "to and template_name are required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const cleanNumber = String(to).replace(/\D/g, "");
+        const templatePayload: Record<string, unknown> = {
+          name: templateName,
+          language: { code: language, policy: "deterministic" },
+        };
+        if (components && components.length > 0) templatePayload.components = components;
+
+        const resp = await fetchWithRetry(`${GRAPH_API}/${phone_number_id}/messages`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${waba_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: cleanNumber,
+            type: "template",
+            template: templatePayload,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          console.error(`[waba-send] send_template failed: status=${resp.status}, template=${templateName}, response=${JSON.stringify(data)}`);
+        } else {
+          await persistOutbound({
+            queueId: queue_id ?? null,
+            toPhone: cleanNumber,
+            metaMessageId: data?.messages?.[0]?.id,
+            type: "text",
+            text: params.preview_text ?? `[template] ${templateName}`,
+            senderName: sender_name,
+            source,
+          });
+        }
+        return new Response(JSON.stringify(data), {
+          status: resp.ok ? 200 : resp.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Igual a send_media, mas recebendo a URL do arquivo: baixa e reencaminha.
+      case "send_media_url": {
+        const to = params.to;
+        const mediaUrl = params.media_url ?? params.url;
+        if (!to || !mediaUrl) {
+          return new Response(
+            JSON.stringify({ error: "to and media_url are required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const dl = await fetch(String(mediaUrl));
+        if (!dl.ok) {
+          return new Response(
+            JSON.stringify({ error: `Failed to download media_url (${dl.status})` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const buf = new Uint8Array(await dl.arrayBuffer());
+        let raw = "";
+        const CHUNK = 8192;
+        for (let i = 0; i < buf.length; i += CHUNK) {
+          raw += String.fromCharCode(...buf.subarray(i, i + CHUNK));
+        }
+        const base64Media = btoa(raw);
+        const detectedMime = params.mimetype
+          ?? dl.headers.get("content-type")?.split(";")[0]?.trim()
+          ?? "application/octet-stream";
+        const inferredType = params.media_type ?? params.type
+          ?? (detectedMime.startsWith("image/") ? "image"
+            : detectedMime.startsWith("video/") ? "video"
+              : detectedMime.startsWith("audio/") ? "audio" : "document");
+
+        const forwardResp = await fetch(`${supabaseUrl}/functions/v1/waba-send`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            apikey: supabaseServiceKey,
+          },
+          body: JSON.stringify({
+            ...params,
+            action: "send_media",
+            queue_id: queue_id ?? null,
+            to,
+            media_type: inferredType,
+            base64: base64Media,
+            mimetype: detectedMime,
+            filename: params.filename ?? params.file_name ?? undefined,
+            caption: params.caption ?? undefined,
+            sender_name,
+            source,
+          }),
+        });
+        const forwardData = await forwardResp.json().catch(() => ({}));
+        return new Response(JSON.stringify(forwardData), {
+          status: forwardResp.ok ? 200 : forwardResp.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       case "download_media": {
         const { media_id } = params;
         if (!media_id) {
