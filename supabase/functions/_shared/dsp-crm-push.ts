@@ -112,7 +112,7 @@ export async function pushRecipientToCrm(
   //    Arquivado / ganho / perdido NÃO conta: um card novo é criado.
   const { data: active } = await admin
     .from('crm_deals')
-    .select('id, pipeline_id')
+    .select('id, pipeline_id, custom_fields')
     .eq('client_id', clientId)
     .eq('board_id', board.id)
     .in('contact_phone', variants)
@@ -123,6 +123,17 @@ export async function pushRecipientToCrm(
   if (active && active.length > 0) {
     const deal = active[0];
     const nowIso = new Date().toISOString();
+
+    // Garante o vínculo padrão chat↔CRM no card existente (sem sobrescrever o que já existe)
+    const existingCf = (deal.custom_fields ?? {}) as Record<string, any>;
+    const existingLinks = (existingCf.links ?? {}) as Record<string, any>;
+    const mergedCustomFields = {
+      ...existingCf,
+      dsp_campaign_id: campaign.id,
+      dsp_contact_id: contactId,
+      links: { ...existingLinks, chat: { ...chatLink, ...(existingLinks.chat ?? {}) } },
+    };
+
 
     if (deal.pipeline_id !== pipeline.id) {
       const { data: lastDest } = await admin
