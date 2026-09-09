@@ -23,6 +23,8 @@ interface TokenRow {
   kind: string;
   last_used_at: string | null;
   created_at: string;
+  julia_user_email: string | null;
+  julia_client_id: string | null;
 }
 
 export function McpConnectionCard() {
@@ -40,7 +42,7 @@ export function McpConnectionCard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('cop_oauth_tokens')
-        .select('id, client_name, scope, kind, last_used_at, created_at')
+        .select('id, client_name, scope, kind, last_used_at, created_at, julia_user_email, julia_client_id')
         .eq('julia_client_id', clientId)
         .eq('kind', 'connector')
         .is('revoked_at', null)
@@ -49,6 +51,7 @@ export function McpConnectionCard() {
       return (data || []) as TokenRow[];
     },
   });
+
 
   const copy = (value: string, label: string) => {
     navigator.clipboard.writeText(value);
