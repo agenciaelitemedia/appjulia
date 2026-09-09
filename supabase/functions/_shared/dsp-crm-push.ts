@@ -161,6 +161,13 @@ export async function pushRecipientToCrm(
       links: { ...existingLinks, chat: { ...chatLink, ...(existingLinks.chat ?? {}) } },
     };
 
+    // Corrige título/nome quando o card mostra apenas o número
+    const nameFix: Record<string, unknown> = {};
+    if (!isJustPhone(leadName)) {
+      if (isJustPhone(deal.title)) nameFix.title = leadName;
+      if (isJustPhone(deal.contact_name)) nameFix.contact_name = leadName;
+    }
+
 
     if (deal.pipeline_id !== pipeline.id) {
       const { data: lastDest } = await admin
