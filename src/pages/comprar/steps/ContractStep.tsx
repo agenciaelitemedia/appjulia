@@ -50,7 +50,7 @@ export const generateContractBody = async (orderData: OrderData): Promise<string
     .replace(/\{\{customer_whatsapp\}\}/g, orderData.customer_whatsapp || '—')
     .replace(/\{\{customer_address\}\}/g, orderData.customer_address || '—')
     .replace(/\{\{plan_name\}\}/g, orderData.plan_name || '—')
-    .replace(/\{\{plan_price\}\}/g, formatPrice(orderData.plan_price))
+    .replace(/\{\{plan_price\}\}/g, planPriceText)
     .replace(/\{\{billing_period\}\}/g, periodLabels[orderData.billing_period] || orderData.billing_period);
 };
 
