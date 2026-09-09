@@ -11,7 +11,9 @@ export interface CrmPushResult {
   deal_id?: string | null;
   contact_id?: string | null;
   created?: boolean;
+  moved?: boolean;
 }
+
 
 export async function pushRecipientToCrm(
   admin: any,
@@ -85,18 +87,66 @@ export async function pushRecipientToCrm(
     contactId = created?.id ?? null;
   }
 
-  // 3) Card: não duplica no mesmo painel
-  const { data: dup } = await admin
+  // 3) Card ativo (status open) no mesmo painel → move para a etapa da campanha.
+  //    Arquivado / ganho / perdido NÃO conta: um card novo é criado.
+  const { data: active } = await admin
     .from('crm_deals')
-    .select('id')
+    .select('id, pipeline_id')
     .eq('client_id', clientId)
     .eq('board_id', board.id)
     .in('contact_phone', variants)
-    .neq('status', 'lost')
+    .eq('status', 'open')
+    .order('updated_at', { ascending: false })
     .limit(1);
-  if (dup && dup.length > 0) {
-    return { ok: true, created: false, deal_id: dup[0].id, contact_id: contactId, reason: 'deal_exists' };
+
+  if (active && active.length > 0) {
+    const deal = active[0];
+    const nowIso = new Date().toISOString();
+
+    if (deal.pipeline_id !== pipeline.id) {
+      const { data: lastDest } = await admin
+        .from('crm_deals')
+        .select('position')
+        .eq('client_id', clientId)
+        .eq('pipeline_id', pipeline.id)
+        .order('position', { ascending: false })
+        .limit(1);
+      const destPosition = ((lastDest?.[0]?.position as number | undefined) ?? -1) + 1;
+
+      const patch: Record<string, unknown> = {
+        pipeline_id: pipeline.id,
+        stage_entered_at: nowIso,
+        position: destPosition,
+        updated_by: `dsp:${campaign.id}`,
+      };
+      if (campaign?.crm_assigned_to) patch.assigned_to = campaign.crm_assigned_to;
+
+      const { error: updError } = await admin.from('crm_deals').update(patch).eq('id', deal.id);
+      if (updError) return { ok: false, reason: `deal_update:${updError.message}`, deal_id: deal.id, contact_id: contactId };
+
+      await admin.from('crm_deal_history').insert({
+        deal_id: deal.id,
+        action: 'stage_changed',
+        from_pipeline_id: deal.pipeline_id,
+        to_pipeline_id: pipeline.id,
+        changed_by: `dsp:${campaign.id}`,
+        notes: `Card movido para "${pipeline.name}" pela campanha de disparo "${campaign.name ?? campaign.id}"`,
+      });
+
+      return { ok: true, created: false, moved: true, deal_id: deal.id, contact_id: contactId, reason: 'deal_moved' };
+    }
+
+    await admin.from('crm_deal_history').insert({
+      deal_id: deal.id,
+      action: 'note',
+      to_pipeline_id: pipeline.id,
+      changed_by: `dsp:${campaign.id}`,
+      notes: `Contato incluído novamente pela campanha de disparo "${campaign.name ?? campaign.id}" (já estava em "${pipeline.name}")`,
+    });
+
+    return { ok: true, created: false, moved: false, deal_id: deal.id, contact_id: contactId, reason: 'already_in_stage' };
   }
+
 
   const { data: last } = await admin
     .from('crm_deals')
