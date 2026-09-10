@@ -1,40 +1,32 @@
-# Disparos: prévia única e limite diário ajustável
+# Recuperar mensagens que ficaram como "Aguardando esta mensagem"
 
-## 1. Por que a prévia aparece repetida
+## O que acontece hoje
 
-Na última etapa do assistente, a tela mostra uma amostra dos **5 primeiros contatos** da lista.
-Como quase sempre existe só uma variante de mensagem, os 5 blocos trazem exatamente o mesmo
-texto — parece duplicado, mas são 5 destinatários diferentes com a mesma mensagem.
+Quando o WhatsApp entrega a mensagem sem conseguir decifrar o conteúdo, o chat grava um aviso fixo ("Aguardando esta mensagem. Isso pode demorar um pouco.") e nunca mais tenta buscar o conteúdo real. Se o conteúdo verdadeiro aparecer depois no provedor de WhatsApp, ele não chega ao chat.
 
-**Ajuste:** mostrar **uma prévia por variante de mensagem** (com uma variante = 1 bloco só),
-identificando a variante e informando para quantos contatos ela vale.
+Sim: em boa parte dos casos o conteúdo real fica disponível no provedor minutos depois. Então vale tentar de novo.
 
-## 2. Por que a capacidade está em 60 e como subir para 120
+## O que será feito
 
-A capacidade do dia é calculada como *limite liberado hoje* menos *o que já foi enviado hoje*.
-O "limite liberado hoje" vem do aquecimento (rampa) do número: no primeiro dia ele libera uma
-fração do teto configurado (teto 300, rampa 50% → 60 hoje) e cresce nos dias seguintes.
-Hoje não existe forma de alterar isso pela tela — o valor fica travado até o dia seguinte.
+1. **Nova tentativa automática**
+   Cada mensagem que cair nesse estado passa a ser marcada como "pendente de recuperação". Uma rotina roda a cada 5 minutos e tenta buscar o conteúdo real no provedor para essas mensagens (das últimas 24 horas). Até 8 tentativas por mensagem, com intervalos crescentes; depois disso a mensagem é encerrada como não recuperável.
 
-**Ajuste:** no cartão de cada número (aba Canais) entra um campo **"Liberado para hoje"**,
-editável, com botão Salvar. Digitando 120 e salvando, a campanha passa a considerar 120 hoje.
-O campo respeita o teto configurado do tipo de conexão (se o teto for 300, aceita até 300) e
-mostra um aviso curto: aumentar muito de uma vez em número não oficial aumenta risco de bloqueio.
-A alteração permanente do teto e da rampa continua na aba Configurações.
+2. **Atualização quando o conteúdo chegar**
+   Se o provedor devolver o texto (ou a mídia) verdadeiro, a mensagem existente é atualizada no lugar — mesmo balão, mesma hora, sem duplicar — e a prévia da conversa na lista também é corrigida.
+
+3. **Botão "Tentar novamente"**
+   No próprio balão do aviso aparece um botão discreto para forçar a busca na hora, com retorno imediato ("recuperada" ou "ainda não disponível").
+
+4. **Quando o provedor reenvia sozinho**
+   Se o provedor mandar uma atualização dessa mensagem com o conteúdo, o chat passa a aceitar essa correção em vez de ignorar (hoje só aceita edições explícitas).
 
 ## Detalhes técnicos
 
-- `src/modules/disparos/components/CampaignWizardDialog.tsx`: renderizar `sim.preview`
-  agrupado/deduplicado por variante (uma linha por texto distinto), mantendo o telefone de exemplo.
-- `supabase/functions/dsp-campaign-prepare/index.ts`: no bloco `dry_run`, gerar `preview` com um
-  registro por `variant_id` (em vez de `rows.slice(0, 5)`), incluindo `variant_label` e a contagem
-  de destinatários daquela variante.
-- `src/modules/disparos/components/ChannelLimitsCard.tsx`: novo input numérico
-  `allowed_today` (valor atual de `dsp_channel_state.allowed_today`, fallback = cálculo da rampa)
-  + botão Salvar.
-- `src/modules/disparos/hooks/useDspLimits.ts`: nova mutation `useSaveChannelAllowedToday`
-  atualizando `dsp_channel_state.allowed_today` por `queue_id`, com clamp entre 1 e
-  `profile.max_per_day`, e invalidação das queries de estado dos canais.
-- Nenhuma mudança em `dsp-core.ts`: `effectiveDailyLimit` já usa `allowed_today` limitado por
-  `max_per_day`.
-- Sem migração de banco: as colunas já existem.
+- `chat_messages.metadata` ganha `undecryptable: { attempts, last_attempt_at, resolved, gave_up }` — sem mudança de schema.
+- Nova Edge Function `uazapi-message-revalidate`:
+  - modo `single` (por `message_id`, usado pelo botão) e modo `sweep` (varre pendentes das últimas 24h, lote limitado).
+  - busca via `POST /message/find` no provedor da fila da conversa (mesmo padrão de `uazapi-chat-backfill`), reaproveitando a resolução de credenciais por `queue_id`.
+  - se o retorno ainda for `[undecryptable]`/`error`, incrementa `attempts` e sai; se vier conteúdo, atualiza `text`, `type`, `media_url`/`file_name` e `chat_conversations.last_message_text`.
+- Agendamento: `pg_cron` a cada 5 minutos chamando a função em modo `sweep`.
+- `uazapi-chat-webhook` (`messages.update`): quando a linha atual tiver o texto de aguardo e o payload trouxer texto/mídia real, aplica a substituição (sem marcar como "editada").
+- `MessageBubble.tsx`: no bloco do aviso âmbar (texto começando com `🕐`), adiciona botão "Tentar novamente" chamando a função em modo `single`, com estado de carregamento e toast de resultado.
