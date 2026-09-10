@@ -12,6 +12,8 @@
 import { assertBoardMcpAccess } from "../board-access.ts";
 import { CopilotoError, nowIso, ok, safeDbError, type ToolOutput } from "../envelope.ts";
 import { SCOPE_WRITE_CRM, SCOPE_WRITE_MESSAGES, str, type CopilotoContext, type CopilotoTool, type ToolArgs } from "../types.ts";
+import { resolveDealsByPhone } from "./phone-lookup.ts";
+
 
 const COMMON_PROPS = {
   dry_run: { type: "boolean", description: "true (padrão) apenas simula e mostra before/after. false aplica de verdade." },
