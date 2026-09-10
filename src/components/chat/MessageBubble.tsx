@@ -8,6 +8,8 @@ import { ReactionPicker } from './ReactionPicker';
 import { ExpandableMessageText } from './ExpandableMessageText';
 import { TranscriptionBlock } from './messages/TranscriptionBlock';
 import { LinkPreviewCard } from './LinkPreviewCard';
+import { PendingMessageNotice } from './PendingMessageNotice';
+
 import { extractFirstUrl } from '@/lib/chat/linkPreview';
 import { format } from 'date-fns';
 import type { ChatMessage, MessageStatus, MessageType } from '@/types/chat';
