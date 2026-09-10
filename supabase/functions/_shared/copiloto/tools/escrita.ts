@@ -160,6 +160,31 @@ async function logDealHistory(
   }
 }
 
+/** Variantes BR do telefone (12 e 13 dígitos, com e sem o nono dígito). */
+function brVariants(raw: string): string[] {
+  let d = String(raw ?? "").replace(/@.*/, "").replace(/\D/g, "");
+  if (!d) return [];
+  if (d.startsWith("055")) d = d.slice(1);
+  if (!d.startsWith("55") && (d.length === 10 || d.length === 11)) d = `55${d}`;
+  const out = new Set<string>([d]);
+  if (d.startsWith("55")) {
+    const ddd = d.slice(2, 4);
+    if (d.length === 13 && d[4] === "9") out.add(`55${ddd}${d.slice(5)}`);
+    else if (d.length === 12 && /[6-9]/.test(d[4] ?? "")) out.add(`55${ddd}9${d.slice(4)}`);
+  }
+  return [...out];
+}
+
+/** Normaliza texto para comparação (sem acento, minúsculo, sem espaços extras). */
+function norm(text: string): string {
+  return String(text ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 export const escritaTools: CopilotoTool[] = [
   {
     name: "julia_lead_atualizar",
