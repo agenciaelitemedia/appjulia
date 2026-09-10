@@ -1246,14 +1246,19 @@ export const escritaTools: CopilotoTool[] = [
           dry_run: env.dryRun,
           deal_id: before.id,
           contato_id: contact?.id ?? null,
-          cards_encontrados: found.length,
+          contatos_encontrados: lookup.contacts.length,
+          cards_visiveis_no_crm: found.length,
+          cards_apenas_no_historico: lookup.historico.length,
           before,
           after,
           audit_id: auditId,
         },
         `${applied ? "Aplicado" : "Simulação (dry_run)"}: card "${before.title}" (${before.contact_phone || variants[0]}) → etapa "${target.name}"${
           status ? ` · status ${status}` : ""
-        }${found.length > 1 ? ` · atenção: ${found.length} cards abertos encontrados, movi o mais recente` : ""}. audit_id ${auditId}.`,
+        } · ${found.length} card(es) visível(is) no CRM${
+          lookup.historico.length ? ` (+${lookup.historico.length} apenas no histórico/arquivados)` : ""
+        }${found.length > 1 ? " · movi o mais recente em aberto" : ""}. audit_id ${auditId}.`,
+
       );
     },
   },
