@@ -1042,4 +1042,229 @@ export const escritaTools: CopilotoTool[] = [
       );
     },
   },
+  {
+    name: "julia_card_mover_por_telefone",
+    version: "1.0.0",
+    mode: "write",
+    requiredScope: SCOPE_WRITE_CRM,
+    description:
+      "Move o card de um lead para outra etapa usando apenas o telefone, a etapa (ID ou nome) e o código do painel (board_id). Localiza o card pelo telefone do card ou pelo contato do chat, aceitando celular BR com 12 e 13 dígitos. Aplica direto (dry_run=false por padrão) e só age no escritório do token.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        telefone: { type: "string", description: "Telefone do lead em qualquer formato (+55, parênteses, traços)." },
+        etapa: { type: "string", description: "UUID da etapa destino OU o nome dela (ex.: 'Atendimento humano')." },
+        board_id: { type: "string", description: "Código (UUID) do painel do CRM Builder." },
+        status: { type: "string", enum: [...DEAL_STATUS], description: "Novo status opcional (open, won, lost)." },
+        motivo: { type: "string", description: "Motivo registrado no histórico do card." },
+        dry_run: { type: "boolean", description: "false (padrão) aplica de verdade; true apenas simula." },
+        idempotency_key: { type: "string", description: "Opcional. Gerada automaticamente quando não informada." },
+      },
+      required: ["telefone", "etapa", "board_id"],
+      additionalProperties: false,
+    },
+    run: async (ctx, args): Promise<ToolOutput> => {
+      const telefoneRaw = str(args.telefone);
+      const etapaArg = str(args.etapa);
+      const boardId = str(args.board_id);
+      const status = str(args.status);
+      if (!telefoneRaw) throw new CopilotoError("INVALID_INPUT", "telefone é obrigatório.");
+      if (!etapaArg) throw new CopilotoError("INVALID_INPUT", "etapa é obrigatória (UUID ou nome).");
+      if (!boardId) throw new CopilotoError("INVALID_INPUT", "board_id (código do painel) é obrigatório.");
+      if (status && !DEAL_STATUS.includes(status as typeof DEAL_STATUS[number])) {
+        throw new CopilotoError("INVALID_INPUT", `Status inválido. Use: ${DEAL_STATUS.join(", ")}.`);
+      }
+
+      const variants = brVariants(telefoneRaw);
+      if (!variants.length) throw new CopilotoError("INVALID_INPUT", "Telefone inválido.");
+
+      const env = writeEnv({
+        ...args,
+        dry_run: args.dry_run === true,
+        approved_by: str(args.approved_by) || "mcp:julia_card_mover_por_telefone",
+        reason: str(args.motivo) || str(args.reason) || "movimentação via telefone (MCP)",
+        idempotency_key:
+          str(args.idempotency_key) ||
+          `movpel:${ctx.clientId}:${boardId}:${variants[0]}:${etapaArg}:${status || "-"}:${new Date().toISOString().slice(0, 10)}`,
+      });
+
+      const replay = await findReplay(ctx, "card_mover_por_telefone", env.key);
+      if (replay) {
+        return result(
+          ctx,
+          "julia_card_mover_por_telefone",
+          { applied: true, dry_run: false, before: replay.before_data, after: replay.after_data, audit_id: replay.id, replay: true },
+          `Movimentação já aplicada com esta idempotency_key (audit_id ${replay.id}). Nada foi repetido.`,
+        );
+      }
+
+      // Permissão do painel (padrão fechado) — também valida que o painel é do escritório.
+      await assertBoardMcpAccess(ctx, boardId, "move");
+
+      // 1) Card pelo telefone gravado no próprio card.
+      const dealCols =
+        "id, title, status, pipeline_id, board_id, contact_name, contact_phone, custom_fields, stage_entered_at, updated_at";
+      let found: Record<string, unknown>[] = [];
+      {
+        const { data, error } = await ctx.supabase
+          .from("crm_deals")
+          .select(dealCols)
+          .eq("client_id", ctx.clientId)
+          .eq("board_id", boardId)
+          .eq("status", "open")
+          .in("contact_phone", variants)
+          .order("updated_at", { ascending: false });
+        if (error) throw safeDbError("database", error);
+        found = data || [];
+      }
+
+      // 2) Fallback: contato do chat + cards vinculados a esse contato.
+      let contact: { id: string; name: string | null; phone: string | null } | null = null;
+      {
+        const { data, error } = await ctx.supabase
+          .from("chat_contacts")
+          .select("id, name, phone, updated_at")
+          .eq("client_id", ctx.clientId)
+          .in("phone", variants)
+          .order("updated_at", { ascending: false })
+          .limit(1);
+        if (error) throw safeDbError("database", error);
+        contact = data?.[0] ?? null;
+      }
+
+      if (!found.length && contact) {
+        const { data, error } = await ctx.supabase
+          .from("crm_deals")
+          .select(dealCols)
+          .eq("client_id", ctx.clientId)
+          .eq("board_id", boardId)
+          .eq("status", "open")
+          .order("updated_at", { ascending: false })
+          .limit(300);
+        if (error) throw safeDbError("database", error);
+        // deno-lint-ignore no-explicit-any
+        found = (data || []).filter((d: any) => {
+          const cf = (d.custom_fields ?? {}) as Record<string, unknown>;
+          // deno-lint-ignore no-explicit-any
+          const linked = (cf as any)?.links?.chat?.contact_id ?? (cf as any)?.dsp_contact_id ?? null;
+          if (linked && String(linked) === String(contact!.id)) return true;
+          const p = String(d.contact_phone ?? "").replace(/\D/g, "");
+          return p ? variants.includes(p) : false;
+        });
+      }
+
+      if (!found.length) {
+        throw new CopilotoError(
+          "NOT_FOUND",
+          contact
+            ? `Contato encontrado (${contact.name || contact.phone}), mas ele não tem card aberto neste painel.`
+            : "Nenhum contato/card encontrado para este telefone neste escritório.",
+          { details: { telefone_variantes: variants, board_id: boardId, contato_id: contact?.id ?? null } },
+        );
+      }
+
+      // deno-lint-ignore no-explicit-any
+      const before: any = found[0];
+
+      // 3) Resolve a etapa destino (UUID ou nome).
+      const { data: stages, error: stagesErr } = await ctx.supabase
+        .from("crm_pipelines")
+        .select("id, name, board_id, is_active, position")
+        .eq("board_id", boardId)
+        .order("position", { ascending: true });
+      if (stagesErr) throw safeDbError("database", stagesErr);
+      // deno-lint-ignore no-explicit-any
+      const list: any[] = stages || [];
+      const byId = list.find((s) => String(s.id) === etapaArg);
+      const target =
+        byId ||
+        list.find((s) => s.is_active !== false && norm(String(s.name)) === norm(etapaArg)) ||
+        list.find((s) => s.is_active !== false && norm(String(s.name)).includes(norm(etapaArg)));
+      if (!target) {
+        throw new CopilotoError("NOT_FOUND", "Etapa não encontrada neste painel.", {
+          details: { etapas_disponiveis: list.filter((s) => s.is_active !== false).map((s) => s.name) },
+        });
+      }
+
+      const sameStage = String(before.pipeline_id ?? "") === String(target.id);
+      const sameStatus = !status || String(before.status ?? "") === status;
+      if (sameStage && sameStatus) {
+        return result(
+          ctx,
+          "julia_card_mover_por_telefone",
+          { applied: false, dry_run: env.dryRun, already_there: true, deal_id: before.id, etapa: target.name, contato_id: contact?.id ?? null },
+          `O card "${before.title}" já está na etapa "${target.name}". Nada foi alterado.`,
+        );
+      }
+
+      const patch = {
+        ...(sameStage ? {} : { pipeline_id: target.id, stage_entered_at: nowIso() }),
+        ...(status ? { status } : {}),
+        updated_at: nowIso(),
+      };
+      const after = { ...before, ...patch, etapa_destino: target.name };
+
+      let applied = false;
+      if (!env.dryRun) {
+        const { error } = await ctx.supabase
+          .from("crm_deals")
+          .update(patch)
+          .eq("client_id", ctx.clientId)
+          .eq("id", before.id);
+        if (error) throw safeDbError("database", error);
+        applied = true;
+      }
+
+      const auditId = await audit(ctx, {
+        action: "card_mover_por_telefone",
+        target_table: "crm_deals",
+        target_id: String(before.id),
+        env,
+        before,
+        after,
+        applied,
+        result: applied ? "applied" : "dry_run",
+      });
+
+      if (applied) {
+        if (!sameStage) {
+          await logDealHistory(ctx, {
+            dealId: String(before.id),
+            action: "moved",
+            fromPipelineId: before.pipeline_id ?? null,
+            toPipelineId: String(target.id),
+            changes: { pipeline_id: { from: before.pipeline_id ?? null, to: String(target.id) }, telefone: variants[0] },
+            notes: `Movido via conector MCP (telefone ${variants[0]}) para "${target.name}" · motivo: ${env.reason} · audit ${auditId}`,
+          });
+        }
+        if (status && status !== before.status) {
+          await logDealHistory(ctx, {
+            dealId: String(before.id),
+            action: status === "won" ? "won" : status === "lost" ? "lost" : "updated",
+            toPipelineId: String(target.id),
+            changes: { status: { from: before.status ?? null, to: status } },
+            notes: `Status alterado via conector MCP: ${before.status ?? "—"} → ${status} · audit ${auditId}`,
+          });
+        }
+      }
+
+      return result(
+        ctx,
+        "julia_card_mover_por_telefone",
+        {
+          applied,
+          dry_run: env.dryRun,
+          deal_id: before.id,
+          contato_id: contact?.id ?? null,
+          cards_encontrados: found.length,
+          before,
+          after,
+          audit_id: auditId,
+        },
+        `${applied ? "Aplicado" : "Simulação (dry_run)"}: card "${before.title}" (${before.contact_phone || variants[0]}) → etapa "${target.name}"${
+          status ? ` · status ${status}` : ""
+        }${found.length > 1 ? ` · atenção: ${found.length} cards abertos encontrados, movi o mais recente` : ""}. audit_id ${auditId}.`,
+      );
+    },
+  },
 ];
