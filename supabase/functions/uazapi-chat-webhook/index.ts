@@ -1042,7 +1042,9 @@ Deno.serve(async (req) => {
             .select('id');
           if (!updRows?.length) {
             console.warn('[uazapi-chat-webhook] messages.update EDIT: no row matched', { idCandidates });
+          }
         }
+
 
         // Conteúdo real chegando depois para uma mensagem que ficou como
         // "Aguardando esta mensagem" (falha de descriptografia). Substitui no lugar.
