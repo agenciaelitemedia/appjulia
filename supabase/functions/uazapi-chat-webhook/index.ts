@@ -1042,8 +1042,44 @@ Deno.serve(async (req) => {
             .select('id');
           if (!updRows?.length) {
             console.warn('[uazapi-chat-webhook] messages.update EDIT: no row matched', { idCandidates });
-          }
         }
+
+        // Conteúdo real chegando depois para uma mensagem que ficou como
+        // "Aguardando esta mensagem" (falha de descriptografia). Substitui no lugar.
+        try {
+          const lateText = extractMessageText(upd) ?? extractMessageText(upd.message ?? {});
+          const lateMedia = upd.mediaUrl || upd.media?.url || upd.fileURL || null;
+          const hasLateContent = (!!lateText && lateText !== UNDECRYPTABLE_TEXT) || !!lateMedia;
+          if (hasLateContent) {
+            const { data: pendingRows } = await supabase
+              .from('chat_messages')
+              .select('id, text, metadata')
+              .in('id', rowIds);
+            for (const r of pendingRows || []) {
+              const cur = String((r as any).text ?? '').trim();
+              if (cur && !cur.startsWith('🕐')) continue;
+              const meta = ((r as any).metadata && typeof (r as any).metadata === 'object')
+                ? (r as any).metadata as Record<string, unknown> : {};
+              const patch: Record<string, unknown> = {
+                metadata: {
+                  ...meta,
+                  undecryptable: {
+                    ...(meta as any).undecryptable,
+                    resolved: true,
+                    resolved_at: new Date().toISOString(),
+                    source: 'messages.update',
+                  },
+                },
+              };
+              if (lateText && lateText !== UNDECRYPTABLE_TEXT) patch.text = lateText;
+              if (lateMedia) patch.media_url = lateMedia;
+              await supabase.from('chat_messages').update(patch).eq('id', (r as any).id);
+            }
+          }
+        } catch (lateErr) {
+          console.warn('[uazapi-chat-webhook] late-content update failed', (lateErr as Error).message);
+        }
+
 
         const mapped = mapStatus(
           upd.status
