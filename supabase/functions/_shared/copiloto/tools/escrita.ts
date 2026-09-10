@@ -1126,70 +1126,33 @@ export const escritaTools: CopilotoTool[] = [
       // Permissão do painel (padrão fechado) — também valida que o painel é do escritório.
       await assertBoardMcpAccess(ctx, boardId, "move");
 
-      // 1) Card pelo telefone gravado no próprio card.
-      const dealCols =
-        "id, title, status, pipeline_id, board_id, contact_name, contact_phone, custom_fields, stage_entered_at, updated_at";
-      let found: Record<string, unknown>[] = [];
-      {
-        const { data, error } = await ctx.supabase
-          .from("crm_deals")
-          .select(dealCols)
-          .eq("client_id", ctx.clientId)
-          .eq("board_id", boardId)
-          .eq("status", "open")
-          .in("contact_phone", variants)
-          .order("updated_at", { ascending: false });
-        if (error) throw safeDbError("database", error);
-        found = data || [];
-      }
-
-      // 2) Fallback: contato do chat + cards vinculados a esse contato.
-      let contact: { id: string; name: string | null; phone: string | null } | null = null;
-      {
-        const { data, error } = await ctx.supabase
-          .from("chat_contacts")
-          .select("id, name, phone, updated_at")
-          .eq("client_id", ctx.clientId)
-          .in("phone", variants)
-          .order("updated_at", { ascending: false })
-          .limit(1);
-        if (error) throw safeDbError("database", error);
-        contact = data?.[0] ?? null;
-      }
-
-      if (!found.length && contact) {
-        const { data, error } = await ctx.supabase
-          .from("crm_deals")
-          .select(dealCols)
-          .eq("client_id", ctx.clientId)
-          .eq("board_id", boardId)
-          .eq("status", "open")
-          .order("updated_at", { ascending: false })
-          .limit(300);
-        if (error) throw safeDbError("database", error);
-        // deno-lint-ignore no-explicit-any
-        found = (data || []).filter((d: any) => {
-          const cf = (d.custom_fields ?? {}) as Record<string, unknown>;
-          // deno-lint-ignore no-explicit-any
-          const linked = (cf as any)?.links?.chat?.contact_id ?? (cf as any)?.dsp_contact_id ?? null;
-          if (linked && String(linked) === String(contact!.id)) return true;
-          const p = String(d.contact_phone ?? "").replace(/\D/g, "");
-          return p ? variants.includes(p) : false;
-        });
-      }
+      // 1) Resolve cards por telefone (card + contato do chat + vínculos), só o que aparece no CRM.
+      const lookup = await resolveDealsByPhone(ctx.supabase, ctx.clientId, boardId, telefoneRaw);
+      const contact = lookup.contact;
+      const found = lookup.visiveis;
 
       if (!found.length) {
         throw new CopilotoError(
           "NOT_FOUND",
-          contact
-            ? `Contato encontrado (${contact.name || contact.phone}), mas ele não tem card aberto neste painel.`
+          lookup.historico.length
+            ? `Este telefone só tem card arquivado neste painel (${lookup.historico.length} no histórico), nada visível no CRM.`
+            : contact
+            ? `Contato encontrado (${contact.name || contact.phone}), mas ele não tem card visível neste painel.`
             : "Nenhum contato/card encontrado para este telefone neste escritório.",
-          { details: { telefone_variantes: variants, board_id: boardId, contato_id: contact?.id ?? null } },
+          {
+            details: {
+              telefone_variantes: lookup.variants,
+              board_id: boardId,
+              contato_id: contact?.id ?? null,
+              cards_arquivados: lookup.historico.length,
+            },
+          },
         );
       }
 
       // deno-lint-ignore no-explicit-any
       const before: any = found[0];
+
 
       // 3) Resolve a etapa destino (UUID ou nome).
       const { data: stages, error: stagesErr } = await ctx.supabase
