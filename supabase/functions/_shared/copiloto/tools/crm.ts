@@ -6,6 +6,8 @@ import { assertBoardMcpAccess, listMcpAllowedBoardIds } from "../board-access.ts
 import { CopilotoError } from "../envelope.ts";
 import { agentCodes, legacyRaw } from "../legacy.ts";
 import { fmtDate, MAX_ROWS, num, str, type CopilotoTool } from "../types.ts";
+import { resolveDealsByPhone } from "./phone-lookup.ts";
+
 
 export const crmTools: CopilotoTool[] = [
   {
@@ -223,13 +225,19 @@ export const crmTools: CopilotoTool[] = [
   {
     name: "julia_builder_listar_negocios",
     description:
-      "Negócios (cards) do CRM Builder com filtros por quadro, etapa, responsável e busca. Retorna deal_id, valor, etapa, responsável e datas.",
+      "Negócios (cards) do CRM Builder com filtros por quadro, etapa, responsável, telefone e busca. Por padrão retorna apenas cards que aparecem no CRM (arquivados ficam de fora). Retorna deal_id, valor, etapa, responsável e datas.",
     inputSchema: {
       type: "object",
       properties: {
         board_id: { type: "string", description: "UUID do quadro." },
         pipeline_id: { type: "string", description: "UUID da etapa." },
+        telefone: {
+          type: "string",
+          description:
+            "Telefone do lead em qualquer formato. Busca por celular BR de 12 e 13 dígitos, pelo telefone do card e pelo contato vinculado. Exige board_id.",
+        },
         busca: { type: "string", description: "Título, nome do contato ou telefone." },
+        incluir_arquivados: { type: "boolean", description: "false (padrão). true inclui cards arquivados (histórico)." },
         limite: { type: "number", description: "Máx. 200 (padrão 30)." },
       },
       additionalProperties: false,
@@ -248,42 +256,71 @@ export const crmTools: CopilotoTool[] = [
         );
       }
 
-      let query = ctx.supabase
-        .from("crm_deals")
-        .select("id, title, contact_name, contact_phone, value, status, pipeline_id, assigned_to, created_at, updated_at, stage_entered_at")
-        .eq("client_id", ctx.clientId)
-        .in("board_id", boardId ? [boardId] : allowed)
-        .order("updated_at", { ascending: false })
-        .limit(num(args.limite, 30, MAX_ROWS));
+      const incluirArquivados = args.incluir_arquivados === true;
+      const telefone = str(args.telefone);
 
-      if (str(args.pipeline_id)) query = query.eq("pipeline_id", str(args.pipeline_id));
-      const busca = str(args.busca);
-      if (busca) {
-        const digits = busca.replace(/\D/g, "");
-        query = digits.length >= 4 ? query.ilike("contact_phone", `%${digits}%`) : query.ilike("title", `%${busca}%`);
+      // deno-lint-ignore no-explicit-any
+      let data: any[] = [];
+      let extraNote = "";
+
+      if (telefone) {
+        if (!boardId) {
+          throw new CopilotoError("INVALID_INPUT", "Informe board_id (código do painel) junto com o telefone.");
+        }
+        const lookup = await resolveDealsByPhone(ctx.supabase, ctx.clientId, boardId, telefone);
+        data = incluirArquivados ? [...lookup.visiveis, ...lookup.historico] : lookup.visiveis;
+        extraNote = `Telefone ${lookup.variants.join(" / ")} · ${lookup.visiveis.length} card(es) no CRM${
+          lookup.historico.length ? ` · ${lookup.historico.length} apenas no histórico (arquivados)` : ""
+        }${lookup.contacts.length > 1 ? ` · atenção: ${lookup.contacts.length} contatos duplicados para este telefone` : ""}`;
+        if (!data.length) return `${extraNote}\nNenhum negócio visível no CRM para este telefone.`;
+      } else {
+        let query = ctx.supabase
+          .from("crm_deals")
+          .select("id, title, contact_name, contact_phone, value, status, pipeline_id, assigned_to, created_at, updated_at, stage_entered_at")
+          .eq("client_id", ctx.clientId)
+          .in("board_id", boardId ? [boardId] : allowed)
+          .order("updated_at", { ascending: false })
+          .limit(num(args.limite, 30, MAX_ROWS));
+
+        if (!incluirArquivados) query = query.neq("status", "archived");
+        if (str(args.pipeline_id)) query = query.eq("pipeline_id", str(args.pipeline_id));
+        const busca = str(args.busca);
+        if (busca) {
+          const digits = busca.replace(/\D/g, "");
+          query = digits.length >= 4 ? query.ilike("contact_phone", `%${digits}%`) : query.ilike("title", `%${busca}%`);
+        }
+
+        const { data: rows, error } = await query;
+        if (error) throw new Error(error.message);
+        data = rows || [];
+        if (!data.length) return "Nenhum negócio encontrado com esses filtros.";
       }
 
-      const { data, error } = await query;
-      if (error) throw new Error(error.message);
-      if (!data?.length) return "Nenhum negócio encontrado com esses filtros.";
+      if (str(args.pipeline_id) && telefone) {
+        data = data.filter((d) => String(d.pipeline_id ?? "") === str(args.pipeline_id));
+        if (!data.length) return `${extraNote}\nNenhum negócio nessa etapa para este telefone.`;
+      }
 
       const pipeIds = [...new Set(data.map((d: { pipeline_id: string }) => d.pipeline_id).filter(Boolean))];
       const { data: pipes } = await ctx.supabase.from("crm_pipelines").select("id, name").in("id", pipeIds);
       const pipeName = new Map((pipes || []).map((p: { id: string; name: string }) => [p.id, p.name]));
 
       // deno-lint-ignore no-explicit-any
-      return data
+      const lines = data
         .map(
           (d: any) =>
             `- ${d.title || d.contact_name || "(sem título)"} · ${d.contact_phone || "sem telefone"} · etapa ${
               pipeName.get(d.pipeline_id) || "—"
-            } · valor ${d.value ?? 0} · status ${d.status || "—"} · responsável ${d.assigned_to || "—"} · na etapa desde ${fmtDate(
-              d.stage_entered_at || d.updated_at,
-            )}\n  deal_id: ${d.id}`,
+            } · valor ${d.value ?? 0} · status ${d.status || "—"}${
+              String(d.status ?? "") === "archived" ? " (arquivado, não aparece no CRM)" : ""
+            } · responsável ${d.assigned_to || "—"} · na etapa desde ${fmtDate(d.stage_entered_at || d.updated_at)}\n  deal_id: ${d.id}`,
         )
         .join("\n");
+
+      return extraNote ? `${extraNote}\n${lines}` : lines;
     },
   },
+
   {
     name: "julia_builder_obter_negocio",
     description:
