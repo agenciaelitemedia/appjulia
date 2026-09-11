@@ -118,7 +118,7 @@ export default function QuickMessagesPage() {
   const resetForm = () => {
     setEditing(null);
     setKind('text');
-    setTitle(''); setShortcut(''); setActive(true);
+    setTitle(''); setShortcut(''); setActive(true); setShared(false);
     setText(''); setCaption('');
     setMediaUrl(null); setMediaPath(null); setMediaMime(null);
     setMediaSize(null); setMediaFilename(null);
@@ -133,6 +133,7 @@ export default function QuickMessagesPage() {
     setTitle(m.title);
     setShortcut(m.shortcut || '');
     setActive(m.is_active);
+    setShared(!!m.is_shared);
     setText(m.kind === 'text' ? (m.message_text || '') : '');
     setCaption(m.kind !== 'text' && m.kind !== 'link' ? (m.message_text || '') : '');
     setMediaUrl(m.media_url); setMediaPath(m.media_path); setMediaMime(m.media_mime);
@@ -218,6 +219,7 @@ export default function QuickMessagesPage() {
       category: 'geral',
       use_locations: ['chat_module'],
       is_active: active,
+      ...(isOwner ? { is_shared: shared } : {}),
       kind,
       message_text: kind === 'text' ? text.trim() : (kind === 'link' ? text.trim() : caption.trim() || null),
       media_url: mediaUrl,
