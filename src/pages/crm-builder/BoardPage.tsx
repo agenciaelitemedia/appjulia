@@ -245,6 +245,23 @@ export default function BoardPage() {
     return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [deals]);
 
+  // Descarta etapas/responsáveis salvos que não existem mais no quadro
+  const didSanitizeFiltersRef = useRef(false);
+  useEffect(() => {
+    if (didSanitizeFiltersRef.current) return;
+    if (pipelines.length === 0 || deals.length === 0) return;
+    didSanitizeFiltersRef.current = true;
+    const validPipelines = filters.pipelineIds.filter((id) => pipelines.some((p) => p.id === id));
+    const validAssignees = filters.assignedTo.filter((n) => assignees.includes(n));
+    if (
+      validPipelines.length !== filters.pipelineIds.length ||
+      validAssignees.length !== filters.assignedTo.length
+    ) {
+      setFilters({ ...filters, pipelineIds: validPipelines, assignedTo: validAssignees });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipelines, deals, assignees]);
+
   // Filter deals
   const filteredDeals = useMemo(() => {
     return deals.filter(deal => {
