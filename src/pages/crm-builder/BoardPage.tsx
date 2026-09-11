@@ -770,7 +770,7 @@ export default function BoardPage() {
             {user?.name && (
               <button
                 type="button"
-                onClick={() => setFilters(prev => ({ ...prev, myCards: !prev.myCards }))}
+                onClick={() => setFilters({ ...filters, myCards: !filters.myCards })}
                 title={filters.myCards ? 'Mostrar todos os cards' : 'Ver apenas meus cards'}
                 className={cn(
                   'relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all',
