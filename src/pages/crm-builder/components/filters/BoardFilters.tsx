@@ -21,9 +21,27 @@ import {
   Filter, 
   X,
   SlidersHorizontal,
+  Eraser,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { calculatePeriodDates } from '@/hooks/usePersistedPeriod';
 import { PRIORITY_CONFIG, STATUS_CONFIG, type DealPriority, type DealStatus } from '../../types';
+
+export type BoardDateField = 'created_at' | 'updated_at' | 'due_date';
+export type BoardDatePeriod = 'today' | 'yesterday' | 'thisMonth' | 'custom' | null;
+
+export const DATE_FIELD_LABELS: Record<BoardDateField, string> = {
+  created_at: 'Data de criação',
+  updated_at: 'Data de atualização',
+  due_date: 'Data de entrega',
+};
+
+export const DATE_PERIOD_LABELS: Record<Exclude<BoardDatePeriod, null>, string> = {
+  today: 'Hoje',
+  yesterday: 'Ontem',
+  thisMonth: 'Mês atual',
+  custom: 'Personalizado',
+};
 
 export interface BoardFiltersState {
   search: string;
@@ -32,7 +50,24 @@ export interface BoardFiltersState {
   pipelineIds: string[];
   assignedTo: string[];
   myCards: boolean;
+  dateField: BoardDateField;
+  datePeriod: BoardDatePeriod;
+  dateFrom: string;
+  dateTo: string;
 }
+
+export const EMPTY_BOARD_FILTERS: BoardFiltersState = {
+  search: '',
+  priorities: [],
+  statuses: [],
+  pipelineIds: [],
+  assignedTo: [],
+  myCards: false,
+  dateField: 'created_at',
+  datePeriod: null,
+  dateFrom: '',
+  dateTo: '',
+};
 
 interface BoardFiltersProps {
   filters: BoardFiltersState;
