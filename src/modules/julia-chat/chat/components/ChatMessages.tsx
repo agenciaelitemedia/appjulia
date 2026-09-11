@@ -19,6 +19,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useChatClientSettings } from '@/hooks/useChatClientSettings';
 import { useConversationSummaries, type ConversationSummary } from '@/hooks/useConversationSummaries';
 import { MascoteLoader } from "@/components/ui/mascote-loader";
+import { useWabaWindowStatus } from '@/hooks/useWabaWindowStatus';
+import { WabaWindowNotice } from '@/components/chat/WabaWindowNotice';
+
 
 interface ChatMessagesProps {
   contactId: string;
@@ -36,6 +39,16 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
   const { settings: chatClientSettings } = useChatClientSettings();
   const { summaries } = useConversationSummaries(selectedConversation?.id ?? null, contactId);
   const { user } = useAuth();
+  // Janela de 24h da API Oficial: bloqueia envio livre e oferece modelo aprovado
+  const currentContact = contacts.find((c) => c.id === contactId);
+  const isWabaConversation =
+    currentContact?.channel_type === 'whatsapp_waba' || selectedQueue?.channel_type === 'waba';
+  const wabaWindow = useWabaWindowStatus({
+    contactId,
+    conversationId: selectedConversation?.id ?? null,
+    isWaba: !!isWabaConversation,
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
