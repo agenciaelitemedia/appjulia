@@ -94,7 +94,8 @@ export function BoardFilters({
     filters.statuses.length +
     filters.pipelineIds.length +
     filters.assignedTo.length +
-    (filters.myCards ? 1 : 0);
+    (filters.myCards ? 1 : 0) +
+    (filters.datePeriod ? 1 : 0);
 
   const handleSearchChange = (value: string) => {
     onFiltersChange({ ...filters, search: value });
