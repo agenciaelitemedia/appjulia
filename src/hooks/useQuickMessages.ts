@@ -1,10 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { isOwnerUser } from '@/lib/auth/isOwner';
+import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
 
 export interface QuickMessage {
   id: string;
   user_id: number;
+  client_id: string | null;
+  is_shared: boolean;
   title: string;
   message_text: string | null;
   shortcut: string | null;
