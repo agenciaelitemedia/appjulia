@@ -123,7 +123,7 @@ export function ChatRightBar({
 
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {rightBarTab === 'contact' ? (
+        {rightBarTab === 'contact' || (rightBarTab === 'lidia' && !isLidiaAllowed(user?.email)) ? (
           <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose unlinked={contactUnlinked} />
         ) : rightBarTab === 'phone' ? (
           <ChatContactCallsPanel phone={contact?.phone || null} contactId={contact?.id || null} />
