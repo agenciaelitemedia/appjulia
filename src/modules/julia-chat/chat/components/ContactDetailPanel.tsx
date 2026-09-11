@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, FileText, Search, Users, UserCheck, Layers, Megaphone, Loader2, RefreshCw } from 'lucide-react';
+import { X, Phone, MessageSquare, Clock, Tag, History, Plus, Hash, Check, Pencil, Info, Search, Users, UserCheck, Layers, Megaphone, Loader2, RefreshCw } from 'lucide-react';
 import { useWhatsAppData } from '@/modules/julia-chat/chat/contexts/WhatsAppDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -16,7 +16,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ConversationObservations } from '@/components/chat/ConversationObservations';
 import { PriorityBadge } from './PriorityBadge';
-import { ConversationSummaries } from './ConversationSummaries';
 import { useAssigneeNameResolver } from '@/hooks/useAssigneeNameResolver';
 import type { ChatContact } from '@/types/chat';
 import type { ChatConversation, ConversationHistoryEntry, ChatTag } from '@/types/conversation';
@@ -185,14 +184,13 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false, 
   const [editName, setEditName] = useState(contact.name);
 
   const { resolve: resolveAssignee } = useAssigneeNameResolver();
-  const showResumosTab = true;
 
   // Campanhas: só habilita a aba quando o contato tem origem de campanha
   const { data: contactCampaigns = [], isLoading: isLoadingCampaigns } = useContactCampaigns(contact.phone);
   const hasCampaigns = contactCampaigns.length > 0;
   const { data: firstInbound } = useContactFirstInboundMessage(contact.id);
   // Aba Campanhas é sempre exibida — o conteúdo mostra loading/vazio conforme o estado.
-  const tabsGridClass = showResumosTab ? 'grid-cols-4' : 'grid-cols-3';
+  const tabsGridClass = 'grid-cols-3';
 
   // Past conversations — cached by React Query, avoids re-fetch on every re-render
   const { data: pastConversations = [], isLoading: isLoadingHistory } = useQuery<ChatConversation[]>({
@@ -471,12 +469,6 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false, 
             <Megaphone className="h-3 w-3" />
             Campanhas{hasCampaigns ? ` · ${contactCampaigns.length}` : ''}
           </TabsTrigger>
-          {showResumosTab && (
-            <TabsTrigger value="resumos" className="gap-1.5 text-xs">
-              <FileText className="h-3 w-3" />
-              Resumos
-            </TabsTrigger>
-          )}
           <TabsTrigger value="historico" className="gap-1.5 text-xs">
             <History className="h-3 w-3" />
             Histórico
@@ -663,20 +655,6 @@ export function ContactDetailPanel({ contact, onClose, hideHeaderClose = false, 
             </div>
           </ScrollArea>
         </TabsContent>
-
-        {/* Resumos */}
-        {showResumosTab && (
-        <TabsContent value="resumos" className="flex-1 mt-0 min-h-0">
-          <ScrollArea className="h-full">
-            <div className="p-4">
-              <ConversationSummaries
-                conversationId={selectedConversation?.id ?? null}
-                contactId={contact.id}
-              />
-            </div>
-          </ScrollArea>
-        </TabsContent>
-        )}
 
         {/* Histórico */}
         <TabsContent value="historico" className="flex-1 mt-0 min-h-0">
