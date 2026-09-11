@@ -76,11 +76,12 @@ Deno.serve(async (req) => {
     if (body.action === "list") {
       const page = body.page ?? 0;
       const pageSize = body.page_size ?? 50;
-      const [{ data: items }, { data: state }, { data: summaries }, { data: conversations }] = await Promise.all([
+      const [{ data: items }, { data: state }, { data: summaries }, { data: conversations }, { data: documents }] = await Promise.all([
         supabase.from("chat_contact_memory_items").select("*").eq("client_id", identity.clientId).eq("contact_id", contact.id).eq("status", "active").order("source_at", { ascending: false, nullsFirst: false }),
         supabase.from("chat_contact_memory_state").select("*").eq("client_id", identity.clientId).eq("contact_id", contact.id).maybeSingle(),
         supabase.from("chat_conversation_summaries").select("*").eq("client_id", identity.clientId).eq("contact_id", contact.id).order("created_at", { ascending: false }).limit(20),
         supabase.from("chat_conversations").select("id, observations, protocol, created_at").eq("client_id", identity.clientId).eq("contact_id", contact.id).order("created_at", { ascending: false }),
+        supabase.from("chat_messages").select("id, conversation_id, type, from_me, sender_name, media_url, file_name, caption, metadata, timestamp").eq("client_id", identity.clientId).eq("contact_id", contact.id).in("type", ["image", "video", "document", "sticker"]).order("timestamp", { ascending: false }).range(page * pageSize, page * pageSize + pageSize - 1),
       ]);
       const conversationIds = (conversations || []).map((c: any) => c.id);
       let messages: any[] = [];
@@ -99,7 +100,7 @@ Deno.serve(async (req) => {
         id: `observation-${c.id}`, conversation_id: c.id, text: c.observations, type: "observation",
         from_me: true, internal_note: true, sender_name: "Equipe", timestamp: c.created_at, protocol: c.protocol,
       }));
-      return json({ contact, can_edit: editable, items: items || [], state, summaries: summaries || [], sources: page === 0 ? [...messages, ...observations].sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp))) : messages });
+      return json({ contact, can_edit: editable, items: items || [], state, summaries: summaries || [], documents: documents || [], sources: page === 0 ? [...messages, ...observations].sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp))) : messages });
     }
 
     if (!editable) return json({ error: "Somente o responsável ou gestores podem alterar a memória" }, 403);
