@@ -82,7 +82,7 @@ function VariableChips({ onInsert, withDays = true }: { onInsert: (token: string
 }
 
 export default function QuickMessagesPage() {
-  const { allMessages, isLoadingAll, create, update, remove, isCreating, isUpdating, isDeleting } = useQuickMessages();
+  const { allMessages, isLoadingAll, create, update, remove, isCreating, isUpdating, isDeleting, isOwner } = useQuickMessages();
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -96,6 +96,7 @@ export default function QuickMessagesPage() {
   const [title, setTitle] = useState('');
   const [shortcut, setShortcut] = useState('');
   const [active, setActive] = useState(true);
+  const [shared, setShared] = useState(false);
   const [text, setText] = useState('');
   const [caption, setCaption] = useState('');
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
