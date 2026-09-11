@@ -123,14 +123,40 @@ export default function BoardPage() {
   const moveDealToBoard = useMoveDealToBoard();
 
   // Filters state
-  const [filters, setFilters] = useState<BoardFiltersState>({
-    search: '',
-    myCards: false,
-    priorities: [],
-    statuses: [],
-    pipelineIds: [],
-    assignedTo: [],
-  });
+  const [filters, setFiltersState] = useState<BoardFiltersState>({ ...EMPTY_BOARD_FILTERS });
+
+  // Filtros persistidos por usuário + quadro
+  const filtersStorageKey = user?.id && boardId ? `crm-builder:filters:${user.id}:${boardId}` : null;
+  const didLoadFiltersRef = useRef(false);
+
+  const setFilters = useCallback((next: BoardFiltersState) => {
+    setFiltersState(next);
+    if (filtersStorageKey) {
+      try {
+        const isEmpty = JSON.stringify(next) === JSON.stringify(EMPTY_BOARD_FILTERS);
+        if (isEmpty) localStorage.removeItem(filtersStorageKey);
+        else localStorage.setItem(filtersStorageKey, JSON.stringify(next));
+      } catch { /* ignore */ }
+    }
+  }, [filtersStorageKey]);
+
+  useEffect(() => {
+    if (!filtersStorageKey || didLoadFiltersRef.current) return;
+    didLoadFiltersRef.current = true;
+    try {
+      const raw = localStorage.getItem(filtersStorageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Partial<BoardFiltersState>;
+      const restored: BoardFiltersState = { ...EMPTY_BOARD_FILTERS, ...saved };
+      // Períodos relativos são recalculados na abertura
+      if (restored.datePeriod && restored.datePeriod !== 'custom') {
+        const dates = calculatePeriodDates(restored.datePeriod);
+        restored.dateFrom = dates.dateFrom;
+        restored.dateTo = dates.dateTo;
+      }
+      setFiltersState(restored);
+    } catch { /* ignore */ }
+  }, [filtersStorageKey]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Paginação client-side por coluna
