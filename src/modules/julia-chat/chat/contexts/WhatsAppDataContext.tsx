@@ -284,8 +284,8 @@ interface ExtendedContextValue extends ChatContextValue {
   showDetailPanel: boolean;
   setShowDetailPanel: (show: boolean) => void;
   /** Aba ativa da right-bar do chat */
-  rightBarTab: 'contact' | 'crm' | 'lead' | 'phone' | 'lidia';
-  setRightBarTab: (tab: 'contact' | 'crm' | 'lead' | 'phone' | 'lidia') => void;
+  rightBarTab: 'contact' | 'memory' | 'crm' | 'lead' | 'phone';
+  setRightBarTab: (tab: 'contact' | 'memory' | 'crm' | 'lead' | 'phone') => void;
 
   // Conversation history
   conversationHistory: ConversationHistoryEntry[];
@@ -430,11 +430,11 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     if (stored === 'false') return false;
     return window.innerWidth >= 1024;
   });
-  const [rightBarTab, setRightBarTabState] = useState<'contact' | 'crm' | 'lead' | 'phone' | 'lidia'>(() => {
+  const [rightBarTab, setRightBarTabState] = useState<'contact' | 'memory' | 'crm' | 'lead' | 'phone'>(() => {
     if (typeof window === 'undefined') return 'contact';
     const stored = window.localStorage.getItem('chat_rightbar_tab');
     // 'lidia' descartado: aba desativada (ver src/modules/lidia/access.ts)
-    return stored === 'contact' || stored === 'crm' || stored === 'lead' || stored === 'phone' ? stored : 'contact';
+    return stored === 'contact' || stored === 'memory' || stored === 'crm' || stored === 'lead' || stored === 'phone' ? stored : 'contact';
   });
 
   const setShowDetailPanel = useCallback((show: boolean) => {
@@ -442,10 +442,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
     try { window.localStorage.setItem('chat_rightbar_open_v3', String(show)); } catch { /* ignore */ }
   }, []);
 
-  const setRightBarTab = useCallback((tab: 'contact' | 'crm' | 'lead' | 'phone' | 'lidia') => {
-    const safeTab = tab === 'lidia' ? 'contact' : tab;
-    setRightBarTabState(safeTab);
-    try { window.localStorage.setItem('chat_rightbar_tab', safeTab); } catch { /* ignore */ }
+  const setRightBarTab = useCallback((tab: 'contact' | 'memory' | 'crm' | 'lead' | 'phone') => {
+    setRightBarTabState(tab);
+    try { window.localStorage.setItem('chat_rightbar_tab', tab); } catch { /* ignore */ }
   }, []);
 
 

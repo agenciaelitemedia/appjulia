@@ -1589,6 +1589,199 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_contact_memory_history: {
+        Row: {
+          action: string
+          actor_name: string | null
+          actor_user_id: number | null
+          client_id: string
+          contact_id: string
+          created_at: string
+          id: string
+          memory_item_id: string
+          new_value: Json | null
+          previous_value: Json | null
+        }
+        Insert: {
+          action: string
+          actor_name?: string | null
+          actor_user_id?: number | null
+          client_id: string
+          contact_id: string
+          created_at?: string
+          id?: string
+          memory_item_id: string
+          new_value?: Json | null
+          previous_value?: Json | null
+        }
+        Update: {
+          action?: string
+          actor_name?: string | null
+          actor_user_id?: number | null
+          client_id?: string
+          contact_id?: string
+          created_at?: string
+          id?: string
+          memory_item_id?: string
+          new_value?: Json | null
+          previous_value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_contact_memory_history_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "chat_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_contact_memory_history_memory_item_id_fkey"
+            columns: ["memory_item_id"]
+            isOneToOne: false
+            referencedRelation: "chat_contact_memory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_contact_memory_items: {
+        Row: {
+          category: string
+          client_id: string
+          confidence: number | null
+          contact_id: string
+          content: string
+          created_at: string
+          created_by_name: string | null
+          created_by_user_id: number | null
+          id: string
+          source_at: string | null
+          source_author: string | null
+          source_conversation_id: string | null
+          source_message_id: string | null
+          source_summary_id: string | null
+          source_type: string
+          status: string
+          updated_at: string
+          updated_by_name: string | null
+          updated_by_user_id: number | null
+        }
+        Insert: {
+          category: string
+          client_id: string
+          confidence?: number | null
+          contact_id: string
+          content: string
+          created_at?: string
+          created_by_name?: string | null
+          created_by_user_id?: number | null
+          id?: string
+          source_at?: string | null
+          source_author?: string | null
+          source_conversation_id?: string | null
+          source_message_id?: string | null
+          source_summary_id?: string | null
+          source_type: string
+          status?: string
+          updated_at?: string
+          updated_by_name?: string | null
+          updated_by_user_id?: number | null
+        }
+        Update: {
+          category?: string
+          client_id?: string
+          confidence?: number | null
+          contact_id?: string
+          content?: string
+          created_at?: string
+          created_by_name?: string | null
+          created_by_user_id?: number | null
+          id?: string
+          source_at?: string | null
+          source_author?: string | null
+          source_conversation_id?: string | null
+          source_message_id?: string | null
+          source_summary_id?: string | null
+          source_type?: string
+          status?: string
+          updated_at?: string
+          updated_by_name?: string | null
+          updated_by_user_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_contact_memory_items_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "chat_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_contact_memory_items_source_conversation_id_fkey"
+            columns: ["source_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_contact_memory_items_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_contact_memory_items_source_summary_id_fkey"
+            columns: ["source_summary_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversation_summaries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_contact_memory_state: {
+        Row: {
+          client_id: string
+          contact_id: string
+          created_at: string
+          last_generated_at: string | null
+          last_generated_by_user_id: number | null
+          last_processed_at: string | null
+          last_source_at: string | null
+          pending_source_count: number
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          contact_id: string
+          created_at?: string
+          last_generated_at?: string | null
+          last_generated_by_user_id?: number | null
+          last_processed_at?: string | null
+          last_source_at?: string | null
+          pending_source_count?: number
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          contact_id?: string
+          created_at?: string
+          last_generated_at?: string | null
+          last_generated_by_user_id?: number | null
+          last_processed_at?: string | null
+          last_source_at?: string | null
+          pending_source_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_contact_memory_state_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "chat_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_contacts: {
         Row: {
           avatar: string | null
