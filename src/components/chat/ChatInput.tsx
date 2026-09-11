@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Send, Smile, Paperclip, Mic, Image, FileText, MapPin, X, Loader2, StickyNote, Zap, Calendar, Type, Info, HelpCircle, AlertTriangle, PenLine } from 'lucide-react';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWabaWindowStatus } from '@/hooks/useWabaWindowStatus';
 import { cn } from '@/lib/utils';
 import { GenerateSummaryButton } from './GenerateSummaryButton';
 import type { MessageType, ChatMessage } from '@/types/chat';
@@ -41,7 +42,7 @@ interface TeamMember { id: number | string; name: string }
 const QUICK_EMOJIS = ['😀', '😂', '❤️', '👍', '🙏', '🎉', '🔥', '💯', '😊', '😍', '🤔', '👏'];
 
 export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMessage, onCancelEdit, readOnly = false }: ChatInputProps) {
-  const { sendMessage, editMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, assignConversation, updateConversationStatus, markAsRead, setConversationStatusFilter } = useWhatsAppData();
+  const { sendMessage, editMessage, sendMedia, sendInternalNote, selectedConversation, selectedContact, selectedQueue, assignConversation, updateConversationStatus, markAsRead, setConversationStatusFilter } = useWhatsAppData();
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -111,7 +112,18 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
   const isAssignedToMe = !!selectedConversation?.assigned_to
     && !!currentUserName
     && selectedConversation.assigned_to === currentUserName;
-  const canSend = noteMode || (isAssignedToMe && isActiveStatus);
+  // Janela de 24h da API Oficial: fora dela a Meta rejeita qualquer mensagem
+  // livre (texto, áudio ou arquivo). Notas internas continuam liberadas.
+  const isWabaConversation =
+    selectedContact?.channel_type === 'whatsapp_waba' || selectedQueue?.channel_type === 'waba';
+  const wabaWindow = useWabaWindowStatus({
+    contactId,
+    conversationId: selectedConversation?.id ?? null,
+    isWaba: !!isWabaConversation,
+  });
+  const wabaWindowBlocked = !noteMode && wabaWindow.isWaba && wabaWindow.isClosed;
+  const canSend = noteMode || (isAssignedToMe && isActiveStatus && !wabaWindowBlocked);
+
   const showClaimBanner = !!selectedConversation && isActiveStatus && !isAssignedToMe && !noteMode;
   const showReopenBanner = isClosedStatus && !noteMode;
 
@@ -676,7 +688,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
               onPaste={handlePaste}
               placeholder={
                 !canSend
-                  ? 'Assuma a conversa ou abra uma nota interna para escrever...'
+                  ? (wabaWindowBlocked
+                      ? 'Fora da janela de 24h do WhatsApp oficial — envie um modelo aprovado'
+                      : 'Assuma a conversa ou abra uma nota interna para escrever...')
                   : noteMode
                     ? 'Digite uma nota interna... (use @ para mencionar)'
                     : 'Digite uma mensagem... (cole imagem)'

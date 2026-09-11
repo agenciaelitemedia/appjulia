@@ -273,8 +273,60 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Guarda da janela de 24h: a Meta só aceita mensagem livre até 24h depois
+    // da última mensagem recebida do cliente (erro 131047). Templates continuam
+    // permitidos porque são o único caminho para reabrir a conversa.
+    const FREE_SEND_ACTIONS = ["send_text", "send_media", "send_media_url"];
+    if (FREE_SEND_ACTIONS.includes(action) && params.to && resolved_queue_id) {
+      try {
+        const cleanTo = String(params.to).replace(/\D/g, "");
+        const { data: q } = await supabase
+          .from("queues")
+          .select("client_id")
+          .eq("id", resolved_queue_id)
+          .maybeSingle();
+        if (q?.client_id) {
+          const { data: contact } = await supabase
+            .from("chat_contacts")
+            .select("id")
+            .eq("client_id", q.client_id)
+            .eq("phone", cleanTo)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (contact?.id) {
+            const { data: inbound } = await supabase
+              .from("chat_messages")
+              .select("timestamp")
+              .eq("contact_id", contact.id)
+              .eq("from_me", false)
+              .order("timestamp", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            const lastTs = inbound?.timestamp ? new Date(inbound.timestamp).getTime() : null;
+            const closed = !lastTs || Number.isNaN(lastTs) || Date.now() - lastTs > 24 * 60 * 60 * 1000;
+            if (closed) {
+              console.log(`[waba-send] blocked ${action}: janela de 24h fechada to=${cleanTo}`);
+              return new Response(
+                JSON.stringify({
+                  error: "waba_window_closed",
+                  message:
+                    "Fora da janela de 24 horas do WhatsApp oficial. Envie um modelo aprovado para reabrir a conversa.",
+                  last_inbound_at: inbound?.timestamp ?? null,
+                }),
+                { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[waba-send] window guard error: ${(e as Error).message}`);
+      }
+    }
+
     // Route by action
     switch (action) {
+
       case "log_outbound": {
         const { to, type, text, caption, media_url, file_name, meta_message_id, reply_to } = params;
         if (!to || !type || !meta_message_id) {

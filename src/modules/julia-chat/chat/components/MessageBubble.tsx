@@ -766,6 +766,17 @@ if (message.type === 'revoked') {
                   <CheckCheck className="h-3 w-3 text-sky-500" />
                 )}
               </div>
+
+              {/* Motivo da falha (ex.: 131047 = fora da janela de 24h) */}
+              {message.from_me && message.status === 'failed' && (
+                <p className="text-[10px] text-destructive mt-1">
+                  {String(message.metadata?.error_code) === '131047'
+                    ? 'Não entregue: fora da janela de 24h — reabra a conversa com um modelo aprovado.'
+                    : message.metadata?.error_message
+                      ? `Não entregue: ${message.metadata.error_message}`
+                      : 'Não entregue pelo WhatsApp.'}
+                </p>
+              )}
             </div>
 
             {/* Reaction badges */}
