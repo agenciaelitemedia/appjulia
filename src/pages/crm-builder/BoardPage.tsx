@@ -279,6 +279,15 @@ export default function BoardPage() {
         return false;
       }
 
+      // Date filter (created_at | updated_at | due_date)
+      if (filters.datePeriod && (filters.dateFrom || filters.dateTo)) {
+        const raw = (deal as any)[filters.dateField] as string | null | undefined;
+        if (!raw) return false;
+        const day = String(raw).slice(0, 10);
+        if (filters.dateFrom && day < filters.dateFrom) return false;
+        if (filters.dateTo && day > filters.dateTo) return false;
+      }
+
       // My cards filter
       if (filters.myCards) {
         const uid = user?.id ? Number(user.id) : null;
