@@ -433,7 +433,8 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   const [rightBarTab, setRightBarTabState] = useState<'contact' | 'crm' | 'lead' | 'phone' | 'lidia'>(() => {
     if (typeof window === 'undefined') return 'contact';
     const stored = window.localStorage.getItem('chat_rightbar_tab');
-    return stored === 'lidia' || stored === 'contact' || stored === 'crm' || stored === 'lead' || stored === 'phone' ? stored : 'contact';
+    // 'lidia' descartado: aba desativada (ver src/modules/lidia/access.ts)
+    return stored === 'contact' || stored === 'crm' || stored === 'lead' || stored === 'phone' ? stored : 'contact';
   });
 
   const setShowDetailPanel = useCallback((show: boolean) => {
