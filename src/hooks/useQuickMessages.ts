@@ -119,9 +119,12 @@ export function useQuickMessages(location?: string) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<QuickMessageInsert>) => {
+      const payload: any = { ...updates };
+      if (!isOwner) delete payload.is_shared;
+      if (payload.is_shared) payload.client_id = clientId;
       const { data, error } = await supabase
         .from('quick_messages')
-        .update(updates as any)
+        .update(payload)
         .eq('id', id)
         .select()
         .single();
