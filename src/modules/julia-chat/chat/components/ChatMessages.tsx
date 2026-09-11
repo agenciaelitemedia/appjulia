@@ -492,8 +492,18 @@ export function ChatMessages({ contactId, onReply, onEdit }: ChatMessagesProps) 
             </div>
           )}
 
+          {/* Aviso de janela de 24h (API Oficial) */}
+          {wabaWindow.isWaba && wabaWindow.isClosed && (
+            <WabaWindowNotice
+              queueId={selectedConversation?.queue_id ?? selectedQueue?.id ?? null}
+              toPhone={currentContact?.phone ?? null}
+              lastInboundAt={wabaWindow.lastInboundAt}
+            />
+          )}
+
           {/* Bottom anchor */}
           <div ref={bottomRef} />
+
         </div>
       </div>
 
