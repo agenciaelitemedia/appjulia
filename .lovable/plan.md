@@ -41,3 +41,15 @@ O botão **Limpar tudo** ganha um ícone de borracha à esquerda do texto.
   - No `filteredDeals`, aplicar comparação do campo escolhido contra `dateFrom`/`dateTo` por data (comparando os primeiros 10 caracteres em `YYYY-MM-DD`, coerente com o armazenamento atual), descartando cards sem valor no campo.
 
 Nenhuma mudança de banco, consultas ou lógica de negócio — apenas filtragem no cliente sobre os cards já carregados.
+
+## Memória dos filtros e da ordenação por quadro
+
+Cada quadro passa a lembrar a última seleção do usuário: ao abrir de novo, já vem filtrado e ordenado como estava.
+
+- A ordenação já é lembrada por usuário + quadro; nada muda nesse ponto.
+- Os filtros (busca, prioridade, situação, etapas, responsável, meus cards e o novo filtro de data) passam a ser salvos no mesmo padrão, em `crm-builder:filters:{usuário}:{quadro}`.
+- Períodos relativos são salvos como o próprio período (Hoje, Ontem, Mês atual) e recalculados na abertura, para "Hoje" continuar significando hoje. Personalizado guarda as datas escolhidas.
+- Etapas e responsáveis salvos que não existam mais no quadro são descartados ao carregar.
+- "Limpar tudo" também limpa a seleção guardada.
+- Se um link abrir o quadro com filtros na URL, a URL tem prioridade sobre o que estava salvo.
+
