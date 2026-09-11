@@ -123,14 +123,25 @@ export function BoardFilters({
   };
 
   const handleClearFilters = () => {
-    onFiltersChange({
-      search: '',
-      priorities: [],
-      statuses: [],
-      pipelineIds: [],
-      assignedTo: [],
-      myCards: false,
-    });
+    onFiltersChange({ ...EMPTY_BOARD_FILTERS });
+  };
+
+  const handleDateFieldChange = (value: BoardDateField) => {
+    onFiltersChange({ ...filters, dateField: value });
+  };
+
+  const handleDatePeriodToggle = (period: Exclude<BoardDatePeriod, null>) => {
+    // Clicar no período ativo desliga o filtro de data
+    if (filters.datePeriod === period) {
+      onFiltersChange({ ...filters, datePeriod: null, dateFrom: '', dateTo: '' });
+      return;
+    }
+    if (period === 'custom') {
+      onFiltersChange({ ...filters, datePeriod: 'custom' });
+      return;
+    }
+    const dates = calculatePeriodDates(period);
+    onFiltersChange({ ...filters, datePeriod: period, dateFrom: dates.dateFrom, dateTo: dates.dateTo });
   };
 
   const handleAssigneeToggle = (name: string) => {
