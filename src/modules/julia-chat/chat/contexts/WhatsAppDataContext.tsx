@@ -443,8 +443,9 @@ export function WhatsAppDataProvider({ children }: WhatsAppDataProviderProps) {
   }, []);
 
   const setRightBarTab = useCallback((tab: 'contact' | 'crm' | 'lead' | 'phone' | 'lidia') => {
-    setRightBarTabState(tab);
-    try { window.localStorage.setItem('chat_rightbar_tab', tab); } catch { /* ignore */ }
+    const safeTab = tab === 'lidia' ? 'contact' : tab;
+    setRightBarTabState(safeTab);
+    try { window.localStorage.setItem('chat_rightbar_tab', safeTab); } catch { /* ignore */ }
   }, []);
 
 
