@@ -317,6 +317,7 @@ export default function QuickMessagesPage() {
           {filtered.map(msg => {
             const k = (msg.kind || 'text') as Kind;
             const Icon = KIND_META[k].icon;
+            const canManage = String(msg.user_id) === String(user?.id);
             return (
               <Card key={msg.id} className={!msg.is_active ? 'opacity-60' : ''}>
                 <CardContent className="flex items-start gap-4 py-4">
@@ -329,6 +330,7 @@ export default function QuickMessagesPage() {
                       <Badge variant="outline" className="text-[10px]">{KIND_META[k].label}</Badge>
                       {msg.shortcut && <Badge variant="secondary" className="text-xs">/{msg.shortcut}</Badge>}
                       {!msg.is_active && <Badge variant="outline" className="text-xs text-muted-foreground">Inativo</Badge>}
+                      {msg.is_shared && <Badge className="text-[10px]">Escritório</Badge>}
                     </div>
                     {k === 'text' && (
                       <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{msg.message_text}</p>
