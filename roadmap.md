@@ -2,11 +2,11 @@ Migrar todo o projeto de Lovable Cloud para um Supabase Externo.
 
 ## Painel de memória por contato
 
-- [ ] Criar armazenamento seguro e auditável para memórias por contato.
-- [ ] Criar função protegida para listar, gerar, incluir, editar e arquivar memórias.
-- [ ] Transcrever áudios pendentes somente ao clicar em “Gerar memória”.
-- [ ] Adicionar aba principal Memória e subaba Documentos nos dois chats.
-- [ ] Incorporar resumos existentes, fontes, áudio reproduzível e permissões definidas.
+- [x] Criar armazenamento seguro e auditável para memórias por contato.
+- [x] Criar função protegida para listar, gerar, incluir, editar e arquivar memórias.
+- [x] Transcrever áudios pendentes somente ao clicar em “Gerar memória”.
+- [x] Adicionar aba principal Memória e subaba Documentos nos dois chats.
+- [x] Incorporar resumos existentes, fontes, áudio reproduzível e permissões definidas.
 - [ ] Validar isolamento por escritório, permissões, desktop, celular, typecheck e build.
 
 - [ ] Criar documento `docs/Plano-Migracao-Supabase.md` (já feito).

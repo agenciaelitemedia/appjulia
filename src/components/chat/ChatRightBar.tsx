@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { PanelRightClose, Info, Kanban, Loader2, Eye, Phone } from 'lucide-react';
+import { PanelRightClose, Info, Kanban, Loader2, Eye, Phone, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWhatsAppData } from '@/contexts/WhatsAppDataContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,9 +13,10 @@ import { useQueueAgentLink } from '@/hooks/useQueueAgentLink';
 import { useCRMCardByWhatsapp, useCRMStages } from '@/pages/crm/hooks/useCRMData';
 import { CRMLeadDetailsDialog } from '@/pages/crm/components/CRMLeadDetailsDialog';
 import { ChatContactCallsPanel } from '@/modules/julia-chat/chat/components/ChatContactCallsPanel';
+import { ContactMemoryPanel } from './ContactMemoryPanel';
 import type { ChatContact } from '@/types/chat';
 
-type RightBarTabId = 'contact' | 'crm' | 'lead' | 'phone';
+type RightBarTabId = 'contact' | 'memory' | 'crm' | 'lead' | 'phone';
 
 interface ChatRightBarProps {
   contact: ChatContact;
@@ -41,7 +42,7 @@ export function ChatRightBar({
   visibleTabs,
   crmContent,
 }: ChatRightBarProps) {
-  const { selectedConversation, rightBarTab, setRightBarTab } = useWhatsAppData();
+  const { selectedConversation, rightBarTab, setRightBarTab, downloadMedia } = useWhatsAppData();
 
   // Aplica a aba inicial apenas uma vez, na montagem.
   const appliedInitial = useRef(false);
@@ -74,6 +75,7 @@ export function ChatRightBar({
 
   const allTabs: { id: RightBarTabId; label: string; icon: typeof Info }[] = [
     { id: 'contact', label: 'Contato', icon: Info },
+    { id: 'memory', label: 'Memória', icon: Brain },
     { id: 'crm', label: 'CRM', icon: Kanban },
     { id: 'phone', label: 'Telefonia', icon: Phone },
     ...(leadCodAgent ? [{ id: 'lead' as const, label: 'Lead', icon: Eye }] : []),
@@ -117,6 +119,8 @@ export function ChatRightBar({
       <div className="flex-1 min-h-0 overflow-hidden">
         {rightBarTab === 'contact' ? (
           <ContactDetailPanel contact={contact} onClose={onClose} hideHeaderClose />
+        ) : rightBarTab === 'memory' ? (
+          <ContactMemoryPanel contactId={contact.id} downloadMedia={downloadMedia} />
         ) : rightBarTab === 'phone' ? (
           <ChatContactCallsPanel phone={contact?.phone || null} contactId={contact?.id || null} />
         ) : rightBarTab === 'lead' ? (
