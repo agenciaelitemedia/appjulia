@@ -152,6 +152,8 @@ export function useQuickMessages(location?: string) {
   });
 
   return {
+    isOwner,
+    clientId,
     messages: query.data || [],
     allMessages: allQuery.data || [],
     isLoading: query.isLoading,
