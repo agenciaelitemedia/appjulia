@@ -22,3 +22,4 @@
 - [Supabase Migration Plan](mem://features/migracao-supabase/kit-migracao) — Plano de migração do Lovable Cloud para Supabase externo: janela, 237 tabelas, Edge Functions, secrets, storage (fase de controle + execução)
 - [MCP Cards/Contatos](mem://features/mcp/gestao-cards-contatos) — Tools de escrita do MCP: criar card, criar/atualizar contato, dry-run + auditoria
 - [Taxa de Implantação](mem://features/purchase/setup-fee-julia-plans) — Taxa por período nos planos Julia: checkout separado (mensalidade x taxa) e contrato
+- [LÍDIA Desativada](mem://features/lidia/status-desativado) — LÍDIA desligada em 2026-09-11 (flag LIDIA_ENABLED=false); arquivos mantidos, revisar depois se remove
