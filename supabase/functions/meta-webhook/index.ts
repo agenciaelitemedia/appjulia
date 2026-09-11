@@ -801,17 +801,44 @@ serve(async (req) => {
 
             // Update message status in chat_messages if we have the original message id
             if (statusObj.id && agentInfo && statusObj.status) {
-              supabase
-                .from('chat_messages')
-                .update({ status: statusObj.status })
-                .eq('external_id', statusObj.id)
-                .eq('client_id', agentInfo.client_id)
-                .then(({ error }) => {
-                  if (error && error.code !== 'PGRST116') {
-                    console.log('[statusUpdate] No matching message or error:', error.message);
-                  }
-                });
+              const metaError = Array.isArray(statusObj.errors) ? statusObj.errors[0] : null;
+              if (statusObj.status === 'failed' && metaError) {
+                // Guardamos o motivo da falha (ex.: 131047 = fora da janela de 24h)
+                // para o chat conseguir explicar ao atendente o que aconteceu.
+                (async () => {
+                  const { data: msg } = await supabase
+                    .from('chat_messages')
+                    .select('id, metadata')
+                    .eq('external_id', statusObj.id)
+                    .eq('client_id', agentInfo.client_id)
+                    .maybeSingle();
+                  if (!msg?.id) return;
+                  const merged = {
+                    ...(msg.metadata && typeof msg.metadata === 'object' ? msg.metadata : {}),
+                    error_code: metaError.code ?? null,
+                    error_title: metaError.title ?? null,
+                    error_message: metaError.message ?? metaError?.error_data?.details ?? null,
+                  };
+                  const { error } = await supabase
+                    .from('chat_messages')
+                    .update({ status: 'failed', metadata: merged })
+                    .eq('id', msg.id);
+                  if (error) console.log('[statusUpdate] failed-detail update error:', error.message);
+                })();
+              } else {
+                supabase
+                  .from('chat_messages')
+                  .update({ status: statusObj.status })
+                  .eq('external_id', statusObj.id)
+                  .eq('client_id', agentInfo.client_id)
+                  .then(({ error }) => {
+                    if (error && error.code !== 'PGRST116') {
+                      console.log('[statusUpdate] No matching message or error:', error.message);
+                    }
+                  });
+              }
             }
+
           }
         }
       }
