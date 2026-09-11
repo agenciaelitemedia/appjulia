@@ -82,7 +82,7 @@ function VariableChips({ onInsert, withDays = true }: { onInsert: (token: string
 }
 
 export default function QuickMessagesPage() {
-  const { allMessages, isLoadingAll, create, update, remove, isCreating, isUpdating, isDeleting } = useQuickMessages();
+  const { allMessages, isLoadingAll, create, update, remove, isCreating, isUpdating, isDeleting, isOwner } = useQuickMessages();
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -96,6 +96,7 @@ export default function QuickMessagesPage() {
   const [title, setTitle] = useState('');
   const [shortcut, setShortcut] = useState('');
   const [active, setActive] = useState(true);
+  const [shared, setShared] = useState(false);
   const [text, setText] = useState('');
   const [caption, setCaption] = useState('');
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
@@ -117,7 +118,7 @@ export default function QuickMessagesPage() {
   const resetForm = () => {
     setEditing(null);
     setKind('text');
-    setTitle(''); setShortcut(''); setActive(true);
+    setTitle(''); setShortcut(''); setActive(true); setShared(false);
     setText(''); setCaption('');
     setMediaUrl(null); setMediaPath(null); setMediaMime(null);
     setMediaSize(null); setMediaFilename(null);
@@ -132,6 +133,7 @@ export default function QuickMessagesPage() {
     setTitle(m.title);
     setShortcut(m.shortcut || '');
     setActive(m.is_active);
+    setShared(!!m.is_shared);
     setText(m.kind === 'text' ? (m.message_text || '') : '');
     setCaption(m.kind !== 'text' && m.kind !== 'link' ? (m.message_text || '') : '');
     setMediaUrl(m.media_url); setMediaPath(m.media_path); setMediaMime(m.media_mime);
@@ -217,6 +219,7 @@ export default function QuickMessagesPage() {
       category: 'geral',
       use_locations: ['chat_module'],
       is_active: active,
+      ...(isOwner ? { is_shared: shared } : {}),
       kind,
       message_text: kind === 'text' ? text.trim() : (kind === 'link' ? text.trim() : caption.trim() || null),
       media_url: mediaUrl,
@@ -314,6 +317,7 @@ export default function QuickMessagesPage() {
           {filtered.map(msg => {
             const k = (msg.kind || 'text') as Kind;
             const Icon = KIND_META[k].icon;
+            const canManage = String(msg.user_id) === String(user?.id);
             return (
               <Card key={msg.id} className={!msg.is_active ? 'opacity-60' : ''}>
                 <CardContent className="flex items-start gap-4 py-4">
@@ -326,6 +330,7 @@ export default function QuickMessagesPage() {
                       <Badge variant="outline" className="text-[10px]">{KIND_META[k].label}</Badge>
                       {msg.shortcut && <Badge variant="secondary" className="text-xs">/{msg.shortcut}</Badge>}
                       {!msg.is_active && <Badge variant="outline" className="text-xs text-muted-foreground">Inativo</Badge>}
+                      {msg.is_shared && <Badge className="text-[10px]">Escritório</Badge>}
                     </div>
                     {k === 'text' && (
                       <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{msg.message_text}</p>
@@ -357,12 +362,18 @@ export default function QuickMessagesPage() {
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button size="icon" variant="ghost" className="rounded-full" onClick={() => openEdit(msg)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="rounded-full" onClick={() => setDeleteId(msg.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {canManage ? (
+                      <>
+                        <Button size="icon" variant="ghost" className="rounded-full" onClick={() => openEdit(msg)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="rounded-full" onClick={() => setDeleteId(msg.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] whitespace-nowrap">Somente leitura</Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -510,6 +521,13 @@ export default function QuickMessagesPage() {
             <div className="flex items-center gap-2 pt-2 border-t">
               <Switch checked={active} onCheckedChange={setActive} />
               <Label className="cursor-pointer">Ativa</Label>
+              {isOwner && (
+                <>
+                  <span className="mx-2 h-5 w-px bg-border" />
+                  <Switch checked={shared} onCheckedChange={setShared} />
+                  <Label className="cursor-pointer">Compartilhar com todo o escritório</Label>
+                </>
+              )}
             </div>
           </div>
 

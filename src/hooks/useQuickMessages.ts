@@ -1,10 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { isOwnerUser } from '@/lib/auth/isOwner';
+import { resolveEffectiveClientId } from '@/lib/resolveEffectiveClientId';
 
 export interface QuickMessage {
   id: string;
   user_id: number;
+  client_id: string | null;
+  is_shared: boolean;
   title: string;
   message_text: string | null;
   shortcut: string | null;
@@ -28,22 +32,42 @@ export interface QuickMessage {
 
 export type QuickMessageInsert = Omit<QuickMessage, 'id' | 'created_at' | 'updated_at'>;
 
+/** client_id efetivo do usuário (herdado do titular quando é membro de equipe). */
+export function useQuickMessagesClientId() {
+  const { user } = useAuth();
+  return useQuery<string | null>({
+    queryKey: ['quick-messages', 'client-id', user?.id, (user as any)?.client_id],
+    enabled: !!user?.id,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const resolved = await resolveEffectiveClientId(user as any, 'quick-messages');
+      return resolved ? String(resolved) : null;
+    },
+  });
+}
+
+/** Filtro: minhas mensagens + mensagens compartilhadas do meu escritório. */
+function scopeFilter(userId: number | string, clientId: string | null) {
+  return clientId
+    ? `user_id.eq.${userId},and(is_shared.eq.true,client_id.eq.${clientId})`
+    : `user_id.eq.${userId}`;
+}
+
 export function useQuickMessages(location?: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isOwner = isOwnerUser(user);
+  const { data: clientId = null, isLoading: isLoadingClientId } = useQuickMessagesClientId();
 
   const query = useQuery({
-    queryKey: ['quick-messages', location, user?.id],
+    queryKey: ['quick-messages', location, user?.id, clientId],
     queryFn: async () => {
       let q = supabase
         .from('quick_messages')
         .select('*')
         .eq('is_active', true)
+        .or(scopeFilter(user!.id, clientId))
         .order('position', { ascending: true });
-
-      if (user?.id) {
-        q = q.eq('user_id', user.id);
-      }
 
       if (location) {
         q = q.contains('use_locations', [location]);
@@ -53,22 +77,22 @@ export function useQuickMessages(location?: string) {
       if (error) throw error;
       return (data || []) as QuickMessage[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !isLoadingClientId,
     staleTime: 5 * 60 * 1000,
   });
 
   const allQuery = useQuery({
-    queryKey: ['quick-messages-all', user?.id],
+    queryKey: ['quick-messages-all', user?.id, clientId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('quick_messages')
         .select('*')
-        .eq('user_id', user!.id)
+        .or(scopeFilter(user!.id, clientId))
         .order('position', { ascending: true });
       if (error) throw error;
       return (data || []) as QuickMessage[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !isLoadingClientId,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -76,7 +100,12 @@ export function useQuickMessages(location?: string) {
     mutationFn: async (msg: Partial<QuickMessageInsert>) => {
       const { data, error } = await supabase
         .from('quick_messages')
-        .insert({ ...msg, user_id: user!.id } as any)
+        .insert({
+          ...msg,
+          user_id: user!.id,
+          client_id: clientId,
+          is_shared: isOwner ? !!msg.is_shared : false,
+        } as any)
         .select()
         .single();
       if (error) throw error;
@@ -90,9 +119,12 @@ export function useQuickMessages(location?: string) {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: { id: string } & Partial<QuickMessageInsert>) => {
+      const payload: any = { ...updates };
+      if (!isOwner) delete payload.is_shared;
+      if (payload.is_shared) payload.client_id = clientId;
       const { data, error } = await supabase
         .from('quick_messages')
-        .update(updates as any)
+        .update(payload)
         .eq('id', id)
         .select()
         .single();
@@ -120,6 +152,8 @@ export function useQuickMessages(location?: string) {
   });
 
   return {
+    isOwner,
+    clientId,
     messages: query.data || [],
     allMessages: allQuery.data || [],
     isLoading: query.isLoading,

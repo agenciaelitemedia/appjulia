@@ -7707,9 +7707,11 @@ export type Database = {
       quick_messages: {
         Row: {
           category: string | null
+          client_id: string | null
           created_at: string | null
           id: string
           is_active: boolean | null
+          is_shared: boolean
           kind: string
           link_description: string | null
           link_image: string | null
@@ -7730,9 +7732,11 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          client_id?: string | null
           created_at?: string | null
           id?: string
           is_active?: boolean | null
+          is_shared?: boolean
           kind?: string
           link_description?: string | null
           link_image?: string | null
@@ -7753,9 +7757,11 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          client_id?: string | null
           created_at?: string | null
           id?: string
           is_active?: boolean | null
+          is_shared?: boolean
           kind?: string
           link_description?: string | null
           link_image?: string | null
