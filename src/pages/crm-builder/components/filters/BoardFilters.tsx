@@ -21,9 +21,27 @@ import {
   Filter, 
   X,
   SlidersHorizontal,
+  Eraser,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { calculatePeriodDates } from '@/hooks/usePersistedPeriod';
 import { PRIORITY_CONFIG, STATUS_CONFIG, type DealPriority, type DealStatus } from '../../types';
+
+export type BoardDateField = 'created_at' | 'updated_at' | 'due_date';
+export type BoardDatePeriod = 'today' | 'yesterday' | 'thisMonth' | 'custom' | null;
+
+export const DATE_FIELD_LABELS: Record<BoardDateField, string> = {
+  created_at: 'Data de criação',
+  updated_at: 'Data de atualização',
+  due_date: 'Data de entrega',
+};
+
+export const DATE_PERIOD_LABELS: Record<Exclude<BoardDatePeriod, null>, string> = {
+  today: 'Hoje',
+  yesterday: 'Ontem',
+  thisMonth: 'Mês atual',
+  custom: 'Personalizado',
+};
 
 export interface BoardFiltersState {
   search: string;
@@ -32,7 +50,24 @@ export interface BoardFiltersState {
   pipelineIds: string[];
   assignedTo: string[];
   myCards: boolean;
+  dateField: BoardDateField;
+  datePeriod: BoardDatePeriod;
+  dateFrom: string;
+  dateTo: string;
 }
+
+export const EMPTY_BOARD_FILTERS: BoardFiltersState = {
+  search: '',
+  priorities: [],
+  statuses: [],
+  pipelineIds: [],
+  assignedTo: [],
+  myCards: false,
+  dateField: 'created_at',
+  datePeriod: null,
+  dateFrom: '',
+  dateTo: '',
+};
 
 interface BoardFiltersProps {
   filters: BoardFiltersState;
@@ -59,7 +94,8 @@ export function BoardFilters({
     filters.statuses.length +
     filters.pipelineIds.length +
     filters.assignedTo.length +
-    (filters.myCards ? 1 : 0);
+    (filters.myCards ? 1 : 0) +
+    (filters.datePeriod ? 1 : 0);
 
   const handleSearchChange = (value: string) => {
     onFiltersChange({ ...filters, search: value });
@@ -87,14 +123,25 @@ export function BoardFilters({
   };
 
   const handleClearFilters = () => {
-    onFiltersChange({
-      search: '',
-      priorities: [],
-      statuses: [],
-      pipelineIds: [],
-      assignedTo: [],
-      myCards: false,
-    });
+    onFiltersChange({ ...EMPTY_BOARD_FILTERS });
+  };
+
+  const handleDateFieldChange = (value: BoardDateField) => {
+    onFiltersChange({ ...filters, dateField: value });
+  };
+
+  const handleDatePeriodToggle = (period: Exclude<BoardDatePeriod, null>) => {
+    // Clicar no período ativo desliga o filtro de data
+    if (filters.datePeriod === period) {
+      onFiltersChange({ ...filters, datePeriod: null, dateFrom: '', dateTo: '' });
+      return;
+    }
+    if (period === 'custom') {
+      onFiltersChange({ ...filters, datePeriod: 'custom' });
+      return;
+    }
+    const dates = calculatePeriodDates(period);
+    onFiltersChange({ ...filters, datePeriod: period, dateFrom: dates.dateFrom, dateTo: dates.dateTo });
   };
 
   const handleAssigneeToggle = (name: string) => {
@@ -159,10 +206,60 @@ export function BoardFilters({
                   variant="ghost"
                   size="sm"
                   onClick={handleClearFilters}
-                  className="h-7 text-xs"
+                  className="h-7 gap-1.5 text-xs"
                 >
+                  <Eraser className="h-3.5 w-3.5" />
                   Limpar tudo
                 </Button>
+              )}
+            </div>
+
+            {/* Date Filter */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Data</Label>
+              <Select value={filters.dateField} onValueChange={(v) => handleDateFieldChange(v as BoardDateField)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(DATE_FIELD_LABELS) as BoardDateField[]).map((field) => (
+                    <SelectItem key={field} value={field} className="text-xs">
+                      {DATE_FIELD_LABELS[field]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(DATE_PERIOD_LABELS) as Exclude<BoardDatePeriod, null>[]).map((period) => (
+                  <button
+                    key={period}
+                    onClick={() => handleDatePeriodToggle(period)}
+                    className={cn(
+                      "px-2.5 py-1 text-xs rounded-full border transition-colors",
+                      filters.datePeriod === period
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background hover:bg-muted border-border"
+                    )}
+                  >
+                    {DATE_PERIOD_LABELS[period]}
+                  </button>
+                ))}
+              </div>
+              {filters.datePeriod === 'custom' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(e) => onFiltersChange({ ...filters, dateFrom: e.target.value })}
+                    className="h-8 text-xs"
+                  />
+                  <Input
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={(e) => onFiltersChange({ ...filters, dateTo: e.target.value })}
+                    className="h-8 text-xs"
+                  />
+                </div>
               )}
             </div>
 

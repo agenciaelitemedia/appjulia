@@ -40,7 +40,8 @@ import { CreateDealDialog } from './components/deals/CreateDealDialog';
 import { ImportDealsCsvDialog } from './components/deals/ImportDealsCsvDialog';
 import { DealRightBarSheet } from './components/deals/DealRightBarSheet';
 import { BoardChatSidePanel } from './components/deals/BoardChatSidePanel';
-import { BoardFilters, type BoardFiltersState } from './components/filters/BoardFilters';
+import { BoardFilters, EMPTY_BOARD_FILTERS, type BoardFiltersState } from './components/filters/BoardFilters';
+import { calculatePeriodDates } from '@/hooks/usePersistedPeriod';
 import { BoardSortMenu } from './components/filters/BoardSortMenu';
 import { BoardSettingsSheet } from './components/settings/BoardSettingsSheet';
 import { useCRMPipelines } from './hooks/useCRMPipelines';
@@ -122,14 +123,40 @@ export default function BoardPage() {
   const moveDealToBoard = useMoveDealToBoard();
 
   // Filters state
-  const [filters, setFilters] = useState<BoardFiltersState>({
-    search: '',
-    myCards: false,
-    priorities: [],
-    statuses: [],
-    pipelineIds: [],
-    assignedTo: [],
-  });
+  const [filters, setFiltersState] = useState<BoardFiltersState>({ ...EMPTY_BOARD_FILTERS });
+
+  // Filtros persistidos por usuário + quadro
+  const filtersStorageKey = user?.id && boardId ? `crm-builder:filters:${user.id}:${boardId}` : null;
+  const didLoadFiltersRef = useRef(false);
+
+  const setFilters = useCallback((next: BoardFiltersState) => {
+    setFiltersState(next);
+    if (filtersStorageKey) {
+      try {
+        const isEmpty = JSON.stringify(next) === JSON.stringify(EMPTY_BOARD_FILTERS);
+        if (isEmpty) localStorage.removeItem(filtersStorageKey);
+        else localStorage.setItem(filtersStorageKey, JSON.stringify(next));
+      } catch { /* ignore */ }
+    }
+  }, [filtersStorageKey]);
+
+  useEffect(() => {
+    if (!filtersStorageKey || didLoadFiltersRef.current) return;
+    didLoadFiltersRef.current = true;
+    try {
+      const raw = localStorage.getItem(filtersStorageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Partial<BoardFiltersState>;
+      const restored: BoardFiltersState = { ...EMPTY_BOARD_FILTERS, ...saved };
+      // Períodos relativos são recalculados na abertura
+      if (restored.datePeriod && restored.datePeriod !== 'custom') {
+        const dates = calculatePeriodDates(restored.datePeriod);
+        restored.dateFrom = dates.dateFrom;
+        restored.dateTo = dates.dateTo;
+      }
+      setFiltersState(restored);
+    } catch { /* ignore */ }
+  }, [filtersStorageKey]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Paginação client-side por coluna
@@ -218,6 +245,23 @@ export default function BoardPage() {
     return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }, [deals]);
 
+  // Descarta etapas/responsáveis salvos que não existem mais no quadro
+  const didSanitizeFiltersRef = useRef(false);
+  useEffect(() => {
+    if (didSanitizeFiltersRef.current) return;
+    if (pipelines.length === 0 || deals.length === 0) return;
+    didSanitizeFiltersRef.current = true;
+    const validPipelines = filters.pipelineIds.filter((id) => pipelines.some((p) => p.id === id));
+    const validAssignees = filters.assignedTo.filter((n) => assignees.includes(n));
+    if (
+      validPipelines.length !== filters.pipelineIds.length ||
+      validAssignees.length !== filters.assignedTo.length
+    ) {
+      setFilters({ ...filters, pipelineIds: validPipelines, assignedTo: validAssignees });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipelines, deals, assignees]);
+
   // Filter deals
   const filteredDeals = useMemo(() => {
     return deals.filter(deal => {
@@ -250,6 +294,15 @@ export default function BoardPage() {
       // Assignee filter
       if (filters.assignedTo.length > 0 && !filters.assignedTo.includes(deal.assigned_to ?? '')) {
         return false;
+      }
+
+      // Date filter (created_at | updated_at | due_date)
+      if (filters.datePeriod && (filters.dateFrom || filters.dateTo)) {
+        const raw = (deal as any)[filters.dateField] as string | null | undefined;
+        if (!raw) return false;
+        const day = String(raw).slice(0, 10);
+        if (filters.dateFrom && day < filters.dateFrom) return false;
+        if (filters.dateTo && day > filters.dateTo) return false;
       }
 
       // My cards filter
@@ -743,7 +796,7 @@ export default function BoardPage() {
             {user?.name && (
               <button
                 type="button"
-                onClick={() => setFilters(prev => ({ ...prev, myCards: !prev.myCards }))}
+                onClick={() => setFilters({ ...filters, myCards: !filters.myCards })}
                 title={filters.myCards ? 'Mostrar todos os cards' : 'Ver apenas meus cards'}
                 className={cn(
                   'relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all',
