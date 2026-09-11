@@ -118,7 +118,18 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
   const isAssignedToMe = !!selectedConversation?.assigned_to
     && !!currentUserName
     && selectedConversation.assigned_to === currentUserName;
-  const canSend = noteMode || (isAssignedToMe && isActiveStatus);
+  // Janela de 24h da API Oficial: fora dela a Meta rejeita qualquer mensagem
+  // livre (texto, áudio ou arquivo). Notas internas continuam liberadas.
+  const isWabaConversation =
+    selectedContact?.channel_type === 'whatsapp_waba' || selectedQueue?.channel_type === 'waba';
+  const wabaWindow = useWabaWindowStatus({
+    contactId,
+    conversationId: selectedConversation?.id ?? null,
+    isWaba: !!isWabaConversation,
+  });
+  const wabaWindowBlocked = !noteMode && wabaWindow.isWaba && wabaWindow.isClosed;
+  const canSend = noteMode || (isAssignedToMe && isActiveStatus && !wabaWindowBlocked);
+
   const showClaimBanner = !!selectedConversation && isActiveStatus && !isAssignedToMe && !noteMode;
   const showReopenBanner = isClosedStatus && !noteMode;
 
