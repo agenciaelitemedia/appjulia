@@ -513,6 +513,13 @@ export default function QuickMessagesPage() {
             <div className="flex items-center gap-2 pt-2 border-t">
               <Switch checked={active} onCheckedChange={setActive} />
               <Label className="cursor-pointer">Ativa</Label>
+              {isOwner && (
+                <>
+                  <span className="mx-2 h-5 w-px bg-border" />
+                  <Switch checked={shared} onCheckedChange={setShared} />
+                  <Label className="cursor-pointer">Compartilhar com todo o escritório</Label>
+                </>
+              )}
             </div>
           </div>
 
