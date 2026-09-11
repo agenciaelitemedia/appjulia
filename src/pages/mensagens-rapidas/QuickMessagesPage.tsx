@@ -362,12 +362,18 @@ export default function QuickMessagesPage() {
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
-                    <Button size="icon" variant="ghost" className="rounded-full" onClick={() => openEdit(msg)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="rounded-full" onClick={() => setDeleteId(msg.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {canManage ? (
+                      <>
+                        <Button size="icon" variant="ghost" className="rounded-full" onClick={() => openEdit(msg)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="rounded-full" onClick={() => setDeleteId(msg.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] whitespace-nowrap">Somente leitura</Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>
