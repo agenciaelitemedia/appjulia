@@ -77,7 +77,7 @@ export interface Location {
 
 export function useLocation(): Location {
   return useRouterState({
-    select: (s) => {
+    select: ((s: { location: Record<string, unknown> }) => {
       const loc = s.location;
       return {
         pathname: loc.pathname,
