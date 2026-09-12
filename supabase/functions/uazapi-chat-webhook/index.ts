@@ -954,6 +954,59 @@ Deno.serve(async (req) => {
 
 
     const payload = await req.json();
+
+    // ─── Fila de recebimento ───────────────────────────────────────────────
+    // O provedor recebe sucesso imediato; todo o trabalho pesado roda depois,
+    // no chat-inbound-worker (que reinvoca esta função com o header interno).
+    const isInternalReplay = req.headers.get('x-inbound-worker') === 'true';
+    if (!isInternalReplay) {
+      const msgId =
+        payload?.message?.messageid ?? payload?.message?.id ?? payload?.message?.key?.id ??
+        payload?.messageid ?? payload?.key?.id ?? null;
+      const evt = String(
+        payload?.EventType ?? payload?.eventType ?? payload?.type ??
+        (typeof payload?.event === 'string' ? payload.event : '') ?? '',
+      ) || 'messages';
+      const dedupeKey = msgId
+        ? `uazapi:${queueId}:${evt}:${msgId}`
+        : `uazapi:${queueId}:${evt}:${crypto.randomUUID()}`;
+
+      const { data: queued, error: queueInsertErr } = await supabase
+        .from('chat_inbound_queue')
+        .upsert(
+          {
+            provider: 'uazapi',
+            queue_id: queueId,
+            client_id: String((queue as any).client_id ?? ''),
+            event_name: evt,
+            dedupe_key: dedupeKey,
+            payload,
+          },
+          { onConflict: 'dedupe_key', ignoreDuplicates: true },
+        )
+        .select('id')
+        .maybeSingle();
+
+      if (queueInsertErr) {
+        // Não perder o evento: sem fila, processa inline (comportamento antigo).
+        console.error('[uazapi-chat-webhook] enqueue falhou, processando inline:', queueInsertErr.message);
+      } else {
+        if (queued?.id) {
+          EdgeRuntime.waitUntil(
+            fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/chat-inbound-worker`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              },
+              body: JSON.stringify({ trigger: 'webhook' }),
+            }).catch(() => {}),
+          );
+        }
+        return respond({ success: true, queued: true, duplicate: !queued?.id });
+      }
+    }
+
     // Resolve event name resilient to UaZapi sometimes sending `event` as an
     // object instead of string (observed for messages_update payloads).
     function resolveEventName(p: any): string {
