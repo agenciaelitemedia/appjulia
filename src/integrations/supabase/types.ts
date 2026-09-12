@@ -2409,6 +2409,60 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_inbound_queue: {
+        Row: {
+          attempts: number
+          client_id: string | null
+          created_at: string
+          dedupe_key: string
+          event_name: string | null
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          next_attempt_at: string
+          payload: Json
+          processed_at: string | null
+          provider: string
+          queue_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          client_id?: string | null
+          created_at?: string
+          dedupe_key: string
+          event_name?: string | null
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          next_attempt_at?: string
+          payload: Json
+          processed_at?: string | null
+          provider?: string
+          queue_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          client_id?: string | null
+          created_at?: string
+          dedupe_key?: string
+          event_name?: string | null
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          next_attempt_at?: string
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          queue_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_kb_articles: {
         Row: {
           category_id: string | null
