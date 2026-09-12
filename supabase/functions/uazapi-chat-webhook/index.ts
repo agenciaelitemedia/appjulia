@@ -998,11 +998,11 @@ Deno.serve(async (req) => {
       } else {
         if (queued?.id) {
           EdgeRuntime.waitUntil(
-            fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/chat-inbound-worker`, {
+            fetch('https://appjulia.lovable.app/api/public/chat-inbound-worker', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                'x-worker-secret': Deno.env.get('CHAT_INBOUND_WORKER_SECRET') ?? '',
               },
               body: JSON.stringify({ trigger: 'webhook' }),
             }).catch(() => {}),
