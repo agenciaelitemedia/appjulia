@@ -13,7 +13,9 @@ export const getRouter = () => {
     },
   });
 
-  const router = createRouter({
+  // O projeto usa tsconfig frouxo (strictNullChecks off), então o tipo público de
+  // createRouter não resolve; o cast mantém o comportamento em runtime intacto.
+  const router = (createRouter as unknown as (opts: unknown) => never)({
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
