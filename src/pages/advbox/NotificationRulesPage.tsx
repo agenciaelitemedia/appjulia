@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { AdvboxAgentSelect } from '@/components/advbox/AdvboxAgentSelect';
 import { RuleEditorDialog } from '@/components/advbox/RuleEditorDialog';
-import { Link } from 'react-router-dom';
+import { Link } from '@/lib/router-compat';
 import type { AdvboxNotificationRule, AdvboxNotificationRuleFormData } from '@/types/advbox';
 import {
   AlertDialog,

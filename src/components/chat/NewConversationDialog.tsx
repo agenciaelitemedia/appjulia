@@ -12,7 +12,7 @@ import { UaZapiClient } from '@/lib/uazapi/client';
 import { supabase } from '@/integrations/supabase/client';
 import { brPhoneVariants } from '@/lib/phoneNormalize';
 import { setPendingSelection } from '@/lib/chat/pendingSelection';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from '@/lib/router-compat';
 
 interface Queue {
   id: string;

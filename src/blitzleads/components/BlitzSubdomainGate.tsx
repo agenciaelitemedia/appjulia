@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from '@/lib/router-compat';
 import {
   BLITZ_ROUTE_PREFIX,
   isBlitzHost,

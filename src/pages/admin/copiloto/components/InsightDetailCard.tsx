@@ -1,5 +1,5 @@
 import { AlertTriangle, Info, Flame, Clock, TrendingUp, ExternalLink, MessageCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';

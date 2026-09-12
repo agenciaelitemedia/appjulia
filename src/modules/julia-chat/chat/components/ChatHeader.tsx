@@ -8,7 +8,7 @@ import { MoreVertical, Users, Info, X, CheckCircle2, XCircle, ArrowRightLeft, Cl
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 import { externalDb } from '@/lib/externalDb';
 import type { SessionStatus } from '@/lib/externalDb';
 import { toggleJuliaSession } from '@/lib/juliaSessionControl';

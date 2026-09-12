@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Link } from 'react-router-dom';
+import { Link } from '@/lib/router-compat';
 import { PROCESS_PHASES } from '@/types/advbox';
 
 export default function ProcessesPage() {

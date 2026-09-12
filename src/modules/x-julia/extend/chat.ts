@@ -1,7 +1,7 @@
 /**
  * extend/chat — ponte para o chat (abrir conversa da sessão do X-Julia).
  */
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 
 export function useOpenChatConversation() {
   const navigate = useNavigate();

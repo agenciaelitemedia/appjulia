@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '@/lib/router-compat';
 import { useNotificationLogs, NotificationLogsFilters } from '@/hooks/advbox/useNotificationLogs';
 import { AdvboxAgentSelect } from '@/components/advbox/AdvboxAgentSelect';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

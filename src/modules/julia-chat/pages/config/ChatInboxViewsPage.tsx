@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Inbox, Plus, Trash2, Star, Filter, Users, Eye } from 'lucide-react';
 import { useChatSavedViews, type SavedView, type SavedViewFilters } from '@/hooks/useChatSavedViews';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 
 const STATUS_OPTIONS = ['pending', 'open', 'resolved', 'closed'];
 const PRIORITY_OPTIONS = ['low', 'normal', 'high', 'urgent'];

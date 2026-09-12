@@ -17,7 +17,7 @@ import {
   PhoneOff, FileDown, Layers,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 import { format, subDays, startOfDay, endOfDay, differenceInMinutes, parseISO, startOfWeek, addWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ChatHeatmap } from '@/modules/julia-chat/chat/components/analytics/ChatHeatmap';

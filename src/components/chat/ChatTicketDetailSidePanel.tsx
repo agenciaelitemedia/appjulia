@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 import {
   X, LifeBuoy, Loader2, ExternalLink, Trash2,
   MessageSquare, StickyNote, Send, History, User,

@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from '@/lib/router-compat';
 import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { X_JULIA_ROUTES } from '../module';

@@ -1,4 +1,4 @@
-import { Outlet, Navigate, useLocation } from "react-router-dom";
+import { Outlet, Navigate, useLocation } from '@/lib/router-compat';
 import { useAuth } from "@/contexts/AuthContext";
 import { BlitzSidebar } from "./BlitzSidebar";
 import { BlitzTopbar } from "./BlitzTopbar";

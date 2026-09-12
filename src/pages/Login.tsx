@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate } from '@/lib/router-compat';
 import {
   ArrowRight,
   Eye,
