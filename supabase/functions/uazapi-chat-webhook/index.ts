@@ -937,7 +937,13 @@ Deno.serve(async (req) => {
     }
 
     // Autenticação do provedor: token compartilhado da fila (quando configurado).
-    const tokenCheck = verifyQueueToken(req, url, (queue as any).webhook_token);
+    // Reprocessamento interno (chat-inbound-worker) autentica-se pela service role.
+    const internalReplay =
+      req.headers.get('x-inbound-worker') === 'true' &&
+      req.headers.get('authorization') === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`;
+    const tokenCheck = internalReplay
+      ? { ok: true as const, reason: undefined }
+      : verifyQueueToken(req, url, (queue as any).webhook_token);
     if (!tokenCheck.ok) {
       console.warn('[uazapi-chat-webhook] webhook recusado:', tokenCheck.reason, 'queue=', queueId);
       await logWebhookRejection(supabase, {
