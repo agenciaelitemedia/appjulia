@@ -133,6 +133,7 @@ import { Route as MainXJuliaEscritoriosRouteImport } from './routes/_main.x-juli
 import { Route as MainXJuliaLimitesRouteImport } from './routes/_main.x-julia_.limites'
 import { Route as MainXJuliaMetricasRouteImport } from './routes/_main.x-julia_.metricas'
 import { Route as MainXJuliaSessoesRouteImport } from './routes/_main.x-julia_.sessoes'
+import { Route as ApiPublicChatInboundWorkerRouteImport } from './routes/api/public/chat-inbound-worker'
 import { Route as MainAjudaPostSlugRouteImport } from './routes/_main.ajuda_.post.$slug'
 import { Route as MainCrmBuilderBoardIdConfiguracoesRouteImport } from './routes/_main.crm-builder_.$boardId_.configuracoes'
 import { Route as MainXJuliaAgentesAgentIdRouteImport } from './routes/_main.x-julia_.agentes_.$agentId'
@@ -768,6 +769,12 @@ const MainXJuliaSessoesRoute = MainXJuliaSessoesRouteImport.update({
   path: '/x-julia/sessoes',
   getParentRoute: () => MainRoute,
 } as any)
+const ApiPublicChatInboundWorkerRoute =
+  ApiPublicChatInboundWorkerRouteImport.update({
+    id: '/api/public/chat-inbound-worker',
+    path: '/api/public/chat-inbound-worker',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const MainAjudaPostSlugRoute = MainAjudaPostSlugRouteImport.update({
   id: '/ajuda_/post/$slug',
   path: '/ajuda/post/$slug',
@@ -939,6 +946,7 @@ export interface FileRoutesByFullPath {
   '/x-julia/limites': typeof MainXJuliaLimitesRoute
   '/x-julia/metricas': typeof MainXJuliaMetricasRoute
   '/x-julia/sessoes': typeof MainXJuliaSessoesRoute
+  '/api/public/chat-inbound-worker': typeof ApiPublicChatInboundWorkerRoute
   '/ajuda/post/$slug': typeof MainAjudaPostSlugRoute
   '/crm-builder/$boardId/configuracoes': typeof MainCrmBuilderBoardIdConfiguracoesRoute
   '/x-julia/agentes/$agentId': typeof MainXJuliaAgentesAgentIdRoute
@@ -1071,6 +1079,7 @@ export interface FileRoutesByTo {
   '/x-julia/limites': typeof MainXJuliaLimitesRoute
   '/x-julia/metricas': typeof MainXJuliaMetricasRoute
   '/x-julia/sessoes': typeof MainXJuliaSessoesRoute
+  '/api/public/chat-inbound-worker': typeof ApiPublicChatInboundWorkerRoute
   '/ajuda/post/$slug': typeof MainAjudaPostSlugRoute
   '/crm-builder/$boardId/configuracoes': typeof MainCrmBuilderBoardIdConfiguracoesRoute
   '/x-julia/agentes/$agentId': typeof MainXJuliaAgentesAgentIdRoute
@@ -1206,6 +1215,7 @@ export interface FileRoutesById {
   '/_main/x-julia_/limites': typeof MainXJuliaLimitesRoute
   '/_main/x-julia_/metricas': typeof MainXJuliaMetricasRoute
   '/_main/x-julia_/sessoes': typeof MainXJuliaSessoesRoute
+  '/api/public/chat-inbound-worker': typeof ApiPublicChatInboundWorkerRoute
   '/_main/ajuda_/post/$slug': typeof MainAjudaPostSlugRoute
   '/_main/crm-builder_/$boardId_/configuracoes': typeof MainCrmBuilderBoardIdConfiguracoesRoute
   '/_main/x-julia_/agentes_/$agentId': typeof MainXJuliaAgentesAgentIdRoute
@@ -1341,6 +1351,7 @@ export interface FileRouteTypes {
     | '/x-julia/limites'
     | '/x-julia/metricas'
     | '/x-julia/sessoes'
+    | '/api/public/chat-inbound-worker'
     | '/ajuda/post/$slug'
     | '/crm-builder/$boardId/configuracoes'
     | '/x-julia/agentes/$agentId'
@@ -1473,6 +1484,7 @@ export interface FileRouteTypes {
     | '/x-julia/limites'
     | '/x-julia/metricas'
     | '/x-julia/sessoes'
+    | '/api/public/chat-inbound-worker'
     | '/ajuda/post/$slug'
     | '/crm-builder/$boardId/configuracoes'
     | '/x-julia/agentes/$agentId'
@@ -1607,6 +1619,7 @@ export interface FileRouteTypes {
     | '/_main/x-julia_/limites'
     | '/_main/x-julia_/metricas'
     | '/_main/x-julia_/sessoes'
+    | '/api/public/chat-inbound-worker'
     | '/_main/ajuda_/post/$slug'
     | '/_main/crm-builder_/$boardId_/configuracoes'
     | '/_main/x-julia_/agentes_/$agentId'
@@ -1629,6 +1642,7 @@ export interface RootRouteChildren {
   ComprarSucessoRoute: typeof ComprarSucessoRoute
   CopilotoConsentimentoRoute: typeof CopilotoConsentimentoRoute
   TvMasterRoute: typeof TvMasterRoute
+  ApiPublicChatInboundWorkerRoute: typeof ApiPublicChatInboundWorkerRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2501,6 +2515,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainXJuliaSessoesRouteImport
       parentRoute: typeof MainRoute
     }
+    '/api/public/chat-inbound-worker': {
+      id: '/api/public/chat-inbound-worker'
+      path: '/api/public/chat-inbound-worker'
+      fullPath: '/api/public/chat-inbound-worker'
+      preLoaderRoute: typeof ApiPublicChatInboundWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_main/ajuda_/post/$slug': {
       id: '/_main/ajuda_/post/$slug'
       path: '/ajuda/post/$slug'
@@ -2834,6 +2855,7 @@ const rootRouteChildren: RootRouteChildren = {
   ComprarSucessoRoute: ComprarSucessoRoute,
   CopilotoConsentimentoRoute: CopilotoConsentimentoRoute,
   TvMasterRoute: TvMasterRoute,
+  ApiPublicChatInboundWorkerRoute: ApiPublicChatInboundWorkerRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
