@@ -52,7 +52,7 @@ export const BaseNode = memo(({ id, data, selected }: NodeProps) => {
   return (
     <div
       className={cn(
-        'group relative w-[264px] rounded-xl border bg-card shadow-sm transition-all',
+        'group relative w-[264px] rounded-xl border bg-card shadow-xs transition-all',
         selected ? 'ring-2 ring-ring' : 'hover:shadow-md',
         invalid ? 'border-destructive/60' : meta.border,
       )}

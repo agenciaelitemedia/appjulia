@@ -163,7 +163,7 @@ export function BulkTransferConversationsCard() {
   const actionLabel = targetType === 'assign' ? 'transferidas' : 'devolvidas à fila';
 
   return (
-    <div className="border rounded-xl bg-card shadow-sm overflow-hidden max-w-2xl">
+    <div className="border rounded-xl bg-card shadow-xs overflow-hidden max-w-2xl">
       <div className="px-5 py-4 border-b bg-muted/40 flex items-start gap-3">
         <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-sky-500/15 text-sky-600 dark:text-sky-400 flex-shrink-0">
           <ArrowRightLeft className="h-4 w-4" />

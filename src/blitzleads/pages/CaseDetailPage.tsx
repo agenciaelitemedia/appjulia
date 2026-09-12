@@ -172,7 +172,7 @@ export default function CaseDetailPage() {
                     </div>
                     {active && (
                       <>
-                        <button className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 rounded-xl shadow-sm">
+                        <button className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 rounded-xl shadow-xs">
                           <Phone className="w-4 h-4" /> Ligar
                         </button>
                         <div className="mt-2 text-center text-xs text-slate-400">
@@ -261,7 +261,7 @@ export default function CaseDetailPage() {
               <Folder className="w-4 h-4" />
             </button>
             <input
-              className="flex-1 bg-slate-50 rounded-full px-4 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+              className="flex-1 bg-slate-50 rounded-full px-4 py-2 text-sm placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-200"
               placeholder="Escreva uma mensagem..."
             />
             <button title="Gravar áudio" className="w-9 h-9 rounded-full bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center shrink-0">
@@ -292,7 +292,7 @@ function ChatBubble({ from, author, text, time }: { from: "julia" | "lead" | "at
   const authorColor = from === "att" ? "text-violet-700" : "text-emerald-700";
   return (
     <div className={`flex ${outgoing ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[75%] rounded-2xl px-4 py-2 shadow-sm ${bg}`}>
+      <div className={`max-w-[75%] rounded-2xl px-4 py-2 shadow-xs ${bg}`}>
         {author && <div className={`text-[11px] font-semibold mb-0.5 ${authorColor}`}>{author}</div>}
         <div className="text-sm leading-snug">{text}</div>
         <div className="text-[10px] text-slate-400 mt-1 text-right">{time}</div>

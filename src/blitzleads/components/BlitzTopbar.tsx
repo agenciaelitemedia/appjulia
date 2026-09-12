@@ -103,7 +103,7 @@ export function BlitzTopbar() {
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#3b82f6" }} />
         <input
           placeholder="Buscar lead, telefone ou CPF..."
-          className="w-full h-9 pl-9 pr-3 rounded-full text-sm focus:outline-none focus:ring-2"
+          className="w-full h-9 pl-9 pr-3 rounded-full text-sm focus:outline-hidden focus:ring-2"
           style={{ background: "#f1f5f9", color: "#0f172a" }}
         />
       </div>

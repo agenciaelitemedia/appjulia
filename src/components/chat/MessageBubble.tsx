@@ -298,7 +298,7 @@ function MediaContent({ message, onDownload }: { message: ChatMessage; onDownloa
                 <img
                   src={`data:image/jpeg;base64,${message.metadata.thumbnail}`}
                   alt="Preview"
-                  className="rounded-lg max-w-full blur-sm"
+                  className="rounded-lg max-w-full blur-xs"
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-background/30">
                   <MascoteLoader size="xs" />
@@ -589,7 +589,7 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
       const NoteIcon = isClosureNote ? Lock : StickyNoteIcon;
       return (
         <div ref={ref} className="flex justify-center px-4">
-          <div className={cn('max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm border', noteStyles.container)}>
+          <div className={cn('max-w-[85%] w-full rounded-lg px-3 py-2 shadow-xs border', noteStyles.container)}>
             <div className="flex items-center gap-1.5 mb-1">
               <NoteIcon className={cn('h-3 w-3', noteStyles.icon)} />
               <span className={cn('text-[10px] font-semibold', noteStyles.label)}>
@@ -772,7 +772,7 @@ const MessageBubbleInner = React.forwardRef<HTMLDivElement, MessageBubbleProps>(
                 {Object.entries(grouped).map(([emoji, list]) => (
                   <div
                     key={emoji}
-                    className="bg-background border rounded-full px-1.5 py-0.5 text-xs shadow-sm flex items-center gap-1"
+                    className="bg-background border rounded-full px-1.5 py-0.5 text-xs shadow-xs flex items-center gap-1"
                     title={list.map((r) => r.reactor).join(', ')}
                   >
                     <span>{emoji}</span>

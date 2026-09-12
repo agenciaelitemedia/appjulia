@@ -735,7 +735,7 @@ export default function WavoipPage() {
             ) : (
               <>
                 <div className="flex flex-col items-center gap-3">
-                  <div className="rounded-xl border bg-white p-3 shadow-sm min-h-[286px] min-w-[286px] flex items-center justify-center">
+                  <div className="rounded-xl border bg-white p-3 shadow-xs min-h-[286px] min-w-[286px] flex items-center justify-center">
                     {activeQrUrl ? (
                       <img
                         src={activeQrUrl}

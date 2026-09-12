@@ -179,7 +179,7 @@ export const PlanStep = ({ orderData, updateOrder, onNext, onBack }: Props) => {
                 onClick={() => handlePeriodChange(period)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                   billingPeriod === period
-                    ? 'bg-[#6C3AED] text-white shadow-sm'
+                    ? 'bg-[#6C3AED] text-white shadow-xs'
                     : 'text-gray-600 hover:text-[#6C3AED]'
                 }`}
               >

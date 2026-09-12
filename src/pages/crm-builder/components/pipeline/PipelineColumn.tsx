@@ -192,7 +192,7 @@ export function PipelineColumn({
 
       {/* Stats bar */}
       {stats.value > 0 && (
-        <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b border-border/70 bg-background/40 backdrop-blur-sm">
+        <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b border-border/70 bg-background/40 backdrop-blur-xs">
           Total: {formatCurrency(stats.value)}
         </div>
       )}

@@ -158,7 +158,7 @@ export function FlowCanvas({
       className="bg-flow-canvas"
     >
       <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="hsl(var(--flow-grid))" />
-      <Controls showInteractive={false} className="!rounded-lg !border !bg-card !shadow-sm" />
+      <Controls showInteractive={false} className="!rounded-lg !border !bg-card !shadow-xs" />
       <MiniMap
         pannable
         zoomable

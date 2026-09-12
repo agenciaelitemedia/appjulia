@@ -61,7 +61,7 @@ const SLA_OPTIONS: { value: JuliaSlaStatus; label: string; tone: string }[] = [
 
 const CHIP_BASE =
   'inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[11px] transition-colors ' +
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background';
+  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background';
 
 function Chip({
   active, onToggle, label, className, style,

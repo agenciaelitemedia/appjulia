@@ -2410,7 +2410,7 @@ export function WhatsAppMessagesDialog({
                     if (message.type === 'internal_note') {
                       return (
                         <div key={message.id} className="flex justify-center px-4">
-                          <div className="max-w-[85%] w-full rounded-lg px-3 py-2 shadow-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-300/50 dark:border-blue-700/40">
+                          <div className="max-w-[85%] w-full rounded-lg px-3 py-2 shadow-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-300/50 dark:border-blue-700/40">
                             <div className="flex items-center gap-1.5 mb-1">
                               <StickyNote className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                               <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300">
@@ -2440,7 +2440,7 @@ export function WhatsAppMessagesDialog({
                       >
                         <div
                           className={cn(
-                            "max-w-[80%] rounded-lg px-3 py-2 shadow-sm",
+                            "max-w-[80%] rounded-lg px-3 py-2 shadow-xs",
                             message.fromMe
                               ? "bg-green-100 dark:bg-green-900/40 text-foreground rounded-br-none"
                               : "bg-card border border-border/50 rounded-bl-none"

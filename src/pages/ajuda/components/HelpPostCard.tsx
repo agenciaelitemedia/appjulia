@@ -8,7 +8,7 @@ export function HelpPostCard({ post }: { post: HelpPost }) {
     <button
       type="button"
       onClick={() => navigate(`/ajuda/post/${post.slug}`)}
-      className="group relative w-56 sm:w-64 shrink-0 text-left snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-lg"
+      className="group relative w-56 sm:w-64 shrink-0 text-left snap-start focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-lg"
     >
       <div className="aspect-video rounded-lg overflow-hidden bg-muted ring-1 ring-border transition-all duration-300 group-hover:ring-2 group-hover:ring-primary/70 group-hover:scale-[1.04] group-hover:shadow-2xl group-hover:shadow-black/30">
         {post.cover_image_url ? (

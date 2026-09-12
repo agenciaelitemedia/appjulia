@@ -93,7 +93,7 @@ function TagSelector({ allTags, activeTags, onToggle, onCreateAndAdd, newTagName
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b">
             <Search className="h-3 w-3 text-muted-foreground flex-shrink-0" />
             <input
-              className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
+              className="flex-1 text-xs bg-transparent outline-hidden placeholder:text-muted-foreground"
               placeholder="Buscar ou criar tag..."
               value={search}
               onChange={e => setSearch(e.target.value)}

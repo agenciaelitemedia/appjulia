@@ -100,7 +100,7 @@ export function TasksConfigTab() {
                   const v = e.target.value.trim();
                   if (v && v !== c.name) updateCategory({ id: c.id, name: v });
                 }}
-                className="bg-transparent outline-none w-28"
+                className="bg-transparent outline-hidden w-28"
               />
               <input type="color" defaultValue={c.color}
                 onChange={(e) => updateCategory({ id: c.id, color: e.target.value })}

@@ -438,7 +438,7 @@ export function DealCard({
                   className={cn(
                     'relative text-[10px] px-1.5 py-0 gap-1',
                     isOverdue
-                      ? 'bg-red-500 text-white border-red-600 font-semibold shadow-sm shadow-red-500/50 animate-pulse'
+                      ? 'bg-red-500 text-white border-red-600 font-semibold shadow-xs shadow-red-500/50 animate-pulse'
                       : isToday
                       ? 'bg-yellow-500/10 text-yellow-700 border-yellow-500/30'
                       : 'bg-green-500/10 text-green-700 border-green-500/30'

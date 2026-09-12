@@ -219,7 +219,7 @@ function StepNumbers({
           </div>
           <div>
             <Label className="text-xs mb-1 block">Lista de números (um por linha)</Label>
-            <textarea className="w-full h-64 p-3 text-sm font-mono border rounded-md bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+            <textarea className="w-full h-64 p-3 text-sm font-mono border rounded-md bg-background resize-none focus:outline-hidden focus:ring-2 focus:ring-ring"
               value={numbers.join('\n')} onChange={(e) => handleTextareaChange(e.target.value)}
               placeholder="Nenhum número encontrado" />
           </div>
@@ -410,7 +410,7 @@ function StepSummary({
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Números WhatsApp <Badge variant="outline" className="ml-2">{numbers.length}</Badge></Label>
         </div>
-        <textarea className="w-full h-48 p-3 text-sm font-mono border rounded-md bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+        <textarea className="w-full h-48 p-3 text-sm font-mono border rounded-md bg-background resize-none focus:outline-hidden focus:ring-2 focus:ring-ring"
           value={numbers.join('\n')}
           onChange={(e) => onChangeNumbers(e.target.value.split('\n').map((l) => l.trim()).filter(Boolean))} />
       </div>

@@ -20,7 +20,7 @@ export function SearchTypeSelector({ value, onChange, disabled }: SearchTypeSele
         disabled={disabled}
         className={cn(
           'flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background',
+          'focus:outline-hidden focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background',
           value === 'process_number'
             ? 'bg-primary text-primary-foreground border-primary shadow-md shadow-primary/20'
             : 'bg-card hover:bg-accent text-card-foreground border-border hover:border-primary/50',

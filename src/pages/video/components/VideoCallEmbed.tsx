@@ -209,7 +209,7 @@ export function VideoCallEmbed({
         />
         
         {/* Controls overlay */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-background/80 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-background/80 backdrop-blur-xs rounded-full px-4 py-2 shadow-lg">
           <Button
             variant={isMuted ? "destructive" : "secondary"}
             size="icon"

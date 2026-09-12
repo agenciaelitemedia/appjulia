@@ -175,7 +175,7 @@ export function ContactCampaignCard({ row, greetingOverride }: Props) {
   const showImg = currentSrc && imgIdx < imgCandidates.length;
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+    <div className="overflow-hidden rounded-lg border bg-card shadow-xs">
       <div className="relative aspect-video bg-muted">
         {showImg ? (
           <img

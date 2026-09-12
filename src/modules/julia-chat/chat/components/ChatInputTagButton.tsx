@@ -112,7 +112,7 @@ export function ChatInputTagButton({ conversationId, disabled }: Props) {
         <div className="flex items-center gap-1.5 px-2 py-1.5 border-b">
           <Search className="h-3 w-3 text-muted-foreground flex-shrink-0" />
           <input
-            className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
+            className="flex-1 text-xs bg-transparent outline-hidden placeholder:text-muted-foreground"
             placeholder={canCreate ? 'Buscar ou criar etiqueta...' : 'Buscar etiqueta...'}
             value={search}
             onChange={e => setSearch(e.target.value)}

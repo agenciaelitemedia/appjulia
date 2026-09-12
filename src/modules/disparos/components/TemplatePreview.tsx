@@ -65,7 +65,7 @@ export function TemplatePreview({
   return (
     <div className="rounded-xl border bg-muted/40 p-3">
       <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Prévia</p>
-      <div className="max-w-[300px] rounded-lg rounded-tl-none bg-primary/10 p-2 shadow-sm">
+      <div className="max-w-[300px] rounded-lg rounded-tl-none bg-primary/10 p-2 shadow-xs">
         {mediaUrl && <MediaBlock mediaType={mediaType} mediaUrl={mediaUrl} fileName={fileName} />}
         <div className="whitespace-pre-wrap break-words text-[13px] leading-snug text-foreground">
           {text ? formatted(text) : <span className="text-muted-foreground">Sua mensagem aparece aqui…</span>}

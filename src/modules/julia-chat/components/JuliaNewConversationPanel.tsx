@@ -55,7 +55,7 @@ export function JuliaNewConversationPanel({ queues, queueConnectionMap, clientId
             setPhone(fmt);
           }}
           placeholder="(00) 00000-0000"
-          className="h-8 flex-1 rounded-md border border-input bg-background px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+          className="h-8 flex-1 rounded-md border border-input bg-background px-3 py-1 text-xs focus:outline-hidden focus:ring-2 focus:ring-ring"
         />
         <Button
           size="sm"

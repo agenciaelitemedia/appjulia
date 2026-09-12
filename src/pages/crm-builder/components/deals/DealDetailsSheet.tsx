@@ -985,7 +985,7 @@ export function DealDetailsSheet({
                                     'h-9 w-full inline-flex items-center justify-center rounded-md border-2 transition-all',
                                     cfg.color,
                                     isActive
-                                      ? cn(cfg.bgColor, 'border-current ring-2 ring-current/40 shadow-sm cursor-default')
+                                      ? cn(cfg.bgColor, 'border-current ring-2 ring-current/40 shadow-xs cursor-default')
                                       : 'border-border hover:bg-muted hover:border-current/50',
                                     savingPriority && !isActive && 'opacity-50'
                                   )}
