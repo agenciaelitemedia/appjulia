@@ -21,6 +21,7 @@ import {
   BellRing,
   Image as ImageIcon,
 } from 'lucide-react';
+import type * as React from 'react';
 import type { FlowNodeCategory, FlowNodeConfig, FlowNodeKind } from '../types';
 import {
   TriggerMessageForm,
