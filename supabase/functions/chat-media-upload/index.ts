@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
     // Upload to chat-media bucket
     const { data, error } = await supabase.storage
       .from("chat-media")
-      .upload(storagePath, bytes, {
+      .upload(storagePath, payload!, {
         contentType: cleanMime,
         upsert: true,
       });
