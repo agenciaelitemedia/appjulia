@@ -10,7 +10,7 @@
  */
 
 export const DEAL_LOOKUP_COLS =
-  "id, title, status, pipeline_id, board_id, contact_name, contact_phone, custom_fields, stage_entered_at, updated_at";
+  "id, title, status, pipeline_id, board_id, contact_name, contact_phone, custom_fields, value, assigned_to, created_at, stage_entered_at, updated_at";
 
 /** Gera as variantes brasileiras (12 e 13 dígitos) de um telefone. */
 export function brPhoneVariants(raw: string): string[] {
@@ -85,25 +85,39 @@ export async function resolveDealsByPhone(
   const contact = contacts.find((c) => looksLikeRealName(c.name, variants)) ?? contacts[0] ?? null;
   const contactIds = new Set(contacts.map((c) => c.id));
 
-  // Cards do painel: busca única, filtragem local por telefone/contato vinculado.
-  const { data: dealRows, error: dealErr } = await supabase
-    .from("crm_deals")
-    .select(DEAL_LOOKUP_COLS)
-    .eq("client_id", clientId)
-    .eq("board_id", boardId)
-    .order("updated_at", { ascending: false })
-    .limit(1000);
+  // Busca no banco (sem varredura limitada do painel): por telefone do card e,
+  // separadamente, pelos vínculos de contato gravados em custom_fields.
+  const base = () =>
+    supabase
+      .from("crm_deals")
+      .select(DEAL_LOOKUP_COLS)
+      .eq("client_id", clientId)
+      .eq("board_id", boardId)
+      .order("updated_at", { ascending: false });
+
+  const { data: byPhone, error: dealErr } = await base().in("contact_phone", variants);
   if (dealErr) throw new Error(dealErr.message);
 
   // deno-lint-ignore no-explicit-any
-  const matched = (dealRows || []).filter((d: any) => {
-    const p = String(d.contact_phone ?? "").replace(/\D/g, "");
-    if (p && variants.includes(p)) return true;
-    const cf = (d.custom_fields ?? {}) as Record<string, unknown>;
-    // deno-lint-ignore no-explicit-any
-    const linked = (cf as any)?.links?.chat?.contact_id ?? (cf as any)?.dsp_contact_id ?? null;
-    return linked ? contactIds.has(String(linked)) : false;
-  });
+  const byLink: any[] = [];
+  for (const cid of contactIds) {
+    const { data: rows, error } = await base().or(
+      `custom_fields->links->chat->>contact_id.eq.${cid},custom_fields->>dsp_contact_id.eq.${cid}`,
+    );
+    if (error) throw new Error(error.message);
+    if (rows?.length) byLink.push(...rows);
+  }
+
+  // deno-lint-ignore no-explicit-any
+  const seen = new Set<string>();
+  // deno-lint-ignore no-explicit-any
+  const matched: any[] = [];
+  for (const d of [...(byPhone || []), ...byLink]) {
+    const key = String(d.id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    matched.push(d);
+  }
 
   // deno-lint-ignore no-explicit-any
   const visiveis = matched.filter((d: any) => String(d.status ?? "") !== "archived");

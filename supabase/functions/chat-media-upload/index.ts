@@ -16,22 +16,51 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const body = await req.json();
-    const { base64, mimetype, fileName, contactId, clientId, source } = body;
+    const contentType = req.headers.get("content-type") || "";
 
-    if (!base64 || !mimetype) {
-      return new Response(
-        JSON.stringify({ error: "base64 and mimetype are required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    let payload: Blob | null = null;
+    let mimetype = "";
+    let fileName = "";
+    let contactId = "";
+    let clientId = "";
+    let source = "";
+
+    if (contentType.includes("multipart/form-data")) {
+      // Streamed binary upload — no base64 in memory.
+      const form = await req.formData();
+      const file = form.get("file");
+      if (!(file instanceof File)) {
+        return new Response(
+          JSON.stringify({ error: "file is required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      payload = file;
+      mimetype = String(form.get("mimetype") || file.type || "application/octet-stream");
+      fileName = String(form.get("fileName") || file.name || "");
+      contactId = String(form.get("contactId") || "");
+      clientId = String(form.get("clientId") || "");
+      source = String(form.get("source") || "");
+    } else {
+      const body = await req.json();
+      mimetype = String(body.mimetype || "");
+      fileName = String(body.fileName || "");
+      contactId = String(body.contactId || "");
+      clientId = String(body.clientId || "");
+      source = String(body.source || "");
+
+      if (!body.base64 || !mimetype) {
+        return new Response(
+          JSON.stringify({ error: "base64 and mimetype are required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      // Native base64 decode (single copy) — avoids atob + per-byte JS loop,
+      // which held the payload three times in memory and killed the worker.
+      const dataUrl = `data:application/octet-stream;base64,${String(body.base64)}`;
+      payload = await (await fetch(dataUrl)).blob();
     }
 
-    // Decode base64
-    const binaryString = atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
 
     // Build storage path: {clientId}/{contactId}/{timestamp}_{fileName}
     // Strip codec parameters (e.g. "audio/ogg;codecs=opus" → "audio/ogg").
@@ -53,7 +82,7 @@ Deno.serve(async (req) => {
     // Upload to chat-media bucket
     const { data, error } = await supabase.storage
       .from("chat-media")
-      .upload(storagePath, bytes, {
+      .upload(storagePath, payload!, {
         contentType: cleanMime,
         upsert: true,
       });
