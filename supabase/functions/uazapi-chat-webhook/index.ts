@@ -964,8 +964,7 @@ Deno.serve(async (req) => {
     // ─── Fila de recebimento ───────────────────────────────────────────────
     // O provedor recebe sucesso imediato; todo o trabalho pesado roda depois,
     // no chat-inbound-worker (que reinvoca esta função com o header interno).
-    const isInternalReplay = req.headers.get('x-inbound-worker') === 'true';
-    if (!isInternalReplay) {
+    if (!internalReplay) {
       const msgId =
         payload?.message?.messageid ?? payload?.message?.id ?? payload?.message?.key?.id ??
         payload?.messageid ?? payload?.key?.id ?? null;
