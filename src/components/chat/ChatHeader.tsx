@@ -342,7 +342,7 @@ export function ChatHeader({ contact, onClose, onShowDetails, onShowCrm, readOnl
                 onChange={(e) => setEditingName(e.target.value)}
                 onBlur={handleNameSave}
                 onKeyDown={handleNameKeyDown}
-                className="font-medium bg-transparent border-b border-primary outline-none truncate max-w-[200px]"
+                className="font-medium bg-transparent border-b border-primary outline-hidden truncate max-w-[200px]"
               />
             ) : (
               <h3

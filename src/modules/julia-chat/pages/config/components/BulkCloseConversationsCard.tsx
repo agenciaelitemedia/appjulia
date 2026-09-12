@@ -126,7 +126,7 @@ export function BulkCloseConversationsCard() {
   };
 
   return (
-    <div className="border rounded-xl bg-card shadow-sm overflow-hidden max-w-2xl">
+    <div className="border rounded-xl bg-card shadow-xs overflow-hidden max-w-2xl">
       <div className="px-5 py-4 border-b bg-muted/40 flex items-start gap-3">
         <div className="h-9 w-9 rounded-lg flex items-center justify-center bg-rose-500/15 text-rose-600 dark:text-rose-400 flex-shrink-0">
           <XCircle className="h-4 w-4" />

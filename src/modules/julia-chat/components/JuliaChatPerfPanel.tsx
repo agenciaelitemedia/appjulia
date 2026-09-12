@@ -13,7 +13,7 @@ interface Props {
 
 function Metric({ icon: Icon, label, value, tone }: { icon: any; label: string; value: string; tone?: string }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-lg border bg-card/60 px-2 py-1.5 backdrop-blur-sm">
+    <div className="flex items-center gap-1.5 rounded-lg border bg-card/60 px-2 py-1.5 backdrop-blur-xs">
       <Icon className={cn('h-3.5 w-3.5 text-muted-foreground', tone)} />
       <div className="leading-tight">
         <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>

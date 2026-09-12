@@ -68,7 +68,7 @@ export function ChatGeneralSettings() {
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Retornar Chat block */}
-      <div className="border rounded-xl overflow-hidden bg-card shadow-sm">
+      <div className="border rounded-xl overflow-hidden bg-card shadow-xs">
         {/* Header */}
         <div className={cn(
           "px-5 py-4 border-b flex items-start gap-3 transition-colors",

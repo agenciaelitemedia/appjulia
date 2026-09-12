@@ -461,7 +461,7 @@ export default function TicketDetailPage() {
                       <button
                         type="button"
                         onClick={() => removeImageAt(idx)}
-                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border shadow flex items-center justify-center hover:bg-muted"
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-background border shadow-sm flex items-center justify-center hover:bg-muted"
                         aria-label="Remover imagem"
                       >
                         <XIcon className="h-3 w-3" />

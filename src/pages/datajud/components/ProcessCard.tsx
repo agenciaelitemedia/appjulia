@@ -32,7 +32,7 @@ export function ProcessCard({ hit, tribunalKey, onViewDetails, onMonitor }: Proc
       className={cn(
         'group hover:shadow-lg transition-all duration-300 cursor-pointer',
         'border-2 hover:border-primary/30',
-        'bg-card/50 backdrop-blur-sm'
+        'bg-card/50 backdrop-blur-xs'
       )}
       onClick={() => onViewDetails(hit, tribunalKey)}
     >

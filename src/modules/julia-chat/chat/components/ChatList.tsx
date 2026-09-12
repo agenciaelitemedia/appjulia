@@ -1901,7 +1901,7 @@ export function ChatList({ onOpenTicketPanel }: ChatListProps = {}) {
               setFooterPhone(fmt);
             }}
             placeholder="(00) 00000-0000"
-            className="h-8 text-xs flex-1 rounded-md border border-input bg-background px-3 py-1 focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-8 text-xs flex-1 rounded-md border border-input bg-background px-3 py-1 focus:outline-hidden focus:ring-2 focus:ring-ring"
           />
           <Button
             size="sm"

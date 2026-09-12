@@ -25,7 +25,7 @@ export function WhatsappPreview({ components, headerMediaPreview, headerMediaTyp
 
   return (
     <div className="rounded-lg border bg-[#e5ddd5] p-3 min-h-[400px]">
-      <div className="bg-white rounded-lg shadow-sm max-w-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-xs max-w-sm overflow-hidden">
         {header && header.format && header.format !== "TEXT" && (
           <div className="bg-muted aspect-video flex items-center justify-center text-muted-foreground overflow-hidden">
             {header.format === "IMAGE" && headerMediaPreview ? (

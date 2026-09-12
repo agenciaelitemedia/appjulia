@@ -87,7 +87,7 @@ export function ConfirmDataStep({ draft, onChange, onNext, onBack, busy }: Props
       </CardHeader>
       <CardContent className="space-y-4 relative min-h-[280px]">
         {loading && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/80 backdrop-blur-sm rounded-md">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/80 backdrop-blur-xs rounded-md">
             <MascoteLoader size="xs" />
             <p className="text-sm text-muted-foreground">Carregando seus dados...</p>
           </div>

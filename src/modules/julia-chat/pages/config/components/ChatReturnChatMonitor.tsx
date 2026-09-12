@@ -305,7 +305,7 @@ export function ChatReturnChatMonitor() {
 
 function StatCard({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
+    <div className="rounded-lg border bg-card p-4 shadow-xs">
       <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
         {icon}
         {label}

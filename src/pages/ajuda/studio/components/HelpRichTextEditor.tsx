@@ -88,7 +88,7 @@ export function HelpRichTextEditor({ initialHtml, onChange, className }: HelpRic
     content: initialHtml || '',
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose-base max-w-none focus:outline-none min-h-[360px] px-4 py-3',
+        class: 'prose prose-sm sm:prose-base max-w-none focus:outline-hidden min-h-[360px] px-4 py-3',
       },
     },
     onUpdate: ({ editor }) => {

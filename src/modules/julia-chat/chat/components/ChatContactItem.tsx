@@ -205,7 +205,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
         }
       }}
       className={cn(
-        'group w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] min-w-0 overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'group w-full max-w-full flex items-start gap-3 px-3 py-3 text-left transition-all border-l-[4px] min-w-0 overflow-hidden cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
         isSelected
           ? 'aj-chat-item-active border-l-transparent'
           : cn(
@@ -270,7 +270,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             </span>
           </div>
           {contact.unread_count > 0 ? (
-            <span className="flex-shrink-0 bg-emerald-600 text-primary-foreground text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-sm">
+            <span className="flex-shrink-0 bg-emerald-600 text-primary-foreground text-[11px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 shadow-xs">
               {contact.unread_count > 99 ? '99+' : contact.unread_count}
             </span>
           ) : (
@@ -467,7 +467,7 @@ export const ChatContactItem = React.memo(function ChatContactItem({
             {visibleTags.map(tag => (
               <span key={tag.id} className="flex-shrink-0 max-w-[120px] truncate">
                 <span
-                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold text-white truncate max-w-full border border-white/20 shadow-sm"
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-semibold text-white truncate max-w-full border border-white/20 shadow-xs"
                   style={{ backgroundColor: tag.color }}
                   title={tag.name}
                 >

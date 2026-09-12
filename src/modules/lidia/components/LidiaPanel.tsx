@@ -388,7 +388,7 @@ function LidiaChatThread({ messages, onSend, loading }: { messages: LidiaMessage
         <Separator />
         <div className="flex gap-2">
           <input
-            className="flex-1 min-w-0 rounded-md border bg-background px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-ring"
+            className="flex-1 min-w-0 rounded-md border bg-background px-3 py-2 text-xs outline-hidden focus:ring-1 focus:ring-ring"
             placeholder="Ex.: o que fazer se o cliente disser que é caro?"
             value={input}
             onChange={(e) => setInput(e.target.value)}

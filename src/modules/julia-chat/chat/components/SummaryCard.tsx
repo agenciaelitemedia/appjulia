@@ -33,7 +33,7 @@ export function SummaryCard({ summary: s, defaultOpen = false, className, title 
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={cn('rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden', className)}>
+    <div className={cn('rounded-lg border bg-card text-card-foreground shadow-xs overflow-hidden', className)}>
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}

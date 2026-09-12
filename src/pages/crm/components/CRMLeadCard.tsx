@@ -182,7 +182,7 @@ function truncateText(text: string | undefined, maxLength: number): string {
                         if (e.key === 'Enter') handleSaveName(e as any);
                         if (e.key === 'Escape') handleCancelEditName(e as any);
                       }}
-                      className="text-sm font-medium bg-muted border border-input rounded px-1.5 py-0.5 w-full min-w-0 focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="text-sm font-medium bg-muted border border-input rounded px-1.5 py-0.5 w-full min-w-0 focus:outline-hidden focus:ring-1 focus:ring-ring"
                     />
                     <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 text-green-600 hover:text-green-700" onClick={handleSaveName} disabled={updateCardName.isPending}>
                       {updateCardName.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}

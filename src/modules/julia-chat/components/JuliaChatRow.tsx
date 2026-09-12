@@ -297,7 +297,7 @@ export const JuliaChatRow = memo(function JuliaChatRow({
       onClick={() => onSelect?.(row)}
       className={cn(
         'w-full border-b-2 border-dotted border-foreground/30 p-3 text-left transition-colors',
-        'hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'hover:bg-accent/40 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
         accent === 'amber' && 'bg-amber-500/[0.06]',
         accent === 'emerald' && 'bg-emerald-500/[0.06]',
         accent === 'none' && 'bg-transparent',

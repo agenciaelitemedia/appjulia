@@ -281,7 +281,7 @@ export const SoftphoneWidget = React.forwardRef<HTMLDivElement, SoftphoneWidgetP
         onPointerDown={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-xs" />
         <div className="relative w-[340px] rounded-2xl border bg-card shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">

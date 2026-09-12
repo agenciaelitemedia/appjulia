@@ -148,7 +148,7 @@ function JuliaChatContent({ clientId }: { clientId: string | null }) {
   const c = counters;
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden border-y bg-card/40 backdrop-blur-sm">
+    <div className="flex h-full min-h-0 overflow-hidden border-y bg-card/40 backdrop-blur-xs">
       {/* Coluna 1 — lista de conversas */}
       <aside className={cn(
         'flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r lg:w-[400px]',

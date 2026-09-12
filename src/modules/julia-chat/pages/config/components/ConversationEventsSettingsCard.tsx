@@ -86,7 +86,7 @@ export function ConversationEventsSettingsCard() {
   if (isLoading) return null;
 
   return (
-    <div className="border rounded-xl overflow-hidden bg-card shadow-sm">
+    <div className="border rounded-xl overflow-hidden bg-card shadow-xs">
       <div className={cn(
         'px-5 py-4 border-b flex items-start gap-3 transition-colors',
         enabled ? 'bg-blue-50/60 dark:bg-blue-950/20' : 'bg-muted/40',

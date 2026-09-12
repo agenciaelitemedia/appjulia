@@ -94,7 +94,7 @@ export function SearchBar({
             disabled={disabled || isSearching}
             className={cn(
               'pl-12 pr-24 h-14 text-lg rounded-xl border-2',
-              'bg-card/50 backdrop-blur-sm',
+              'bg-card/50 backdrop-blur-xs',
               'placeholder:text-muted-foreground/60',
               'focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-primary',
               'transition-all duration-200'

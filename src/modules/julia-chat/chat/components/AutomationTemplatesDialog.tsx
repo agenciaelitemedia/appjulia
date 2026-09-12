@@ -115,7 +115,7 @@ export function AutomationTemplatesDialog({ open, onOpenChange, clientId, onCrea
                   <div
                     key={template.id}
                     className={cn(
-                      'border rounded-lg p-4 transition-all hover:border-primary/40 hover:shadow-sm',
+                      'border rounded-lg p-4 transition-all hover:border-primary/40 hover:shadow-xs',
                       isInstalled && 'bg-primary/5 border-primary/30'
                     )}
                   >

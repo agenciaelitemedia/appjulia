@@ -372,7 +372,7 @@ export default function Login() {
                     aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                     aria-pressed={showPassword}
                     onClick={() => setShowPassword((v) => !v)}
-                    className="aj-muted absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 transition-colors hover:opacity-80 focus-visible:outline-none"
+                    className="aj-muted absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 transition-colors hover:opacity-80 focus-visible:outline-hidden"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>

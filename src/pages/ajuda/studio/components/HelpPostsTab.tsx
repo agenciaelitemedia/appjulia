@@ -64,7 +64,7 @@ export function HelpPostsTab() {
       ) : (
         <div className="space-y-2">
           {posts.map(post => (
-            <Card key={post.id} className="hover:shadow-sm transition">
+            <Card key={post.id} className="hover:shadow-xs transition">
               <CardContent className="p-3 flex items-center gap-3">
                 <div className="h-14 w-24 rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
                   {post.cover_image_url ? (

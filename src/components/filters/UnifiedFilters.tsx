@@ -162,7 +162,7 @@ export function UnifiedFilters({
     <Collapsible 
       open={isOpen} 
       onOpenChange={setIsOpen} 
-      className={cn('bg-card border border-border rounded-xl shadow-sm overflow-hidden transition-all duration-300', className)}
+      className={cn('bg-card border border-border rounded-xl shadow-xs overflow-hidden transition-all duration-300', className)}
     >
       {/* Header */}
       <CollapsibleTrigger asChild>
@@ -222,8 +222,8 @@ export function UnifiedFilters({
                     className={cn(
                       "h-7 px-3 text-xs font-medium rounded-full transition-all duration-200",
                       currentQuickPeriod === period.value 
-                        ? "shadow-sm" 
-                        : "hover:bg-background hover:shadow-sm hover:border-primary/30 active:scale-95"
+                        ? "shadow-xs" 
+                        : "hover:bg-background hover:shadow-xs hover:border-primary/30 active:scale-95"
                     )}
                   >
                     {period.label}
@@ -249,7 +249,7 @@ export function UnifiedFilters({
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="h-9 gap-2 px-3 bg-background hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 shadow-sm" 
+                    className="h-9 gap-2 px-3 bg-background hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 shadow-xs" 
                     disabled={isLoading}
                   >
                     <Users className="h-4 w-4 text-muted-foreground" />
@@ -333,7 +333,7 @@ export function UnifiedFilters({
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="h-9 gap-2 px-3 bg-background hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 shadow-sm" 
+                  className="h-9 gap-2 px-3 bg-background hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 shadow-xs" 
                   disabled={isLoading}
                 >
                   <CalendarIcon className="h-4 w-4 text-muted-foreground" />
@@ -362,7 +362,7 @@ export function UnifiedFilters({
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="h-9 gap-2 px-3 bg-background hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 shadow-sm" 
+                  className="h-9 gap-2 px-3 bg-background hover:bg-muted/50 hover:border-primary/30 transition-all duration-200 shadow-xs" 
                   disabled={isLoading}
                 >
                   <CalendarIcon className="h-4 w-4 text-muted-foreground" />
@@ -393,7 +393,7 @@ export function UnifiedFilters({
                   onFiltersChange({ ...filters, perfilAgent: value as 'SDR' | 'CLOSER' | 'ALL' })
                 }
               >
-                <SelectTrigger className="w-[130px] h-9 bg-background shadow-sm hover:border-primary/30 transition-colors">
+                <SelectTrigger className="w-[130px] h-9 bg-background shadow-xs hover:border-primary/30 transition-colors">
                   <SelectValue placeholder="Perfil" />
                 </SelectTrigger>
                 <SelectContent className="shadow-lg">
@@ -412,7 +412,7 @@ export function UnifiedFilters({
                   onFiltersChange({ ...filters, statusDocument: value === 'ALL' ? undefined : value })
                 }
               >
-                <SelectTrigger className="w-[130px] h-9 bg-background shadow-sm hover:border-primary/30 transition-colors">
+                <SelectTrigger className="w-[130px] h-9 bg-background shadow-xs hover:border-primary/30 transition-colors">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent className="shadow-lg">
@@ -432,7 +432,7 @@ export function UnifiedFilters({
                 value={filters.stateFilter || 'all'}
                 onValueChange={(value) => onFiltersChange({ ...filters, stateFilter: value })}
               >
-                <SelectTrigger className="w-[150px] h-9 bg-background shadow-sm hover:border-primary/30 transition-colors">
+                <SelectTrigger className="w-[150px] h-9 bg-background shadow-xs hover:border-primary/30 transition-colors">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent className="shadow-lg">
@@ -448,7 +448,7 @@ export function UnifiedFilters({
             {/* Custom Selects */}
             {customSelects.map((sel) => (
               <Select key={sel.key} value={sel.value} onValueChange={sel.onChange}>
-                <SelectTrigger className={cn("h-9 bg-background shadow-sm hover:border-primary/30 transition-colors", sel.width || "w-[140px]")}>
+                <SelectTrigger className={cn("h-9 bg-background shadow-xs hover:border-primary/30 transition-colors", sel.width || "w-[140px]")}>
                   <SelectValue placeholder={sel.placeholder} />
                 </SelectTrigger>
                 <SelectContent className="shadow-lg">
@@ -467,7 +467,7 @@ export function UnifiedFilters({
                   placeholder={searchPlaceholder}
                   value={filters.search}
                   onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-                  className="pl-9 h-9 bg-background shadow-sm hover:border-primary/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
+                  className="pl-9 h-9 bg-background shadow-xs hover:border-primary/30 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all"
                   disabled={isLoading}
                 />
               </div>

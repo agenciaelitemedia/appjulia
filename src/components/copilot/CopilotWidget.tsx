@@ -36,7 +36,7 @@ export function CopilotWidget() {
           'h-14 w-14 rounded-full shadow-lg',
           'bg-primary text-primary-foreground',
           'hover:scale-105 active:scale-95 transition-transform',
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+          'focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring'
         )}
         aria-label="Abrir Copiloto Julia"
       >

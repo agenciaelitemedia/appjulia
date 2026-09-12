@@ -54,7 +54,7 @@ export function DeletableEdge({
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               pointerEvents: 'all',
             }}
-            className="nodrag nopan absolute flex h-6 w-6 items-center justify-center rounded-full border border-destructive/40 bg-card text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-destructive-foreground"
+            className="nodrag nopan absolute flex h-6 w-6 items-center justify-center rounded-full border border-destructive/40 bg-card text-destructive shadow-xs transition-colors hover:bg-destructive hover:text-destructive-foreground"
             title="Excluir ligação"
             onMouseEnter={() => setHover(true)}
             onMouseLeave={() => setHover(false)}

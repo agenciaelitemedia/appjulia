@@ -33,7 +33,7 @@ export function SoundAlertSettingsCard() {
   if (isLoading) return null;
 
   return (
-    <div className="border rounded-xl overflow-hidden bg-card shadow-sm">
+    <div className="border rounded-xl overflow-hidden bg-card shadow-xs">
       {/* Header */}
       <div className={cn(
         "px-5 py-4 border-b flex items-start gap-3 transition-colors",
