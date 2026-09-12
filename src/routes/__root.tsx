@@ -56,6 +56,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootComponent() {
+  const { queryClient } = Route.useRouteContext();
+
   useEffect(() => {
     void registerServiceWorker();
   }, []);
@@ -66,6 +68,7 @@ function RootComponent() {
         <HeadContent />
       </head>
       <body>
+        <QueryClientProvider client={queryClient}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <TooltipProvider>
             <DebugProvider>
@@ -86,6 +89,7 @@ function RootComponent() {
             </DebugProvider>
           </TooltipProvider>
         </ThemeProvider>
+        </QueryClientProvider>
         <Scripts />
       </body>
     </html>
