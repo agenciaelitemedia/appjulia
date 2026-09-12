@@ -67,7 +67,7 @@ export interface FlowNodeDefinition {
   summary: (config: FlowNodeConfig) => string;
   /** Retorna mensagens de erro; vazio = nó configurado. */
   validate: (config: FlowNodeConfig) => string[];
-  Form: (props: NodeFormProps) => JSX.Element;
+  Form: (props: NodeFormProps) => React.JSX.Element;
 }
 
 const OUT = [{ id: 'out', label: 'Saída' }];
