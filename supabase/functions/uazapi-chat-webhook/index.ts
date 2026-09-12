@@ -1012,7 +1012,10 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({ trigger: 'webhook' }),
           });
-          workerOk = kick.ok;
+          // Exige resposta JSON do processador: uma página HTML de fallback
+          // (rota ainda não publicada) não pode ser aceita como sucesso.
+          const body = kick.ok ? await kick.json().catch(() => null) : null;
+          workerOk = Boolean(body && (body as any).success === true);
         } catch (err) {
           console.error('[uazapi-chat-webhook] processador indisponível:', (err as Error).message);
         }
