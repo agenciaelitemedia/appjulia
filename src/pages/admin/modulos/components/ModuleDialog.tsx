@@ -74,7 +74,7 @@ export function ModuleDialog({ open, onClose, module, onSave, isLoading }: Modul
     watch,
     formState: { errors },
   } = useForm<ModuleFormData>({
-    resolver: zodResolver(moduleSchema),
+    resolver: zodResolver(moduleSchema) as never,
     defaultValues: {
       code: '',
       name: '',

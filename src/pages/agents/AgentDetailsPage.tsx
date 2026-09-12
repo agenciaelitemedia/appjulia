@@ -57,7 +57,7 @@ export default function AgentDetailsPage() {
   const [copiedPassword, setCopiedPassword] = useState(false);
   
   // Get temp password from navigation state (when coming from wizard)
-  const tempPasswordFromState = location.state?.tempPassword as string | undefined;
+  const tempPasswordFromState = (location.state as { tempPassword?: string } | null)?.tempPassword;
   
   useEffect(() => {
     if (id) {

@@ -77,7 +77,7 @@ export interface Location {
 
 export function useLocation(): Location {
   return useRouterState({
-    select: (s) => {
+    select: ((s: { location: { pathname: string; searchStr?: string; hash?: string; state?: unknown } }) => {
       const loc = s.location;
       return {
         pathname: loc.pathname,
@@ -86,12 +86,12 @@ export function useLocation(): Location {
         state: loc.state,
         key: (loc.state as { key?: string } | undefined)?.key ?? "default",
       };
-    },
-  });
+    }) as never,
+  }) as unknown as Location;
 }
 
 export function useParams<T extends Record<string, string | undefined> = Record<string, string | undefined>>(): T {
-  return useTanStackParams({ strict: false }) as T;
+  return useTanStackParams({ strict: false } as never) as T;
 }
 
 export function useSearchParams(): [
@@ -155,7 +155,7 @@ export const Link = React.forwardRef<HTMLAnchorElement, LinkProps>(function Link
       hash={hash ? hash.slice(1) : undefined}
       replace={replace ?? false}
       state={(state ?? undefined) as never}
-      {...(rest as never)}
+      {...(rest as Record<string, unknown>)}
     />
   );
 });

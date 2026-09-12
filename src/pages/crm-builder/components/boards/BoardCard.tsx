@@ -1,3 +1,4 @@
+import type * as React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -88,10 +89,10 @@ export function BoardCard({ board, onClick, onEdit, onArchive, onSettings, canMa
             className="p-3 rounded-xl"
             style={{ backgroundColor: `${board.color}20` }}
           >
-            <IconComponent 
-              className="h-6 w-6" 
-              style={{ color: board.color }}
-            />
+            {(() => {
+              const Icon = IconComponent as React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+              return <Icon className="h-6 w-6" style={{ color: board.color }} />;
+            })()}
           </div>
           
           {showMenu && (
