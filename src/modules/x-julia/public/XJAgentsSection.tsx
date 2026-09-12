@@ -2,7 +2,7 @@
  * Superfície pública do módulo X-Julia para a página "Meus Agentes".
  * Único ponto que o restante do app importa do módulo.
  */
-import { Link } from 'react-router-dom';
+import { Link } from '@/lib/router-compat';
 import { Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';

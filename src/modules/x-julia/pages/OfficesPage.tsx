@@ -3,7 +3,7 @@
  * e depois gerenciar os N agentes daquele ClientID.
  */
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 import { Building2, ChevronRight, Loader2, Plus, Search, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

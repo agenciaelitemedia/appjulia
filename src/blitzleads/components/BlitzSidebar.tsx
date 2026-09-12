@@ -1,7 +1,7 @@
-import { NavLink } from "react-router-dom";
+import { NavLink } from '@/lib/router-compat';
 import { LayoutGrid, Phone, Ticket, PhoneCall, Bot, MessageSquare, FolderKanban, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from '@/lib/router-compat';
 import blitzLogo from "@/blitzleads/assets/blitzleads-sidebar-dark.png.asset.json";
 
 const SECTIONS: { title: string; items: { to: string; label: string; icon: any; color: string; badge?: string; disabled?: boolean }[] }[] = [

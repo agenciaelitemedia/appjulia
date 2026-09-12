@@ -2,7 +2,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plug, ExternalLink, Webhook, BarChart3, Database } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 import { useChatCRMLinks } from '@/hooks/useChatCRMLinks';
 
 export default function ChatIntegrationsPage() {

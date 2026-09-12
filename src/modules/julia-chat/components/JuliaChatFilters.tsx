@@ -5,7 +5,7 @@ import {
   ListFilter, Bot, User, CalendarClock, BarChart3, Settings, MoreVertical,
   MessageSquarePlus, Rows3, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 import {
   Badge, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Collapsible, CollapsibleContent, Popover, PopoverContent, PopoverTrigger,

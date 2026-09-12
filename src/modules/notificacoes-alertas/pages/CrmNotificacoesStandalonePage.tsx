@@ -1,6 +1,6 @@
 import { BellRing } from 'lucide-react';
 import { useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from '@/lib/router-compat';
 import { PhoneProvider } from '../extend/crm';
 import { CrmNotificacoesTab } from '../components/CrmNotificacoesTab';
 import { parseCodEtapaParam, getTriggerByCode } from '../module';

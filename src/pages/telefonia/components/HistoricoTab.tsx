@@ -7,7 +7,7 @@ import { useTelefoniaData } from '../hooks/useTelefoniaData';
 import { useCallHistoryQuery } from '../hooks/useCallHistoryQuery';
 import { GravacaoPlayer } from './GravacaoPlayer';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 import { UnifiedFilters } from '@/components/filters/UnifiedFilters';
 import { UnifiedFiltersState, CustomSelectConfig } from '@/components/filters/types';
 import { getTodayInSaoPaulo } from '@/lib/dateUtils';

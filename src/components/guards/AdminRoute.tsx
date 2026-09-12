@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet } from '@/lib/router-compat';
 import { useAuth } from '@/contexts/AuthContext';
 import { MascoteLoader } from "@/components/ui/mascote-loader";
 

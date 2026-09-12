@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams } from '@/lib/router-compat';
 import { AlertCircle, Video } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { LeadVideoCall } from './components/LeadVideoCall';

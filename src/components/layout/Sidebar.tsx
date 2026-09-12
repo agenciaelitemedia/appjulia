@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation } from '@/lib/router-compat';
 import { X } from "lucide-react";
 import { MascoteLoader } from "@/components/ui/mascote-loader";
 import logoAsset from "@/assets/atende-julia-logo.png.asset.json";

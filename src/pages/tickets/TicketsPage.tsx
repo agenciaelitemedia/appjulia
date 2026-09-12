@@ -8,7 +8,7 @@ import { TicketsKanban } from './components/TicketsKanban';
 import { TicketsDashboard } from './components/TicketsDashboard';
 import { SupportSettingsTab } from './components/SupportSettingsTab';
 import { NewTicketDialog } from './components/NewTicketDialog';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '@/lib/router-compat';
 
 const TICKETS_VIEW_KEY = 'tickets:lastView';
 type TicketsView = 'list' | 'kanban' | 'dashboard' | 'settings';

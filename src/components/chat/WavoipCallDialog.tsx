@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Phone, PhoneOff } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from '@/lib/router-compat';
 import { toast } from 'sonner';
 import {
   Dialog,

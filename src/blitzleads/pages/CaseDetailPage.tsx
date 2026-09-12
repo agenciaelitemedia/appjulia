@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from '@/lib/router-compat';
 import { ChevronLeft, Phone, MessageCircle, ChevronDown, Folder, MessageSquare, CheckCircle2, Zap, Mic, Send, XCircle } from "lucide-react";
 import { useBlitzCases, type BlitzCase, type BlitzCaseStatus } from "@/blitzleads/hooks/useBlitzCases";
 

@@ -5,7 +5,7 @@ import { PushNotificationOptIn } from '@/components/notifications/PushNotificati
 import { ThemeToggle } from './ThemeToggle';
 import logoAsset from '@/assets/atende-julia-logo.png.asset.json';
 
-import { Link } from 'react-router-dom';
+import { Link } from '@/lib/router-compat';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';

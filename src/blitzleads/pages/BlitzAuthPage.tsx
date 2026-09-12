@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate } from '@/lib/router-compat';
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import loginLogo from "@/blitzleads/assets/blitzleads-login.png";
 import { Button } from "@/components/ui/button";

@@ -49,7 +49,7 @@ import { DashboardFunnelChart } from './dashboard/components/DashboardFunnelChar
 import { DashboardTripleFunnel, type DashboardFunnelLayout } from './dashboard/components/DashboardTripleFunnel';
 import { useDashboardJuliaFunnel, useDashboardCampaignFunnel } from './dashboard/hooks/useDashboardFunnels';
 import { CRMLeadDetailsDialog } from './crm/components/CRMLeadDetailsDialog';
-import { Navigate } from 'react-router-dom';
+import { Navigate } from '@/lib/router-compat';
 import { useOfficeByClient } from '@/modules/escritorios/hooks/useOffices';
 import { ESCRITORIOS_ROUTES } from '@/modules/escritorios/module';
 
