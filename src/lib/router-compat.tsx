@@ -155,7 +155,7 @@ export const Link = React.forwardRef<HTMLAnchorElement, LinkProps>(function Link
       hash={hash ? hash.slice(1) : undefined}
       replace={replace ?? false}
       state={(state ?? undefined) as never}
-      {...(rest as never)}
+      {...(rest as Record<string, unknown>)}
     />
   );
 });
