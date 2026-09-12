@@ -995,20 +995,33 @@ Deno.serve(async (req) => {
       if (queueInsertErr) {
         // Não perder o evento: sem fila, processa inline (comportamento antigo).
         console.error('[uazapi-chat-webhook] enqueue falhou, processando inline:', queueInsertErr.message);
+      } else if (!queued?.id) {
+        // Reentrega do provedor: já está na fila, nada a fazer.
+        return respond({ success: true, queued: true, duplicate: true });
       } else {
-        if (queued?.id) {
-          EdgeRuntime.waitUntil(
-            fetch('https://appjulia.lovable.app/api/public/chat-inbound-worker', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-worker-secret': Deno.env.get('CHAT_INBOUND_WORKER_SECRET') ?? '',
-              },
-              body: JSON.stringify({ trigger: 'webhook' }),
-            }).catch(() => {}),
-          );
+        // Aciona o processador. Só devolve "enfileirado" quando ele responde;
+        // se estiver indisponível, remove da fila e processa inline (fallback
+        // seguro, para nunca deixar mensagem parada).
+        let workerOk = false;
+        try {
+          const kick = await fetch('https://appjulia.lovable.app/api/public/chat-inbound-worker', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-worker-secret': Deno.env.get('CHAT_INBOUND_WORKER_SECRET') ?? '',
+            },
+            body: JSON.stringify({ trigger: 'webhook' }),
+          });
+          workerOk = kick.ok;
+        } catch (err) {
+          console.error('[uazapi-chat-webhook] processador indisponível:', (err as Error).message);
         }
-        return respond({ success: true, queued: true, duplicate: !queued?.id });
+
+        if (workerOk) {
+          return respond({ success: true, queued: true, duplicate: false });
+        }
+        await supabase.from('chat_inbound_queue').delete().eq('id', queued.id);
+        console.warn('[uazapi-chat-webhook] processador indisponível, processando inline');
       }
     }
 
