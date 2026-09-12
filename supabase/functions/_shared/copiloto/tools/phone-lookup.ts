@@ -10,7 +10,7 @@
  */
 
 export const DEAL_LOOKUP_COLS =
-  "id, title, status, pipeline_id, board_id, contact_name, contact_phone, custom_fields, stage_entered_at, updated_at";
+  "id, title, status, pipeline_id, board_id, contact_name, contact_phone, custom_fields, value, assigned_to, created_at, stage_entered_at, updated_at";
 
 /** Gera as variantes brasileiras (12 e 13 dígitos) de um telefone. */
 export function brPhoneVariants(raw: string): string[] {
