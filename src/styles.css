@@ -1,0 +1,853 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system — Atende Julia (ported verbatim from the Classic src/index.css
+ * + tailwind.config.ts). Color values stay in HSL triplets; utilities map them
+ * through hsl(var(--token)) in the @theme inline block below.
+ */
+
+@theme inline {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-ring-offset-background: hsl(var(--background));
+
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --color-brand: hsl(var(--brand-accent));
+  --color-brand-foreground: hsl(var(--brand-accent-foreground));
+  --color-brand-magenta: hsl(var(--brand-magenta));
+  --color-brand-violet: hsl(var(--brand-violet));
+
+  --color-flow-trigger: hsl(var(--flow-trigger));
+  --color-flow-logic: hsl(var(--flow-logic));
+  --color-flow-chat: hsl(var(--flow-chat));
+  --color-flow-julia: hsl(var(--flow-julia));
+  --color-flow-crm: hsl(var(--flow-crm));
+  --color-flow-data: hsl(var(--flow-data));
+  --color-flow-canvas: hsl(var(--flow-canvas));
+  --color-flow-grid: hsl(var(--flow-grid));
+  --color-flow-edge: hsl(var(--flow-edge));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-marquee: marquee 45s linear infinite;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+}
+
+/* Parity with the v3 container config (center + 2rem padding + 1400px cap) */
+@utility container {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (min-width: 1400px) {
+    max-width: 1400px;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 260 30% 99%;
+    --foreground: 258 30% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 258 30% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 258 30% 12%;
+
+    --primary: 322 62% 34%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 264 30% 96%;
+    --secondary-foreground: 258 30% 16%;
+
+    --muted: 264 24% 96%;
+    --muted-foreground: 258 14% 38%;
+
+    --accent: 322 44% 95%;
+    --accent-foreground: 322 55% 26%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 264 20% 87%;
+    --input: 264 20% 84%;
+    --ring: 322 62% 38%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar sempre escura (paleta da tela de login), mesmo no tema claro */
+    --sidebar-background: 258 34% 7%;
+    --sidebar-foreground: 265 18% 86%;
+    --sidebar-primary: 330 92% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 262 32% 17%;
+    --sidebar-accent-foreground: 300 16% 97%;
+    --sidebar-border: 262 20% 15%;
+    --sidebar-ring: 330 92% 62%;
+
+    /* Brand accent - Julia IA */
+    --brand-accent: 38 92% 50%;
+    --brand-accent-foreground: 0 0% 100%;
+
+    /* Marca Atende Julia (mesma paleta da tela de login, tons mais fechados no claro) */
+    --brand-magenta: 326 70% 40%;
+    --brand-violet: 262 62% 42%;
+    --gradient-brand: linear-gradient(120deg, hsl(var(--brand-magenta)), hsl(var(--brand-violet)));
+    --shadow-brand: 0 20px 50px -24px hsl(var(--brand-magenta) / 0.45);
+    --surface-glass: 0 0% 100% / 0.72;
+
+    /* Chart colors */
+    --chart-1: 221.2 83.2% 53.3%;
+    --chart-2: 142.1 76.2% 36.3%;
+    --chart-3: 47.9 95.8% 53.1%;
+    --chart-4: 24.6 95% 53.1%;
+    --chart-5: 262.1 83.3% 57.8%;
+
+    /* Flow Builder — categorias de nós */
+    --flow-trigger: 262.1 83.3% 57.8%;
+    --flow-logic: 24.6 95% 53.1%;
+    --flow-chat: 142.1 76.2% 36.3%;
+    --flow-julia: 38 92% 50%;
+    --flow-crm: 221.2 83.2% 53.3%;
+    --flow-data: 199 89% 48%;
+    --flow-canvas: 260 30% 98%;
+    --flow-grid: 264 22% 88%;
+    --flow-edge: 258 12% 60%;
+  }
+
+  .dark {
+    /* Base alinhada às superfícies do header/sidebar (aj-shell-surface) */
+    --background: 258 34% 8%;
+    --foreground: 300 20% 98%;
+
+    --card: 260 24% 14%;
+    --card-foreground: 300 20% 98%;
+
+    --popover: 260 24% 15%;
+    --popover-foreground: 300 20% 98%;
+
+    --primary: 330 92% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 259 20% 21%;
+    --secondary-foreground: 300 16% 96%;
+
+    --muted: 259 18% 20%;
+    --muted-foreground: 265 16% 78%;
+
+    --accent: 262 34% 25%;
+    --accent-foreground: 300 16% 96%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 262 16% 26%;
+    --input: 262 16% 28%;
+    --ring: 330 92% 62%;
+    --sidebar-background: 258 34% 5%;
+    --sidebar-foreground: 265 18% 88%;
+    --sidebar-primary: 330 92% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 262 32% 16%;
+    --sidebar-accent-foreground: 300 16% 96%;
+    --sidebar-border: 262 18% 16%;
+    --sidebar-ring: 330 92% 62%;
+
+    /* Brand accent - Julia IA */
+    --brand-accent: 38 92% 55%;
+    --brand-accent-foreground: 0 0% 100%;
+
+    /* Marca Atende Julia (mesma paleta da tela de login) */
+    --brand-magenta: 330 92% 60%;
+    --brand-violet: 262 78% 58%;
+    --gradient-brand: linear-gradient(120deg, hsl(var(--brand-magenta)), hsl(var(--brand-violet)));
+    --shadow-brand: 0 24px 70px -28px hsl(var(--brand-magenta) / 0.6);
+    --surface-glass: 0 0% 100% / 0.06;
+
+    /* Chart colors - brighter for dark mode */
+    --chart-1: 217.2 91.2% 59.8%;
+    --chart-2: 142.1 70.6% 45.3%;
+    --chart-3: 47.9 95.8% 53.1%;
+    --chart-4: 27.8 87.1% 55.3%;
+    --chart-5: 263.4 70% 50.4%;
+
+    /* Flow Builder — categorias de nós */
+    --flow-trigger: 263.4 70% 62%;
+    --flow-logic: 27.8 87.1% 60%;
+    --flow-chat: 142.1 70.6% 48%;
+    --flow-julia: 38 92% 58%;
+    --flow-crm: 217.2 91.2% 62%;
+    --flow-data: 199 89% 58%;
+    --flow-canvas: 258 26% 13%;
+    --flow-grid: 262 16% 28%;
+    --flow-edge: 265 14% 60%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* Fundo escuro no mesmo padrão do header/sidebar (aj-shell-surface) */
+  .dark body {
+    background-color: hsl(258 34% 8%);
+    background-image:
+      radial-gradient(60% 45% at 0% 0%, hsl(var(--brand-magenta) / 0.16), transparent 55%),
+      radial-gradient(60% 45% at 100% 0%, hsl(var(--brand-violet) / 0.14), transparent 55%),
+      radial-gradient(80% 60% at 50% 100%, hsl(262 60% 40% / 0.1), transparent 70%),
+      linear-gradient(180deg, hsl(258 36% 11%), hsl(258 34% 7%));
+    background-attachment: fixed;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: "Sora", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Utilitários de marca reutilizáveis no painel */
+@layer utilities {
+  .bg-brand-gradient {
+    background-image: var(--gradient-brand);
+  }
+  .text-brand-gradient {
+    background-image: var(--gradient-brand);
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .shadow-brand-soft {
+    box-shadow: var(--shadow-brand);
+  }
+  /* Acabamento vitrificado com degradê da marca (botões/badges principais) */
+  .aj-glass-primary {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta)),
+      hsl(var(--brand-violet)) 92%
+    );
+    border: 1px solid hsl(0 0% 100% / 0.14);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.18),
+      0 10px 24px -16px hsl(var(--brand-magenta) / 0.65);
+    color: hsl(var(--primary-foreground));
+  }
+  .aj-glass-primary:hover {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta) / 0.92),
+      hsl(var(--brand-violet) / 0.92) 92%
+    );
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.24),
+      0 14px 30px -16px hsl(var(--brand-magenta) / 0.7);
+  }
+  .aj-glass-primary:active {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta)),
+      hsl(var(--brand-violet)) 70%
+    );
+    box-shadow: inset 0 2px 6px hsl(258 40% 8% / 0.35);
+  }
+
+  /* Anel de foco extra (usa outline, não conflita com o ring do Tailwind) */
+  .aj-focus-ring:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: inherit;
+  }
+
+  /* ---------- Kanban: colunas e cabeçalhos com vidro + degradê ---------- */
+  .aj-column-shell {
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--stage-color, var(--brand-violet)) / 0.06),
+      hsl(var(--muted) / 0.45) 40%
+    );
+    border: 1px solid hsl(var(--border) / 0.9);
+    box-shadow: 0 10px 26px -22px hsl(258 40% 20% / 0.4);
+  }
+
+  .aj-column-head {
+    position: relative;
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--stage-color, var(--brand-magenta)) / 0.22),
+      hsl(var(--brand-violet) / 0.14) 85%
+    );
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid hsl(var(--stage-color, var(--brand-magenta)) / 0.28);
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.4);
+  }
+  .dark .aj-column-head {
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.08);
+  }
+  .aj-column-head::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--stage-color, var(--brand-magenta))),
+      hsl(var(--brand-violet))
+    );
+    opacity: 0.75;
+  }
+
+  .aj-title-gradient {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--stage-color, var(--brand-magenta))),
+      hsl(var(--brand-violet))
+    );
+    color: hsl(var(--foreground));
+  }
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    .aj-title-gradient {
+      color: transparent;
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+  }
+
+  .aj-drop-active {
+    background-color: hsl(var(--stage-color, var(--brand-magenta)) / 0.08);
+    box-shadow:
+      inset 0 0 0 2px hsl(var(--stage-color, var(--brand-magenta)) / 0.45),
+      0 0 24px -8px hsl(var(--brand-magenta) / 0.35);
+  }
+
+  /* Cards do kanban: hairline + elevação suave no hover */
+  .aj-card-hover {
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease;
+  }
+  .aj-card-hover:hover {
+    transform: translateY(-2px);
+    border-color: hsl(var(--brand-magenta) / 0.35);
+    box-shadow: 0 14px 30px -20px hsl(var(--brand-magenta) / 0.5);
+  }
+
+  /* ---------- Chat: superfícies, bolhas e status ---------- */
+
+  /* Barras (header do chat e composer): vidro + hairline degradê */
+  .aj-chat-bar {
+    position: relative;
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--brand-magenta) / 0.05),
+      hsl(var(--background) / 0.92) 60%
+    );
+    background-color: hsl(var(--background) / 0.85);
+    backdrop-filter: blur(14px);
+    border-color: hsl(var(--border) / 0.7);
+  }
+  .dark .aj-chat-bar {
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--brand-magenta) / 0.03),
+      hsl(258 30% 14% / 0.6) 60%
+    );
+    background-color: hsl(258 30% 12% / 0.55);
+    border-color: hsl(var(--border) / 0.45);
+    backdrop-filter: blur(18px) saturate(130%);
+  }
+
+  .aj-chat-bar-top::before,
+  .aj-chat-bar-bottom::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--brand-magenta) / 0.55),
+      hsl(var(--brand-violet) / 0.35) 60%,
+      transparent
+    );
+    pointer-events: none;
+  }
+  .aj-chat-bar-top::before {
+    bottom: -1px;
+  }
+  .aj-chat-bar-bottom::after {
+    top: -1px;
+  }
+  /* No dark a hairline fica bem discreta para não pesar */
+  .dark .aj-chat-bar-top::before,
+  .dark .aj-chat-bar-bottom::after {
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--brand-magenta) / 0.28),
+      hsl(var(--brand-violet) / 0.16) 60%,
+      transparent
+    );
+  }
+
+  /* Lista de conversas: superfície levemente iluminada em relação ao shell */
+  .aj-chat-list {
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.95),
+      hsl(var(--muted) / 0.55) 100%
+    );
+    background-color: hsl(var(--background) / 0.92);
+  }
+  .dark .aj-chat-list {
+    background-image: linear-gradient(
+      180deg,
+      hsl(258 30% 13% / 0.62),
+      hsl(258 30% 9% / 0.48) 100%
+    );
+    background-color: hsl(258 30% 11% / 0.55);
+  }
+
+  /* Fundo da timeline: pattern doodle bem suave com overlay claro */
+  .aj-chat-canvas {
+    background-color: hsl(0 0% 99%);
+    background-image:
+      linear-gradient(180deg, hsl(0 0% 100% / 0.88), hsl(0 0% 100% / 0.82)),
+      url("/__l5e/assets-v1/d69b7812-de2e-4dd8-98b0-ac6ff5fc7ce5/chat-bg-doodle.png");
+    background-repeat: repeat, repeat;
+    background-size: auto, 420px auto;
+    background-attachment: local;
+  }
+
+  .dark .aj-chat-canvas {
+    background-color: hsl(258 30% 18% / 0.32);
+    background-image:
+      radial-gradient(
+        70% 50% at 12% 0%,
+        hsl(var(--brand-violet) / 0.05),
+        transparent 70%
+      ),
+      radial-gradient(
+        60% 45% at 100% 100%,
+        hsl(var(--brand-magenta) / 0.04),
+        transparent 70%
+      );
+    backdrop-filter: blur(3px);
+  }
+
+  /* Bolhas */
+  .aj-bubble-out {
+    background-color: hsl(140 44% 91%);
+    background-image: linear-gradient(
+      160deg,
+      hsl(140 48% 93%),
+      hsl(150 40% 87%)
+    );
+    border: 1px solid hsl(145 30% 78%);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.6),
+      0 6px 16px -14px hsl(150 40% 30% / 0.5);
+  }
+  .dark .aj-bubble-out {
+    background-image: linear-gradient(
+      160deg,
+      hsl(var(--brand-magenta) / 0.13),
+      hsl(var(--brand-violet) / 0.09)
+    );
+    background-color: hsl(258 30% 12% / 0.5);
+    border-color: hsl(var(--brand-magenta) / 0.2);
+    backdrop-filter: blur(10px);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.05),
+      0 8px 22px -20px hsl(var(--brand-magenta) / 0.5);
+  }
+
+  .aj-bubble-in {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border) / 0.9);
+    box-shadow: 0 4px 14px -14px hsl(258 40% 20% / 0.55);
+  }
+  .dark .aj-bubble-in {
+    background-color: hsl(260 24% 22% / 0.42);
+    border-color: hsl(0 0% 100% / 0.09);
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.05);
+  }
+
+  /* Separador de data / chips flutuantes na timeline */
+  .aj-chat-chip {
+    background-color: hsl(var(--background) / 0.7);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsl(var(--border) / 0.7);
+    box-shadow: 0 4px 14px -12px hsl(258 40% 20% / 0.5);
+  }
+
+  /* Item ativo da lista de conversas: pílula com faixa da marca */
+  .aj-chat-item-active {
+    position: relative;
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta) / 0.14),
+      hsl(var(--brand-violet) / 0.08) 70%
+    );
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.35);
+  }
+  .dark .aj-chat-item-active {
+    background-image: linear-gradient(
+      100deg,
+      hsl(var(--brand-magenta) / 0.11),
+      hsl(var(--brand-violet) / 0.06) 70%
+    );
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.04);
+  }
+
+  .aj-chat-item-active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 999px;
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--brand-magenta)),
+      hsl(var(--brand-violet))
+    );
+  }
+}
+
+/* ==========================================================================
+   Atende Julia — tela de Login (escopo isolado em .aj-login)
+   Nada aqui afeta o tema global do app.
+   ========================================================================== */
+.aj-login {
+  --aj-bg: 258 32% 6%;
+  --aj-surface: 260 26% 12%;
+  --aj-fg: 300 20% 98%;
+  --aj-muted-fg: 265 14% 72%;
+  --aj-magenta: 330 92% 60%;
+  --aj-violet: 262 78% 58%;
+  --aj-success: 160 62% 55%;
+  --aj-gradient: linear-gradient(120deg, hsl(var(--aj-magenta)), hsl(var(--aj-violet)));
+
+  background-color: hsl(var(--aj-bg));
+  color: hsl(var(--aj-fg));
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.aj-login h1,
+.aj-login h2 {
+  font-family: "Sora", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.aj-muted {
+  color: hsl(var(--aj-muted-fg));
+}
+
+.aj-aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.aj-grid-lines {
+  background-image:
+    linear-gradient(hsl(0 0% 100% / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(0 0% 100% / 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.aj-glass {
+  background-image: linear-gradient(160deg, hsl(0 0% 100% / 0.09), hsl(0 0% 100% / 0.02));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid hsl(0 0% 100% / 0.1);
+}
+
+.aj-glass-hover {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.35s,
+    box-shadow 0.35s;
+}
+.aj-glass-hover:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--aj-magenta) / 0.4);
+}
+
+.aj-glow-ring {
+  box-shadow: 0 24px 70px -28px hsl(var(--aj-magenta) / 0.65);
+}
+
+.aj-text-gradient {
+  background-image: var(--aj-gradient);
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.aj-bg-brand {
+  background-image: var(--aj-gradient);
+}
+
+.aj-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid hsl(0 0% 100% / 0.12);
+  background-color: hsl(var(--aj-surface) / 0.6);
+  color: hsl(var(--aj-fg));
+  font-size: 0.875rem;
+  padding: 0.875rem 2.75rem;
+  outline: none;
+  transition: all 0.3s ease;
+}
+.aj-input::placeholder {
+  color: hsl(var(--aj-muted-fg) / 0.7);
+}
+.aj-input:focus {
+  border-color: hsl(var(--aj-magenta) / 0.6);
+  background-color: hsl(var(--aj-surface));
+  box-shadow: 0 0 0 2px hsl(var(--aj-magenta) / 0.4);
+}
+
+@keyframes aj-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.aj-float {
+  animation: aj-float 6s ease-in-out infinite;
+}
+
+@keyframes aj-pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+}
+.aj-pulse-soft {
+  animation: aj-pulse-soft 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aj-float,
+  .aj-pulse-soft {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   Chrome escuro (header) — paleta da tela de login.
+   Redefine tokens localmente para que utilitários semânticos (bg-background,
+   text-muted-foreground, border, bg-muted) fiquem escuros apenas no header,
+   sem afetar o conteúdo principal.
+   ========================================================================== */
+.aj-shell-dark {
+  --background: 258 34% 8%;
+  --foreground: 300 20% 98%;
+  --card: 260 26% 12%;
+  --card-foreground: 300 20% 98%;
+  --muted: 260 22% 16%;
+  --muted-foreground: 265 14% 74%;
+  --accent: 262 32% 18%;
+  --accent-foreground: 300 16% 97%;
+  --secondary: 260 22% 16%;
+  --secondary-foreground: 300 16% 96%;
+  --border: 262 20% 18%;
+  --input: 262 20% 22%;
+  --primary: 330 92% 60%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 330 92% 62%;
+  color: hsl(var(--foreground));
+}
+
+/* Superfícies do chrome escuro — degradês da identidade Atende Julia */
+.aj-shell-surface {
+  background-color: hsl(258 34% 8%);
+  background-image:
+    radial-gradient(circle at 0% 0%, hsl(330 92% 60% / 0.18), transparent 55%),
+    radial-gradient(circle at 100% 0%, hsl(262 78% 58% / 0.16), transparent 55%),
+    linear-gradient(180deg, hsl(258 36% 11%), hsl(258 34% 7%));
+}
+
+.aj-sidebar-surface {
+  background-color: hsl(258 34% 7%);
+  background-image:
+    radial-gradient(circle at 15% 0%, hsl(330 92% 60% / 0.18), transparent 45%),
+    radial-gradient(circle at 90% 12%, hsl(262 78% 58% / 0.14), transparent 45%),
+    linear-gradient(180deg, hsl(258 36% 10%) 0%, hsl(258 34% 6%) 55%, hsl(258 38% 5%) 100%);
+  box-shadow: 1px 0 0 hsl(0 0% 100% / 0.05), 24px 0 60px -40px hsl(330 92% 60% / 0.25);
+}
+
+.aj-nav-item-active {
+  background-image: linear-gradient(
+    100deg,
+    hsl(330 92% 60% / 0.22),
+    hsl(262 78% 58% / 0.16) 60%,
+    transparent
+  );
+  border: 1px solid hsl(330 92% 60% / 0.28);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.07), 0 10px 24px -18px hsl(330 92% 60% / 0.8);
+  color: hsl(0 0% 100%);
+}
+
+.aj-nav-item-idle {
+  border: 1px solid transparent;
+}
+.aj-nav-item-idle:hover {
+  background-image: linear-gradient(100deg, hsl(0 0% 100% / 0.07), hsl(0 0% 100% / 0.02));
+  border-color: hsl(0 0% 100% / 0.08);
+}
+
+.aj-hairline {
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    hsl(330 92% 60% / 0.9),
+    hsl(262 78% 58% / 0.9),
+    transparent
+  );
+}
+
+/* ==========================================================================
+   Dark mode — superfícies translúcidas (vidro) sobre o fundo do shell
+   ========================================================================== */
+.dark .aj-shell-surface {
+  background-color: hsl(258 34% 8% / 0.72);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.dark .aj-sidebar-surface {
+  background-color: hsl(258 34% 7% / 0.7);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+/* Cartões ficam semitransparentes para o degradê do fundo aparecer */
+.dark .bg-card {
+  background-color: hsl(260 24% 14% / 0.66);
+  backdrop-filter: blur(14px);
+}
+
+/* Camada leve de vidro do conteúdo principal */
+.dark .aj-content-glass {
+  background-image: linear-gradient(180deg, hsl(0 0% 100% / 0.045), hsl(0 0% 100% / 0.015));
+  backdrop-filter: blur(6px);
+}
+
+/* Scrollbar fino e customizado (usado em listas fixas) */
+@layer utilities {
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.35) transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--primary) / 0.35);
+    border-radius: 9999px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--primary) / 0.55);
+  }
+}
