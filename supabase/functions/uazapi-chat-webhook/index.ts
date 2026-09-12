@@ -937,7 +937,13 @@ Deno.serve(async (req) => {
     }
 
     // Autenticação do provedor: token compartilhado da fila (quando configurado).
-    const tokenCheck = verifyQueueToken(req, url, (queue as any).webhook_token);
+    // Reprocessamento interno (chat-inbound-worker) autentica-se pela service role.
+    const internalReplay =
+      req.headers.get('x-inbound-worker') === 'true' &&
+      req.headers.get('authorization') === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`;
+    const tokenCheck = internalReplay
+      ? { ok: true as const, reason: undefined }
+      : verifyQueueToken(req, url, (queue as any).webhook_token);
     if (!tokenCheck.ok) {
       console.warn('[uazapi-chat-webhook] webhook recusado:', tokenCheck.reason, 'queue=', queueId);
       await logWebhookRejection(supabase, {
@@ -954,6 +960,74 @@ Deno.serve(async (req) => {
 
 
     const payload = await req.json();
+
+    // ─── Fila de recebimento ───────────────────────────────────────────────
+    // O provedor recebe sucesso imediato; todo o trabalho pesado roda depois,
+    // no chat-inbound-worker (que reinvoca esta função com o header interno).
+    if (!internalReplay) {
+      const msgId =
+        payload?.message?.messageid ?? payload?.message?.id ?? payload?.message?.key?.id ??
+        payload?.messageid ?? payload?.key?.id ?? null;
+      const evt = String(
+        payload?.EventType ?? payload?.eventType ?? payload?.type ??
+        (typeof payload?.event === 'string' ? payload.event : '') ?? '',
+      ) || 'messages';
+      const dedupeKey = msgId
+        ? `uazapi:${queueId}:${evt}:${msgId}`
+        : `uazapi:${queueId}:${evt}:${crypto.randomUUID()}`;
+
+      const { data: queued, error: queueInsertErr } = await supabase
+        .from('chat_inbound_queue')
+        .upsert(
+          {
+            provider: 'uazapi',
+            queue_id: queueId,
+            client_id: String((queue as any).client_id ?? ''),
+            event_name: evt,
+            dedupe_key: dedupeKey,
+            payload,
+          },
+          { onConflict: 'dedupe_key', ignoreDuplicates: true },
+        )
+        .select('id')
+        .maybeSingle();
+
+      if (queueInsertErr) {
+        // Não perder o evento: sem fila, processa inline (comportamento antigo).
+        console.error('[uazapi-chat-webhook] enqueue falhou, processando inline:', queueInsertErr.message);
+      } else if (!queued?.id) {
+        // Reentrega do provedor: já está na fila, nada a fazer.
+        return respond({ success: true, queued: true, duplicate: true });
+      } else {
+        // Aciona o processador. Só devolve "enfileirado" quando ele responde;
+        // se estiver indisponível, remove da fila e processa inline (fallback
+        // seguro, para nunca deixar mensagem parada).
+        let workerOk = false;
+        try {
+          const kick = await fetch('https://appjulia.lovable.app/api/public/chat-inbound-worker', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-worker-secret': Deno.env.get('CHAT_INBOUND_WORKER_SECRET') ?? '',
+            },
+            body: JSON.stringify({ trigger: 'webhook' }),
+          });
+          // Exige resposta JSON do processador: uma página HTML de fallback
+          // (rota ainda não publicada) não pode ser aceita como sucesso.
+          const body = kick.ok ? await kick.json().catch(() => null) : null;
+          workerOk = Boolean(body && (body as any).success === true);
+        } catch (err) {
+          console.error('[uazapi-chat-webhook] processador indisponível:', (err as Error).message);
+        }
+
+        if (workerOk) {
+          return respond({ success: true, queued: true, duplicate: false });
+        }
+        await supabase.from('chat_inbound_queue').delete().eq('id', queued.id);
+        console.warn('[uazapi-chat-webhook] processador indisponível, processando inline');
+      }
+    }
+
     // Resolve event name resilient to UaZapi sometimes sending `event` as an
     // object instead of string (observed for messages_update payloads).
     function resolveEventName(p: any): string {
