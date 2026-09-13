@@ -937,10 +937,23 @@ Deno.serve(async (req) => {
     }
 
     // Autenticação do provedor: token compartilhado da fila (quando configurado).
-    // Reprocessamento interno (chat-inbound-worker) autentica-se pela service role.
+    // Reprocessamento interno (chat-inbound-worker): aceita o segredo compartilhado
+    // do worker OU a service role. Comparar apenas a service role era frágil —
+    // worker e edge function podem receber formatos de chave diferentes, e nesse
+    // caso o replay não era reconhecido, o evento voltava para a fila e nada era
+    // processado (loop silencioso de reenfileiramento).
+    const workerSecret = Deno.env.get('CHAT_INBOUND_WORKER_SECRET') ?? '';
+    const providedWorkerSecret = req.headers.get('x-worker-secret') ?? '';
     const internalReplay =
       req.headers.get('x-inbound-worker') === 'true' &&
-      req.headers.get('authorization') === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`;
+      (
+        (workerSecret.length > 0 && providedWorkerSecret === workerSecret) ||
+        req.headers.get('authorization') === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+      );
+    if (req.headers.get('x-inbound-worker') === 'true' && !internalReplay) {
+      console.error('[uazapi-chat-webhook] replay interno NÃO autenticado — verifique CHAT_INBOUND_WORKER_SECRET');
+    }
+
     const tokenCheck = internalReplay
       ? { ok: true as const, reason: undefined }
       : verifyQueueToken(req, url, (queue as any).webhook_token);
