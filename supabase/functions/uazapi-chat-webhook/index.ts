@@ -999,10 +999,12 @@ Deno.serve(async (req) => {
         // Reentrega do provedor: já está na fila, nada a fazer.
         return respond({ success: true, queued: true, duplicate: true });
       } else {
-        // Aciona o processador. Só devolve "enfileirado" quando ele responde;
-        // se estiver indisponível, remove da fila e processa inline (fallback
-        // seguro, para nunca deixar mensagem parada).
+        // Aciona o processador sem esperar a rodada inteira: o processador roda
+        // por até ~50s por rodada, então basta confirmar que ele está de pé.
+        // Timeout do nosso lado = processador vivo e trabalhando.
         let workerOk = false;
+        const kickCtl = new AbortController();
+        const kickTimer = setTimeout(() => kickCtl.abort(), 3_000);
         try {
           const kick = await fetch('https://appjulia.lovable.app/api/public/chat-inbound-worker', {
             method: 'POST',
@@ -1011,13 +1013,22 @@ Deno.serve(async (req) => {
               'x-worker-secret': Deno.env.get('CHAT_INBOUND_WORKER_SECRET') ?? '',
             },
             body: JSON.stringify({ trigger: 'webhook' }),
+            signal: kickCtl.signal,
           });
           // Exige resposta JSON do processador: uma página HTML de fallback
           // (rota ainda não publicada) não pode ser aceita como sucesso.
           const body = kick.ok ? await kick.json().catch(() => null) : null;
           workerOk = Boolean(body && (body as any).success === true);
         } catch (err) {
-          console.error('[uazapi-chat-webhook] processador indisponível:', (err as Error).message);
+          if ((err as Error)?.name === 'AbortError') {
+            // Rodada em andamento (resposta demorou): item permanece na fila e
+            // o cron/próxima rodada processa.
+            workerOk = true;
+          } else {
+            console.error('[uazapi-chat-webhook] processador indisponível:', (err as Error).message);
+          }
+        } finally {
+          clearTimeout(kickTimer);
         }
 
         if (workerOk) {
@@ -1026,6 +1037,7 @@ Deno.serve(async (req) => {
         await supabase.from('chat_inbound_queue').delete().eq('id', queued.id);
         console.warn('[uazapi-chat-webhook] processador indisponível, processando inline');
       }
+
     }
 
     // Resolve event name resilient to UaZapi sometimes sending `event` as an

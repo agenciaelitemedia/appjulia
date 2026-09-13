@@ -15,6 +15,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { MascoteLoader } from "@/components/ui/mascote-loader";
+import { InboundQueueHealthNotice } from './InboundQueueHealthNotice';
+
 
 function formatDuration(start: string | null, end: string | null): string {
   if (!start) return '—';
@@ -266,7 +268,9 @@ export function UazapiHistoryTab() {
 
   return (
     <div className="space-y-4">
+      <InboundQueueHealthNotice />
       <div className="flex items-start justify-between gap-3">
+
         <div>
           <h2 className="text-lg font-semibold text-foreground">Histórico do evento UaZapi</h2>
           <p className="text-sm text-muted-foreground">
