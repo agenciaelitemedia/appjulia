@@ -43,6 +43,35 @@ async function configureWebhook(baseUrl: string, instanceToken: string, supabase
   return { ok: res.ok, status: res.status, body: text, url: webhookEndpoint };
 }
 
+// Lê a config atual de webhook da instância (GET /webhook) e normaliza,
+// tolerando os formatos {..}, [{..}] e {webhooks:[{..}]}
+async function readWebhook(baseUrl: string, instanceToken: string) {
+  const res = await fetch(`${baseUrl.replace(/\/$/, '')}/webhook`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json', 'token': instanceToken },
+  });
+  const text = await res.text();
+  let parsed: any = null;
+  try { parsed = JSON.parse(text); } catch { /* noop */ }
+
+  let entry: any = parsed;
+  if (Array.isArray(parsed)) entry = parsed[0] ?? null;
+  else if (parsed && Array.isArray(parsed.webhooks)) entry = parsed.webhooks[0] ?? null;
+
+  const events: string[] = Array.isArray(entry?.events)
+    ? entry.events.map((e: unknown) => String(e))
+    : (typeof entry?.events === 'string' ? entry.events.split(',').map((e: string) => e.trim()).filter(Boolean) : []);
+
+  return {
+    http_status: res.status,
+    ok: res.ok,
+    raw: res.ok ? undefined : text.slice(0, 300),
+    url: typeof entry?.url === 'string' ? entry.url : null,
+    enabled: entry?.enabled === undefined ? null : Boolean(entry.enabled),
+    events,
+  };
+}
+
 function getSupabase() {
   return createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -175,6 +204,74 @@ Deno.serve(async (req) => {
         }
         const okCount = results.filter((r) => r.ok).length;
         return respond({ success: true, total: results.length, ok: okCount, results });
+      }
+
+      // ==========================================
+      // AUDIT WEBHOOKS - lê a config de webhook de todas as filas UaZapi
+      // ativas (não excluídas) e compara com o esperado
+      // ==========================================
+      case 'audit_webhooks': {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        if (!supabaseUrl) return respond({ error: 'SUPABASE_URL missing' }, 500);
+        const supabase = getSupabase();
+        let query = supabase
+          .from('queues')
+          .select('id, name, client_id, evo_url, evo_apikey, evo_instance, is_active')
+          .eq('channel_type', 'uazapi')
+          .or('is_deleted.is.null,is_deleted.eq.false');
+        if (queue_id) query = query.eq('id', queue_id);
+        const { data: queues, error } = await query;
+        if (error) return respond({ error: error.message }, 500);
+
+        const list = (queues ?? []).filter((q) => q.is_active !== false);
+
+        const auditOne = async (q: any) => {
+          const expectedUrl = `${supabaseUrl}/functions/v1/uazapi-chat-webhook?queue_id=${q.id}`;
+          const base = { queue_id: q.id, name: q.name, client_id: q.client_id, instance: q.evo_instance, expected_url: expectedUrl };
+          if (!q.evo_apikey || !q.evo_url) {
+            return { ...base, status: 'sem_credenciais', needs_fix: true, missing_events: DEFAULT_WEBHOOK_EVENTS };
+          }
+          try {
+            const wh = await readWebhook(q.evo_url, q.evo_apikey);
+            if (!wh.ok) {
+              return { ...base, status: 'erro_provedor', http_status: wh.http_status, error: wh.raw, needs_fix: true };
+            }
+            const urlOk = (wh.url || '') === expectedUrl;
+            const missing = DEFAULT_WEBHOOK_EVENTS.filter((e) => !wh.events.includes(e));
+            const needsFix = !urlOk || wh.enabled === false || missing.length > 0;
+            return {
+              ...base,
+              status: needsFix ? 'precisa_corrigir' : 'ok',
+              current_url: wh.url,
+              url_ok: urlOk,
+              enabled: wh.enabled,
+              events: wh.events,
+              missing_events: missing,
+              needs_fix: needsFix,
+            };
+          } catch (e) {
+            return { ...base, status: 'erro_provedor', error: (e as Error).message, needs_fix: true };
+          }
+        };
+
+        // concorrência limitada para não estourar o tempo da função
+        const results: Array<Record<string, unknown>> = [];
+        const CONCURRENCY = 6;
+        for (let i = 0; i < list.length; i += CONCURRENCY) {
+          const slice = list.slice(i, i + CONCURRENCY);
+          const settled = await Promise.all(slice.map(auditOne));
+          results.push(...settled);
+        }
+
+        const needFix = results.filter((r) => r.needs_fix).length;
+        return respond({
+          success: true,
+          expected_events: DEFAULT_WEBHOOK_EVENTS,
+          total: results.length,
+          ok: results.length - needFix,
+          needs_fix: needFix,
+          results,
+        });
       }
 
       // ==========================================
