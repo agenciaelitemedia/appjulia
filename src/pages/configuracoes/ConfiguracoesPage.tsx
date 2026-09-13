@@ -86,6 +86,10 @@ export default function ConfiguracoesPage() {
           <UazapiMonitorTab />
         </TabsContent>
 
+        <TabsContent value="webhook-audit" className="mt-6">
+          <WebhookAuditTab />
+        </TabsContent>
+
         <TabsContent value="maintenance" className="mt-6">
           <QueueMaintenanceTab />
         </TabsContent>
