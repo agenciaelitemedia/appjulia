@@ -40,6 +40,7 @@ function RunStatusBadge({ status }: { status: UazapiHistoryRun['status'] }) {
     done: { label: 'Concluído', cls: 'bg-green-500/10 text-green-600 border-green-500/20', icon: CheckCircle2, spin: false },
     partial: { label: 'Parcial', cls: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20', icon: AlertCircle, spin: false },
     error: { label: 'Erro', cls: 'bg-red-500/10 text-red-600 border-red-500/20', icon: XCircle, spin: false },
+    archived: { label: 'Arquivado', cls: 'bg-muted text-muted-foreground border-border', icon: Archive, spin: false },
   } as const;
   const cfg = map[status] ?? map.pending;
   const Icon = cfg.icon;
