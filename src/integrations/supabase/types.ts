@@ -6572,6 +6572,24 @@ export type Database = {
         }
         Relationships: []
       }
+      internal_worker_tokens: {
+        Row: {
+          created_at: string
+          name: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          name: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          name?: string
+          token?: string
+        }
+        Relationships: []
+      }
       julia_contract_template: {
         Row: {
           body_markdown: string
