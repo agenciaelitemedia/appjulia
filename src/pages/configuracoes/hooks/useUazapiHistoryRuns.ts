@@ -8,7 +8,7 @@ export interface UazapiHistoryRun {
   queue_id: string | null;
   queue_name: string | null;
   event: string;
-  status: 'pending' | 'running' | 'done' | 'partial' | 'error';
+  status: 'pending' | 'running' | 'done' | 'partial' | 'error' | 'archived';
   total_messages: number;
   group_messages: number;
   individual_chats: number;
@@ -40,15 +40,17 @@ export interface UazapiHistoryItem {
   processed_at: string | null;
 }
 
-export function useUazapiHistoryRuns() {
+export function useUazapiHistoryRuns(includeArchived = false) {
   return useQuery<UazapiHistoryRun[]>({
-    queryKey: ['uazapi-history-runs'],
+    queryKey: ['uazapi-history-runs', includeArchived],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('uazapi_history_runs' as never)
         .select('*')
         .order('received_at', { ascending: false })
         .limit(100);
+      if (!includeArchived) query = query.neq('status', 'archived');
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as unknown as UazapiHistoryRun[];
     },
