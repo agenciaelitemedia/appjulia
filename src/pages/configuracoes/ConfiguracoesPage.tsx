@@ -36,6 +36,10 @@ export default function ConfiguracoesPage() {
             <Activity className="w-4 h-4" />
             Monitor da Fila
           </TabsTrigger>
+          <TabsTrigger value="webhook-audit" className="gap-2">
+            <ShieldCheck className="w-4 h-4" />
+            Auditoria de Webhook
+          </TabsTrigger>
           <TabsTrigger value="maintenance" className="gap-2">
             <Wrench className="w-4 h-4" />
             Manutenção de Filas
