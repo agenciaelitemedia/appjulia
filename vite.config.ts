@@ -22,12 +22,31 @@ if (process.argv.includes("build")) {
   APP_VERSION = autoBumpVersion(process.cwd());
 }
 
+// jssip (softphone) usa require('events'); no bundle do navegador esse módulo
+// virava um stub vazio e o app quebrava com
+// "Class extends value undefined is not a constructor or null".
+// O plugin abaixo força a resolução para o pacote npm `events` (JS puro,
+// compatível com navegador) no bundle do cliente.
+const EVENTS_SHIM = path.resolve(process.cwd(), "node_modules/events/events.js");
+
+function nodeEventsShim() {
+  return {
+    name: "lovable-node-events-shim",
+    enforce: "pre" as const,
+    resolveId(id: string) {
+      if (id === "events" || id === "node:events") return EVENTS_SHIM;
+      return null;
+    },
+  };
+}
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  plugins: [nodeEventsShim()],
   vite: {
     define: {
       __APP_VERSION__: JSON.stringify(APP_VERSION),
