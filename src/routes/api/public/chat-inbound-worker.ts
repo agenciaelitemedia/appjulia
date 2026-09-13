@@ -18,8 +18,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { createClient } from '@supabase/supabase-js';
 
-const BATCH_SIZE = 30;
-const CONCURRENCY = 5;
+const BATCH_SIZE = 100;
+const CONCURRENCY = 20;
 const MAX_ATTEMPTS = 5;
 const LOCK_STALE_MS = 5 * 60_000;
 /** Tempo máximo por item: um evento lento não pode travar o lote. */
