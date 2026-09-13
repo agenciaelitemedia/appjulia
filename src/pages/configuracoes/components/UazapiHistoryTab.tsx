@@ -510,6 +510,8 @@ export function UazapiHistoryTab() {
                 <TableHead className="text-right">Inseridas</TableHead>
                 <TableHead className="text-right">Duplicadas</TableHead>
                 <TableHead className="text-right">Grupos</TableHead>
+                <TableHead className="text-right">Descartadas</TableHead>
+
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Duração</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
