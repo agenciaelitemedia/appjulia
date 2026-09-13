@@ -266,7 +266,9 @@ export function UazapiHistoryTab() {
 
   return (
     <div className="space-y-4">
+      <InboundQueueHealthNotice />
       <div className="flex items-start justify-between gap-3">
+
         <div>
           <h2 className="text-lg font-semibold text-foreground">Histórico do evento UaZapi</h2>
           <p className="text-sm text-muted-foreground">
