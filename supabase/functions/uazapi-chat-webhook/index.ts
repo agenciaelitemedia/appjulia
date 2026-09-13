@@ -580,8 +580,13 @@ async function enqueueHistoryRun(
       group_messages: groupMessages,
       duplicate_messages: duplicateMessages,
       individual_chats: byChat.size,
+      skipped_lid: skippedLid,
+      error: byChat.size === 0 && skippedLid > 0
+        ? `nenhum telefone recuperável em ${skippedLid} mensagem(ns)`
+        : null,
       received_at: new Date().toISOString(),
       finished_at: byChat.size === 0 ? new Date().toISOString() : null,
+
     } as never)
     .select('id')
     .single();
