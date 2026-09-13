@@ -1,5 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bot, History, Activity, Wrench, BarChart3, MailX, Zap, ScrollText } from 'lucide-react';
+import { Bot, History, Activity, Wrench, BarChart3, MailX, Zap, ScrollText, ShieldCheck } from 'lucide-react';
+import { WebhookAuditTab } from './components/WebhookAuditTab';
 import { AIModelsConfig } from './components/AIModelsConfig';
 import { UazapiHistoryTab } from './components/UazapiHistoryTab';
 import { UazapiMonitorTab } from './components/UazapiMonitorTab';
