@@ -12,6 +12,10 @@
  * antes consumiam toda a capacidade da fila (avatar refresh + varreduras),
  * estourando o limite de 150s do webhook.
  *
+ * `messages.update` (status, edição, conteúdo tardio) é processado localmente
+ * sem chamar a edge function, já que representa a grande maioria dos eventos
+ * e só faz atualizações em `chat_messages`.
+ *
  * Chamado por pg_cron (a cada minuto) e imediatamente após cada inserção.
  * Autenticação: header `x-worker-secret` com CHAT_INBOUND_WORKER_SECRET.
  */
@@ -43,6 +47,212 @@ const SKIPPABLE_EVENTS = new Set([
 
 type QueueItem = { id: string; queue_id: string; payload: unknown; attempts: number | null; event_name: string | null };
 
+// ── Status helpers (copiados de uazapi-chat-webhook para fast-path) ──
+const STATUS_MAP: Record<string, string> = {
+  '0': 'failed', '1': 'pending', '2': 'sent', '3': 'delivered', '4': 'read', '5': 'read',
+  'error': 'failed', 'failed': 'failed', 'canceled': 'failed', 'cancelled': 'failed',
+  'pending': 'pending', 'queued': 'pending',
+  'server_ack': 'sent', 'sent': 'sent',
+  'delivery_ack': 'delivered', 'delivered': 'delivered',
+  'read': 'read', 'read_ack': 'read', 'played': 'read',
+};
+const STATUS_RANK: Record<string, number> = {
+  pending: 0, sending: 0, received: 0,
+  sent: 1, delivered: 2, read: 3,
+};
+function mapStatus(raw: unknown): string | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const key = String(raw).toLowerCase();
+  return STATUS_MAP[key] || key;
+}
+function lowerStatusesThan(target: string): string[] {
+  const rank = STATUS_RANK[target];
+  if (rank == null || rank < 0) return [];
+  return Object.entries(STATUS_RANK)
+    .filter(([, v]) => v < rank)
+    .map(([k]) => k);
+}
+function toSafeString(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  const o = v as any;
+  const candidate = o.body ?? o.text ?? o.caption ?? o.message ?? o.conversation;
+  if (typeof candidate === 'string') return candidate;
+  return '';
+}
+function looksLikeJsonBlob(s: string): boolean {
+  if (!s.startsWith('{') && !s.startsWith('[')) return false;
+  try {
+    const parsed = JSON.parse(s);
+    return typeof parsed === 'object' && parsed !== null;
+  } catch {
+    return false;
+  }
+}
+const UNDECRYPTABLE_TEXT = '🕐 Aguardando esta mensagem. Isso pode demorar um pouco.';
+function isUndecryptable(msg: any, text?: string | null): boolean {
+  const t = (text || '').trim().toLowerCase();
+  const mt = String(msg?.messageType || msg?.type || '').toLowerCase();
+  return t.startsWith('[undecryptable]') || t.includes('não foi possível descriptografar') ||
+    (mt === 'error' && !!t);
+}
+function extractMessageText(msg: any): string | undefined {
+  const candidates = [
+    msg.content?.caption,
+    msg.text,
+    msg.body,
+    msg.caption,
+    msg.message?.conversation,
+    msg.message?.extendedTextMessage?.text,
+    msg.message?.imageMessage?.caption,
+    msg.message?.videoMessage?.caption,
+    msg.message?.documentMessage?.caption,
+  ];
+  for (const c of candidates) {
+    const s = toSafeString(c).trim();
+    if (s && !looksLikeJsonBlob(s) && s !== '[object Object]') {
+      return isUndecryptable(msg, s) ? UNDECRYPTABLE_TEXT : s;
+    }
+  }
+  return undefined;
+}
+function collectMessageIds(src: any): string[] {
+  const candidates = [
+    src?.messageid,
+    src?.id,
+    src?.message_id,
+    src?.wa_messageid,
+    src?.key?.id,
+    src?.update?.key?.id,
+    src?.MessageIDs,
+    src?.messageIds,
+    src?.message_ids,
+    src?.event?.MessageIDs,
+    src?.event?.messageIds,
+    src?.event?.message_ids,
+  ];
+  return Array.from(new Set(
+    candidates
+      .flatMap((value) => Array.isArray(value) ? value : [value])
+      .filter((x) => typeof x === 'string' && x.length > 0),
+  )) as string[];
+}
+
+async function resolveChatMessageRowIds(supabase: any, ids: string[]): Promise<string[]> {
+  if (!ids.length) return [];
+  const safeIds = Array.from(new Set(
+    ids.filter((v) => typeof v === 'string' && v.length > 0).slice(0, 50),
+  ));
+  if (!safeIds.length) return [];
+  const { data, error } = await supabase.rpc('chat_resolve_message_ids', { p_ids: safeIds });
+  if (error) {
+    console.warn('[resolveChatMessageRowIds] rpc failed', error.message);
+    return [];
+  }
+  const resolved = new Set<string>();
+  for (const row of (data ?? []) as Array<{ id?: string }>) {
+    if (row?.id) resolved.add(row.id);
+  }
+  return Array.from(resolved);
+}
+
+async function processMessagesUpdateLocal(
+  supabase: any,
+  payload: any,
+): Promise<{ count: number; edits: number; statuses: number; late: number }> {
+  const updates = Array.isArray(payload.data)
+    ? payload.data
+    : Array.isArray(payload.event)
+      ? payload.event
+      : [payload.data || payload.event || payload];
+
+  let edits = 0;
+  let statuses = 0;
+  let late = 0;
+
+  for (const upd of updates) {
+    const idCandidates = collectMessageIds(upd);
+    if (idCandidates.length === 0) continue;
+    const rowIds = await resolveChatMessageRowIds(supabase, idCandidates);
+    if (rowIds.length === 0) continue;
+
+    // Inbound EDIT
+    const editedText: string | undefined =
+      (typeof upd.edited === 'string' && upd.edited.trim()) ? upd.edited
+        : (upd.update?.message?.editedMessage?.message?.conversation
+          ?? upd.message?.editedMessage?.message?.conversation
+          ?? upd.editedText);
+    if (editedText && String(editedText).trim()) {
+      const { data: updRows } = await supabase
+        .from('chat_messages')
+        .update({ text: String(editedText), edited_at: new Date().toISOString() })
+        .in('id', rowIds)
+        .select('id');
+      if (updRows?.length) edits += updRows.length;
+    }
+
+    // Late content arriving for undecryptable placeholder
+    try {
+      const lateText = extractMessageText(upd) ?? extractMessageText(upd.message ?? {});
+      const lateMedia = upd.mediaUrl || upd.media?.url || upd.fileURL || null;
+      const hasLateContent = (!!lateText && lateText !== UNDECRYPTABLE_TEXT) || !!lateMedia;
+      if (hasLateContent) {
+        const { data: pendingRows } = await supabase
+          .from('chat_messages')
+          .select('id, text, metadata')
+          .in('id', rowIds);
+        for (const r of pendingRows || []) {
+          const cur = String((r as any).text ?? '').trim();
+          if (cur && !cur.startsWith('🕐')) continue;
+          const meta = ((r as any).metadata && typeof (r as any).metadata === 'object')
+            ? (r as any).metadata as Record<string, unknown> : {};
+          const patch: Record<string, unknown> = {
+            metadata: {
+              ...meta,
+              undecryptable: {
+                ...(meta as any).undecryptable,
+                resolved: true,
+                resolved_at: new Date().toISOString(),
+                source: 'messages.update',
+              },
+            },
+          };
+          if (lateText && lateText !== UNDECRYPTABLE_TEXT) patch.text = lateText;
+          if (lateMedia) patch.media_url = lateMedia;
+          await supabase.from('chat_messages').update(patch).eq('id', (r as any).id);
+          late++;
+        }
+      }
+    } catch (lateErr) {
+      console.warn('[chat-inbound-worker] late-content update failed', (lateErr as Error).message);
+    }
+
+    // Status update
+    const mapped = mapStatus(
+      upd.status
+      ?? upd.update?.status
+      ?? upd.ack
+      ?? upd.Type
+      ?? upd.type
+      ?? upd.event?.status
+      ?? upd.event?.update?.status,
+    );
+    if (mapped) {
+      const lower = lowerStatusesThan(mapped);
+      let q = supabase
+        .from('chat_messages')
+        .update({ status: mapped })
+        .in('id', rowIds);
+      if (lower.length > 0) q = q.in('status', lower);
+      const { data: stRows } = await q.select('id');
+      if (stRows?.length) statuses += stRows.length;
+    }
+  }
+
+  return { count: updates.length, edits, statuses, late };
+}
+
 async function runWorker(request: Request): Promise<Response> {
   const provided = request.headers.get('x-worker-secret');
   if (!provided) return new Response('unauthorized', { status: 401 });
@@ -54,7 +264,6 @@ async function runWorker(request: Request): Promise<Response> {
   const envSecret = process.env['CHAT_INBOUND_WORKER_SECRET'];
   let authorized = Boolean(envSecret) && provided === envSecret;
   if (!authorized) {
-    // Token alternativo guardado no banco (usado pelo agendador pg_cron).
     const { data: tokenRow } = await supabase
       .from('internal_worker_tokens')
       .select('token')
@@ -64,12 +273,10 @@ async function runWorker(request: Request): Promise<Response> {
   }
   if (!authorized) return new Response('unauthorized', { status: 401 });
 
-
   const startedAt = Date.now();
-  const result = { claimed: 0, done: 0, skipped: 0, failed: 0, retry: 0 };
+  const result = { claimed: 0, done: 0, skipped: 0, failed: 0, retry: 0, localUpdates: 0 };
 
   const processItem = async (item: QueueItem) => {
-    // Claim otimista: apenas uma execução consegue mover pending -> processing.
     const { data: claimed } = await supabase
       .from('chat_inbound_queue')
       .update({ status: 'processing', locked_at: new Date().toISOString() })
@@ -83,7 +290,6 @@ async function runWorker(request: Request): Promise<Response> {
     const attempts = Number(item.attempts ?? 0) + 1;
     const eventName = String(item.event_name ?? '').toLowerCase();
 
-    // Evento cosmético: encerra sem reprocessar o webhook.
     if (SKIPPABLE_EVENTS.has(eventName)) {
       await supabase
         .from('chat_inbound_queue')
@@ -97,6 +303,43 @@ async function runWorker(request: Request): Promise<Response> {
         .eq('id', item.id);
       result.skipped++;
       result.done++;
+      return;
+    }
+
+    // Fast-path para messages.update: processa localmente sem chamar edge function.
+    if (eventName === 'messages.update' || eventName === 'messages_update') {
+      try {
+        const res = await processMessagesUpdateLocal(supabase, item.payload);
+        await supabase
+          .from('chat_inbound_queue')
+          .update({
+            status: 'done',
+            attempts,
+            locked_at: null,
+            processed_at: new Date().toISOString(),
+            last_error: null,
+          })
+          .eq('id', item.id);
+        result.done++;
+        result.localUpdates += res.count;
+      } catch (err) {
+        const message = String((err as Error)?.message ?? 'erro desconhecido').slice(0, 500);
+        const giveUp = attempts >= MAX_ATTEMPTS;
+        const delayMs = Math.min(8, 2 ** (attempts - 1)) * 60_000;
+        await supabase
+          .from('chat_inbound_queue')
+          .update({
+            status: giveUp ? 'failed' : 'pending',
+            attempts,
+            last_error: message,
+            locked_at: null,
+            next_attempt_at: new Date(Date.now() + delayMs).toISOString(),
+          })
+          .eq('id', item.id);
+        if (giveUp) result.failed++;
+        else result.retry++;
+        console.error('[chat-inbound-worker] messages.update local falhou', item.id, message);
+      }
       return;
     }
 
@@ -133,7 +376,6 @@ async function runWorker(request: Request): Promise<Response> {
       const aborted = (err as Error)?.name === 'AbortError';
       const message = (aborted ? `tempo esgotado (${ITEM_TIMEOUT_MS}ms)` : String((err as Error)?.message ?? 'erro desconhecido')).slice(0, 500);
       const giveUp = attempts >= MAX_ATTEMPTS;
-      // Backoff: 1, 2, 4, 8, 8 minutos.
       const delayMs = Math.min(8, 2 ** (attempts - 1)) * 60_000;
       await supabase
         .from('chat_inbound_queue')
@@ -154,7 +396,6 @@ async function runWorker(request: Request): Promise<Response> {
   };
 
   try {
-    // Libera itens presos (processo encerrado no meio do trabalho).
     await supabase
       .from('chat_inbound_queue')
       .update({ status: 'pending', locked_at: null })
