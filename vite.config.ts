@@ -22,6 +22,12 @@ if (process.argv.includes("build")) {
   APP_VERSION = autoBumpVersion(process.cwd());
 }
 
+// jssip (softphone) usa require('events'), que no bundle do navegador vira um
+// stub vazio e quebra o app com "Class extends value undefined".
+const EVENTS_SHIM = path.resolve(process.cwd(), "node_modules/events/events.js");
+
+
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
