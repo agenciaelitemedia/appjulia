@@ -22,11 +22,23 @@ if (process.argv.includes("build")) {
   APP_VERSION = autoBumpVersion(process.cwd());
 }
 
-// jssip (softphone) usa require('events'), que no bundle do navegador vira um
-// stub vazio e quebra o app com "Class extends value undefined".
+// jssip (softphone) usa require('events'); no bundle do navegador esse módulo
+// virava um stub vazio e o app quebrava com
+// "Class extends value undefined is not a constructor or null".
+// O plugin abaixo força a resolução para o pacote npm `events` (JS puro,
+// compatível com navegador) no bundle do cliente.
 const EVENTS_SHIM = path.resolve(process.cwd(), "node_modules/events/events.js");
 
-
+function nodeEventsShim() {
+  return {
+    name: "lovable-node-events-shim",
+    enforce: "pre" as const,
+    resolveId(id: string) {
+      if (id === "events" || id === "node:events") return EVENTS_SHIM;
+      return null;
+    },
+  };
+}
 
 export default defineConfig({
   tanstackStart: {
@@ -34,26 +46,10 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  plugins: [nodeEventsShim()],
   vite: {
     define: {
       __APP_VERSION__: JSON.stringify(APP_VERSION),
-    },
-    resolve: {
-      alias: [
-        // jssip (softphone) faz require('events'); sem este alias o bundle do
-        // navegador recebe o stub vazio __vite-browser-external e quebra com
-        // "Class extends value undefined". Aponta para o pacote npm `events`.
-        { find: /^(node:)?events$/, replacement: EVENTS_SHIM },
-      ],
-    },
-    environments: {
-      client: {
-        resolve: {
-          alias: [{ find: /^(node:)?events$/, replacement: EVENTS_SHIM }],
-          // `events` não pode ser tratado como builtin do navegador (viraria stub vazio).
-          builtins: [],
-        },
-      },
     },
   },
 });
