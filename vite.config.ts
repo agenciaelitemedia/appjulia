@@ -50,6 +50,8 @@ export default defineConfig({
       client: {
         resolve: {
           alias: [{ find: /^(node:)?events$/, replacement: EVENTS_SHIM }],
+          // `events` não pode ser tratado como builtin do navegador (viraria stub vazio).
+          builtins: [],
         },
       },
     },
