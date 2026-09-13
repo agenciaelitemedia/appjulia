@@ -985,9 +985,25 @@ Deno.serve(async (req) => {
         payload?.EventType ?? payload?.eventType ?? payload?.type ??
         (typeof payload?.event === 'string' ? payload.event : '') ?? '',
       ) || 'messages';
+      // Sem messageid (history, chats, connection…): usa hash do conteúdo, para a
+      // reentrega do provedor não gerar cópias infinitas do mesmo pacote.
+      let contentKey = '';
+      if (!msgId) {
+        try {
+          const raw = new TextEncoder().encode(JSON.stringify(payload));
+          const digest = await crypto.subtle.digest('SHA-256', raw);
+          contentKey = Array.from(new Uint8Array(digest))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('')
+            .slice(0, 32);
+        } catch {
+          contentKey = crypto.randomUUID();
+        }
+      }
       const dedupeKey = msgId
         ? `uazapi:${queueId}:${evt}:${msgId}`
-        : `uazapi:${queueId}:${evt}:${crypto.randomUUID()}`;
+        : `uazapi:${queueId}:${evt}:${contentKey}`;
+
 
       const { data: queued, error: queueInsertErr } = await supabase
         .from('chat_inbound_queue')
