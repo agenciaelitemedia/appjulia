@@ -510,6 +510,8 @@ export function UazapiHistoryTab() {
                 <TableHead className="text-right">Inseridas</TableHead>
                 <TableHead className="text-right">Duplicadas</TableHead>
                 <TableHead className="text-right">Grupos</TableHead>
+                <TableHead className="text-right">Descartadas</TableHead>
+
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Duração</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -531,6 +533,13 @@ export function UazapiHistoryTab() {
                   <TableCell className="text-right font-medium text-green-600">{run.inserted_messages}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{run.duplicate_messages}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{run.group_messages}</TableCell>
+                  <TableCell
+                    className={`text-right ${run.skipped_lid ? 'text-amber-600 font-medium' : 'text-muted-foreground'}`}
+                    title={run.error || undefined}
+                  >
+                    {run.skipped_lid || 0}
+                  </TableCell>
+
                   <TableCell><RunStatusBadge status={run.status} /></TableCell>
                   <TableCell className="text-right text-xs">{formatDuration(run.started_at, run.finished_at)}</TableCell>
                   <TableCell className="text-right">

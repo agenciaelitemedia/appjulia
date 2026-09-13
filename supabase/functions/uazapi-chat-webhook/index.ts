@@ -503,25 +503,58 @@ async function enqueueHistoryRun(
   }
 
   // ---- Agrupamento por chat já considerando dedup ----
+  // O WhatsApp novo identifica a conversa só pelo LID (`...@lid`); o telefone real
+  // vem em campos separados. Antes o telefone era lido apenas do identificador da
+  // conversa, então todo pacote em formato LID era descartado por inteiro.
+  const resolveHistoryPhone = (msg: any): string => {
+    const candidates: Array<unknown> = [
+      msg?.sender_pn,
+      msg?.senderPn,
+      msg?.key?.remoteJid,
+      msg?.remoteJid,
+      msg?.chatId,
+      msg?.chatid,
+      msg?.sender,
+      msg?.chatlid,
+      msg?.from,
+    ];
+    for (const c of candidates) {
+      if (typeof c !== 'string' || !c) continue;
+      if (c.includes('@lid')) continue; // LID não é telefone
+      const phone = normalizePhone(c);
+      if (phone && phone.replace(/\D/g, '').length >= 10) return phone;
+    }
+    return '';
+  };
+
   const byChat = new Map<string, { phone: string; count: number; messages: any[] }>();
+  let skippedLid = 0;
   for (const msg of nonGroupMessages) {
-    const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
-    if (!remoteJid) continue;
     const mid: string = msg?.key?.id ?? msg?.messageid ?? msg?.id ?? msg?.messageId ?? '';
     if (mid && existingIds.has(String(mid))) {
       duplicateMessages++;
       continue;
     }
-    const phone = normalizePhone(remoteJid);
-    if (!phone) continue;
-    const cur = byChat.get(remoteJid) ?? { phone, count: 0, messages: [] };
+    const phone = resolveHistoryPhone(msg);
+    if (!phone) {
+      skippedLid++;
+      continue;
+    }
+    // Agrupa pelo telefone canônico (não pelo LID), para o mesmo contato não virar
+    // duas conversas quando o provedor alterna entre LID e número.
+    const chatKey = `${phone}@s.whatsapp.net`;
+    const cur = byChat.get(chatKey) ?? { phone, count: 0, messages: [] };
     cur.count++;
     cur.messages.push(msg);
-    byChat.set(remoteJid, cur);
+    byChat.set(chatKey, cur);
   }
   if (duplicateMessages > 0) {
     console.log(`[history-enqueue] duplicates skipped=${duplicateMessages} client=${queue.client_id}`);
   }
+  if (skippedLid > 0) {
+    console.log(`[history-enqueue] sem telefone recuperável skipped=${skippedLid} client=${queue.client_id}`);
+  }
+
 
   // Resolve client name (best-effort) for nicer monitoring UI
   let clientName: string | null = null;
@@ -547,8 +580,13 @@ async function enqueueHistoryRun(
       group_messages: groupMessages,
       duplicate_messages: duplicateMessages,
       individual_chats: byChat.size,
+      skipped_lid: skippedLid,
+      error: byChat.size === 0 && skippedLid > 0
+        ? `nenhum telefone recuperável em ${skippedLid} mensagem(ns)`
+        : null,
       received_at: new Date().toISOString(),
       finished_at: byChat.size === 0 ? new Date().toISOString() : null,
+
     } as never)
     .select('id')
     .single();
@@ -937,10 +975,23 @@ Deno.serve(async (req) => {
     }
 
     // Autenticação do provedor: token compartilhado da fila (quando configurado).
-    // Reprocessamento interno (chat-inbound-worker) autentica-se pela service role.
+    // Reprocessamento interno (chat-inbound-worker): aceita o segredo compartilhado
+    // do worker OU a service role. Comparar apenas a service role era frágil —
+    // worker e edge function podem receber formatos de chave diferentes, e nesse
+    // caso o replay não era reconhecido, o evento voltava para a fila e nada era
+    // processado (loop silencioso de reenfileiramento).
+    const workerSecret = Deno.env.get('CHAT_INBOUND_WORKER_SECRET') ?? '';
+    const providedWorkerSecret = req.headers.get('x-worker-secret') ?? '';
     const internalReplay =
       req.headers.get('x-inbound-worker') === 'true' &&
-      req.headers.get('authorization') === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`;
+      (
+        (workerSecret.length > 0 && providedWorkerSecret === workerSecret) ||
+        req.headers.get('authorization') === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+      );
+    if (req.headers.get('x-inbound-worker') === 'true' && !internalReplay) {
+      console.error('[uazapi-chat-webhook] replay interno NÃO autenticado — verifique CHAT_INBOUND_WORKER_SECRET');
+    }
+
     const tokenCheck = internalReplay
       ? { ok: true as const, reason: undefined }
       : verifyQueueToken(req, url, (queue as any).webhook_token);
@@ -972,9 +1023,25 @@ Deno.serve(async (req) => {
         payload?.EventType ?? payload?.eventType ?? payload?.type ??
         (typeof payload?.event === 'string' ? payload.event : '') ?? '',
       ) || 'messages';
+      // Sem messageid (history, chats, connection…): usa hash do conteúdo, para a
+      // reentrega do provedor não gerar cópias infinitas do mesmo pacote.
+      let contentKey = '';
+      if (!msgId) {
+        try {
+          const raw = new TextEncoder().encode(JSON.stringify(payload));
+          const digest = await crypto.subtle.digest('SHA-256', raw);
+          contentKey = Array.from(new Uint8Array(digest))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('')
+            .slice(0, 32);
+        } catch {
+          contentKey = crypto.randomUUID();
+        }
+      }
       const dedupeKey = msgId
         ? `uazapi:${queueId}:${evt}:${msgId}`
-        : `uazapi:${queueId}:${evt}:${crypto.randomUUID()}`;
+        : `uazapi:${queueId}:${evt}:${contentKey}`;
+
 
       const { data: queued, error: queueInsertErr } = await supabase
         .from('chat_inbound_queue')
