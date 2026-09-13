@@ -1,5 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bot, History, Activity, Wrench, BarChart3, MailX, Zap, ScrollText } from 'lucide-react';
+import { Bot, History, Activity, Wrench, BarChart3, MailX, Zap, ScrollText, ShieldCheck } from 'lucide-react';
+import { WebhookAuditTab } from './components/WebhookAuditTab';
 import { AIModelsConfig } from './components/AIModelsConfig';
 import { UazapiHistoryTab } from './components/UazapiHistoryTab';
 import { UazapiMonitorTab } from './components/UazapiMonitorTab';
@@ -34,6 +35,10 @@ export default function ConfiguracoesPage() {
           <TabsTrigger value="uazapi-monitor" className="gap-2">
             <Activity className="w-4 h-4" />
             Monitor da Fila
+          </TabsTrigger>
+          <TabsTrigger value="webhook-audit" className="gap-2">
+            <ShieldCheck className="w-4 h-4" />
+            Auditoria de Webhook
           </TabsTrigger>
           <TabsTrigger value="maintenance" className="gap-2">
             <Wrench className="w-4 h-4" />
@@ -79,6 +84,10 @@ export default function ConfiguracoesPage() {
 
         <TabsContent value="uazapi-monitor" className="mt-6">
           <UazapiMonitorTab />
+        </TabsContent>
+
+        <TabsContent value="webhook-audit" className="mt-6">
+          <WebhookAuditTab />
         </TabsContent>
 
         <TabsContent value="maintenance" className="mt-6">
