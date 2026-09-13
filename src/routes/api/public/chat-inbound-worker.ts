@@ -158,7 +158,7 @@ async function resolveChatMessageRowIds(supabase: any, ids: string[]): Promise<s
 }
 
 async function processMessagesUpdateLocal(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   payload: any,
 ): Promise<{ count: number; edits: number; statuses: number; late: number }> {
   const updates = Array.isArray(payload.data)
