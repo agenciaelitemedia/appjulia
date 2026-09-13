@@ -503,25 +503,58 @@ async function enqueueHistoryRun(
   }
 
   // ---- Agrupamento por chat já considerando dedup ----
+  // O WhatsApp novo identifica a conversa só pelo LID (`...@lid`); o telefone real
+  // vem em campos separados. Antes o telefone era lido apenas do identificador da
+  // conversa, então todo pacote em formato LID era descartado por inteiro.
+  const resolveHistoryPhone = (msg: any): string => {
+    const candidates: Array<unknown> = [
+      msg?.sender_pn,
+      msg?.senderPn,
+      msg?.key?.remoteJid,
+      msg?.remoteJid,
+      msg?.chatId,
+      msg?.chatid,
+      msg?.sender,
+      msg?.chatlid,
+      msg?.from,
+    ];
+    for (const c of candidates) {
+      if (typeof c !== 'string' || !c) continue;
+      if (c.includes('@lid')) continue; // LID não é telefone
+      const phone = normalizePhone(c);
+      if (phone && phone.replace(/\D/g, '').length >= 10) return phone;
+    }
+    return '';
+  };
+
   const byChat = new Map<string, { phone: string; count: number; messages: any[] }>();
+  let skippedLid = 0;
   for (const msg of nonGroupMessages) {
-    const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
-    if (!remoteJid) continue;
     const mid: string = msg?.key?.id ?? msg?.messageid ?? msg?.id ?? msg?.messageId ?? '';
     if (mid && existingIds.has(String(mid))) {
       duplicateMessages++;
       continue;
     }
-    const phone = normalizePhone(remoteJid);
-    if (!phone) continue;
-    const cur = byChat.get(remoteJid) ?? { phone, count: 0, messages: [] };
+    const phone = resolveHistoryPhone(msg);
+    if (!phone) {
+      skippedLid++;
+      continue;
+    }
+    // Agrupa pelo telefone canônico (não pelo LID), para o mesmo contato não virar
+    // duas conversas quando o provedor alterna entre LID e número.
+    const chatKey = `${phone}@s.whatsapp.net`;
+    const cur = byChat.get(chatKey) ?? { phone, count: 0, messages: [] };
     cur.count++;
     cur.messages.push(msg);
-    byChat.set(remoteJid, cur);
+    byChat.set(chatKey, cur);
   }
   if (duplicateMessages > 0) {
     console.log(`[history-enqueue] duplicates skipped=${duplicateMessages} client=${queue.client_id}`);
   }
+  if (skippedLid > 0) {
+    console.log(`[history-enqueue] sem telefone recuperável skipped=${skippedLid} client=${queue.client_id}`);
+  }
+
 
   // Resolve client name (best-effort) for nicer monitoring UI
   let clientName: string | null = null;
