@@ -391,7 +391,11 @@ async function runWorker(request: Request): Promise<Response> {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${serviceKey}`,
             'x-inbound-worker': 'true',
+            // Segredo compartilhado: a comparação por service role pode falhar
+            // quando worker e edge function recebem formatos de chave diferentes.
+            'x-worker-secret': process.env['CHAT_INBOUND_WORKER_SECRET'] ?? '',
           },
+
           body: JSON.stringify(item.payload),
           signal: controller.signal,
         },
