@@ -44,15 +44,26 @@ const SKIPPABLE_EVENTS = new Set([
 type QueueItem = { id: string; queue_id: string; payload: unknown; attempts: number | null; event_name: string | null };
 
 async function runWorker(request: Request): Promise<Response> {
-  const workerSecret = process.env['CHAT_INBOUND_WORKER_SECRET'];
   const provided = request.headers.get('x-worker-secret');
-  if (!workerSecret || provided !== workerSecret) {
-    return new Response('unauthorized', { status: 401 });
-  }
+  if (!provided) return new Response('unauthorized', { status: 401 });
 
   const supabaseUrl = process.env['SUPABASE_URL']!;
   const serviceKey = process.env['SUPABASE_SERVICE_ROLE_KEY']!;
   const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+
+  const envSecret = process.env['CHAT_INBOUND_WORKER_SECRET'];
+  let authorized = Boolean(envSecret) && provided === envSecret;
+  if (!authorized) {
+    // Token alternativo guardado no banco (usado pelo agendador pg_cron).
+    const { data: tokenRow } = await supabase
+      .from('internal_worker_tokens')
+      .select('token')
+      .eq('name', 'chat-inbound-worker')
+      .maybeSingle();
+    authorized = Boolean(tokenRow?.token) && provided === tokenRow!.token;
+  }
+  if (!authorized) return new Response('unauthorized', { status: 401 });
+
 
   const startedAt = Date.now();
   const result = { claimed: 0, done: 0, skipped: 0, failed: 0, retry: 0 };
