@@ -18,14 +18,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { createClient } from '@supabase/supabase-js';
 
-const BATCH_SIZE = 100;
-const CONCURRENCY = 20;
+const BATCH_SIZE = 500;
+const CONCURRENCY = 50;
 const MAX_ATTEMPTS = 5;
 const LOCK_STALE_MS = 5 * 60_000;
 /** Tempo máximo por item: um evento lento não pode travar o lote. */
-const ITEM_TIMEOUT_MS = 20_000;
+const ITEM_TIMEOUT_MS = 15_000;
 /** Orçamento total da rodada (o cron chama de novo a cada minuto). */
-const RUN_BUDGET_MS = 50_000;
+const RUN_BUDGET_MS = 55_000;
 
 /** Eventos sem efeito em mensagens — concluídos sem reprocessar o webhook. */
 const SKIPPABLE_EVENTS = new Set([
