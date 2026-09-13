@@ -37,8 +37,15 @@ export default defineConfig({
         // jssip (softphone) faz require('events'); sem este alias o bundle do
         // navegador recebe o stub vazio __vite-browser-external e quebra com
         // "Class extends value undefined". Aponta para o pacote npm `events`.
-        { find: /^events$/, replacement: "events/events.js" },
+        { find: /^(node:)?events$/, replacement: EVENTS_SHIM },
       ],
+    },
+    environments: {
+      client: {
+        resolve: {
+          alias: [{ find: /^(node:)?events$/, replacement: EVENTS_SHIM }],
+        },
+      },
     },
   },
 });
