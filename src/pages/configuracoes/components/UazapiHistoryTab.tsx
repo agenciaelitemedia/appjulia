@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle, Ban, PlayCircle, AlertTriangle, Zap, Activity, Gauge } from 'lucide-react';
+import { Loader2, History, Eye, CheckCircle2, AlertCircle, MinusCircle, Clock, XCircle, Ban, PlayCircle, AlertTriangle, Zap, Activity, Gauge, Archive } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUazapiHistoryRuns, useUazapiHistoryItems, useUazapiHistoryPending, useUazapiQueues, useDispatcherHealth, useUazapiPendingByClient, type UazapiHistoryRun } from '../hooks/useUazapiHistoryRuns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,6 +40,7 @@ function RunStatusBadge({ status }: { status: UazapiHistoryRun['status'] }) {
     done: { label: 'Concluído', cls: 'bg-green-500/10 text-green-600 border-green-500/20', icon: CheckCircle2, spin: false },
     partial: { label: 'Parcial', cls: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20', icon: AlertCircle, spin: false },
     error: { label: 'Erro', cls: 'bg-red-500/10 text-red-600 border-red-500/20', icon: XCircle, spin: false },
+    archived: { label: 'Arquivado', cls: 'bg-muted text-muted-foreground border-border', icon: Archive, spin: false },
   } as const;
   const cfg = map[status] ?? map.pending;
   const Icon = cfg.icon;
@@ -149,7 +150,8 @@ function RunDetails({ run, open, onOpenChange }: {
 }
 
 export function UazapiHistoryTab() {
-  const { data: runs = [], isLoading } = useUazapiHistoryRuns();
+  const [showArchived, setShowArchived] = useState(false);
+  const { data: runs = [], isLoading } = useUazapiHistoryRuns(showArchived);
   const { data: pending } = useUazapiHistoryPending();
   const { data: queues = [] } = useUazapiQueues();
   const { data: dispatcher } = useDispatcherHealth();
@@ -230,7 +232,7 @@ export function UazapiHistoryTab() {
   };
 
   const stats = useMemo(() => {
-    const counts = { pending: 0, running: 0, done: 0, partial: 0, error: 0 };
+    const counts = { pending: 0, running: 0, done: 0, partial: 0, error: 0, archived: 0 };
     let totalReceived = 0;
     let totalInserted = 0;
     let totalDuplicates = 0;
@@ -324,6 +326,16 @@ export function UazapiHistoryTab() {
           >
             {restartingDispatcher ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
             Drenagem turbo
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowArchived((v) => !v)}
+            className="gap-2"
+            title="Importações antigas encerradas por inatividade são arquivadas automaticamente"
+          >
+            <Archive className="h-4 w-4" />
+            {showArchived ? 'Ocultar arquivadas' : 'Ver arquivadas'}
           </Button>
         </div>
       </div>
