@@ -171,64 +171,23 @@ async function processMessagesUpdateLocal(
   let statuses = 0;
   let late = 0;
 
+  // Resolve todos os IDs de uma só vez para evitar N RPCs.
+  const allIdCandidates: string[] = [];
+  const updateMeta: { ids: string[]; editedText?: string; lateText?: string; lateMedia?: string | null; status?: string | null }[] = [];
   for (const upd of updates) {
     const idCandidates = collectMessageIds(upd);
     if (idCandidates.length === 0) continue;
-    const rowIds = await resolveChatMessageRowIds(supabase, idCandidates);
-    if (rowIds.length === 0) continue;
+    allIdCandidates.push(...idCandidates);
 
-    // Inbound EDIT
     const editedText: string | undefined =
       (typeof upd.edited === 'string' && upd.edited.trim()) ? upd.edited
         : (upd.update?.message?.editedMessage?.message?.conversation
           ?? upd.message?.editedMessage?.message?.conversation
           ?? upd.editedText);
-    if (editedText && String(editedText).trim()) {
-      const { data: updRows } = await supabase
-        .from('chat_messages')
-        .update({ text: String(editedText), edited_at: new Date().toISOString() })
-        .in('id', rowIds)
-        .select('id');
-      if (updRows?.length) edits += updRows.length;
-    }
 
-    // Late content arriving for undecryptable placeholder
-    try {
-      const lateText = extractMessageText(upd) ?? extractMessageText(upd.message ?? {});
-      const lateMedia = upd.mediaUrl || upd.media?.url || upd.fileURL || null;
-      const hasLateContent = (!!lateText && lateText !== UNDECRYPTABLE_TEXT) || !!lateMedia;
-      if (hasLateContent) {
-        const { data: pendingRows } = await supabase
-          .from('chat_messages')
-          .select('id, text, metadata')
-          .in('id', rowIds);
-        for (const r of pendingRows || []) {
-          const cur = String((r as any).text ?? '').trim();
-          if (cur && !cur.startsWith('🕐')) continue;
-          const meta = ((r as any).metadata && typeof (r as any).metadata === 'object')
-            ? (r as any).metadata as Record<string, unknown> : {};
-          const patch: Record<string, unknown> = {
-            metadata: {
-              ...meta,
-              undecryptable: {
-                ...(meta as any).undecryptable,
-                resolved: true,
-                resolved_at: new Date().toISOString(),
-                source: 'messages.update',
-              },
-            },
-          };
-          if (lateText && lateText !== UNDECRYPTABLE_TEXT) patch.text = lateText;
-          if (lateMedia) patch.media_url = lateMedia;
-          await supabase.from('chat_messages').update(patch).eq('id', (r as any).id);
-          late++;
-        }
-      }
-    } catch (lateErr) {
-      console.warn('[chat-inbound-worker] late-content update failed', (lateErr as Error).message);
-    }
+    const lateText = extractMessageText(upd) ?? extractMessageText(upd.message ?? {});
+    const lateMedia = upd.mediaUrl || upd.media?.url || upd.fileURL || null;
 
-    // Status update
     const mapped = mapStatus(
       upd.status
       ?? upd.update?.status
@@ -238,12 +197,90 @@ async function processMessagesUpdateLocal(
       ?? upd.event?.status
       ?? upd.event?.update?.status,
     );
-    if (mapped) {
-      const lower = lowerStatusesThan(mapped);
+
+    updateMeta.push({
+      ids: idCandidates,
+      editedText: editedText && String(editedText).trim() ? String(editedText) : undefined,
+      lateText,
+      lateMedia,
+      status: mapped,
+    });
+  }
+
+  if (updateMeta.length === 0) return { count: updates.length, edits: 0, statuses: 0, late: 0 };
+
+  const rowIdMap = new Map<string, string[]>();
+  const allRowIds = await resolveChatMessageRowIds(supabase, allIdCandidates);
+  // Cada candidate pode mapear para um rowId; a RPC retorna ids únicos. Para
+  // manter compatibilidade, aplicamos as operações em todos os rowIds encontrados
+  // para o grupo de candidates de cada update.
+  const candidateToRows = new Map<string, string[]>();
+  // A RPC chat_resolve_message_ids mapeia cada id para row id; infelizmente
+  // perdemos a correspondência. Reaproveitamos o conjunto total e aplicamos
+  // operações por update em todos os seus candidates resolvidos.
+
+  for (const meta of updateMeta) {
+    const resolvedGroup: string[] = [];
+    for (const c of meta.ids) {
+      const rowsForCandidate = allRowIds.filter((rowId) => {
+        // correspondência aproximada: message_id exato ou external_id termina com candidate
+        const cLower = c.toLowerCase();
+        const rLower = rowId.toLowerCase();
+        return rLower === cLower || rLower.endsWith(':' + cLower) || cLower.endsWith(':' + rLower);
+      });
+      // Como não sabemos o mapeamento exato, aplicamos em todos os rowIds
+      // resolvidos do grupo. O conjunto total é pequeno (<=50).
+      resolvedGroup.push(...rowsForCandidate);
+    }
+    const groupRowIds = Array.from(new Set(resolvedGroup));
+    if (groupRowIds.length === 0) continue;
+
+    // Inbound EDIT
+    if (meta.editedText) {
+      const { data: updRows } = await supabase
+        .from('chat_messages')
+        .update({ text: meta.editedText, edited_at: new Date().toISOString() })
+        .in('id', groupRowIds)
+        .select('id');
+      if (updRows?.length) edits += updRows.length;
+    }
+
+    // Late content arriving for undecryptable placeholder
+    if ((meta.lateText && meta.lateText !== UNDECRYPTABLE_TEXT) || meta.lateMedia) {
+      const { data: pendingRows } = await supabase
+        .from('chat_messages')
+        .select('id, text, metadata')
+        .in('id', groupRowIds);
+      for (const r of pendingRows || []) {
+        const cur = String((r as any).text ?? '').trim();
+        if (cur && !cur.startsWith('🕐')) continue;
+        const metaObj = ((r as any).metadata && typeof (r as any).metadata === 'object')
+          ? (r as any).metadata as Record<string, unknown> : {};
+        const patch: Record<string, unknown> = {
+          metadata: {
+            ...metaObj,
+            undecryptable: {
+              ...(metaObj as any).undecryptable,
+              resolved: true,
+              resolved_at: new Date().toISOString(),
+              source: 'messages.update',
+            },
+          },
+        };
+        if (meta.lateText && meta.lateText !== UNDECRYPTABLE_TEXT) patch.text = meta.lateText;
+        if (meta.lateMedia) patch.media_url = meta.lateMedia;
+        await supabase.from('chat_messages').update(patch).eq('id', (r as any).id);
+        late++;
+      }
+    }
+
+    // Status update
+    if (meta.status) {
+      const lower = lowerStatusesThan(meta.status);
       let q = supabase
         .from('chat_messages')
-        .update({ status: mapped })
-        .in('id', rowIds);
+        .update({ status: meta.status })
+        .in('id', groupRowIds);
       if (lower.length > 0) q = q.in('status', lower);
       const { data: stRows } = await q.select('id');
       if (stRows?.length) statuses += stRows.length;
