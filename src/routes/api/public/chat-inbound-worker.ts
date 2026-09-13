@@ -139,7 +139,7 @@ function collectMessageIds(src: any): string[] {
   )) as string[];
 }
 
-async function resolveChatMessageRowIds(supabase: ReturnType<typeof createClient>, ids: string[]): Promise<string[]> {
+async function resolveChatMessageRowIds(supabase: any, ids: string[]): Promise<string[]> {
   if (!ids.length) return [];
   const safeIds = Array.from(new Set(
     ids.filter((v) => typeof v === 'string' && v.length > 0).slice(0, 50),
