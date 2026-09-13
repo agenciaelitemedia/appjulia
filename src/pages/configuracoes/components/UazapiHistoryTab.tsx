@@ -149,7 +149,8 @@ function RunDetails({ run, open, onOpenChange }: {
 }
 
 export function UazapiHistoryTab() {
-  const { data: runs = [], isLoading } = useUazapiHistoryRuns();
+  const [showArchived, setShowArchived] = useState(false);
+  const { data: runs = [], isLoading } = useUazapiHistoryRuns(showArchived);
   const { data: pending } = useUazapiHistoryPending();
   const { data: queues = [] } = useUazapiQueues();
   const { data: dispatcher } = useDispatcherHealth();
@@ -230,7 +231,7 @@ export function UazapiHistoryTab() {
   };
 
   const stats = useMemo(() => {
-    const counts = { pending: 0, running: 0, done: 0, partial: 0, error: 0 };
+    const counts = { pending: 0, running: 0, done: 0, partial: 0, error: 0, archived: 0 };
     let totalReceived = 0;
     let totalInserted = 0;
     let totalDuplicates = 0;
