@@ -327,6 +327,16 @@ export function UazapiHistoryTab() {
             {restartingDispatcher ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
             Drenagem turbo
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowArchived((v) => !v)}
+            className="gap-2"
+            title="Importações antigas encerradas por inatividade são arquivadas automaticamente"
+          >
+            <Archive className="h-4 w-4" />
+            {showArchived ? 'Ocultar arquivadas' : 'Ver arquivadas'}
+          </Button>
         </div>
       </div>
 
