@@ -21,7 +21,7 @@ export function useChatLiveLoads(enabled = true) {
     queryKey: ['chat-live-loads', clientId],
     enabled: enabled && !!clientId,
     staleTime: 15_000,
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
     queryFn: () => fetchLiveLoadsDetailed(clientId),
   });
 }
