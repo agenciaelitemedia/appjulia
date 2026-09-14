@@ -6,7 +6,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
-import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
+import { normalizeBrPhone, isNonPhoneJid, isValidMsisdn } from "../_shared/phone-normalize.ts";
 import { logDroppedMessage } from "../_shared/droppedLogger.ts";
 import { resolveQuotedMeta } from "../_shared/quotedMessage.ts";
 import { clientIpOf, logWebhookRejection, verifyQueueToken } from "../_shared/webhookAuth.ts";

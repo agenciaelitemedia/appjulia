@@ -11,7 +11,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
-import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
+import { normalizeBrPhone, isNonPhoneJid, isValidMsisdn } from "../_shared/phone-normalize.ts";
 
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
 
@@ -39,9 +39,22 @@ function normalizePhone(raw: string): string {
 }
 function isGroupJid(v: unknown): boolean { return typeof v === 'string' && v.includes('@g.us'); }
 function isLidJid(v: unknown): boolean { return typeof v === 'string' && v.includes('@lid'); }
+/** Canal (`@newsletter`) / lista de transmissão (`@broadcast`) — nunca é contato. */
+function isChannelJid(v: unknown): boolean {
+  if (typeof v !== 'string' || !v) return false;
+  const s = v.toLowerCase();
+  return s.includes('@newsletter') || s.includes('@broadcast');
+}
+/** Mensagem vinda de canal/transmissão (não deve gerar contato/conversa). */
+function isChannelMessage(msg: any): boolean {
+  if (!msg || typeof msg !== 'object') return false;
+  const jids = [msg.key?.remoteJid, msg.remoteJid, msg.chatId, msg.chatid, msg.wa_chatid, msg.sender, msg.from, msg.to];
+  return jids.some((j) => isNonPhoneJid(j) && !isLidJid(j));
+}
 
 function resolvePeerPhone(msg: any): string | null {
   if (!msg || typeof msg !== 'object') return null;
+  if (isChannelMessage(msg)) return null;
   const fromMe: boolean = msg.key?.fromMe ?? msg.fromMe ?? msg.from_me ?? false;
   const ordered: unknown[] = [
     msg.sender_pn, msg.PhoneNumber, msg.phone,
@@ -51,9 +64,9 @@ function resolvePeerPhone(msg: any): string | null {
   for (const cand of ordered) {
     if (!cand) continue;
     const raw = String(cand);
-    if (isLidJid(raw) || isGroupJid(raw)) continue;
+    if (isNonPhoneJid(raw) || isGroupJid(raw) || isChannelJid(raw)) continue;
     const n = normalizePhone(raw);
-    if (n && n.length >= 8 && n.length <= 13) return n;
+    if (n && n.length >= 8 && isValidMsisdn(n)) return n;
   }
   return null;
 }
