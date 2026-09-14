@@ -12862,6 +12862,10 @@ export type Database = {
         }
         Returns: Json
       }
+      chat_messages_compact_raw_payload: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       chat_resolve_assignee_identifier: {
         Args: {
           p_assigned_to: string
