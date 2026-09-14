@@ -1660,10 +1660,11 @@ Deno.serve(async (req) => {
           for (const cand of candidates) {
             if (!cand) continue;
             const raw = String(cand);
-            if (raw.includes('@lid')) continue;
+            // LID, canal (@newsletter) e transmissão (@broadcast) não são telefone
+            if (isNonPhoneJid(raw)) continue;
             if (raw.includes('@g.us')) continue;
             const normalized = normalizePhone(raw);
-            if (normalized && normalized.length >= 8 && normalized.length <= 13) {
+            if (normalized && isValidMsisdn(normalized) && normalized.length <= 13) {
               senderPhone = normalized;
               break;
             }
