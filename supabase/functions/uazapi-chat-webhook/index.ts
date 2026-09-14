@@ -2011,7 +2011,9 @@ Deno.serve(async (req) => {
             sender_name: fromMe ? null : pushName || null,
             is_forwarded: msg.forwarded ?? msg.isForwarded ?? ctxInfo?.isForwarded ?? false,
             forwarded_score: msg.forwardingScore ?? ctxInfo?.forwardingScore ?? null,
-            raw_payload: msg,
+            // Pacote bruto só para mídias (necessário para baixar/decifrar o
+            // arquivo depois). Em texto ele dobrava o tamanho da tabela sem uso.
+            raw_payload: type === 'text' ? null : msg,
             metadata: {
               sender_id: msg.participant || null,
               sender_name: pushName || null,
