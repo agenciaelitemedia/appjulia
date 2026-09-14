@@ -356,7 +356,7 @@ async function runWorker(request: Request): Promise<Response> {
     // Fast-path para messages.update: processa localmente sem chamar edge function.
     if (eventName === 'messages.update' || eventName === 'messages_update') {
       try {
-        const res = await processMessagesUpdateLocal(supabase, item.payload);
+        const res = await processMessagesUpdateLocal(supabase, payload);
         await supabase
           .from('chat_inbound_queue')
           .update({
@@ -406,7 +406,7 @@ async function runWorker(request: Request): Promise<Response> {
             'x-worker-secret': process.env['CHAT_INBOUND_WORKER_SECRET'] ?? '',
           },
 
-          body: JSON.stringify(item.payload),
+          body: JSON.stringify(payload),
           signal: controller.signal,
         },
       );
@@ -456,7 +456,7 @@ async function runWorker(request: Request): Promise<Response> {
     while (Date.now() - startedAt < RUN_BUDGET_MS) {
       const { data: candidates, error } = await supabase
         .from('chat_inbound_queue')
-        .select('id, queue_id, payload, attempts, event_name')
+        .select('id, queue_id, attempts, event_name')
         .eq('status', 'pending')
         .lte('next_attempt_at', new Date().toISOString())
         .order('created_at', { ascending: true })
