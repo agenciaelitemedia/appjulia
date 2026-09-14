@@ -12802,6 +12802,13 @@ export type Database = {
           queue_id: string
         }[]
       }
+      chat_assigned_counts_by_member: {
+        Args: { p_client_id: string }
+        Returns: {
+          assigned_to: string
+          total: number
+        }[]
+      }
       chat_capacity_check:
         | {
             Args: { p_agent_identifier: string; p_client_id: string }
@@ -12854,6 +12861,10 @@ export type Database = {
           p_unassigned?: boolean
         }
         Returns: Json
+      }
+      chat_messages_compact_raw_payload: {
+        Args: { p_limit?: number }
+        Returns: number
       }
       chat_resolve_assignee_identifier: {
         Args: {

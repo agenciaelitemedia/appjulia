@@ -830,7 +830,9 @@ async function processHistorySet(
               timestamp: isoTs,
               channel_type: 'whatsapp_uazapi',
               sender_name: fromMe ? null : (pushName || null),
-              raw_payload: msg,
+              // Pacote bruto só para mídias (necessário para baixar/decifrar o
+              // arquivo depois). Em texto ele dobrava o tamanho da tabela sem uso.
+              raw_payload: type === 'text' ? null : msg,
               metadata: { backfilled: true, source: 'messages.set' },
             });
 
@@ -1023,6 +1025,20 @@ Deno.serve(async (req) => {
         payload?.EventType ?? payload?.eventType ?? payload?.type ??
         (typeof payload?.event === 'string' ? payload.event : '') ?? '',
       ) || 'messages';
+
+      // Eventos sem efeito em mensagens (chats/presença/grupos) eram gravados na
+      // fila só para o worker concluí-los sem fazer nada — ~74 mil linhas/dia de
+      // payload bruto lidas e escritas para nada, encarecendo a busca de pendentes.
+      // Agora são respondidos na hora, sem tocar no banco.
+      const SKIPPABLE_INBOUND_EVENTS = new Set([
+        'chats', 'chats_update', 'chats.update', 'chats.upsert',
+        'presence', 'presence_update', 'presence.update',
+        'groups', 'groups_update', 'groups.update', 'groups.upsert',
+      ]);
+      if (SKIPPABLE_INBOUND_EVENTS.has(evt.toLowerCase())) {
+        return respond({ success: true, skipped: true, event: evt });
+      }
+
       // Sem messageid (history, chats, connection…): usa hash do conteúdo, para a
       // reentrega do provedor não gerar cópias infinitas do mesmo pacote.
       let contentKey = '';
@@ -1995,7 +2011,9 @@ Deno.serve(async (req) => {
             sender_name: fromMe ? null : pushName || null,
             is_forwarded: msg.forwarded ?? msg.isForwarded ?? ctxInfo?.isForwarded ?? false,
             forwarded_score: msg.forwardingScore ?? ctxInfo?.forwardingScore ?? null,
-            raw_payload: msg,
+            // Pacote bruto só para mídias (necessário para baixar/decifrar o
+            // arquivo depois). Em texto ele dobrava o tamanho da tabela sem uso.
+            raw_payload: type === 'text' ? null : msg,
             metadata: {
               sender_id: msg.participant || null,
               sender_name: pushName || null,

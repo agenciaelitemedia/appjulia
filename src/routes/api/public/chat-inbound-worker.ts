@@ -45,7 +45,12 @@ const SKIPPABLE_EVENTS = new Set([
   'groups.upsert',
 ]);
 
-type QueueItem = { id: string; queue_id: string; payload: unknown; attempts: number | null; event_name: string | null };
+/**
+ * O `payload` NÃO vem na busca de candidatos: ele é jsonb grande e trazê-lo para
+ * 250 linhas por rodada tornava a busca de pendentes a consulta mais cara do
+ * sistema. Ele é lido no momento em que o item é reservado (claim).
+ */
+type QueueItem = { id: string; queue_id: string; attempts: number | null; event_name: string | null };
 
 // ── Status helpers (copiados de uazapi-chat-webhook para fast-path) ──
 const STATUS_MAP: Record<string, string> = {
@@ -314,18 +319,23 @@ async function runWorker(request: Request): Promise<Response> {
   const result = { claimed: 0, done: 0, skipped: 0, failed: 0, retry: 0, localUpdates: 0 };
 
   const processItem = async (item: QueueItem) => {
+    const eventName = String(item.event_name ?? '').toLowerCase();
+    const needsPayload = !SKIPPABLE_EVENTS.has(eventName);
+    // O payload só é lido aqui (e só quando será usado), no mesmo comando que
+    // reserva o item — evita carregar jsonb grande na busca de candidatos.
     const { data: claimed } = await supabase
       .from('chat_inbound_queue')
       .update({ status: 'processing', locked_at: new Date().toISOString() })
       .eq('id', item.id)
       .eq('status', 'pending')
-      .select('id')
+      .select(needsPayload ? 'id, payload' : 'id')
       .maybeSingle();
     if (!claimed) return;
     result.claimed++;
 
+    const payload = (claimed as { payload?: unknown }).payload;
     const attempts = Number(item.attempts ?? 0) + 1;
-    const eventName = String(item.event_name ?? '').toLowerCase();
+
 
     if (SKIPPABLE_EVENTS.has(eventName)) {
       await supabase
@@ -346,7 +356,7 @@ async function runWorker(request: Request): Promise<Response> {
     // Fast-path para messages.update: processa localmente sem chamar edge function.
     if (eventName === 'messages.update' || eventName === 'messages_update') {
       try {
-        const res = await processMessagesUpdateLocal(supabase, item.payload);
+        const res = await processMessagesUpdateLocal(supabase, payload);
         await supabase
           .from('chat_inbound_queue')
           .update({
@@ -396,7 +406,7 @@ async function runWorker(request: Request): Promise<Response> {
             'x-worker-secret': process.env['CHAT_INBOUND_WORKER_SECRET'] ?? '',
           },
 
-          body: JSON.stringify(item.payload),
+          body: JSON.stringify(payload),
           signal: controller.signal,
         },
       );
@@ -446,7 +456,7 @@ async function runWorker(request: Request): Promise<Response> {
     while (Date.now() - startedAt < RUN_BUDGET_MS) {
       const { data: candidates, error } = await supabase
         .from('chat_inbound_queue')
-        .select('id, queue_id, payload, attempts, event_name')
+        .select('id, queue_id, attempts, event_name')
         .eq('status', 'pending')
         .lte('next_attempt_at', new Date().toISOString())
         .order('created_at', { ascending: true })
