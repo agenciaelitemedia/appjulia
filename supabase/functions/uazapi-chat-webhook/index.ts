@@ -531,9 +531,11 @@ async function enqueueHistoryRun(
     ];
     for (const c of candidates) {
       if (typeof c !== 'string' || !c) continue;
-      if (c.includes('@lid')) continue; // LID não é telefone
+      // LID, canal (@newsletter) e transmissão (@broadcast) nunca são telefone
+      if (isNonPhoneJid(c)) continue;
       const phone = normalizePhone(c);
-      if (phone && phone.replace(/\D/g, '').length >= 10) return phone;
+      // Faixa E.164 (10–15 dígitos): barra ids longos como 120363... de canais/grupos
+      if (phone && isValidMsisdn(phone)) return phone;
     }
     return '';
   };
