@@ -211,7 +211,7 @@ async function processOneItem(supabase: any, item: PendingItem, run: any, queue:
       .eq('phone', phone).eq('client_id', clientId).maybeSingle();
 
     const sortedMsgs = messages
-      .filter((m) => !isGroupMessage(m))
+      .filter((m) => !isGroupMessage(m) && !isChannelMessage(m))
       .sort((a, b) => {
         const aTs = toIso(a.messageTimestamp ?? a.timestamp) ?? '';
         const bTs = toIso(b.messageTimestamp ?? b.timestamp) ?? '';
