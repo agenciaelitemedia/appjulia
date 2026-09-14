@@ -6,6 +6,8 @@ import { Suspense, useEffect } from "react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { DebugBar } from "@/components/debug/DebugBar";
+import { NavigationProgress } from "@/components/layout/NavigationProgress";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -78,7 +80,8 @@ function RootComponent() {
                 <UaZapiProvider>
                   <WavoipProvider>
                     <ErrorBoundary>
-                      <Suspense fallback={null}>
+                      <NavigationProgress />
+                      <Suspense fallback={<MascoteLoader size="md" fullscreen />}>
                         <Outlet />
                       </Suspense>
                       <DebugBar />

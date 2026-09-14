@@ -20,6 +20,9 @@ export const getRouter = () => {
     context: { queryClient },
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
+    defaultPendingMs: 250,
+    defaultPendingMinMs: 300,
+    defaultPendingComponent: () => <MascoteLoader size="md" fullscreen />,
   });
 
   return router;
