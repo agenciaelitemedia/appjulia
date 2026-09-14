@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
-import { MascoteLoader } from "@/components/ui/mascote-loader";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,7 +13,6 @@ export function NavigationProgress() {
 
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [showMascote, setShowMascote] = useState(false);
   const timers = useRef<number[]>([]);
 
   const clearTimers = () => {
@@ -32,10 +30,8 @@ export function NavigationProgress() {
       const tick = window.setInterval(() => {
         setProgress((p) => (p >= 90 ? 90 : p + Math.max(1, (90 - p) * 0.12)));
       }, 180);
-      const mascote = window.setTimeout(() => setShowMascote(true), 250);
-      timers.current.push(tick, mascote);
+      timers.current.push(tick);
     } else {
-      setShowMascote(false);
       setProgress(100);
       const hide = window.setTimeout(() => {
         setVisible(false);
@@ -62,18 +58,6 @@ export function NavigationProgress() {
           style={{ width: `${progress}%` }}
         />
       </div>
-
-      {showMascote && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="pointer-events-none fixed inset-0 z-[99] grid place-items-center"
-        >
-          <div className="rounded-2xl bg-background/70 p-6 backdrop-blur-sm shadow-lg">
-            <MascoteLoader size="md" label="Carregando…" />
-          </div>
-        </div>
-      )}
     </>
   );
 }
