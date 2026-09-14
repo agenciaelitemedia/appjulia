@@ -319,18 +319,23 @@ async function runWorker(request: Request): Promise<Response> {
   const result = { claimed: 0, done: 0, skipped: 0, failed: 0, retry: 0, localUpdates: 0 };
 
   const processItem = async (item: QueueItem) => {
+    const eventName = String(item.event_name ?? '').toLowerCase();
+    const needsPayload = !SKIPPABLE_EVENTS.has(eventName);
+    // O payload só é lido aqui (e só quando será usado), no mesmo comando que
+    // reserva o item — evita carregar jsonb grande na busca de candidatos.
     const { data: claimed } = await supabase
       .from('chat_inbound_queue')
       .update({ status: 'processing', locked_at: new Date().toISOString() })
       .eq('id', item.id)
       .eq('status', 'pending')
-      .select('id')
+      .select(needsPayload ? 'id, payload' : 'id')
       .maybeSingle();
     if (!claimed) return;
     result.claimed++;
 
+    const payload = (claimed as { payload?: unknown }).payload;
     const attempts = Number(item.attempts ?? 0) + 1;
-    const eventName = String(item.event_name ?? '').toLowerCase();
+
 
     if (SKIPPABLE_EVENTS.has(eventName)) {
       await supabase
