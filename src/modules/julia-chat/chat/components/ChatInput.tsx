@@ -271,8 +271,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
       setPendingMedia(null);
     } finally {
       setIsSending(false);
+      focusTextarea();
     }
-  }, [contactId, sendMedia, pendingMedia]);
+  }, [contactId, sendMedia, pendingMedia, focusTextarea]);
 
   const insertEmoji = (emoji: string) => {
     const textarea = textareaRef.current;
