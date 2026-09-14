@@ -594,8 +594,11 @@ async function enqueueHistoryRun(
       duplicate_messages: duplicateMessages,
       individual_chats: byChat.size,
       skipped_lid: skippedLid,
-      error: byChat.size === 0 && skippedLid > 0
-        ? `nenhum telefone recuperável em ${skippedLid} mensagem(ns)`
+      error: byChat.size === 0 && (skippedLid > 0 || channelMessages > 0)
+        ? [
+            skippedLid > 0 ? `nenhum telefone recuperável em ${skippedLid} mensagem(ns)` : null,
+            channelMessages > 0 ? `${channelMessages} mensagem(ns) de canal/transmissão descartada(s)` : null,
+          ].filter(Boolean).join('; ')
         : null,
       received_at: new Date().toISOString(),
       finished_at: byChat.size === 0 ? new Date().toISOString() : null,
