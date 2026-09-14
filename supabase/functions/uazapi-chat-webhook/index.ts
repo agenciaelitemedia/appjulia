@@ -830,7 +830,9 @@ async function processHistorySet(
               timestamp: isoTs,
               channel_type: 'whatsapp_uazapi',
               sender_name: fromMe ? null : (pushName || null),
-              raw_payload: msg,
+              // Pacote bruto só para mídias (necessário para baixar/decifrar o
+              // arquivo depois). Em texto ele dobrava o tamanho da tabela sem uso.
+              raw_payload: type === 'text' ? null : msg,
               metadata: { backfilled: true, source: 'messages.set' },
             });
 
