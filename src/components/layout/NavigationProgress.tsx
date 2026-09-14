@@ -3,8 +3,8 @@ import { useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
 /**
- * Indicador global de navegação: barra fina no topo assim que uma navegação
- * começa e, se demorar mais de 250ms, o mascote da Julia centralizado.
+ * Indicador global de navegação: apenas a barra fina no topo.
+ * O mascote de carregamento fica a cargo do pending component das rotas.
  */
 export function NavigationProgress() {
   const isNavigating = useRouterState({
