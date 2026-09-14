@@ -45,7 +45,12 @@ const SKIPPABLE_EVENTS = new Set([
   'groups.upsert',
 ]);
 
-type QueueItem = { id: string; queue_id: string; payload: unknown; attempts: number | null; event_name: string | null };
+/**
+ * O `payload` NÃO vem na busca de candidatos: ele é jsonb grande e trazê-lo para
+ * 250 linhas por rodada tornava a busca de pendentes a consulta mais cara do
+ * sistema. Ele é lido no momento em que o item é reservado (claim).
+ */
+type QueueItem = { id: string; queue_id: string; attempts: number | null; event_name: string | null };
 
 // ── Status helpers (copiados de uazapi-chat-webhook para fast-path) ──
 const STATUS_MAP: Record<string, string> = {
