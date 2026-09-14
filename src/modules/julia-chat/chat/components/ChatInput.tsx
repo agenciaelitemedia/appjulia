@@ -188,6 +188,13 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
     }, 0);
   };
 
+  const focusTextarea = useCallback(() => {
+    // Defer focus so React can re-enable the textarea after isSending flips back to false.
+    requestAnimationFrame(() => {
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    });
+  }, []);
+
   const handleSend = async () => {
     if (!text.trim() || isSending) return;
 
@@ -204,7 +211,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
         setText(rawText);
       } finally {
         setIsSending(false);
-        textareaRef.current?.focus();
+        focusTextarea();
       }
       return;
     }
@@ -237,7 +244,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
       setText(rawText);
     } finally {
       setIsSending(false);
-      textareaRef.current?.focus();
+      focusTextarea();
     }
   };
 
