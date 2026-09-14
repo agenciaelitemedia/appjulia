@@ -53,3 +53,21 @@ export function toBrCanonicalByDDD(raw: string | null | undefined): string {
   }
   return '55' + d.slice(2, 4) + rest;
 }
+
+/**
+ * Identificadores do WhatsApp que NUNCA representam telefone de contato:
+ *  - `@lid`         → LinkedID interno
+ *  - `@newsletter`  → canais/comunidades (ex.: 120363...@newsletter)
+ *  - `@broadcast`   → listas de transmissão / status@broadcast
+ */
+export function isNonPhoneJid(v: unknown): boolean {
+  if (typeof v !== 'string' || !v) return false;
+  const s = v.toLowerCase();
+  return s.includes('@lid') || s.includes('@newsletter') || s.includes('@broadcast');
+}
+
+/** Telefone plausível (E.164 sem '+'): 10 a 15 dígitos. */
+export function isValidMsisdn(digits: string | null | undefined): boolean {
+  const d = (digits || '').replace(/\D/g, '');
+  return d.length >= 10 && d.length <= 15;
+}
