@@ -6,7 +6,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { fetchWhatsappProfile, profileToContactColumns } from "../_shared/whatsapp-profile.ts";
-import { normalizeBrPhone } from "../_shared/phone-normalize.ts";
+import { normalizeBrPhone, isNonPhoneJid, isValidMsisdn } from "../_shared/phone-normalize.ts";
 import { logDroppedMessage } from "../_shared/droppedLogger.ts";
 import { resolveQuotedMeta } from "../_shared/quotedMessage.ts";
 import { clientIpOf, logWebhookRejection, verifyQueueToken } from "../_shared/webhookAuth.ts";
@@ -455,8 +455,9 @@ async function enqueueHistoryRun(
   let groupMessages = 0;
   let duplicateMessages = 0;
 
-  // ---- Pré-filtro 1: descartar grupos (zero query) ----
+  // ---- Pré-filtro 1: descartar grupos, canais (@newsletter) e transmissões (@broadcast) ----
   const nonGroupMessages: any[] = [];
+  let channelMessages = 0;
   for (const msg of rawMessages) {
     const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
     if (!remoteJid) continue;
@@ -464,10 +465,20 @@ async function enqueueHistoryRun(
       groupMessages++;
       continue;
     }
+    // Canais/comunidades e listas de transmissão não são contatos — o id (ex.: 120363...)
+    // não é telefone e não pode virar conversa na lista de atendimentos.
+    const channelJids = [remoteJid, msg?.sender, msg?.wa_chatid, msg?.from, msg?.to];
+    if (channelJids.some((j) => typeof j === 'string' && isNonPhoneJid(j) && !j.toLowerCase().includes('@lid'))) {
+      channelMessages++;
+      continue;
+    }
     nonGroupMessages.push(msg);
   }
   if (groupMessages > 0) {
     console.log(`[history-enqueue] groups skipped=${groupMessages} of total=${totalMessages} client=${queue.client_id}`);
+  }
+  if (channelMessages > 0) {
+    console.log(`[history-enqueue] channels/broadcast skipped=${channelMessages} of total=${totalMessages} client=${queue.client_id}`);
   }
 
   // ---- Pré-filtro 2: dedup contra chat_messages.external_id (1 SELECT em batch) ----
@@ -520,9 +531,11 @@ async function enqueueHistoryRun(
     ];
     for (const c of candidates) {
       if (typeof c !== 'string' || !c) continue;
-      if (c.includes('@lid')) continue; // LID não é telefone
+      // LID, canal (@newsletter) e transmissão (@broadcast) nunca são telefone
+      if (isNonPhoneJid(c)) continue;
       const phone = normalizePhone(c);
-      if (phone && phone.replace(/\D/g, '').length >= 10) return phone;
+      // Faixa E.164 (10–15 dígitos): barra ids longos como 120363... de canais/grupos
+      if (phone && isValidMsisdn(phone)) return phone;
     }
     return '';
   };
@@ -581,8 +594,11 @@ async function enqueueHistoryRun(
       duplicate_messages: duplicateMessages,
       individual_chats: byChat.size,
       skipped_lid: skippedLid,
-      error: byChat.size === 0 && skippedLid > 0
-        ? `nenhum telefone recuperável em ${skippedLid} mensagem(ns)`
+      error: byChat.size === 0 && (skippedLid > 0 || channelMessages > 0)
+        ? [
+            skippedLid > 0 ? `nenhum telefone recuperável em ${skippedLid} mensagem(ns)` : null,
+            channelMessages > 0 ? `${channelMessages} mensagem(ns) de canal/transmissão descartada(s)` : null,
+          ].filter(Boolean).join('; ')
         : null,
       received_at: new Date().toISOString(),
       finished_at: byChat.size === 0 ? new Date().toISOString() : null,
@@ -1647,10 +1663,11 @@ Deno.serve(async (req) => {
           for (const cand of candidates) {
             if (!cand) continue;
             const raw = String(cand);
-            if (raw.includes('@lid')) continue;
+            // LID, canal (@newsletter) e transmissão (@broadcast) não são telefone
+            if (isNonPhoneJid(raw)) continue;
             if (raw.includes('@g.us')) continue;
             const normalized = normalizePhone(raw);
-            if (normalized && normalized.length >= 8 && normalized.length <= 13) {
+            if (normalized && isValidMsisdn(normalized) && normalized.length <= 13) {
               senderPhone = normalized;
               break;
             }
