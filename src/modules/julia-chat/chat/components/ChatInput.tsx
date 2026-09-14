@@ -379,7 +379,8 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
     const file = new File([audioBlob], `audio_${Date.now()}.${extension}`, { type: mimeType });
     await sendMedia(contactId, file, 'ptt');
     setIsRecording(false);
-  }, [contactId, sendMedia]);
+    focusTextarea();
+  }, [contactId, sendMedia, focusTextarea]);
 
   // Audio recording mode
   if (isRecording) {
