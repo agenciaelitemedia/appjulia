@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
+import { MascoteLoader } from "@/components/ui/mascote-loader";
 
 export const getRouter = () => {
   // Ported from the Classic src/App.tsx QueryClient defaults.
