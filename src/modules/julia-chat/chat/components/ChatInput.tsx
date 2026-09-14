@@ -188,6 +188,13 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
     }, 0);
   };
 
+  const focusTextarea = useCallback(() => {
+    // Defer focus so React can re-enable the textarea after isSending flips back to false.
+    requestAnimationFrame(() => {
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    });
+  }, []);
+
   const handleSend = async () => {
     if (!text.trim() || isSending) return;
 
@@ -204,7 +211,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
         setText(rawText);
       } finally {
         setIsSending(false);
-        textareaRef.current?.focus();
+        focusTextarea();
       }
       return;
     }
@@ -237,7 +244,7 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
       setText(rawText);
     } finally {
       setIsSending(false);
-      textareaRef.current?.focus();
+      focusTextarea();
     }
   };
 
@@ -264,8 +271,9 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
       setPendingMedia(null);
     } finally {
       setIsSending(false);
+      focusTextarea();
     }
-  }, [contactId, sendMedia, pendingMedia]);
+  }, [contactId, sendMedia, pendingMedia, focusTextarea]);
 
   const insertEmoji = (emoji: string) => {
     const textarea = textareaRef.current;
@@ -371,7 +379,8 @@ export function ChatInput({ contactId, replyToMessage, onCancelReply, editingMes
     const file = new File([audioBlob], `audio_${Date.now()}.${extension}`, { type: mimeType });
     await sendMedia(contactId, file, 'ptt');
     setIsRecording(false);
-  }, [contactId, sendMedia]);
+    focusTextarea();
+  }, [contactId, sendMedia, focusTextarea]);
 
   // Audio recording mode
   if (isRecording) {
