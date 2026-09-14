@@ -455,8 +455,9 @@ async function enqueueHistoryRun(
   let groupMessages = 0;
   let duplicateMessages = 0;
 
-  // ---- Pré-filtro 1: descartar grupos (zero query) ----
+  // ---- Pré-filtro 1: descartar grupos, canais (@newsletter) e transmissões (@broadcast) ----
   const nonGroupMessages: any[] = [];
+  let channelMessages = 0;
   for (const msg of rawMessages) {
     const remoteJid: string = msg?.key?.remoteJid ?? msg?.remoteJid ?? msg?.chatId ?? msg?.chatid ?? '';
     if (!remoteJid) continue;
@@ -464,10 +465,20 @@ async function enqueueHistoryRun(
       groupMessages++;
       continue;
     }
+    // Canais/comunidades e listas de transmissão não são contatos — o id (ex.: 120363...)
+    // não é telefone e não pode virar conversa na lista de atendimentos.
+    const channelJids = [remoteJid, msg?.sender, msg?.wa_chatid, msg?.from, msg?.to];
+    if (channelJids.some((j) => typeof j === 'string' && isNonPhoneJid(j) && !j.toLowerCase().includes('@lid'))) {
+      channelMessages++;
+      continue;
+    }
     nonGroupMessages.push(msg);
   }
   if (groupMessages > 0) {
     console.log(`[history-enqueue] groups skipped=${groupMessages} of total=${totalMessages} client=${queue.client_id}`);
+  }
+  if (channelMessages > 0) {
+    console.log(`[history-enqueue] channels/broadcast skipped=${channelMessages} of total=${totalMessages} client=${queue.client_id}`);
   }
 
   // ---- Pré-filtro 2: dedup contra chat_messages.external_id (1 SELECT em batch) ----
