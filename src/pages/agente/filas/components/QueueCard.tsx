@@ -315,6 +315,15 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
         open={accessOpen}
         onOpenChange={setAccessOpen}
       />
+
+      {canMigrate && (
+        <MigrateQueueConversationsDialog
+          open={migrateOpen}
+          onOpenChange={setMigrateOpen}
+          queue={queue}
+          otherQueues={migrationTargets}
+        />
+      )}
     </Card>
   );
 }

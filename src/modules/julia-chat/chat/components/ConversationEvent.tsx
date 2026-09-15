@@ -150,6 +150,17 @@ export function getEventConfig(entry: ConversationHistoryEntry): RenderedConfig 
         label: `Conversa anterior encerrada (contato mudou de fila)`,
         color: 'text-blue-600 bg-blue-500/10 border-blue-500/20',
       };
+    case 'queue_migrated': {
+      const from = entry.from_value?.trim();
+      const to = entry.to_value?.trim();
+      return {
+        icon: <ArrowRightLeft className="h-3 w-3" />,
+        label: from && to
+          ? `${actor} migrou a conversa da fila ${from} para ${to}`
+          : `${actor} migrou a conversa de fila`,
+        color: 'text-sky-600 bg-sky-500/10 border-sky-500/20',
+      };
+    }
     default:
       if (ACTION_LABELS[entry.action]) {
         return {
