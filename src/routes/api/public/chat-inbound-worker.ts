@@ -22,9 +22,11 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { createClient } from '@supabase/supabase-js';
 
-const BATCH_SIZE = 250;
-const CONCURRENCY = 50;
+const BATCH_SIZE = 100;
+const CONCURRENCY = 8;
 const MAX_ATTEMPTS = 5;
+// Timeouts por sobrecarga do webhook não devem descartar a mensagem tão cedo.
+const TIMEOUT_MAX_ATTEMPTS = 12;
 const LOCK_STALE_MS = 5 * 60_000;
 /** Tempo máximo por item: um evento lento não pode travar o lote. */
 const ITEM_TIMEOUT_MS = 30_000;
@@ -426,8 +428,13 @@ async function runWorker(request: Request): Promise<Response> {
     } catch (err) {
       const aborted = (err as Error)?.name === 'AbortError';
       const message = (aborted ? `tempo esgotado (${ITEM_TIMEOUT_MS}ms)` : String((err as Error)?.message ?? 'erro desconhecido')).slice(0, 500);
-      const giveUp = attempts >= MAX_ATTEMPTS;
-      const delayMs = Math.min(8, 2 ** (attempts - 1)) * 60_000;
+      // Timeout/504 é sobrecarga momentânea, não payload inválido: mais tentativas
+      // e reagendamento curto para não descartar mensagem do cliente.
+      const overloaded = aborted || / (504|502|503):/.test(` ${message}`);
+      const giveUp = attempts >= (overloaded ? TIMEOUT_MAX_ATTEMPTS : MAX_ATTEMPTS);
+      const delayMs = overloaded
+        ? Math.min(4, 2 ** (attempts - 1)) * 15_000
+        : Math.min(8, 2 ** (attempts - 1)) * 60_000;
       await supabase
         .from('chat_inbound_queue')
         .update({
