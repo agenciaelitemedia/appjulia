@@ -44,6 +44,7 @@ export const CONVERSATION_EVENT_ACTIONS: Array<{ action: string; sampleLabel: st
   { action: 'auto_returned', sampleLabel: 'devolveu a conversa à fila automaticamente' },
   { action: 'returned_to_queue', sampleLabel: 'devolveu a conversa para a fila de atendimento' },
   { action: 'auto_resolved_queue_switch', sampleLabel: 'encerrou conversa anterior (mudou de fila)' },
+  { action: 'queue_migrated', sampleLabel: 'migrou a conversa da fila X para a fila Y' },
   { action: 'note_added', sampleLabel: 'adicionou uma nota' },
   { action: 'note_updated', sampleLabel: 'editou uma nota' },
   { action: 'note_deleted', sampleLabel: 'removeu uma nota' },
