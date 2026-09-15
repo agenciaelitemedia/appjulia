@@ -564,6 +564,43 @@ serve(async (req) => {
         return respond({ success: true, migrated_count: migrated?.length || 0 });
       }
 
+      // ==========================================
+      // MIGRATE conversations between queues (v2)
+      // analyze = dry-run com totais; commit = aplica em lotes,
+      // registra histórico por conversa e log em chat_queue_migrations.
+      // ==========================================
+      case 'migrate_conversations_analyze':
+      case 'migrate_conversations_commit': {
+        const v = validateMigrationInput(data);
+        if (!v.ok) return respond({ error: v.error }, 400);
+        const input = v.data;
+
+        const { data: queuePair, error: qErr } = await supabase
+          .from('queues')
+          .select('id, name, client_id, is_deleted')
+          .in('id', [input.from_queue_id, input.to_queue_id]);
+        if (qErr) throw qErr;
+        const src = (queuePair || []).find((q: any) => q.id === input.from_queue_id);
+        const dst = (queuePair || []).find((q: any) => q.id === input.to_queue_id);
+        if (!src) return respond({ error: 'Fila de origem não encontrada' }, 404);
+        if (!dst) return respond({ error: 'Fila de destino não encontrada' }, 404);
+        if (dst.is_deleted) return respond({ error: 'Fila de destino está excluída' }, 400);
+        if (String(src.client_id) !== String(input.client_id) || String(dst.client_id) !== String(input.client_id)) {
+          return respond({ error: 'As filas não pertencem a este escritório' }, 403);
+        }
+
+        if (action === 'migrate_conversations_analyze') {
+          const result = await analyzeQueueMigration(supabase, input);
+          return respond({ success: true, ...result });
+        }
+
+        const result = await commitQueueMigration(supabase, input, {
+          fromName: src.name ?? null,
+          toName: dst.name ?? null,
+        });
+        return respond({ success: true, ...result });
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
