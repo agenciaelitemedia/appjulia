@@ -348,7 +348,7 @@ Deno.serve(async (req) => {
       dlRes = await callDownload(externalId);
 
       // 404 → try to recover via /message/find once, then retry
-      if (dlRes.status === 404 && !originalMessageId) {
+      if (dlRes.status === 404) {
         const recovered = await tryRecoverExternalId();
         if (recovered && recovered !== externalId) {
           externalId = recovered;
