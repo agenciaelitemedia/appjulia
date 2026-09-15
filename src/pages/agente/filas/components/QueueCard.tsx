@@ -8,7 +8,7 @@ import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, R
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Queue } from '../hooks/useQueues';
-import { useQueueMutations } from '../hooks/useQueues';
+import { useQueueMutations, useQueues } from '../hooks/useQueues';
 import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
@@ -50,11 +50,16 @@ interface QueueCardProps {
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [migrateOpen, setMigrateOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const canDelete = isOwnerUser(user);
+  // Migração de conversas: só dono do escritório ou admin.
+  const canMigrate = isOwnerUser(user) || user?.role === 'admin';
+  const { data: allQueues = [] } = useQueues(false);
+  const migrationTargets = allQueues.filter((q) => q.id !== queue.id && !q.is_deleted);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
   const { flags: clientFlags } = useClientAutomationFlags();
   const { updateQueue } = useQueueMutations();
