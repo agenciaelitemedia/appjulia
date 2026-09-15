@@ -369,13 +369,25 @@ Deno.serve(async (req) => {
     if (!dlRes.ok) {
       const txt = await dlRes.text();
       console.error("[chat-media-download] UaZapi error:", dlRes.status, txt);
-      // Classify: 503 / disconnected / 5xx → transient. 404 → permanent.
+      // Classify: 503 / disconnected / 5xx → transient.
+      // 404 pode ser temporário (id ainda não indexado no provedor): só desiste
+      // depois de MEDIA_404_MAX tentativas registradas na própria mensagem.
       const isTransient = dlRes.status === 503 || dlRes.status >= 500 || /disconnect/i.test(txt);
-      const isPermanent = dlRes.status === 404 && !isTransient;
-      if (isPermanent) {
+      const MEDIA_404_MAX = 4;
+      let isPermanent = false;
+      if (dlRes.status === 404 && !isTransient) {
+        const prev = Number((msg.metadata as any)?.media_404_attempts ?? 0) + 1;
+        isPermanent = prev >= MEDIA_404_MAX;
         await supabase
           .from("chat_messages")
-          .update({ metadata: { ...(msg.metadata || {}), media_unavailable: true } })
+          .update({
+            metadata: {
+              ...(msg.metadata || {}),
+              media_404_attempts: prev,
+              media_404_last_at: new Date().toISOString(),
+              ...(isPermanent ? { media_unavailable: true } : {}),
+            },
+          })
           .eq("id", msg.id);
       }
       return respond({
