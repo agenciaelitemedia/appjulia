@@ -823,6 +823,8 @@ async function commitQueueMigration(
     const okRows = rows.filter((r: any) => okSet.has(r.id));
     skipped += rows.length - okRows.length;
     migrated += okRows.length;
+    // Nada foi atualizado: evita laço infinito com linhas que não passam na guarda.
+    if (okRows.length === 0) break;
 
     if (okRows.length > 0) {
       for (const r of okRows) if (r.contact_id) contactIds.add(r.contact_id);
