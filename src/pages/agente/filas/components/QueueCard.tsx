@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain, Copy, Check, Webhook } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain, Copy, Check, Webhook, ArrowRightLeft } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Queue } from '../hooks/useQueues';
@@ -13,6 +13,7 @@ import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { QueueAccessDialog } from './QueueAccessDialog';
+import { MigrateQueueConversationsDialog } from './MigrateQueueConversationsDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -156,6 +157,11 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                   <DropdownMenuItem onClick={() => setAccessOpen(true)}>
                     <ShieldCheck className="mr-2 h-4 w-4" /> Acessos
                   </DropdownMenuItem>
+                  {canMigrate && (
+                    <DropdownMenuItem onClick={() => setMigrateOpen(true)}>
+                      <ArrowRightLeft className="mr-2 h-4 w-4" /> Migrar Conversas
+                    </DropdownMenuItem>
+                  )}
                   {hasWabaCreds && (
                     <DropdownMenuItem onClick={handleResubscribeWebhook} disabled={subscribing}>
                       <Webhook className="mr-2 h-4 w-4" /> Reinscrever webhook Meta
