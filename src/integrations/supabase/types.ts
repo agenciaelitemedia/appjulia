@@ -2828,6 +2828,66 @@ export type Database = {
           },
         ]
       }
+      chat_queue_migrations: {
+        Row: {
+          actor_name: string | null
+          actor_user_id: number | null
+          analyzed_count: number
+          assignee_mode: string
+          batch_id: string
+          client_id: string
+          contacts_moved: number
+          created_at: string
+          filters: Json
+          from_queue_id: string
+          from_queue_name: string | null
+          id: string
+          migrated_count: number
+          skipped_count: number
+          to_queue_id: string
+          to_queue_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          actor_name?: string | null
+          actor_user_id?: number | null
+          analyzed_count?: number
+          assignee_mode?: string
+          batch_id: string
+          client_id: string
+          contacts_moved?: number
+          created_at?: string
+          filters?: Json
+          from_queue_id: string
+          from_queue_name?: string | null
+          id?: string
+          migrated_count?: number
+          skipped_count?: number
+          to_queue_id: string
+          to_queue_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actor_name?: string | null
+          actor_user_id?: number | null
+          analyzed_count?: number
+          assignee_mode?: string
+          batch_id?: string
+          client_id?: string
+          contacts_moved?: number
+          created_at?: string
+          filters?: Json
+          from_queue_id?: string
+          from_queue_name?: string | null
+          id?: string
+          migrated_count?: number
+          skipped_count?: number
+          to_queue_id?: string
+          to_queue_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chat_return_chat_runs: {
         Row: {
           candidates: number

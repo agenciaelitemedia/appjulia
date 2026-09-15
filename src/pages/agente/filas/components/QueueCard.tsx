@@ -4,15 +4,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain, Copy, Check, Webhook } from 'lucide-react';
+import { MessageSquare, Phone, Globe, Instagram, MoreVertical, Pencil, Trash2, RotateCcw, WifiOff, ShieldCheck, Brain, Copy, Check, Webhook, ArrowRightLeft } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Queue } from '../hooks/useQueues';
-import { useQueueMutations } from '../hooks/useQueues';
+import { useQueueMutations, useQueues } from '../hooks/useQueues';
 import { useClientAutomationFlags } from '@/hooks/useClientAutomationFlags';
 import { UazapiInstanceStatus } from './UazapiInstanceStatus';
 import { DisconnectWabaDialog } from './DisconnectWabaDialog';
 import { QueueAccessDialog } from './QueueAccessDialog';
+import { MigrateQueueConversationsDialog } from './MigrateQueueConversationsDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -49,11 +50,16 @@ interface QueueCardProps {
 export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps) {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [migrateOpen, setMigrateOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const canDelete = isOwnerUser(user);
+  // Migração de conversas: só dono do escritório ou admin.
+  const canMigrate = isOwnerUser(user) || user?.role === 'admin';
+  const { data: allQueues = [] } = useQueues(false);
+  const migrationTargets = allQueues.filter((q) => q.id !== queue.id && !q.is_deleted);
   const hasWabaCreds = queue.channel_type === 'waba' && !!queue.waba_token;
   const { flags: clientFlags } = useClientAutomationFlags();
   const { updateQueue } = useQueueMutations();
@@ -156,6 +162,11 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
                   <DropdownMenuItem onClick={() => setAccessOpen(true)}>
                     <ShieldCheck className="mr-2 h-4 w-4" /> Acessos
                   </DropdownMenuItem>
+                  {canMigrate && (
+                    <DropdownMenuItem onClick={() => setMigrateOpen(true)}>
+                      <ArrowRightLeft className="mr-2 h-4 w-4" /> Migrar Conversas
+                    </DropdownMenuItem>
+                  )}
                   {hasWabaCreds && (
                     <DropdownMenuItem onClick={handleResubscribeWebhook} disabled={subscribing}>
                       <Webhook className="mr-2 h-4 w-4" /> Reinscrever webhook Meta
@@ -304,6 +315,15 @@ export function QueueCard({ queue, onEdit, onDelete, onRestore }: QueueCardProps
         open={accessOpen}
         onOpenChange={setAccessOpen}
       />
+
+      {canMigrate && (
+        <MigrateQueueConversationsDialog
+          open={migrateOpen}
+          onOpenChange={setMigrateOpen}
+          queue={queue}
+          otherQueues={migrationTargets}
+        />
+      )}
     </Card>
   );
 }

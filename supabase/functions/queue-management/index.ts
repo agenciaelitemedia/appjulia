@@ -564,6 +564,43 @@ serve(async (req) => {
         return respond({ success: true, migrated_count: migrated?.length || 0 });
       }
 
+      // ==========================================
+      // MIGRATE conversations between queues (v2)
+      // analyze = dry-run com totais; commit = aplica em lotes,
+      // registra histórico por conversa e log em chat_queue_migrations.
+      // ==========================================
+      case 'migrate_conversations_analyze':
+      case 'migrate_conversations_commit': {
+        const v = validateMigrationInput(data);
+        if (!v.ok) return respond({ error: v.error }, 400);
+        const input = v.data;
+
+        const { data: queuePair, error: qErr } = await supabase
+          .from('queues')
+          .select('id, name, client_id, is_deleted')
+          .in('id', [input.from_queue_id, input.to_queue_id]);
+        if (qErr) throw qErr;
+        const src = (queuePair || []).find((q: any) => q.id === input.from_queue_id);
+        const dst = (queuePair || []).find((q: any) => q.id === input.to_queue_id);
+        if (!src) return respond({ error: 'Fila de origem não encontrada' }, 404);
+        if (!dst) return respond({ error: 'Fila de destino não encontrada' }, 404);
+        if (dst.is_deleted) return respond({ error: 'Fila de destino está excluída' }, 400);
+        if (String(src.client_id) !== String(input.client_id) || String(dst.client_id) !== String(input.client_id)) {
+          return respond({ error: 'As filas não pertencem a este escritório' }, 403);
+        }
+
+        if (action === 'migrate_conversations_analyze') {
+          const result = await analyzeQueueMigration(supabase, input);
+          return respond({ success: true, ...result });
+        }
+
+        const result = await commitQueueMigration(supabase, input, {
+          fromName: src.name ?? null,
+          toName: dst.name ?? null,
+        });
+        return respond({ success: true, ...result });
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
@@ -580,4 +617,284 @@ function respond(body: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+// ============================================
+// Migração de conversas entre filas
+// ============================================
+
+const MIGRATION_STATUSES = ['pending', 'open', 'resolved', 'closed'] as const;
+type MigrationStatus = (typeof MIGRATION_STATUSES)[number];
+
+interface MigrationInput {
+  client_id: string;
+  from_queue_id: string;
+  to_queue_id: string;
+  statuses: MigrationStatus[];
+  start?: string | null;
+  end?: string | null;
+  /** 'all' | 'unassigned' | '<nome do responsável>' */
+  assigned_filter: string;
+  assignee_mode: 'keep' | 'return_queue';
+  move_contacts: boolean;
+  actor_name: string | null;
+  actor_user_id: number | null;
+}
+
+function isISODate(d: unknown): boolean {
+  return typeof d === 'string' && !Number.isNaN(Date.parse(d));
+}
+
+// deno-lint-ignore no-explicit-any
+function validateMigrationInput(data: any): { ok: true; data: MigrationInput } | { ok: false; error: string } {
+  if (!data || typeof data !== 'object') return { ok: false, error: 'payload inválido' };
+  const clientId = data.client_id;
+  if (typeof clientId !== 'string' || !clientId.trim()) return { ok: false, error: 'client_id inválido' };
+  if (typeof data.from_queue_id !== 'string' || !data.from_queue_id.trim()) {
+    return { ok: false, error: 'from_queue_id inválido' };
+  }
+  if (typeof data.to_queue_id !== 'string' || !data.to_queue_id.trim()) {
+    return { ok: false, error: 'to_queue_id inválido' };
+  }
+  if (data.from_queue_id === data.to_queue_id) {
+    return { ok: false, error: 'A fila de destino deve ser diferente da fila de origem' };
+  }
+  const statuses = Array.isArray(data.statuses) ? data.statuses : [];
+  if (
+    statuses.length === 0 ||
+    statuses.some((s: unknown) => !MIGRATION_STATUSES.includes(s as MigrationStatus))
+  ) {
+    return { ok: false, error: 'statuses inválidos' };
+  }
+  if (data.start != null && !isISODate(data.start)) return { ok: false, error: 'data inicial inválida' };
+  if (data.end != null && !isISODate(data.end)) return { ok: false, error: 'data final inválida' };
+  if (data.start && data.end && Date.parse(data.start) > Date.parse(data.end)) {
+    return { ok: false, error: 'data inicial maior que a final' };
+  }
+  const assignedFilter = typeof data.assigned_filter === 'string' && data.assigned_filter.trim()
+    ? data.assigned_filter.trim()
+    : 'all';
+  const assigneeMode = data.assignee_mode === 'return_queue' ? 'return_queue' : 'keep';
+
+  return {
+    ok: true,
+    data: {
+      client_id: clientId,
+      from_queue_id: data.from_queue_id,
+      to_queue_id: data.to_queue_id,
+      statuses: Array.from(new Set(statuses)) as MigrationStatus[],
+      start: data.start ?? null,
+      end: data.end ?? null,
+      assigned_filter: assignedFilter,
+      assignee_mode: assigneeMode,
+      move_contacts: data.move_contacts !== false,
+      actor_name: typeof data.actor_name === 'string' && data.actor_name.trim() ? data.actor_name.trim() : null,
+      actor_user_id:
+        data.actor_user_id != null && Number.isFinite(Number(data.actor_user_id))
+          ? Number(data.actor_user_id)
+          : null,
+    },
+  };
+}
+
+// deno-lint-ignore no-explicit-any
+function applyMigrationFilters(query: any, input: MigrationInput) {
+  query = query
+    .eq('client_id', input.client_id)
+    .eq('queue_id', input.from_queue_id)
+    .in('status', input.statuses);
+  if (input.start) query = query.gte('opened_at', input.start);
+  if (input.end) query = query.lte('opened_at', input.end);
+  const who = input.assigned_filter;
+  if (who === 'unassigned') {
+    query = query.is('assigned_to', null);
+  } else if (who && who !== 'all') {
+    query = query.eq('assigned_to', who);
+  }
+  return query;
+}
+
+const MIGRATION_PAGE = 1000;
+const MIGRATION_MAX = 50000;
+const MIGRATION_BATCH = 200;
+
+// deno-lint-ignore no-explicit-any
+async function analyzeQueueMigration(supabase: any, input: MigrationInput) {
+  const rows: Array<{
+    id: string;
+    contact_id: string | null;
+    assigned_to: string | null;
+    status: string;
+    opened_at: string | null;
+  }> = [];
+
+  for (let from = 0; from < MIGRATION_MAX; from += MIGRATION_PAGE) {
+    let q = supabase
+      .from('chat_conversations')
+      .select('id, contact_id, assigned_to, status, opened_at')
+      .order('opened_at', { ascending: true })
+      .range(from, from + MIGRATION_PAGE - 1);
+    q = applyMigrationFilters(q, input);
+    const { data, error } = await q;
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < MIGRATION_PAGE) break;
+  }
+
+  const byStatus: Record<string, number> = {};
+  const byAssignee: Record<string, number> = {};
+  const contacts = new Set<string>();
+  let oldest: string | null = null;
+  let newest: string | null = null;
+
+  for (const r of rows) {
+    byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+    const who = r.assigned_to && r.assigned_to.trim() ? r.assigned_to : 'Sem responsável (Julia)';
+    byAssignee[who] = (byAssignee[who] ?? 0) + 1;
+    if (r.contact_id) contacts.add(r.contact_id);
+    if (r.opened_at) {
+      if (!oldest || r.opened_at < oldest) oldest = r.opened_at;
+      if (!newest || r.opened_at > newest) newest = r.opened_at;
+    }
+  }
+
+  return {
+    total: rows.length,
+    capped: rows.length >= MIGRATION_MAX,
+    byStatus,
+    byAssignee,
+    contacts: input.move_contacts ? contacts.size : 0,
+    oldest,
+    newest,
+  };
+}
+
+// deno-lint-ignore no-explicit-any
+async function commitQueueMigration(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  input: MigrationInput,
+  names: { fromName: string | null; toName: string | null },
+) {
+  const batchId = crypto.randomUUID();
+  const actorName = input.actor_name ?? 'Sistema';
+  const returnToQueue = input.assignee_mode === 'return_queue';
+
+  let migrated = 0;
+  let skipped = 0;
+  let analyzed = 0;
+  const contactIds = new Set<string>();
+
+  for (let iter = 0; iter < 500; iter++) {
+    let q = supabase
+      .from('chat_conversations')
+      .select('id, contact_id, assigned_to, assigned_user_id, status')
+      .order('opened_at', { ascending: true })
+      .limit(MIGRATION_BATCH);
+    q = applyMigrationFilters(q, input);
+    const { data: rows, error } = await q;
+    if (error) throw error;
+    if (!rows || rows.length === 0) break;
+    analyzed += rows.length;
+
+    const ids = rows.map((r: any) => r.id);
+    const now = new Date().toISOString();
+
+    const updates: Record<string, unknown> = { queue_id: input.to_queue_id, updated_at: now };
+    if (returnToQueue) {
+      updates.assigned_to = null;
+      updates.assigned_user_id = null;
+      updates.status = 'pending';
+    }
+
+    let upQuery = supabase
+      .from('chat_conversations')
+      .update(updates)
+      .in('id', ids)
+      .eq('queue_id', input.from_queue_id)
+      .in('status', input.statuses);
+    // Ao devolver para a fila, só rebaixa conversas que ainda estão ativas.
+    if (returnToQueue) upQuery = upQuery.in('status', ['pending', 'open']);
+    const { data: updated, error: upErr } = await upQuery.select('id');
+    if (upErr) throw upErr;
+
+    const okSet = new Set((updated ?? []).map((r: any) => r.id));
+    const okRows = rows.filter((r: any) => okSet.has(r.id));
+    skipped += rows.length - okRows.length;
+    migrated += okRows.length;
+    // Nada foi atualizado: evita laço infinito com linhas que não passam na guarda.
+    if (okRows.length === 0) break;
+
+    if (okRows.length > 0) {
+      for (const r of okRows) if (r.contact_id) contactIds.add(r.contact_id);
+
+      const historyRows = okRows.map((r: any) => ({
+        conversation_id: r.id,
+        action: 'queue_migrated',
+        actor_name: actorName,
+        user_id: input.actor_user_id,
+        from_value: names.fromName,
+        to_value: names.toName,
+        notes: `Conversa migrada da fila ${names.fromName ?? input.from_queue_id} para ${names.toName ?? input.to_queue_id} por ${actorName}${returnToQueue ? ' (devolvida para a fila)' : ''} (lote ${batchId})`,
+        created_at: now,
+      }));
+      const { error: hErr } = await supabase.from('chat_conversation_history').insert(historyRows);
+      if (hErr) console.warn('[queue-management] falha ao gravar histórico de migração:', hErr.message);
+    }
+
+    if (rows.length < MIGRATION_BATCH) break;
+  }
+
+  // Move o vínculo de canal dos contatos para a fila de destino (mensagens novas já caem na fila nova).
+  let contactsMoved = 0;
+  if (input.move_contacts && contactIds.size > 0) {
+    const all = Array.from(contactIds);
+    for (let i = 0; i < all.length; i += 500) {
+      const chunk = all.slice(i, i + 500);
+      const { data: moved, error: cErr } = await supabase
+        .from('chat_contacts')
+        .update({ channel_source: input.to_queue_id, updated_at: new Date().toISOString() })
+        .in('id', chunk)
+        .eq('client_id', input.client_id)
+        .select('id');
+      if (cErr) {
+        console.warn('[queue-management] falha ao mover contatos:', cErr.message);
+        break;
+      }
+      contactsMoved += (moved ?? []).length;
+    }
+  }
+
+  const { error: logErr } = await supabase.from('chat_queue_migrations').insert({
+    client_id: input.client_id,
+    from_queue_id: input.from_queue_id,
+    from_queue_name: names.fromName,
+    to_queue_id: input.to_queue_id,
+    to_queue_name: names.toName,
+    actor_name: actorName,
+    actor_user_id: input.actor_user_id,
+    filters: {
+      statuses: input.statuses,
+      start: input.start,
+      end: input.end,
+      assigned_filter: input.assigned_filter,
+      move_contacts: input.move_contacts,
+    },
+    assignee_mode: input.assignee_mode,
+    analyzed_count: analyzed,
+    migrated_count: migrated,
+    skipped_count: skipped,
+    contacts_moved: contactsMoved,
+    batch_id: batchId,
+  });
+  if (logErr) console.warn('[queue-management] falha ao gravar log de migração:', logErr.message);
+
+  return {
+    batch_id: batchId,
+    migrated,
+    skipped,
+    analyzed,
+    contacts_moved: contactsMoved,
+  };
 }

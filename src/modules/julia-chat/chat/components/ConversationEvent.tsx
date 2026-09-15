@@ -44,6 +44,7 @@ export const CONVERSATION_EVENT_ACTIONS: Array<{ action: string; sampleLabel: st
   { action: 'auto_returned', sampleLabel: 'devolveu a conversa à fila automaticamente' },
   { action: 'returned_to_queue', sampleLabel: 'devolveu a conversa para a fila de atendimento' },
   { action: 'auto_resolved_queue_switch', sampleLabel: 'encerrou conversa anterior (mudou de fila)' },
+  { action: 'queue_migrated', sampleLabel: 'migrou a conversa da fila X para a fila Y' },
   { action: 'note_added', sampleLabel: 'adicionou uma nota' },
   { action: 'note_updated', sampleLabel: 'editou uma nota' },
   { action: 'note_deleted', sampleLabel: 'removeu uma nota' },
@@ -150,6 +151,17 @@ export function getEventConfig(entry: ConversationHistoryEntry): RenderedConfig 
         label: `Conversa anterior encerrada (contato mudou de fila)`,
         color: 'text-blue-600 bg-blue-500/10 border-blue-500/20',
       };
+    case 'queue_migrated': {
+      const from = entry.from_value?.trim();
+      const to = entry.to_value?.trim();
+      return {
+        icon: <ArrowRightLeft className="h-3 w-3" />,
+        label: from && to
+          ? `${actor} migrou a conversa da fila ${from} para ${to}`
+          : `${actor} migrou a conversa de fila`,
+        color: 'text-sky-600 bg-sky-500/10 border-sky-500/20',
+      };
+    }
     default:
       if (ACTION_LABELS[entry.action]) {
         return {
